@@ -22,7 +22,7 @@ Every project builds up a pile of "we should do X someday" — in your head, in 
 Inside Claude Code, run:
 
 ```
-/plugin marketplace add V-Songbird/claude-plugins
+/plugin marketplace add V-Songbird/foundry
 /plugin install foreman
 ```
 
