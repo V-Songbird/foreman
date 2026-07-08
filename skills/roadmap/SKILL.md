@@ -86,10 +86,13 @@ when the user signals it; a task that's merely lower-priority stays
 **Q2** — "How do you want to run this?" — ask this now, before the prompt
 exists, not after. There is nothing to preview yet; the destination decides
 how the prompt gets built and delivered, not the other way around.
-Options:
+Options, in this order:
+- `Copy prompt to clipboard (Recommended)` — just get the text, no
+  execution. Leads because nothing starts and the entry stays `planned`
+  until someone actually runs the prompt (see step 4 below) — picking a
+  task is not the same as starting it.
 - `Execute with TaskCreate` — track it and work it in this session
 - `Execute with a background Agent` — offload it, get notified on completion
-- `Copy prompt to clipboard` — just get the text, no execution
 
 **Never call `mcp__ccd_session__spawn_task`** — it has a known bug where
 tasks spawned through it don't get MCP tools.
@@ -109,21 +112,33 @@ tasks spawned through it don't get MCP tools.
      same sentence twice. The remaining bullets, tone, and the verification
      command — ask the same way `craft-prompt` does only if genuinely not
      inferable from the entry; don't turn this into a second interview.
+   - Add one more fixed paragraph right after `scope_discipline`, naming
+     this entry's id, so the destination session — not Foreman — is the one
+     that flips it to `in_progress`:
+     "This task is ROADMAP.jsonl entry `<id>`. Mark it `in_progress` before
+     doing anything else — Foreman's picking flow deliberately leaves it
+     `planned` until you do:
+     `echo '{"id":"<id>","status":"in_progress"}' | node
+     ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`"
 
    **Never paste or print the assembled XML prompt into your response
    text.** It is data for `TaskCreate`'s `description`, `Agent`'s `prompt`,
    or a temp file piped to clipboard — not something to show the user. The
    one exception is already below: the clipboard-fallback fenced block when
    no clipboard tool exists.
-4. Before handoff, mark it in progress:
-   `echo '{"id":"<id>","status":"in_progress"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
-   — so the commit hook's status-sync instruction has something to close
-   out later.
+4. **Foreman never marks the entry `in_progress` itself.** It stays
+   `planned` — even after this prompt is assembled, delivered, or copied —
+   until whichever session actually starts the work runs the
+   `update-status` call embedded in step 3 above. Picking or copying a task
+   is not the same as starting it; only the session that begins acting on
+   it should say so.
 5. Deliver via whatever Q2 picked:
    - **TaskCreate**: call `TaskCreate` with `subject` = a verb-first
      imperative ≤60 chars from the entry's `title`, `description` = the
-     assembled XML prompt. Work it in this session, `TaskUpdate` to
-     `in_progress` then `completed` as you go.
+     assembled XML prompt. Work it in this session — the prompt's own
+     embedded instruction (step 3 above) is what marks the roadmap entry
+     `in_progress`; still use `TaskUpdate` (a separate, session-local
+     tracker) for its own `in_progress`/`completed` transitions as you go.
    - **Background Agent**: call `Agent` with `prompt` = the assembled XML
      prompt, `description` = a 3-5 word summary, `run_in_background: true`.
    - **Clipboard**: `Write` the assembled prompt to a temp file first —

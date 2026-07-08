@@ -8,6 +8,19 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.15.1-alpha] — 2026-07-08
+
+### Fixed
+
+- Picking a task no longer marks it in progress right away. The roadmap
+  now only shows a task as in progress once a session actually starts
+  working it, not the moment it's picked or copied.
+
+### Changed
+
+- "Copy prompt to clipboard" is now the recommended choice when picking
+  the next task.
+
 ## [0.15.0-alpha] — 2026-07-08
 
 ### Added
