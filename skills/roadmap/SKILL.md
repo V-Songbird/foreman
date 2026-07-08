@@ -74,6 +74,15 @@ Options, one per candidate (already ranked, take the order as given):
 
 Plus the standard escape to describe something else not on the list.
 
+If the user waves a candidate off as "not yet", "later", or "not until
+X" — rather than just picking a different one — offer to mark it
+`deferred` so it stops resurfacing as a recommendation:
+`echo '{"id":"<id>","status":"deferred","notes":"deferred: <trigger>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
+(capture the trigger they named in `notes`). Then re-run
+`next-candidates` and re-ask Q1. Don't defer on your own judgment — only
+when the user signals it; a task that's merely lower-priority stays
+`planned`.
+
 **Q2** — "How do you want to run this?" — ask this now, before the prompt
 exists, not after. There is nothing to preview yet; the destination decides
 how the prompt gets built and delivered, not the other way around.
@@ -152,5 +161,6 @@ picking `Execute with TaskCreate` above, not this skill deciding on its own.
 
 Read-only. `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list`, render a
 compact list grouped by `status` (`in_progress` first, then `planned` —
-noting which are blocked and on what — then `done`, `dropped`, `rejected`
-last). No writes, no further questions.
+noting which are blocked and on what — then `deferred` (parked, with a word
+on what each is waiting for, drawn from its `why`/`notes`), then `done`,
+`dropped`, `rejected` last). No writes, no further questions.

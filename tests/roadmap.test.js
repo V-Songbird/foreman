@@ -89,6 +89,14 @@ describe('add', () => {
     assert.equal(status, 1);
     assert.match(json.error, /source must be one of/);
   });
+
+  test('rejects deferred as a create-time status', () => {
+    const { status, json } = run(['add'], {
+      title: 'a', why: 'a', what: 'a', source: 'user', status: 'deferred',
+    });
+    assert.equal(status, 1);
+    assert.match(json.error, /add status must be one of/);
+  });
 });
 
 describe('update-status', () => {
@@ -126,6 +134,12 @@ describe('update-status', () => {
     const { status, json } = run(['update-status'], { id: '001', status: 'cancelled' });
     assert.equal(status, 1);
     assert.match(json.error, /status must be one of/);
+  });
+
+  test('accepts deferred as a transition target', () => {
+    const { status, json } = run(['update-status'], { id: '001', status: 'deferred' });
+    assert.equal(status, 0);
+    assert.equal(json.entry.status, 'deferred');
   });
 
   test('folds add_touches into touches', () => {
@@ -343,6 +357,15 @@ describe('next-candidates', () => {
     ]);
     const { json } = run(['next-candidates']);
     assert.deepEqual(json.candidates.map((c) => c.id), ['003']);
+  });
+
+  test('excludes deferred tasks entirely', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'deferred one', status: 'deferred', depends_on: [], touches: [] },
+      { id: '002', title: 'planned one', status: 'planned', depends_on: [], touches: [] },
+    ]);
+    const { json } = run(['next-candidates']);
+    assert.deepEqual(json.candidates.map((c) => c.id), ['002']);
   });
 
   test('excludes planned tasks with an undone dependency', () => {

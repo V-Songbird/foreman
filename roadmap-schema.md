@@ -36,7 +36,7 @@ itself can't parse it to operate on it.
 | `title` | string | yes | Short imperative summary, e.g. `"Add JWT refresh middleware"`. |
 | `why` | string | yes | The rationale — the problem or need this task addresses. **Keep it to 1-2 sentences** (`roadmap.js` warns past ~240 chars) — this gets re-read on every `list`/`next-candidates` call, a wall of text multiplies cost across every future call, not just this one. |
 | `what` | string | yes | What the task concretely consists of. A bit more room than `why` (warns past ~400 chars) since concrete detail (paths, line ranges) belongs here — but still a description, not a design doc. |
-| `status` | enum | yes | `planned \| in_progress \| done \| dropped \| rejected`. See below. |
+| `status` | enum | yes | `planned \| in_progress \| deferred \| done \| dropped \| rejected`. See below. |
 | `source` | enum | yes | `user` (added directly by a person) or `claude-suggested` (originated from the commit-hook discovery flow). |
 | `depends_on` | array\<string\> | yes (may be `[]`) | Ids of tasks that must be `done` before this one is unblocked. |
 | `touches` | array\<string\> | yes (may be `[]`) | Flat file/area path hints, e.g. `"src/auth/middleware.ts"` or `"src/auth/"`. Plain strings only — no need for glob/AST matching at this scale, this is for eyeballed collision checks. Starts as a pre-work guess (may be an area-level hint, not exact); `update-status` folds in the real footprint two ways (**append-only**, same spirit as `commits` — never shrinks): automatically, whatever files the given `commit`'s own diff touched (`git show`, best-effort — silent if git or the sha is unavailable), plus optionally `add_touches` for anything outside that commit's diff. Still not required to be exhaustive: `commits[]` is the ground truth via `git show --stat`, `touches` is a convenience index on top of it, not a second ledger. |
@@ -47,8 +47,19 @@ itself can't parse it to operate on it.
 
 ### `status` values
 
-- `planned` — not started. May be blocked (see below).
+- `planned` — not started, and ready to be picked. May be blocked (see below).
 - `in_progress` — actively being worked.
+- `deferred` — recorded, but deliberately parked: it's waiting on an
+  external trigger the user hasn't marked as met (a prerequisite feature
+  shipping, a fourth copy appearing before an abstraction earns its keep, a
+  user actually asking for the thing). Kept on the roadmap so the intent
+  isn't lost, but **excluded from `next-candidates`** so it never surfaces as
+  a "do this next" pick. When the trigger fires, move it back to `planned`
+  via `update-status`. This is a judgment call the user (or Claude, on the
+  user's behalf) makes — unlike `blocked`, it can't be derived, because the
+  gating condition lives outside the roadmap. Use it instead of leaving a
+  "not yet" task as `planned`, where it would keep ranking as a candidate,
+  and instead of `dropped`, which means abandoned rather than postponed.
 - `done` — finished; `commits` should be non-empty.
 - `dropped` — was `planned`/`in_progress`, later decided not worth doing.
 - `rejected` — a `claude-suggested` entry the user explicitly declined at
@@ -59,7 +70,9 @@ itself can't parse it to operate on it.
 **There is no stored `blocked` status.** Blocked-ness is derived at read
 time: a `planned` task with any `depends_on` id whose entry isn't `done` yet
 is blocked. Computing this live means there's one less state that can drift
-out of sync with reality.
+out of sync with reality. `deferred` is different — it's a *stored*
+decision, not a derived one, precisely because its trigger condition can't
+be read off the roadmap graph.
 
 ---
 

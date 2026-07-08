@@ -53,11 +53,11 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-const STATUSES = new Set(["planned", "in_progress", "done", "dropped", "rejected"]);
+const STATUSES = new Set(["planned", "in_progress", "deferred", "done", "dropped", "rejected"]);
 const SOURCES = new Set(["user", "claude-suggested"]);
 // A newly created entry only ever starts as planned or rejected — nothing
-// gets created already in_progress/done/dropped, those are transitions
-// applied later via update-status.
+// gets created already in_progress/deferred/done/dropped, those are
+// transitions applied later via update-status.
 const CREATE_STATUSES = new Set(["planned", "rejected"]);
 
 // Soft caps, not hard limits — every entry gets re-read on every `list`,
@@ -263,6 +263,9 @@ function cmdNextCandidates(root, filters) {
   }
 
   const unblocked = entries
+    // Only `planned` is a candidate — `deferred` is deliberately excluded
+    // here: it means "recorded but waiting on an external trigger the user
+    // hasn't marked as met", so it must not surface as a "do this next" pick.
     .filter((e) => e.status === "planned")
     .filter((e) => (e.depends_on || []).every((dep) => doneIds.has(dep)))
     .map((e) => ({
@@ -344,7 +347,9 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     source: "user" | "claude-suggested"
                     status (create-time only): "planned" (default) | "rejected"
   update-status     stdin JSON: {id, status, commit?, notes?, add_touches?}
-                    status: "planned" | "in_progress" | "done" | "dropped" | "rejected"
+                    status: "planned" | "in_progress" | "deferred" | "done" | "dropped" | "rejected"
+                    "deferred" = recorded but waiting on an external trigger;
+                    excluded from next-candidates until moved back to "planned"
                     if commit is given, touches auto-folds in that commit's
                     actual changed files (git show, best-effort, silent if
                     git/the sha is unavailable) -- add_touches adds more on

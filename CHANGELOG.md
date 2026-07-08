@@ -8,6 +8,18 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.15.0-alpha] — 2026-07-08
+
+### Added
+
+- Tasks can now be marked **deferred** — parked on the roadmap while they
+  wait on some trigger (a prerequisite shipping, real demand, a fourth
+  duplicate worth abstracting). Deferred tasks stay visible in a roadmap
+  review but no longer surface when you ask what to work on next, so
+  "someday" items stop being recommended ahead of ready work. When you
+  pick a task, you can wave off a "not yet" candidate and Foreman offers
+  to defer it on the spot.
+
 ## [0.14.4-alpha] — 2026-07-05
 
 ### Fixed
