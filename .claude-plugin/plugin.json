@@ -3,8 +3,8 @@
   "description": "Prompt-engineering and project-roadmap plugin. /foreman:craft-prompt builds self-contained Anthropic-grade prompts, carrying fixed truth_grounding and scope_discipline blocks plus any project-defined custom sections or section omissions. /foreman:init bootstraps a project's ROADMAP.jsonl and its Claude-suggestion policy. /foreman:roadmap picks the next task like an architect (top 3, ranked, one marked Recommended) and crafts its handoff prompt. /foreman:survey ground-truths the near-term candidates against the actual codebase, on demand, and persists any real finding back into the roadmap. .foreman/config.json's three flags (discoverySuggestions, usePersona, requireVerification) plus optional customSections/omitSections arrays are plain JSON, edited directly — declaration over detection, so any style plugin (hush, or any prompt-injection plugin) stays compatible without case-by-case handling; see the README. An opt-in, commit-triggered hook keeps roadmap status in sync and scans for both future opportunities and already-built scope creep; a second hook blocks direct edits to ROADMAP.jsonl, forcing changes through the CLI.",
   "license": "MIT",
   "author": {
-    "name": "Songbird",
-    "email": "songbird@tuta.com"
+    "name": "Victor Villegas",
+    "email": "victor.villegas@tuta.com"
   },
   "homepage": "https://github.com/V-Songbird/foreman",
   "repository": "https://github.com/V-Songbird/foreman",
