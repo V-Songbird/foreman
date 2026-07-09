@@ -119,7 +119,14 @@ tasks spawned through it don't get MCP tools.
      doing anything else — Foreman's picking flow deliberately leaves it
      `planned` until you do:
      `echo '{"id":"<id>","status":"in_progress"}' | node
-     ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`"
+     ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
+     When the work concludes, close the entry the same way — the status it
+     actually earned (`done`, `dropped`, `rejected`), your full findings in
+     `notes`, and the commit sha if one exists:
+     `echo '{"id":"<id>","status":"<status>","commit":"<sha>","notes":"<findings>"}' | node
+     ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
+     The entry's `notes` is where the depth lives; your final chat message
+     states the outcome and points at the entry."
 
    **Never paste or print the assembled XML prompt into your response
    text.** It is data for `TaskCreate`'s `description`, `Agent`'s `prompt`,

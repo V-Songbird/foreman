@@ -8,6 +8,29 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.16.0-alpha] — 2026-07-09
+
+### Added
+
+- `/foreman:init` now also asks whether other plugins already own the
+  persona and voice in your sessions, and writes the matching
+  `usePersona` / `omitSections` config so crafted prompts defer to them
+  from the start.
+- Roadmap handoff prompts now tell the destination session how to close
+  the entry when the work concludes — status, findings in `notes`, and
+  the commit — with the chat reply kept to the outcome plus a pointer at
+  the entry.
+
+### Changed
+
+- Handoff prompts now defer the final message's voice to whatever output
+  style governs the destination session, and route full findings to
+  their durable home (the roadmap entry, the commit message) rather than
+  the chat reply.
+- The default tone block now yields on its own when an output style
+  already governs the session's voice, even without an `omitSections`
+  opt-out.
+
 ## [0.15.2-alpha] — 2026-07-08
 
 Doc-only: plugin.json's description now matches the marketplace listing text. No behavior change.

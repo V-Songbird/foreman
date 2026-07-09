@@ -71,7 +71,7 @@ may have been written earlier and executed later (queued via TaskCreate, run
 by a background Agent, or pasted into a fresh session); treat every claim
 below as a hypothesis to confirm at the start of this session, never as a
 fact to assume. If reality contradicts this prompt, trust reality, name the
-discrepancy in your final report, and proceed from what you actually find.
+discrepancy in your final message, and proceed from what you actually find.
 </truth_grounding>
 
 <scope_discipline>
@@ -99,7 +99,8 @@ below.]
 full stop — it replaces everything below. Otherwise include: "Minimal,
 professional conversation — silent by default, say only what the user
 actually needs to know, simplify technical explanations, avoid unnecessary
-jargon." Projects where a style plugin (hush, or any third-party one) already governs
+jargon. If an output style already governs this session's voice, defer to
+it — this tone applies only in its absence." Projects where a style plugin (hush, or any third-party one) already governs
 tone in the destination session opt out via `omitSections: ["tone"]` —
 that's the `omit` check above, there is no plugin detection here.]
 </tone>
@@ -131,7 +132,7 @@ Constraints:
 Verification (REQUIRED):
 Run: [exact command — e.g. "npm test -- --testPathPattern=auth"]
 Expected: [pass/fail signal — e.g. "all tests pass", "exit code 0"]
-Do NOT report success without running this. If it fails, iterate until it passes.
+Do NOT claim success without running this. If it fails, iterate until it passes.
 </task_rules>
 
 [CUSTOM SECTIONS — inline each `sections[].xml` from `render-sections.js` here,
@@ -146,7 +147,7 @@ if Call 1 selected it.]
 
 [The immediate, specific request in one sentence.]
 
-Reason through the approach and edge cases in your thinking before editing — not in prose between tool calls. The steps and commands above are a working plan, not a narration script: whatever output style governs this session decides what you say aloud, so don't announce step transitions or restate command results in chat.
+Reason through the approach and edge cases in your thinking before editing — not in prose between tool calls. The steps and commands above are a working plan, not a narration script: whatever output style governs this session decides what you say aloud, so don't announce step transitions or restate command results in chat. The same style governs the register of your final message. Full evidence and findings belong in their durable home — the roadmap entry, the commit message, or the artifact the task names — with the final message stating the outcome and pointing there.
 
 [If `"output_format"` is in `omit`, drop this whole block unconditionally,
 even if Call 1 selected `Custom output format`.]
