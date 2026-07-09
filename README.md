@@ -41,7 +41,32 @@ You talk to Foreman in plain language — you never edit the roadmap file by han
 
 ## Under the hood
 
-If you're curious, the roadmap is just a plain file in your repo — the field-by-field details live in [`roadmap-schema.md`](roadmap-schema.md) if you ever want them.
+If you're curious, the roadmap is just a plain file in your repo — the field-by-field details live in [`roadmap-schema.md`](roadmap-schema.md) if you ever want them. Pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush): razor cuts the code, hush cuts the noise, Foreman writes the prompts.
+
+## Settings
+
+Most people never touch these — `/foreman:init` asks the questions and writes `.foreman/config.json` for you. The knobs, if you ever want them by hand:
+
+| Setting | What it does |
+| --- | --- |
+| `discoverySuggestions` | After each commit, offer new roadmap entries Claude spotted in the work. |
+| `usePersona` | Whether handoff prompts open with a "You are a…" role sentence, or plain domain framing. |
+| `omitSections` | Prompt sections to leave out entirely (`tone`, `example`, `background`, `output_format`). |
+| `requireVerification` | Hold off marking a task done after a commit until you confirm it's verified. |
+
+Running with razor and hush? The recommended shape is:
+
+```json
+{
+  "usePersona": false,
+  "omitSections": ["tone"]
+}
+```
+
+razor already gives the session its persona and hush already owns the voice, so Foreman's prompts stay out of both lanes. Add `"output_format"` to the list if hush should own the reply's shape too.
+
+> [!NOTE]
+> Foreman never detects which plugins you run — this file is you declaring the shape you want, and it works the same for any third-party style plugin.
 
 ## License
 

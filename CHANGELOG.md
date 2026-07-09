@@ -8,6 +8,10 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.16.1-alpha] — 2026-07-09
+
+Doc-only: the README now documents the config settings and the recommended shape when running alongside razor and hush. No behavior change.
+
 ## [0.16.0-alpha] — 2026-07-09
 
 ### Added
