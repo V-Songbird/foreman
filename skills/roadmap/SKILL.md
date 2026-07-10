@@ -203,8 +203,13 @@ picking `Execute with TaskCreate` above, not this skill deciding on its own.
 
 ## Branch: Review status
 
-Read-only. `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list`, render a
-compact list grouped by `status` (`in_progress` first, then `planned` —
-noting which are blocked and on what — then `deferred` (parked, with a word
-on what each is waiting for, drawn from its `why`/`notes`), then `done`,
-`dropped`, `rejected` last). No writes, no further questions.
+Read-only. `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --summary`
+— id/title/status/depends_on per entry, which is everything the render
+below needs; the full entries' prose would multiply the payload for
+nothing on a large roadmap. Render a compact list grouped by `status`
+(`in_progress` first, then `planned` — noting which are blocked and on
+what, derivable from `depends_on` plus the other entries' statuses — then
+`deferred`, then `done`, `dropped`, `rejected` last). If any `deferred`
+entries exist, fetch just those in full for the "waiting on what" word —
+`list --ids <deferred ids>` — drawn from their `why`/`notes`. No writes,
+no further questions.

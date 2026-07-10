@@ -42,7 +42,38 @@ function isGitCommit(command) {
 // tool_response/tool_output (tool_response is stdout text, a string, not an
 // object) -- the field this checked before was never real, so this always
 // silently failed open. Fail open still, on a genuinely absent field.
+//
+// An exit-preserving PreToolUse wrapper (hush's preserve-exit-code) forces
+// the shell's own exit to 0 and embeds the real code in the output text as
+// a marker triplet ([[hush:exit= / N / ]]); PostToolUse hooks across
+// plugins run in parallel, so this hook sees that raw marker, never a
+// corrected field. When a marker is present it is the truth and the
+// top-level 0 is not; absent marker, same field check as before.
+const WRAPPED_EXIT_RES = [
+  /\[\[hush:exit=\s*(-?\d+)\s*\]\]/, // raw marker triplet (\s* spans the newlines)
+  /\[hush: exit (-?\d+)\]/, // compressed form, in case ordering ever changes
+];
+
+function wrappedExitCode(data) {
+  const r = data?.tool_response;
+  const texts =
+    typeof r === "string"
+      ? [r]
+      : r && typeof r === "object"
+        ? [r.stdout, r.stderr, r.output].filter((t) => typeof t === "string")
+        : [];
+  for (const t of texts) {
+    for (const re of WRAPPED_EXIT_RES) {
+      const m = re.exec(t);
+      if (m) return parseInt(m[1], 10);
+    }
+  }
+  return undefined;
+}
+
 function commitFailed(data) {
+  const wrapped = wrappedExitCode(data);
+  if (typeof wrapped === "number") return wrapped !== 0;
   const code = data?.exit_code;
   return typeof code === "number" && code !== 0;
 }
@@ -91,7 +122,9 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification) {
           "whether this is actually verified and working. Only on confirmation, " +
           "close it out: " +
           `echo '{"id":"<id>","status":"done"}' | node ${SCRIPT_PATH} update-status. ` +
-          "If they say it's not ready, leave it in_progress — don't mark done."
+          "If they say it's not ready, leave it in_progress — don't mark done. " +
+          "If this session has no user to ask (a background agent), leave it " +
+          "in_progress too — the user confirms later."
       );
     } else {
       parts.push(
@@ -155,8 +188,9 @@ function discoveryBlock() {
     "Log it / Skip). " +
     "Never call " +
     "mcp__ccd_session__spawn_task — it has a known bug where tasks spawned " +
-    "through it don't get MCP tools. Never act without asking. Say nothing " +
-    "if nothing is confirmed."
+    "through it don't get MCP tools. Never act without asking. If this " +
+    "session has no user to ask (a background agent), skip the suggestions " +
+    "entirely. Say nothing if nothing is confirmed."
   );
 }
 
@@ -217,6 +251,7 @@ module.exports = {
   main,
   isGitCommit,
   commitFailed,
+  wrappedExitCode,
   readConfig,
   projectDir,
   statusSyncBlock,

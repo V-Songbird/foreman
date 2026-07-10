@@ -19,59 +19,38 @@ optional — it is the only way the handed-off work can act correctly.
 an instruction for the spawned session to act on later):**
 
 0. **One mechanical call covers persona/custom-sections/omissions.** Run
-   `node ${CLAUDE_PLUGIN_ROOT}/scripts/render-sections.js` — always, whether
-   or not a project root is in scope (it resolves one from
-   `$CLAUDE_PROJECT_DIR`/cwd regardless, and fails soft to defaults if no
-   `.foreman/config.json` exists there). It prints one JSON object:
+   `node ${CLAUDE_PLUGIN_ROOT}/scripts/render-sections.js` — always (it
+   resolves a project root from `$CLAUDE_PROJECT_DIR`/cwd and fails soft
+   to defaults when no `.foreman/config.json` exists). One JSON object:
    `{"usePersona": bool, "sections": [{"tag", "xml"}], "omit": [...],
-   "warnings": [...]}`. All of it is project **declaration**, never
-   detection — foreman does not inspect which style plugins (hush, or any
-   third-party one) the operator runs; a project that wants crafted
-   prompts to coexist with one simply declares the shape it wants here:
-   - `usePersona` — `.foreman/config.json`'s flag (default `true` if the
-     file or field is missing/unparseable; standalone use with no config in
-     scope also reads as `true`). Controls only the opening of
-     `task_context` below: persona sentence vs domain framing.
-   - `sections` / `omit` / `warnings` — `.foreman/config.json`'s optional
-     `customSections` array (`[{"tag": "...", "content": "..."}]`) and
-     optional `omitSections` array (`["tone", "example", "background",
-     "output_format"]` — only these four are ever valid, they're the
-     template's already-conditional tags; a guardrail like
-     `scope_discipline` or `truth_grounding` can never appear here), both
-     validated mechanically. Inline every `sections[].xml` value, in order,
-     verbatim, at the `[CUSTOM SECTIONS]` placeholder below — never invent,
-     edit, or reorder its content, that defeats the point of it being
-     project-defined. If `sections` is empty, remove the placeholder line
-     entirely. For every tag name in `omit`, drop that whole block from the
-     assembled prompt regardless of what Call 1's optional-section
-     selection or the entry's own fields would otherwise include — a
-     project-level `omitSections` always wins over a per-prompt selection,
-     since it's the more specific, more recently-stated intent. One
-     destination-scoped exception: `tone`, when the already-chosen
-     destination is a background `Agent`. That omission exists so an output
-     style governing the destination session can own the voice — but output
-     styles govern only main-loop sessions (an interactive session the
-     prompt is pasted into, or `TaskCreate` run in this one), never a
-     background agent's, so honoring the omit there would leave the
-     handed-off work with no voice governance at all. For that destination
-     keep the default `<tone>` block (it still self-yields on its own in
-     the unlikely case a style does govern); honor the omit as written for
-     clipboard and `TaskCreate`. The other omittable tags have no
-     destination dependence — honor them everywhere. Surface any
-     `warnings` briefly to the user (a skipped entry — bad tag,
-     reserved/non-omittable tag, duplicate, empty content) so a malformed
-     `config.json` doesn't fail silently; a warning here never blocks the
-     rest of the assembly.
+   "warnings": [...]}`. All of it is project **declaration** — foreman
+   never inspects which style plugins the operator runs.
+   - `usePersona` — default `true` when missing/unparseable. Controls only
+     the opening of `task_context` below: persona sentence vs domain
+     framing.
+   - `sections` — the config's validated `customSections`. Inline every
+     `sections[].xml` value verbatim, in order, at the `[CUSTOM SECTIONS]`
+     placeholder below — never invent, edit, or reorder; remove the
+     placeholder line if empty.
+   - `omit` — the config's validated `omitSections` (only `tone`/
+     `example`/`background`/`output_format` are ever valid; guardrail tags
+     can't appear). Drop each listed block from the assembled prompt — a
+     project-level omit beats a per-prompt selection. One
+     destination-scoped exception: an omitted `tone` STAYS when the chosen
+     destination is a background `Agent` — output styles govern only
+     main-loop sessions (a pasted interactive session, or `TaskCreate` run
+     here), never a background agent's, so the omission's premise fails
+     there; the kept default still self-yields if a style does govern. The
+     other three tags have no destination dependence.
+   - `warnings` — surface briefly to the user (skipped entries from a
+     malformed config); never blocks assembly.
 
 ```xml
 <task_context>
 [If step 0's `usePersona` is `true`: "You are [specific role — e.g. "a
-senior security engineer", "a TypeScript developer"]." If `false`: the
-project has declared that a persona is established elsewhere (e.g. a style
-plugin sets one in whatever session runs this) — a second
-"You are a [role]" sentence would read as a competing identity claim, not a
-layered one. Use domain framing instead: "Domain: [specific
-role/specialization]."]
+senior security engineer", "a TypeScript developer"]." If `false`: a
+persona is established elsewhere — use domain framing, "Domain: [specific
+role/specialization].", never a second "You are a" sentence.]
 Your goal is [one sentence — what "done" looks like for this specific task].
 </task_context>
 
@@ -115,9 +94,7 @@ full stop — it replaces everything below. Otherwise include: "Minimal,
 professional conversation — silent by default, say only what the user
 actually needs to know, simplify technical explanations, avoid unnecessary
 jargon. If an output style already governs this session's voice, defer to
-it — this tone applies only in its absence." Projects where a style plugin (hush, or any third-party one) already governs
-tone in the destination session opt out via `omitSections: ["tone"]` —
-that's the `omit` check above, there is no plugin detection here.]
+it — this tone applies only in its absence."]
 </tone>
 
 [If `"background"` is in `omit`, drop this whole `<background>` block
@@ -181,40 +158,34 @@ default "just in case".]
 
 ## Checklist (verify before handoff)
 
-- [ ] `task_context` names a specific role (or, if step 0's `usePersona`
-      came back `false`, domain framing instead of a "You are a" sentence)
-      and a concrete one-sentence "done" state
-- [ ] `truth_grounding` block is present, unmodified — every handoff must carry it
-- [ ] `scope_discipline` block is present, unmodified — every handoff must carry it
-- [ ] `render-sections.js` was run once at craft time (not deferred to the
+- [ ] `task_context` names a specific role (domain framing when
+      `usePersona` was `false`) and a concrete one-sentence "done" state
+- [ ] `truth_grounding` present, unmodified — every handoff carries it
+- [ ] `scope_discipline` present, unmodified — every handoff carries it
+- [ ] `render-sections.js` ran once at craft time (never deferred to the
       spawned session) and its `usePersona` field — not a fresh `Read` or
-      any plugin-flag check — drove `<task_context>` above
+      flag check — drove `<task_context>`
 - [ ] `relevant_files` lists every file path with line ranges — no vague
-      references (for `craft-prompt`, get this from the user directly; for
-      `foreman:roadmap`, pass the entry's `touches` through as-is — do NOT
-      explore the codebase to upgrade area-level hints into exact
-      file:line ranges, `truth_grounding` covers that gap at handoff time)
-- [ ] `task_rules` has read/analyze/implement steps AND a runnable verification command with expected output
-- [ ] custom sections (if `.foreman/config.json` had a `customSections`
-      array) were rendered via `render-sections.js` and inlined verbatim
-      after `task_rules` — never hand-written or invented here — and any
-      `warnings` it returned were surfaced to the user
-- [ ] every tag in `render-sections.js`'s `omit` array (only ever
-      `tone`/`example`/`background`/`output_format`) is actually absent
-      from the assembled prompt, overriding Call 1's selection if the two
-      conflict — with one exception: an omitted `tone` stays in when the
-      destination is a background `Agent` (step 0's carve-out) —
-      `task_context`/`truth_grounding`/`scope_discipline`/
-      `task_rules` are never affected, `omitSections` can't touch them
-- [ ] prompt contains no phrases like "as we discussed" or "from earlier" — zero assumed context
-- [ ] a short verb-first imperative name (under 60 chars) and a 1–2 sentence
-      plain-language summary are ready — `TaskCreate`'s `subject`/`description`
-      and a background `Agent`'s `description` both need this
+      references (`craft-prompt`: from the user directly; `foreman:roadmap`:
+      the entry's `touches` passed through as-is, never upgraded by
+      exploring the codebase — `truth_grounding` covers that gap at
+      handoff time)
+- [ ] `task_rules` has read/analyze/implement steps AND a runnable
+      verification command with expected output
+- [ ] custom sections were rendered by `render-sections.js` and inlined
+      verbatim after `task_rules` — never hand-written — and its
+      `warnings` were surfaced to the user
+- [ ] every tag in `omit` is absent from the assembled prompt, overriding
+      a conflicting per-prompt selection (exception: an omitted `tone`
+      stays for a background-`Agent` destination — step 0's carve-out);
+      guardrail/core blocks are never affected
+- [ ] no "as we discussed" / "from earlier" — zero assumed context
+- [ ] a verb-first imperative name (under 60 chars) and a 1–2 sentence
+      plain-language summary are ready — `TaskCreate` and a background
+      `Agent` both need them
 - [ ] the destination (`TaskCreate` / background `Agent` / clipboard) was
-      asked and decided *before* assembling this prompt, and the raw XML is
-      never pasted into the chat response — it goes straight to whichever
-      destination was picked (clipboard's no-tool fallback is the only
-      exception)
+      decided *before* assembly, and the raw XML never appears in the chat
+      response (clipboard's no-tool fallback is the only exception)
 
 ## When NOT to hand off — do it inline instead
 

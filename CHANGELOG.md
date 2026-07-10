@@ -8,6 +8,27 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.19.0-alpha] — 2026-07-10
+
+### Added
+
+- Roadmap reviews on large roadmaps are now much cheaper: status
+  summaries load a compact view of every task instead of every task's
+  full text.
+
+### Fixed
+
+- Fixed an issue where a failed `git commit` could still trigger
+  Foreman's after-commit prompts when an exit-code-preserving plugin was
+  also installed.
+
+### Changed
+
+- Sessions running as a background agent now leave verification-gated
+  tasks in progress and skip discovery questions instead of trying to
+  ask a user who isn't there.
+- Crafting a prompt costs less.
+
 ## [0.18.1-alpha] — 2026-07-10
 
 ### Fixed

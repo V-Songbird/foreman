@@ -246,4 +246,61 @@ describe('exit-code gating (best-effort)', () => {
     const out = run(bashPayload('git commit -m "wip"'));
     assert.notEqual(out, '');
   });
+
+  // An exit-preserving wrapper (hush) forces the shell exit to 0 and embeds
+  // the real code in the output text — the marker beats the top-level field.
+  test('wrapped nonzero exit in output text stays silent despite exit_code 0', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    const out = run(
+      bashPayload('git commit -m "wip"', {
+        exit_code: 0,
+        tool_response: 'pre-commit hook failed\n[[hush:exit=\n1\n]]\n',
+      })
+    );
+    assert.equal(out, '');
+  });
+
+  test('wrapped zero exit still fires', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    const out = run(
+      bashPayload('git commit -m "wip"', {
+        exit_code: 0,
+        tool_response: '[main abc1234] wip\n[[hush:exit=\n0\n]]\n',
+      })
+    );
+    assert.notEqual(out, '');
+  });
+
+  test('compressed wrapper form is recognized too', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    const out = run(
+      bashPayload('git commit -m "wip"', {
+        exit_code: 0,
+        tool_response: 'pre-commit hook failed\n[hush: exit 1]',
+      })
+    );
+    assert.equal(out, '');
+  });
+
+  test('marker inside an object tool_response stdout field is found', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    const out = run(
+      bashPayload('git commit -m "wip"', {
+        exit_code: 0,
+        tool_response: { stdout: 'hook failed\n[[hush:exit=\n2\n]]\n', stderr: '' },
+      })
+    );
+    assert.equal(out, '');
+  });
+
+  test('malformed marker is ignored — falls back to the field, fails open', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    const out = run(
+      bashPayload('git commit -m "wip"', {
+        exit_code: 0,
+        tool_response: '[[hush:exit=\nnot-a-number\n]]\n',
+      })
+    );
+    assert.notEqual(out, '');
+  });
 });

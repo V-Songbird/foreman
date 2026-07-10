@@ -348,6 +348,20 @@ describe('list', () => {
     assert.deepEqual(json.entries.map((e) => e.id), ['001']);
   });
 
+  test('--summary strips entries to id/title/status/depends_on', () => {
+    const { json } = run(['list', '--summary']);
+    assert.equal(json.entries.length, 3);
+    for (const e of json.entries) {
+      assert.deepEqual(Object.keys(e).sort(), ['depends_on', 'id', 'status', 'title']);
+    }
+  });
+
+  test('--summary combines with --status', () => {
+    const { json } = run(['list', '--status', 'planned', '--summary']);
+    assert.deepEqual(json.entries.map((e) => e.id), ['001']);
+    assert.equal(json.entries[0].why, undefined);
+  });
+
   test('a project with no ROADMAP.jsonl yet returns an empty list, not an error', () => {
     const freshProject = makeTmpProject();
     const result = runRoadmap(['list'], undefined, { CLAUDE_PROJECT_DIR: freshProject });

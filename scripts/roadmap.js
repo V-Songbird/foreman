@@ -271,6 +271,18 @@ function cmdList(root, filters) {
   let filtered = entries;
   if (statusFilter) filtered = filtered.filter((e) => statusFilter.has(e.status));
   if (idsFilter) filtered = filtered.filter((e) => idsFilter.has(e.id));
+  // --summary keeps the fields a whole-roadmap render actually needs (id,
+  // title, status, plus depends_on so blocked-ness stays derivable) and
+  // drops the prose — on a large roadmap the full entries are most of the
+  // payload, re-sent into context on every review.
+  if (filters.summary) {
+    filtered = filtered.map((e) => ({
+      id: e.id,
+      title: e.title,
+      status: e.status,
+      depends_on: e.depends_on || [],
+    }));
+  }
   return { entries: filtered };
 }
 
@@ -397,6 +409,9 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
   update-deps       stdin JSON: {id, add_depends_on}   (add_depends_on: non-empty array of ids)
   list              flag: --status planned,in_progress   (optional, comma-separated)
                     flag: --ids 002,005   (optional, comma-separated, combinable with --status)
+                    flag: --summary   (optional: entries carry only
+                    id/title/status/depends_on -- use for whole-roadmap
+                    renders, then fetch the few needing prose via --ids)
   next-candidates   flag: --limit N   (optional, default 3)
                     candidates now include depends_on
   check-duplicate   stdin JSON: {title, why}
