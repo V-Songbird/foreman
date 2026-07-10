@@ -1,6 +1,6 @@
 ---
 name: init
-description: Bootstraps a project's ROADMAP.jsonl and .foreman/config.json. Asks what the project is and its near-term goals, asks whether the roadmap should accept Claude-suggested entries after commits and whether other plugins already own persona/tone, drafts an initial set of roadmap tasks, gets approval, then writes and commits both files.
+description: Bootstraps a project's ROADMAP.jsonl and .foreman/config.json. Asks what the project is and its near-term goals, asks whether the roadmap should accept Claude-suggested entries after commits, whether other plugins already own persona/tone, and whether finished work needs the user's confirmation before it's marked done, drafts an initial set of roadmap tasks, gets approval, then writes and commits both files.
 when_to_use: Trigger when the user wants to set up Foreman's roadmap for a project, says "init foreman", "set up the roadmap", "initialize foreman", "start a roadmap", or invokes /foreman:init. Usually a one-time-per-project action.
 argument-hint: "<brief project description — optional seed>"
 allowed-tools: AskUserQuestion, Read, Write, Bash
@@ -50,7 +50,7 @@ they want to get done soon)
 
 ---
 
-## Call 2 — the policy toggles (batch 2, these are the key decisions)
+## Call 2 — the policy toggles (batch 3, these are the key decisions)
 
 **Q1** — "Should the roadmap accept Claude-suggested entries after commits?"
 Options:
@@ -74,6 +74,16 @@ Options:
 
 This is a declaration, not detection — Foreman never inspects which
 plugins the project runs; the user states the shape they want here.
+
+**Q3** — "When a commit looks like it finishes a task, should Foreman
+close it out right away?"
+Options:
+- `Yes — mark it done as soon as the commit lands` — becomes
+  `"requireVerification": false`.
+- `No — ask me to confirm it's verified first` — the commit and its
+  touched files are still recorded immediately, but the task stays in
+  progress until you confirm the work actually holds up. Becomes
+  `"requireVerification": true`.
 
 ---
 
@@ -120,7 +130,7 @@ the updated draft, ask again. Repeat until approved.
    `created_at`/`updated_at`, and validates the file after every write —
    no manual parsing, no hand-computed ids.
 3. Write `.foreman/config.json` —
-   `{"discoverySuggestions": <bool>, "usePersona": <bool>, "omitSections": [...]}`
+   `{"discoverySuggestions": <bool>, "usePersona": <bool>, "omitSections": [...], "requireVerification": <bool>}`
    from the Call 2 answers (skip this file write if the pre-check "keep,
    add to it" branch found an existing config already).
 4. Stage and commit just these two files:

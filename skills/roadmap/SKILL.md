@@ -29,7 +29,10 @@ Options:
 - `Review status` — read-only summary of where every task stands.
 
 If args were provided and read like a task description rather than a
-question, treat it as a seed for "Add a task" and skip this call.
+question, treat it as a seed for "Add a task" and skip this call. If they
+read like a pick request or a hint about what to pick ("what's next on
+auth", "something quick I can finish today"), go straight to "Pick the
+next task" with the hint in hand — that branch says what to do with it.
 
 ---
 
@@ -51,6 +54,21 @@ mechanical call, one question, assemble, done.
    `list` and reasoning over the whole file yourself — that's exactly the
    cost `next-candidates` exists to cut.
 
+   **In the same message**, also run
+   `node ${CLAUDE_PLUGIN_ROOT}/scripts/render-sections.js` — its output is
+   project-level, not task-level, and step 3 needs it no matter which
+   candidate wins, so batching the two mechanical calls saves a round
+   trip. This satisfies the template's craft-time step 0 — don't run it
+   again at assembly, reuse this call's output (and surface its `warnings`
+   then, if any).
+
+   **If args carried a pick hint**, pass `--limit 10` instead of the
+   default and choose the 3 candidates to present yourself: hint relevance
+   first, then the returned order as the tiebreak. If nothing matches the
+   hint, say so in one line and present the top 3 as usual — never invent
+   a candidate to satisfy a hint, and never let a hint surface a blocked
+   or non-`planned` entry (the script's filter already decided that).
+
    **Never paste or print this JSON output into your chat response.** It's
    input to the next step, not something to show — the full `what`/
    `touches`/`notes`/`unblocks` fields are context for *you* to weigh
@@ -60,7 +78,8 @@ mechanical call, one question, assemble, done.
    first, the question *is* the presentation.
 
 **Q1** — "Which task next?"
-Options, one per candidate (already ranked, take the order as given):
+Options, one per candidate (already ranked — take the order as given, or
+your hint-aware order when args supplied one):
 - Label: `<title> (<id>)`. The first-ranked candidate's label gets
   `(Recommended)` appended — it's first for a reason (most-unblocking, or
   oldest on a tie), say so with the tag instead of making the user infer it

@@ -1,6 +1,6 @@
 # Foreman — prompt template
 
-<!-- foreman:practices lastmod:2026-07-04
+<!-- foreman:practices lastmod:2026-07-10
      source-a: https://code.claude.com/docs/en/best-practices.md
      source-b: https://code.claude.com/docs/en/sub-agents.md
      source-c: Anthropic Prompting 101 — Code w/ Claude 2025-05-22
@@ -46,7 +46,18 @@ an instruction for the spawned session to act on later):**
      assembled prompt regardless of what Call 1's optional-section
      selection or the entry's own fields would otherwise include — a
      project-level `omitSections` always wins over a per-prompt selection,
-     since it's the more specific, more recently-stated intent. Surface any
+     since it's the more specific, more recently-stated intent. One
+     destination-scoped exception: `tone`, when the already-chosen
+     destination is a background `Agent`. That omission exists so an output
+     style governing the destination session can own the voice — but output
+     styles govern only main-loop sessions (an interactive session the
+     prompt is pasted into, or `TaskCreate` run in this one), never a
+     background agent's, so honoring the omit there would leave the
+     handed-off work with no voice governance at all. For that destination
+     keep the default `<tone>` block (it still self-yields on its own in
+     the unlikely case a style does govern); honor the omit as written for
+     clipboard and `TaskCreate`. The other omittable tags have no
+     destination dependence — honor them everywhere. Surface any
      `warnings` briefly to the user (a skipped entry — bad tag,
      reserved/non-omittable tag, duplicate, empty content) so a malformed
      `config.json` doesn't fail silently; a warning here never blocks the
@@ -92,8 +103,9 @@ scope — only to work that's genuinely a separate concern from
 </scope_discipline>
 
 [If `"tone"` is in `omit` (from `render-sections.js`), drop this whole
-`<tone>` block unconditionally — a project-level opt-out beats everything
-below.]
+`<tone>` block — unless the chosen destination is a background `Agent`,
+where step 0's carve-out keeps the default below in place (no output style
+reaches that session, so the opt-out's premise doesn't hold there).]
 <tone>
 [If Tone was selected as an optional section: the user's custom tone,
 full stop — it replaces everything below. Otherwise include: "Minimal,
@@ -187,7 +199,9 @@ default "just in case".]
 - [ ] every tag in `render-sections.js`'s `omit` array (only ever
       `tone`/`example`/`background`/`output_format`) is actually absent
       from the assembled prompt, overriding Call 1's selection if the two
-      conflict — `task_context`/`truth_grounding`/`scope_discipline`/
+      conflict — with one exception: an omitted `tone` stays in when the
+      destination is a background `Agent` (step 0's carve-out) —
+      `task_context`/`truth_grounding`/`scope_discipline`/
       `task_rules` are never affected, `omitSections` can't touch them
 - [ ] prompt contains no phrases like "as we discussed" or "from earlier" — zero assumed context
 - [ ] a short verb-first imperative name (under 60 chars) and a 1–2 sentence

@@ -8,6 +8,22 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.18.0-alpha] — 2026-07-10
+
+### Added
+
+- `/foreman:init` now asks whether finished-looking commits should be
+  marked done right away or wait for your confirmation.
+- `/foreman:roadmap` accepts a hint about what to pick next (e.g.
+  `/foreman:roadmap something quick on auth`) and weighs the candidates
+  against it.
+
+### Changed
+
+- Prompts handed to a background agent now keep Foreman's minimal
+  default tone even when the project omits the tone section.
+- Picking the next task is one round trip faster.
+
 ## [0.17.0-alpha] — 2026-07-10
 
 ### Added
