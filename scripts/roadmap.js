@@ -330,7 +330,28 @@ function cmdNextCandidates(root, filters) {
       return String(a.created_at || "").localeCompare(String(b.created_at || ""));
     });
 
-  return { candidates: unblocked.slice(0, limit), total_unblocked: unblocked.length };
+  // in_progress entries ride along (full-ish fields — there are rarely more
+  // than a couple): the pick flow offers to finish existing work before
+  // starting new work, and re-crafting a resume prompt needs the entry's
+  // substance without a second CLI call.
+  const inProgress = entries
+    .filter((e) => e.status === "in_progress")
+    .map((e) => ({
+      id: e.id,
+      title: e.title,
+      why: e.why,
+      what: e.what,
+      touches: e.touches || [],
+      depends_on: e.depends_on || [],
+      notes: e.notes || "",
+      updated_at: e.updated_at,
+    }));
+
+  return {
+    candidates: unblocked.slice(0, limit),
+    total_unblocked: unblocked.length,
+    in_progress: inProgress,
+  };
 }
 
 function normalizeWords(text) {

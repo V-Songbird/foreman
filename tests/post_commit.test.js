@@ -228,6 +228,44 @@ describe('discovery block', () => {
   });
 });
 
+describe('freshly-done nudge fires once per entry per day', () => {
+  function todayStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  test('second commit the same day stays silent for an already-nudged entry', () => {
+    writeRoadmap(project, [{ id: '001', title: 'done today', status: 'done', updated_at: todayStr() }]);
+    const first = run(bashPayload('git commit -m "fix 1"'));
+    assert.match(first, /follow-up fix/);
+    const second = run(bashPayload('git commit -m "fix 2"'));
+    assert.equal(second, '');
+  });
+
+  test('a different freshly-done entry still nudges after another was deduped', () => {
+    writeRoadmap(project, [{ id: '001', title: 'a', status: 'done', updated_at: todayStr() }]);
+    run(bashPayload('git commit -m "fix 1"'));
+    writeRoadmap(project, [
+      { id: '001', title: 'a', status: 'done', updated_at: todayStr() },
+      { id: '002', title: 'b', status: 'done', updated_at: todayStr() },
+    ]);
+    const out = run(bashPayload('git commit -m "fix 2"'));
+    assert.match(out, /002/);
+    assert.doesNotMatch(out, /001 \(/);
+  });
+
+  test('the in_progress block is unaffected by freshly-done dedup', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'a', status: 'done', updated_at: todayStr() },
+      { id: '002', title: 'b', status: 'in_progress' },
+    ]);
+    run(bashPayload('git commit -m "fix 1"'));
+    const out = run(bashPayload('git commit -m "fix 2"'));
+    assert.match(out, /in-progress ROADMAP/i);
+    assert.doesNotMatch(out, /follow-up fix/);
+  });
+});
+
 describe('exit-code gating (best-effort)', () => {
   test('confirmed nonzero exit code stays silent', () => {
     writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);

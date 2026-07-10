@@ -119,7 +119,7 @@ JSON line to stdout: `{"ok":true, ...}` on success, `{"ok":false,"error":
 | `annotate` | JSON via stdin: `id`, `notes` | **Appends** `notes` (never overwrites) and bumps `updated_at` — status untouched. The notes-only write: unlike `update-status`, it can't regress an entry's status from a stale read (e.g. re-asserting `planned` on an entry another session moved to `in_progress` in the meantime). Use it whenever the only thing changing is a breadcrumb. Returns the updated `entry`. |
 | `update-deps` | JSON via stdin: `id`, `add_depends_on` (non-empty array of ids) | Adds ids to an existing entry's `depends_on` (no duplicates), rejects unknown ids, self-dependencies, and any addition that would close a dependency cycle (direct or transitive — walks the existing graph before writing), bumps `updated_at`. For a hidden dependency discovered after the entry was created — `add` only sets `depends_on` at creation time, this is the only way to correct it later. Structural, not a breadcrumb: this changes what `next-candidates` computes as unblocked, so it's the mechanism `foreman:survey` uses to make a finding persist across sessions instead of just noting it. |
 | `list` | optional flags: `--status planned,in_progress`, `--ids 002,005` (combinable, AND semantics), `--summary` | Returns `entries` — filtered by whichever flags are given, everything otherwise. Read-only. `--ids` exists so a caller that only needs a handful of specific entries (`foreman:survey` resolving a few `depends_on` ids) doesn't have to load the whole file. `--summary` strips each entry to `id`/`title`/`status`/`depends_on` — what a whole-roadmap render (`foreman:roadmap`'s Review status) actually needs; fetch the few entries that need prose via a follow-up `--ids` call. |
-| `next-candidates` | optional flag: `--limit N` (default 3 — matches `AskUserQuestion`'s 4-option cap, leaving one slot for the "something else" escape hatch) | Mechanical filter (unblocked: `planned`, every `depends_on` done) + rank (most `depends_on`-referenced first as a derived importance proxy — no stored priority field — then oldest `created_at`) + a `collision` flag per candidate (its `touches` overlaps a currently-`in_progress` entry's) + each candidate's `notes` and `depends_on` (so a breadcrumb left by `foreman:survey`, and the ids needed to resolve its own dependencies, are both visible without a separate `list` call). Returns `{"candidates":[...], "total_unblocked": N}`. This is what `foreman:roadmap`'s "Pick the next task" calls — never `list` + manual filtering for that flow, `next-candidates` exists specifically to avoid loading the whole file into context just to do graph filtering that needs no judgment. |
+| `next-candidates` | optional flag: `--limit N` (default 3 — matches `AskUserQuestion`'s 4-option cap, leaving one slot for the "something else" escape hatch) | Mechanical filter (unblocked: `planned`, every `depends_on` done) + rank (most `depends_on`-referenced first as a derived importance proxy — no stored priority field — then oldest `created_at`) + a `collision` flag per candidate (its `touches` overlaps a currently-`in_progress` entry's) + each candidate's `notes` and `depends_on` (so a breadcrumb left by `foreman:survey`, and the ids needed to resolve its own dependencies, are both visible without a separate `list` call). Returns `{"candidates":[...], "total_unblocked": N, "in_progress":[...]}` — `in_progress` carries every started entry (id/title/why/what/touches/depends_on/notes/updated_at) so the pick flow can offer to finish existing work first, and re-craft a resume prompt, without a second call. This is what `foreman:roadmap`'s "Pick the next task" calls — never `list` + manual filtering for that flow, `next-candidates` exists specifically to avoid loading the whole file into context just to do graph filtering that needs no judgment. |
 | `check-duplicate` | JSON via stdin: `title`, `why` | Word-overlap (Jaccard) match against **all** entries, any status. Returns `{"duplicate": bool, "matches": [...]}`; each match carries its `status`, so a caller can tell "already declined" (`rejected` — skip silently) from "already on the roadmap" (`planned`/`in_progress`/`done`/... — skip, or link the existing id). Not semantic — a cheap filter to stop re-suggesting known work, not a guarantee. |
 
 Examples:
@@ -202,10 +202,16 @@ All access — from any caller — goes through `scripts/roadmap.js`, and
   ranking), `update-status` (duplicate/already-done, a user-confirmed
   status change), or `annotate` (stale-touches breadcrumb — notes-only,
   status untouched) — never a direct `Edit`.
-- `foreman/hooks/post-commit.js` — the only caller that reads the file
-  in-process (it `require()`s `roadmap.js`'s `readEntries` directly, same
-  Node process, no subprocess) to decide whether to mention status-sync at
-  all. It never writes to the file itself — it only emits instructions
-  telling Claude to call `update-status`/`add`/`check-duplicate` via Bash,
-  keeping every actual write in a reviewable, skill- or Claude-driven path
-  rather than a hook's hands.
+- `foreman/hooks/post-commit.js` — reads the file in-process (it
+  `require()`s `roadmap.js`'s `readEntries` directly, same Node process,
+  no subprocess) to decide whether to mention status-sync at all. It never
+  writes to the file itself — it only emits instructions telling Claude to
+  call `update-status`/`add`/`check-duplicate` via Bash, keeping every
+  actual write in a reviewable, skill- or Claude-driven path rather than a
+  hook's hands.
+- `foreman/hooks/session-start.js` — same in-process read pattern, at
+  session start (`startup`/`clear` only, main sessions only — SessionStart
+  never fires for subagents). Emits one informational line when
+  `in_progress` entries exist, flagging ones with no recent activity, so
+  work left dangling by a dead session surfaces instead of rotting. Never
+  writes, never instructs an action without the user asking.

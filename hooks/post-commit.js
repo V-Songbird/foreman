@@ -2,7 +2,9 @@
 "use strict";
 
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
+const crypto = require("crypto");
 
 const { readEntries, today } = require("../scripts/roadmap");
 
@@ -76,6 +78,36 @@ function commitFailed(data) {
   if (typeof wrapped === "number") return wrapped !== 0;
   const code = data?.exit_code;
   return typeof code === "number" && code !== 0;
+}
+
+// The freshly-done follow-up nudge fires once per entry per day, not on
+// every commit of a busy day — a tmpdir state file keyed by project root
+// remembers which entries were already mentioned today. Best-effort both
+// ways: unreadable state means nudge again (fail open), unwritable state
+// means the dedup just doesn't stick.
+function freshlyDoneStatePath(root) {
+  const safe = crypto.createHash("sha1").update(String(root)).digest("hex").slice(0, 12);
+  return path.join(os.tmpdir(), `foreman-freshlydone-${safe}.json`);
+}
+
+function filterUnnudged(root, ids, todayStr) {
+  const p = freshlyDoneStatePath(root);
+  let state = { date: todayStr, ids: [] };
+  try {
+    const parsed = JSON.parse(fs.readFileSync(p, "utf-8"));
+    if (parsed && parsed.date === todayStr && Array.isArray(parsed.ids)) state = parsed;
+  } catch {
+    // missing or corrupt state — treat as a fresh day
+  }
+  const unnudged = ids.filter((id) => !state.ids.includes(id));
+  if (unnudged.length) {
+    try {
+      fs.writeFileSync(p, JSON.stringify({ date: todayStr, ids: [...state.ids, ...unnudged] }));
+    } catch {
+      // best effort
+    }
+  }
+  return new Set(unnudged);
 }
 
 function readConfig(root) {
@@ -214,7 +246,11 @@ function main() {
 
   const todayStr = today();
   const inProgress = entries.filter((e) => e.status === "in_progress");
-  const freshlyDone = entries.filter((e) => e.status === "done" && e.updated_at === todayStr);
+  const doneToday = entries.filter((e) => e.status === "done" && e.updated_at === todayStr);
+  const unnudged = doneToday.length
+    ? filterUnnudged(root, doneToday.map((e) => e.id), todayStr)
+    : new Set();
+  const freshlyDone = doneToday.filter((e) => unnudged.has(e.id));
   const config = readConfig(root);
 
   const blocks = [];
@@ -252,6 +288,8 @@ module.exports = {
   isGitCommit,
   commitFailed,
   wrappedExitCode,
+  freshlyDoneStatePath,
+  filterUnnudged,
   readConfig,
   projectDir,
   statusSyncBlock,

@@ -8,6 +8,22 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.20.0-alpha] — 2026-07-10
+
+### Added
+
+- Starting a session in a project with unfinished roadmap work now shows
+  a short reminder of what's still in progress, and flags tasks that
+  haven't moved in days.
+- Asking for the next task now offers to finish an in-progress task
+  first — and rebuilds its handoff prompt, carrying over any findings
+  already recorded on the entry.
+
+### Fixed
+
+- The follow-up-fix reminder after a commit now appears once per task per
+  day instead of on every commit.
+
 ## [0.19.0-alpha] — 2026-07-10
 
 ### Added

@@ -77,13 +77,23 @@ mechanical call, one question, assemble, done.
 2. Go straight to Q1 below — no narrative recap of the candidates in prose
    first, the question *is* the presentation.
 
+**Finish-first check**: if the script's `in_progress` array is non-empty,
+work already started somewhere — offer to finish it before starting
+something new. Those entries take the top option slot(s) in Q1 (at most 2;
+oldest `updated_at` first), labeled `Resume: <title> (<id>)`, with the
+first one carrying `(Recommended)`. Description: `why` plus
+"in progress since <updated_at>". Planned candidates fill the remaining
+slots. This is a suggestion, never a gate — picking a planned candidate
+proceeds exactly as before.
+
 **Q1** — "Which task next?"
 Options, one per candidate (already ranked — take the order as given, or
-your hint-aware order when args supplied one):
+your hint-aware order when args supplied one; resume options lead when
+`in_progress` is non-empty, per the finish-first check above):
 - Label: `<title> (<id>)`. The first-ranked candidate's label gets
-  `(Recommended)` appended — it's first for a reason (most-unblocking, or
-  oldest on a tie), say so with the tag instead of making the user infer it
-  from list order alone.
+  `(Recommended)` appended — unless a resume option already carries it —
+  it's first for a reason (most-unblocking, or oldest on a tie), say so
+  with the tag instead of making the user infer it from list order alone.
 - Description: `why` only, trimmed to one sentence if it runs longer. Never
   fold `what`/`touches`/`notes`/`unblocks` into the description — none of
   that is a pick-time decision input if the session isn't ground-truthing
@@ -149,6 +159,17 @@ tasks spawned through it don't get MCP tools.
      ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
      The entry's `notes` is where the depth lives; your final chat message
      states the outcome and points at the entry."
+
+     **Resume variant** — when the chosen task came from `in_progress`
+     (the finish-first check), the entry was already started by an earlier
+     session, so swap the paragraph's opening for:
+     "This task is ROADMAP.jsonl entry `<id>`, already marked `in_progress`
+     by an earlier session — don't re-mark it; earlier findings may sit in
+     its `notes` (included below), read them before re-deriving anything."
+     and keep the closing instructions (status earned, findings in `notes`,
+     commit-before-done) unchanged. Include the entry's existing `notes` in
+     `background`/`context` — for a resume they're prior findings, exactly
+     the context the destination shouldn't have to rebuild.
 
    **Never paste or print the assembled XML prompt into your response
    text.** It is data for `TaskCreate`'s `description`, `Agent`'s `prompt`,

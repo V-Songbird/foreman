@@ -517,6 +517,27 @@ describe('next-candidates', () => {
     assert.equal(json.total_unblocked, 5);
   });
 
+  test('returns in_progress entries alongside candidates', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'started', status: 'in_progress', why: 'w', what: 'x', touches: ['a.js'], depends_on: [], notes: 'n', updated_at: '2026-07-01' },
+      { id: '002', title: 'ready', status: 'planned', why: 'w', what: 'x', depends_on: [] },
+    ]);
+    const { json } = run(['next-candidates']);
+    assert.equal(json.in_progress.length, 1);
+    const ip = json.in_progress[0];
+    assert.equal(ip.id, '001');
+    assert.equal(ip.updated_at, '2026-07-01');
+    assert.deepEqual(ip.touches, ['a.js']);
+    assert.equal(ip.notes, 'n');
+    assert.deepEqual(json.candidates.map((c) => c.id), ['002']);
+  });
+
+  test('in_progress is an empty array when nothing is started', () => {
+    writeRoadmap(project, [{ id: '001', title: 'a', status: 'planned', why: 'w', what: 'x', depends_on: [] }]);
+    const { json } = run(['next-candidates']);
+    assert.deepEqual(json.in_progress, []);
+  });
+
   test('respects --limit and reports total_unblocked separately', () => {
     writeRoadmap(
       project,

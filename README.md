@@ -15,6 +15,7 @@ Every project builds up a pile of "we should do X someday" — in your head, in 
 - **Your plan survives between sessions.** The roadmap lives in your repository, committed like code — not in one chat window that disappears.
 - **Great prompts without the skill.** Every handoff prompt is assembled from a proven template, with guardrails built in — you just say what you want in plain language.
 - **It keeps itself up to date.** After each commit, Foreman notices when you've finished a task and records it. Opt in, and it also spots new work the commit uncovered — and asks what to do with it.
+- **It never loses the thread.** Open a session and Foreman reminds you what was left in progress. Ask what's next and it offers to finish that first — rebuilding the handoff prompt if you need it again.
 - **It never acts without asking.** Nothing is added, changed, or marked done behind your back, and a project you haven't set up is never touched.
 
 ## Install
