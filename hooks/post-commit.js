@@ -131,9 +131,13 @@ function discoveryBlock() {
     "symbol names, the specific behavior observed) — do NOT run extra " +
     "Read/Grep/Bash calls just to enrich the entry, that spends tokens now " +
     "instead of saving them for whoever picks it up later. Before asking " +
-    "about it, check it isn't a repeat of something already declined: " +
+    "about it, check it isn't already on the roadmap in any form: " +
     `echo '{"title":"...","why":"..."}' | node ${SCRIPT_PATH} check-duplicate ` +
-    "— skip it silently if duplicate:true. Otherwise ask the user " +
+    "— matches carry each entry's status. A rejected match means the user " +
+    "already declined it: skip silently. Any other status (planned/" +
+    "in_progress/done/...) means it's already tracked: skip it, or mention " +
+    "the existing entry's id if the new observation adds something. Only " +
+    "when there's no match, ask the user " +
     "(AskUserQuestion) what to do with it: Add to roadmap / Execute with " +
     "TaskCreate (work it now in this session, tracked) / Execute with a " +
     "background Agent (run_in_background: true) / Reject — both Add and " +

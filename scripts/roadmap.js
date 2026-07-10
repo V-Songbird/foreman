@@ -33,10 +33,21 @@ function readEntries(root) {
 }
 
 // parse-before-write + parse-after-write invariants, enforced here instead of by prose.
+// Temp-file-then-rename so a crash mid-write leaves the old file intact —
+// same directory, so the rename can't cross filesystems.
 function writeEntries(root, entries) {
   const p = roadmapPath(root);
   const text = entries.map((e) => JSON.stringify(e)).join("\n") + (entries.length ? "\n" : "");
-  fs.writeFileSync(p, text, "utf-8");
+  const tmp = `${p}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, text, "utf-8");
+  try {
+    fs.renameSync(tmp, p);
+  } catch (err) {
+    try {
+      fs.unlinkSync(tmp);
+    } catch {}
+    throw err;
+  }
   readEntries(root); // throws if the write somehow produced malformed JSONL
 }
 
@@ -49,8 +60,13 @@ function nextId(entries) {
   return String(max + 1).padStart(3, "0");
 }
 
+// Local date, not UTC — post-commit.js compares updated_at against "today"
+// for its freshly-done window, and a near-midnight local commit would fall
+// outside it if this stamped the UTC date.
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 const STATUSES = new Set(["planned", "in_progress", "deferred", "done", "dropped", "rejected"]);
@@ -181,6 +197,23 @@ function cmdUpdateStatus(root, payload) {
   return warnings.length ? { ...result, warnings } : result;
 }
 
+// Notes-only append that leaves status alone — a breadcrumb write must not
+// re-assert a status the caller read earlier, which would silently regress
+// an entry another session has since moved (e.g. planned -> in_progress).
+function cmdAnnotate(root, payload) {
+  const { id, notes } = payload || {};
+  if (!id || !notes) throw new Error("annotate requires id, notes");
+  const entries = readEntries(root);
+  const entry = entries.find((e) => e.id === id);
+  if (!entry) throw new Error(`no entry with id ${id}`);
+  // append-only invariant: never replace existing notes
+  entry.notes = entry.notes ? `${entry.notes}; ${notes}` : notes;
+  entry.updated_at = today();
+  writeEntries(root, entries);
+  const warnings = fieldWarnings([["notes", notes, NOTES_APPEND_WARN_CHARS]]);
+  return warnings.length ? { entry, warnings } : { entry };
+}
+
 // True if starting from startId and walking depends_on chains reaches
 // targetId — i.e. targetId already (transitively) depends on startId, so
 // making targetId depend on startId too would close a cycle.
@@ -309,17 +342,19 @@ function jaccard(a, b) {
 const DUPLICATE_THRESHOLD = 0.4;
 const MAX_MATCHES = 5;
 
-// Cheap word-overlap check against rejected entries — not semantic understanding,
-// just enough to stop re-asking about something already declined.
+// Cheap word-overlap check against every entry — not semantic understanding,
+// just enough to stop re-suggesting something already declined or already
+// on the roadmap. Each match carries its status so the caller can tell
+// "already declined" from "already planned/in progress/done".
 function cmdCheckDuplicate(root, payload) {
   const { title, why } = payload || {};
   if (!title && !why) throw new Error("check-duplicate requires title and/or why");
   const words = normalizeWords(`${title || ""} ${why || ""}`);
-  const rejected = readEntries(root).filter((e) => e.status === "rejected");
-  const matches = rejected
+  const matches = readEntries(root)
     .map((e) => ({
       id: e.id,
       title: e.title,
+      status: e.status,
       score: jaccard(words, normalizeWords(`${e.title || ""} ${e.why || ""}`)),
     }))
     .filter((m) => m.score >= DUPLICATE_THRESHOLD)
@@ -355,12 +390,19 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     git/the sha is unavailable) -- add_touches adds more on
                     top, for anything outside that commit's diff
                     add_touches: array of paths to fold into touches (dedup, never removes)
+  annotate          stdin JSON: {id, notes}
+                    appends notes and bumps updated_at without touching
+                    status -- use for a breadcrumb write so a stale status
+                    read never regresses an entry another session moved
   update-deps       stdin JSON: {id, add_depends_on}   (add_depends_on: non-empty array of ids)
   list              flag: --status planned,in_progress   (optional, comma-separated)
                     flag: --ids 002,005   (optional, comma-separated, combinable with --status)
   next-candidates   flag: --limit N   (optional, default 3)
                     candidates now include depends_on
   check-duplicate   stdin JSON: {title, why}
+                    word-overlap match against ALL entries regardless of
+                    status; each match includes its status so callers can
+                    tell "already declined" from "already on the roadmap"
 
 Examples:
   echo '{"title":"Add JWT refresh middleware","why":"...","what":"...","source":"user"}' \\
@@ -407,6 +449,9 @@ function main() {
     case "update-status":
       result = cmdUpdateStatus(root, readStdinJSON());
       break;
+    case "annotate":
+      result = cmdAnnotate(root, readStdinJSON());
+      break;
     case "update-deps":
       result = cmdUpdateDeps(root, readStdinJSON());
       break;
@@ -421,7 +466,7 @@ function main() {
       break;
     default:
       throw new Error(
-        `unknown subcommand: ${sub}. Use add|update-status|update-deps|list|next-candidates|check-duplicate`
+        `unknown subcommand: ${sub}. Use add|update-status|annotate|update-deps|list|next-candidates|check-duplicate`
       );
   }
   process.stdout.write(JSON.stringify({ ok: true, ...result }));
@@ -445,6 +490,7 @@ module.exports = {
   today,
   cmdAdd,
   cmdUpdateStatus,
+  cmdAnnotate,
   cmdUpdateDeps,
   cmdList,
   cmdNextCandidates,

@@ -125,8 +125,12 @@ not an automatic mutation:
   (or `"done"` with the actual `commit` if the evidence points to a specific
   commit that already did the work).
 - **`stale-touches`** with no structural fix (the description just needs
-  updating, nothing to block on) → notes-only, keep status unchanged:
-  `echo '{"id":"<candidate>","status":"planned","notes":"survey <date>: <one-line evidence>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
+  updating, nothing to block on) → notes-only, status untouched:
+  `echo '{"id":"<candidate>","notes":"survey <date>: <one-line evidence>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js annotate`
+  `annotate` exists precisely for this write: unlike `update-status`, it
+  can't regress the entry to a status read before the survey ran (e.g.
+  re-asserting `planned` on an entry another session has since moved to
+  `in_progress`).
   This is a soft signal, not a mechanical reorder — `next-candidates` now
   returns this candidate's `notes`, so the next `foreman:roadmap` pick sees
   it as context, but ranking itself (`unblocks` then `created_at`) doesn't

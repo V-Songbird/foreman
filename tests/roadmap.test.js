@@ -17,7 +17,9 @@
 //     limit of 3
 //   - add/update-status return a `warnings` field for long why/what/notes
 //     without failing the write
-//   - check-duplicate finds word-overlap matches against rejected entries only
+//   - annotate appends notes and bumps updated_at without touching status
+//   - check-duplicate finds word-overlap matches against all entries,
+//     carrying each match's status so callers can tell declined from tracked
 //   - a corrupt line in the file fails loudly (ok:false, exit 1) instead of
 //     silently skipping it
 
@@ -207,6 +209,48 @@ describe('update-status auto-derives touches from the commit', () => {
   });
 });
 
+describe('annotate', () => {
+  beforeEach(() => {
+    writeRoadmap(project, [
+      { id: '001', title: 'a', why: 'a', what: 'a', status: 'in_progress', source: 'user', depends_on: [], touches: [], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: 'first' },
+    ]);
+  });
+
+  test('appends notes and bumps updated_at without touching status', () => {
+    const { status, json } = run(['annotate'], { id: '001', notes: 'second' });
+    assert.equal(status, 0);
+    assert.equal(json.entry.notes, 'first; second');
+    assert.equal(json.entry.status, 'in_progress');
+    assert.notEqual(json.entry.updated_at, '2026-07-01');
+  });
+
+  test('starts notes fresh when the entry has none yet', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'a', why: 'a', what: 'a', status: 'planned', source: 'user', depends_on: [], touches: [], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '' },
+    ]);
+    const { json } = run(['annotate'], { id: '001', notes: 'only note' });
+    assert.equal(json.entry.notes, 'only note');
+  });
+
+  test('rejects a missing notes field', () => {
+    const { status, json } = run(['annotate'], { id: '001' });
+    assert.equal(status, 1);
+    assert.match(json.error, /annotate requires id, notes/);
+  });
+
+  test('rejects unknown id', () => {
+    const { status, json } = run(['annotate'], { id: '999', notes: 'x' });
+    assert.equal(status, 1);
+    assert.match(json.error, /no entry with id 999/);
+  });
+
+  test('returns a warning for an overlong notes append, but still writes', () => {
+    const { status, json } = run(['annotate'], { id: '001', notes: 'y'.repeat(300) });
+    assert.equal(status, 0);
+    assert.ok(json.warnings && json.warnings.some((w) => w.startsWith('notes')));
+  });
+});
+
 describe('update-deps', () => {
   beforeEach(() => {
     writeRoadmap(project, [
@@ -321,21 +365,24 @@ describe('check-duplicate', () => {
     ]);
   });
 
-  test('finds a word-overlap match against a rejected entry', () => {
+  test('finds a word-overlap match against a rejected entry, with its status', () => {
     const { json } = run(['check-duplicate'], {
       title: 'Extract duplicated retry logic',
       why: 'Same backoff loop copy-pasted across API clients',
     });
     assert.equal(json.duplicate, true);
     assert.equal(json.matches[0].id, '001');
+    assert.equal(json.matches[0].status, 'rejected');
   });
 
-  test('does not match against non-rejected entries', () => {
+  test('matches non-rejected entries too, carrying their status', () => {
     const { json } = run(['check-duplicate'], {
       title: 'Unrelated planned task',
       why: 'Totally different thing',
     });
-    assert.equal(json.duplicate, false);
+    assert.equal(json.duplicate, true);
+    assert.equal(json.matches[0].id, '002');
+    assert.equal(json.matches[0].status, 'planned');
   });
 
   test('unrelated text finds no match', () => {
@@ -497,6 +544,26 @@ describe('field length warnings', () => {
     writeRoadmap(project, [{ id: '001', title: 'a', why: 'a', what: 'a', status: 'planned', source: 'user', depends_on: [], touches: [], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '' }]);
     const { json } = run(['update-status'], { id: '001', status: 'planned', notes: 'y'.repeat(300) });
     assert.ok(json.warnings && json.warnings.some((w) => w.startsWith('notes')));
+  });
+});
+
+describe('atomic writes', () => {
+  test('a write leaves no temp file behind next to ROADMAP.jsonl', () => {
+    run(['add'], { title: 'a', why: 'a', what: 'a', source: 'user' });
+    run(['update-status'], { id: '001', status: 'in_progress' });
+    const leftovers = fs.readdirSync(project).filter((f) => f.endsWith('.tmp'));
+    assert.deepEqual(leftovers, []);
+    assert.ok(fs.existsSync(path.join(project, 'ROADMAP.jsonl')));
+  });
+});
+
+describe('today', () => {
+  test('returns the local date, not the UTC date', () => {
+    const { today } = require('../scripts/roadmap');
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const local = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    assert.equal(today(), local);
   });
 });
 

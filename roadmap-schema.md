@@ -1,6 +1,6 @@
 # Foreman — ROADMAP.jsonl schema
 
-<!-- foreman:roadmap-schema lastmod:2026-07-04 -->
+<!-- foreman:roadmap-schema lastmod:2026-07-10 -->
 
 `ROADMAP.jsonl` lives at the **project root** (not inside this plugin) and is
 committed to git — it's a visible, shared record of the project's plan, not
@@ -116,10 +116,11 @@ JSON line to stdout: `{"ok":true, ...}` on success, `{"ok":false,"error":
 |---|---|---|
 | `add` | JSON via stdin: `title`, `why`, `what`, `source`, optional `depends_on`/`touches`/`notes`/`status` | Computes `id` as `max(existing)+1`, defaults `status` to `"planned"` (only `"planned"` or `"rejected"` are valid at creation — a task doesn't start out `in_progress`/`done`/`dropped`), stamps `created_at`/`updated_at`, appends the line, re-validates the file. Returns the new `entry`. |
 | `update-status` | JSON via stdin: `id`, `status`, optional `commit`, optional `notes`, optional `add_touches` (array of paths) | Transitions status, appends `commit` to `commits[]` (no duplicates), **appends** `notes` (never overwrites). If `commit` is given, runs `git show --name-only --relative` on it and folds every changed path into `touches` automatically (no duplicates, fails soft — a missing git binary, non-git project, or unknown sha just means nothing gets derived, the rest of the call still succeeds); `add_touches` folds in more paths on top, for anything outside that commit's diff. Bumps `updated_at`, re-validates the file. Returns the updated `entry`, plus `derived_touches` when the git derivation found anything. |
+| `annotate` | JSON via stdin: `id`, `notes` | **Appends** `notes` (never overwrites) and bumps `updated_at` — status untouched. The notes-only write: unlike `update-status`, it can't regress an entry's status from a stale read (e.g. re-asserting `planned` on an entry another session moved to `in_progress` in the meantime). Use it whenever the only thing changing is a breadcrumb. Returns the updated `entry`. |
 | `update-deps` | JSON via stdin: `id`, `add_depends_on` (non-empty array of ids) | Adds ids to an existing entry's `depends_on` (no duplicates), rejects unknown ids, self-dependencies, and any addition that would close a dependency cycle (direct or transitive — walks the existing graph before writing), bumps `updated_at`. For a hidden dependency discovered after the entry was created — `add` only sets `depends_on` at creation time, this is the only way to correct it later. Structural, not a breadcrumb: this changes what `next-candidates` computes as unblocked, so it's the mechanism `foreman:survey` uses to make a finding persist across sessions instead of just noting it. |
 | `list` | optional flags: `--status planned,in_progress`, `--ids 002,005` (combinable, AND semantics) | Returns `entries` — filtered by whichever flags are given, everything otherwise. Read-only. `--ids` exists so a caller that only needs a handful of specific entries (`foreman:survey` resolving a few `depends_on` ids) doesn't have to load the whole file. |
 | `next-candidates` | optional flag: `--limit N` (default 3 — matches `AskUserQuestion`'s 4-option cap, leaving one slot for the "something else" escape hatch) | Mechanical filter (unblocked: `planned`, every `depends_on` done) + rank (most `depends_on`-referenced first as a derived importance proxy — no stored priority field — then oldest `created_at`) + a `collision` flag per candidate (its `touches` overlaps a currently-`in_progress` entry's) + each candidate's `notes` and `depends_on` (so a breadcrumb left by `foreman:survey`, and the ids needed to resolve its own dependencies, are both visible without a separate `list` call). Returns `{"candidates":[...], "total_unblocked": N}`. This is what `foreman:roadmap`'s "Pick the next task" calls — never `list` + manual filtering for that flow, `next-candidates` exists specifically to avoid loading the whole file into context just to do graph filtering that needs no judgment. |
-| `check-duplicate` | JSON via stdin: `title`, `why` | Word-overlap (Jaccard) match against `rejected` entries only. Returns `{"duplicate": bool, "matches": [...]}`. Not semantic — a cheap filter to stop re-asking about something already declined, not a guarantee. |
+| `check-duplicate` | JSON via stdin: `title`, `why` | Word-overlap (Jaccard) match against **all** entries, any status. Returns `{"duplicate": bool, "matches": [...]}`; each match carries its `status`, so a caller can tell "already declined" (`rejected` — skip silently) from "already on the roadmap" (`planned`/`in_progress`/`done`/... — skip, or link the existing id). Not semantic — a cheap filter to stop re-suggesting known work, not a guarantee. |
 
 Examples:
 ```
@@ -198,8 +199,9 @@ All access — from any caller — goes through `scripts/roadmap.js`, and
   `foreman:roadmap`'s fast pick-next-task path — see 0.4.4-alpha's changelog
   entry for why that path forbids exploration). Writes findings back via
   `update-deps` (hidden dependency found — structural, changes future
-  ranking) or `update-status` (stale/duplicate/already-done, notes-only or a
-  user-confirmed status change) — never a direct `Edit`.
+  ranking), `update-status` (duplicate/already-done, a user-confirmed
+  status change), or `annotate` (stale-touches breadcrumb — notes-only,
+  status untouched) — never a direct `Edit`.
 - `foreman/hooks/post-commit.js` — the only caller that reads the file
   in-process (it `require()`s `roadmap.js`'s `readEntries` directly, same
   Node process, no subprocess) to decide whether to mention status-sync at

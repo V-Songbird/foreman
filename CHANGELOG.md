@@ -8,6 +8,30 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.17.0-alpha] — 2026-07-10
+
+### Added
+
+- New `annotate` subcommand for notes-only roadmap updates — appends a
+  note and refreshes the entry's timestamp without changing its status,
+  so a breadcrumb write can no longer knock an entry back to an earlier
+  status.
+
+### Changed
+
+- Duplicate checking now matches against every roadmap entry, not just
+  declined ones, and reports each match's status — the post-commit
+  discovery flow no longer re-suggests work that is already planned, in
+  progress, or done.
+
+### Fixed
+
+- Roadmap writes are now atomic — an interruption mid-write can no
+  longer corrupt `ROADMAP.jsonl`.
+- Fixed an issue where roadmap dates used the UTC day instead of the
+  local one, so commits made near midnight could miss the same-day
+  follow-up nudge.
+
 ## [0.16.2-alpha] — 2026-07-09
 
 ### Changed

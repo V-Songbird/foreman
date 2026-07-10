@@ -44,7 +44,7 @@ function main() {
       permissionDecision: "deny",
       permissionDecisionReason:
         `Foreman: direct ${data.tool_name} of ROADMAP.jsonl is blocked. Use ` +
-        `node ${SCRIPT_PATH} instead (add/update-status/list/` +
+        `node ${SCRIPT_PATH} instead (add/update-status/annotate/list/` +
         "next-candidates/check-duplicate — run with --help for usage). " +
         "It enforces id computation and parse-before/after-write; a hand " +
         "edit bypasses both. If the file is corrupt and the CLI itself " +
