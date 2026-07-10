@@ -81,8 +81,11 @@ of the codebase — read the cited files, run the cited commands. This prompt
 may have been written earlier and executed later (queued via TaskCreate, run
 by a background Agent, or pasted into a fresh session); treat every claim
 below as a hypothesis to confirm at the start of this session, never as a
-fact to assume. If reality contradicts this prompt, trust reality, name the
-discrepancy in your final message, and proceed from what you actually find.
+fact to assume. If reality contradicts this prompt, trust reality and
+proceed from what you actually find — and treat the mismatch itself as part
+of the outcome: state it in one line of your final message (and in the
+roadmap entry's notes, if this task closes one). A minimal register trims
+narration, never a found discrepancy.
 </truth_grounding>
 
 <scope_discipline>

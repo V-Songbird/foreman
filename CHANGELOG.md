@@ -8,6 +8,15 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.18.1-alpha] — 2026-07-10
+
+### Fixed
+
+- Fixed an issue where a session could quietly work around an outdated
+  claim in its handoff prompt without ever mentioning the mismatch — it
+  is now always stated in the final message, even under a minimal output
+  style.
+
 ## [0.18.0-alpha] — 2026-07-10
 
 ### Added
