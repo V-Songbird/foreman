@@ -8,6 +8,14 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.16.2-alpha] — 2026-07-09
+
+### Changed
+
+- Roadmap handoff prompts now have the destination session commit code
+  changes before closing an entry as `done`, so the entry always carries
+  the commit sha; tasks that change nothing still close without one.
+
 ## [0.16.1-alpha] — 2026-07-09
 
 Doc-only: the README now documents the config settings and the recommended shape when running alongside razor and hush. No behavior change.

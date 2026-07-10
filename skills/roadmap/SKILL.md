@@ -121,8 +121,11 @@ tasks spawned through it don't get MCP tools.
      `echo '{"id":"<id>","status":"in_progress"}' | node
      ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
      When the work concludes, close the entry the same way — the status it
-     actually earned (`done`, `dropped`, `rejected`), your full findings in
-     `notes`, and the commit sha if one exists:
+     actually earned (`done`, `dropped`, `rejected`) and your full findings
+     in `notes`. If the work changed code, commit it before closing and
+     pass the sha — `done` means the work landed, and the commit is what
+     lands it; a task that changed nothing (pure investigation) closes
+     without one:
      `echo '{"id":"<id>","status":"<status>","commit":"<sha>","notes":"<findings>"}' | node
      ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
      The entry's `notes` is where the depth lives; your final chat message
