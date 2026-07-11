@@ -185,9 +185,12 @@ tasks spawned through it don't get MCP tools.
 5. Deliver via whatever Q2 picked:
    - **TaskCreate**: call `TaskCreate` with `subject` = a verb-first
      imperative ≤60 chars from the entry's `title`, `description` = the
-     assembled XML prompt. Work it in this session — the prompt's own
-     embedded instruction (step 3 above) is what marks the roadmap entry
-     `in_progress`; still use `TaskUpdate` (a separate, session-local
+     assembled XML prompt. Work it in this session. Foreman's
+     `task-created` hook marks the entry `in_progress` mechanically the
+     moment the task is created (it reads the entry id from the embedded
+     paragraph) — finding it already `in_progress` when the embedded
+     instruction runs is expected, and re-running that update is a
+     harmless no-op. Still use `TaskUpdate` (a separate, session-local
      tracker) for its own `in_progress`/`completed` transitions as you go.
    - **Background Agent**: call `Agent` with `prompt` = the assembled XML
      prompt, `description` = a 3-5 word summary, `run_in_background: true`.

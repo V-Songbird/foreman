@@ -8,6 +8,16 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.21.0-alpha] — 2026-07-10
+
+### Added
+
+- Tasks created from a Foreman handoff in the same session are now marked
+  in progress automatically the moment the task exists — no longer only
+  when the session gets around to it.
+- The repository now ships a reproducible benchmark harness — see
+  [benchmarks/](benchmarks/).
+
 ## [0.20.0-alpha] — 2026-07-10
 
 ### Added

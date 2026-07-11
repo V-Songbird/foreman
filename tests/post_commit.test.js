@@ -108,8 +108,12 @@ describe('status-sync block', () => {
 });
 
 describe('freshly-done follow-up fix', () => {
+  // Local date, matching roadmap.js's today() — toISOString() is the UTC
+  // day, which diverges from the hook's comparison for a few hours around
+  // midnight UTC and made these tests time-of-day-dependent.
   function todayStr() {
-    return new Date().toISOString().slice(0, 10);
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
   test('fires when a done entry was updated earlier today', () => {
@@ -160,8 +164,10 @@ describe('requireVerification gate', () => {
   });
 
   test('on: does not affect the freshly-done follow-up branch', () => {
+    const d = new Date();
+    const localToday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     writeRoadmap(project, [
-      { id: '001', title: 'ship the thing', status: 'done', updated_at: new Date().toISOString().slice(0, 10) },
+      { id: '001', title: 'ship the thing', status: 'done', updated_at: localToday },
     ]);
     writeConfig(project, { requireVerification: true });
     const out = run(bashPayload('git commit -m "fix bug found right after"'));

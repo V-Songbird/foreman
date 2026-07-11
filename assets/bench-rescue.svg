@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 216" font-family="Segoe UI,-apple-system,Helvetica,Arial,sans-serif">
+  <text x="8" y="24" font-size="15" font-weight="600" fill="#8b949e">The brief pointed at a file that had been renamed. Did broken work ship?</text>
+  <rect x="586" y="4" width="86" height="34" rx="17" fill="#16a34a"/>
+  <text x="629" y="27" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle">never</text>
+  <rect x="250" y="52" width="380" height="28" rx="3" fill="#e0653f"/>
+  <text x="8" y="71" font-size="12.5" fill="#8b949e">one-line ask</text>
+  <text x="622" y="71" text-anchor="end" font-size="13" font-weight="700" fill="#ffffff">every time</text>
+  <rect x="250" y="88" width="5" height="28" rx="2" fill="#16a34a"/>
+  <text x="8" y="107" font-size="13" font-weight="700" fill="#16a34a">Foreman handoff</text>
+  <text x="263" y="107" font-size="13" font-weight="700" fill="#16a34a">never &#8212; it checked the brief against the code first</text>
+  <text x="8" y="140" font-size="12.5" fill="#8b949e">The one-line ask patched the wrong file every single time; the handoff found the real one and shipped working code.</text>
+  <text x="8" y="170" font-size="12.5" fill="#8b949e">A carefully hand-written brief recovers too &#8212; Foreman just writes that brief for you.</text>
+  <text x="8" y="198" font-size="11" fill="#8b949e">Stale details are normal in a living repo &#8212; the ask that checks first is the one that survives them. (smaller, cheaper model)</text>
+</svg>

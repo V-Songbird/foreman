@@ -13,6 +13,18 @@
         ]
       }
     ],
+    "TaskCreated": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/task-created.js\"",
+            "commandWindows": "node \"$env:CLAUDE_PLUGIN_ROOT\\hooks\\task-created.js\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "^(Edit|Write)$",

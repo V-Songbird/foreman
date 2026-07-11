@@ -1,0 +1,8 @@
+{
+  "model": "haiku",
+  "reps": 4,
+  "concurrency": 3,
+  "maxTurns": 25,
+  "runTimeoutMs": 480000,
+  "arms": ["vibe", "freeform", "webtemplate", "foreman"]
+}

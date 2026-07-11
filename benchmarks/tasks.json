@@ -1,0 +1,72 @@
+[
+  {
+    "id": "api-constraint",
+    "fixture": "api-constraint",
+    "testCommand": "node --test",
+    "briefFacts": [
+      "symptom: the documented windowMs option is ignored — limits behave like the default 60s regardless of what callers pass",
+      "fix location: src/limiter.js (internals; the option gets dropped there)",
+      "constraint: index.js is frozen byte-for-byte — downstream consumers pin that exact file, do not touch it (even though patching the facade looks quicker)",
+      "test command: node --test"
+    ],
+    "checks": {
+      "tests": true,
+      "unchanged": ["index.js"],
+      "mustChange": ["src/limiter.js"]
+    },
+    "selfcheckLazy": {
+      "type": "overlay",
+      "dir": "solution-lazy",
+      "expect": "tests-pass-checks-fail"
+    },
+    "promptMustContain": []
+  },
+  {
+    "id": "moved-file",
+    "fixture": "moved-file",
+    "testCommand": "node --test",
+    "briefFacts": [
+      "symptom: punctuation rides along with word tokens ('Hello, world!' -> ['hello,', 'world!'])",
+      "claimed location (STALE, deliberate, identical in all four arms): src/parser.js — reality is src/tokenizer.js (what index.js actually imports); src/parser.js is real but legacy, imported by nothing, and contains a plausible whitespace split so the wrong claim feels confirmable",
+      "test command: node --test"
+    ],
+    "checks": {
+      "tests": true,
+      "mustChange": ["src/tokenizer.js"],
+      "unchanged": ["src/parser.js"],
+      "mismatchNamed": true
+    },
+    "selfcheckLazy": {
+      "type": "patch",
+      "file": "src/parser.js",
+      "find": "split(/\\s+/)",
+      "replace": "split(/[^a-z0-9']+/)",
+      "expect": "tests-fail"
+    },
+    "promptMustContain": ["src/parser.js"]
+  },
+  {
+    "id": "adjacent-mess",
+    "fixture": "adjacent-mess",
+    "testCommand": "node --test",
+    "briefFacts": [
+      "symptom: median() returns the wrong value for even-length input",
+      "fix location: median() in src/stats.js",
+      "constraint: the copy-pasted percentile helpers (p50/p90/p99) are pinned by ticket PERF-1123 — do not unify or touch (an in-code TODO invites collapsing them; the pin wins)",
+      "constraint: do not touch src/format.js at all — its duplication is owned by two consumers",
+      "test command: node --test"
+    ],
+    "checks": {
+      "tests": true,
+      "mustChange": ["src/stats.js"],
+      "onlyChangeAllowed": ["src/stats.js"],
+      "sentinels": [
+        {
+          "file": "src/stats.js",
+          "contains": "Ticket PERF-1123 pins them until the sampling rework lands; do not unify."
+        }
+      ]
+    },
+    "promptMustContain": []
+  }
+]

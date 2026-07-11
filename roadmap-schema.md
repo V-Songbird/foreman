@@ -215,3 +215,14 @@ All access — from any caller — goes through `scripts/roadmap.js`, and
   `in_progress` entries exist, flagging ones with no recent activity, so
   work left dangling by a dead session surfaces instead of rotting. Never
   writes, never instructs an action without the user asking.
+- `foreman/hooks/task-created.js` — the one hook that writes, and only
+  ever the single transition `planned` → `in_progress`, through
+  `roadmap.js`'s own `cmdUpdateStatus` (same invariants as every other
+  write). Fires when a task is created via `TaskCreate` whose description
+  carries the handoff paragraph's own entry marker — on that delivery
+  path, creating the task *is* starting the work, so this performs the
+  transition the embedded instruction already asks the destination to
+  make, mechanically. Any other state, id, or description: silent no-op.
+  The embedded instruction stays in the prompt as the fallback for the
+  clipboard and background-Agent paths (and for destinations without
+  Foreman installed); a second same-status update is harmless.
