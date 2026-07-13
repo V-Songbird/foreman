@@ -1,5 +1,8 @@
 <div align="center">
-  <img src="assets/logo.svg" alt="foreman" width="240" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg" />
+    <img src="assets/logo.svg" alt="foreman" width="240" />
+  </picture>
   <h1>Foreman</h1>
   <p><strong>A living to-do list for your project, plus expertly written prompts to hand any task to a fresh Claude session.</strong></p>
 </div>
