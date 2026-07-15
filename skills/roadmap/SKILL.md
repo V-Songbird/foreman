@@ -241,7 +241,7 @@ tasks spawned through it don't get MCP tools.
 
 **Hard rule — state this explicitly if the user pushes back**: this skill
 always asks before doing anything — it never silently executes a task, and
-it never mentions or routes to Forge or any other plugin. "Do it now" means
+it never mentions or routes to any other plugin. "Do it now" means
 picking `Execute with TaskCreate` above, not this skill deciding on its own.
 
 ---
