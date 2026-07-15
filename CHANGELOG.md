@@ -8,6 +8,15 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.22.0-alpha] — 2026-07-15
+
+### Added
+
+- A task completing against a still-open roadmap entry now gets a reminder — or, with `taskCloseGate` set to `block`, is held until the entry is closed.
+- Picking the next task now shows each candidate's fuller detail (and, when resuming, prior findings) in a preview you can check before choosing, without cluttering the question itself.
+- craft-prompt can now emit a prompt plus an enforced JSON Schema for use as a Workflow stage.
+- Background-agent handoffs can now be resumed by continuing the original agent instead of rebuilding the prompt.
+
 ## [0.21.1-alpha] — 2026-07-13
 
 Doc-only: the README logo now adapts to dark mode (white silhouette instead of black). No behavior change.

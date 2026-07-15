@@ -28,6 +28,7 @@ Options:
 - `Constraints` — hard limits on files or interfaces the agent must NOT touch
 - `Background context` — architectural decisions, patterns, or environment details
 - `Custom output format` — wrap the deliverable in a specific XML tag for a downstream parser (skip this unless something actually parses the output — the default is a plain human-readable summary, no tags)
+- `Workflow stage` — prompt plus a JSON Schema the tool layer enforces, for a Workflow `agent(prompt, {schema})` stage (mechanically omits `Tone` and replaces the default output format with a fixed enforcement sentence — see the template; pick this instead of `Custom output format`, not alongside it)
 
 Record which optional sections were selected.
 
@@ -89,6 +90,10 @@ For each section selected in Call 1 Q2, ask its detail question(s). Batch up to 
 - "What XML tag should wrap the final deliverable?"
   Options: `<findings>`, `<report>`, `<diff>`, `<summary>`
 
+**Workflow stage** (if selected):
+- "What should come back? Describe the fields the schema should capture."
+  Options: `I'll describe them`
+
 ---
 
 ## Call 5 — destination
@@ -129,6 +134,10 @@ gathered fields onto the template's placeholders:
 - `example` ← Call 4's Example answer, if selected
 - `output_format` ← Call 4's Custom-output-format answer, if selected;
   otherwise the template's own default applies
+- `output_format`/`tone` ← if `Workflow stage` was selected instead: the
+  template's Workflow-stage flavor overrides both (fixed sentence,
+  mechanical tone omission, schema-authoring and delivery rules all live
+  there) — the schema itself derives from Call 4's Workflow-stage answer
 
 **Never paste or print the assembled prompt into your response text** — it
 is data for `TaskCreate`'s `description`, `Agent`'s `prompt`, or a temp

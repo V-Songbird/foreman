@@ -107,3 +107,43 @@ describe('task-created marks the named entry in_progress', () => {
     assert.equal(readEntry('001').status, 'planned');
   });
 });
+
+describe('task-created marker tolerates a paraphrased (non-backticked) id', () => {
+  test('no backticks at all still matches', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'a', status: 'planned', notes: '', commits: [], touches: [], depends_on: [] },
+    ]);
+    run(payload('This task is ROADMAP.jsonl entry 001. Mark it in_progress first.'));
+    assert.equal(readEntry('001').status, 'in_progress');
+  });
+
+  test('one backtick (mixed/malformed) still matches', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'a', status: 'planned', notes: '', commits: [], touches: [], depends_on: [] },
+    ]);
+    run(payload('This task is ROADMAP.jsonl entry `001. Mark it in_progress first.'));
+    assert.equal(readEntry('001').status, 'in_progress');
+  });
+
+  test('multiple numbers in the description: the first marker wins', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'a', status: 'planned', notes: '', commits: [], touches: [], depends_on: [] },
+      { id: '002', title: 'b', status: 'planned', notes: '', commits: [], touches: [], depends_on: [] },
+    ]);
+    run(
+      payload(
+        'This task is ROADMAP.jsonl entry `001`. It relates to ROADMAP.jsonl entry `002` as a dependency.'
+      )
+    );
+    assert.equal(readEntry('001').status, 'in_progress');
+    assert.equal(readEntry('002').status, 'planned');
+  });
+
+  test('garbage description with numbers but no marker phrase changes nothing', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'a', status: 'planned', notes: '', commits: [], touches: [], depends_on: [] },
+    ]);
+    run(payload('Random notes: see item 001, ticket #001, section 001 of the doc.'));
+    assert.equal(readEntry('001').status, 'planned');
+  });
+});

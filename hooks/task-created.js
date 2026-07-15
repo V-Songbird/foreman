@@ -27,7 +27,11 @@ const path = require("path");
 const { readEntries, cmdUpdateStatus } = require("../scripts/roadmap");
 
 // The exact phrase the roadmap skill embeds right after scope_discipline.
-const ENTRY_MARKER_RE = /ROADMAP\.jsonl entry `(\d+)`/;
+// Backticks are optional: descriptions are model-authored (paraphrased),
+// so a rewrite that drops them must still mechanize. No looser secondary
+// pattern (e.g. bare "entry (\d+)") — false-positive risk against
+// arbitrary descriptions.
+const ENTRY_MARKER_RE = /ROADMAP\.jsonl entry `?(\d+)`?/;
 
 function readInput() {
   let raw;

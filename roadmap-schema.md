@@ -226,3 +226,10 @@ All access — from any caller — goes through `scripts/roadmap.js`, and
   The embedded instruction stays in the prompt as the fallback for the
   clipboard and background-Agent paths (and for destinations without
   Foreman installed); a second same-status update is harmless.
+- `foreman/hooks/task-completed.js` — the mirror-image gate on the closing
+  side. It never writes to this file — `task-created.js` remains the only
+  writing hook. Fires when a task carrying the handoff paragraph's entry
+  marker completes while that entry is still `planned` or `in_progress`,
+  and, depending on the `taskCloseGate` setting, reminds you or holds the
+  completion until the entry is closed through `roadmap.js` in the usual
+  way. Any other state, id, or description: silent no-op.

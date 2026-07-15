@@ -1,0 +1,206 @@
+'use strict';
+
+// hooks/task-completed.js — the mechanical close-gate mirroring
+// task-created.js's open transition:
+//   - fires only when task_description carries the embedded entry marker
+//   - gates completion while the named entry is still planned/in_progress
+//   - silent no-op for every other state, a missing/corrupt roadmap, or a
+//     description without the marker
+//   - never writes to ROADMAP.jsonl
+
+const { test, describe, beforeEach } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const { runScriptRaw, makeTmpProject, writeRoadmap, writeConfig } = require('./helpers');
+
+let project;
+let env;
+
+beforeEach(() => {
+  project = makeTmpProject();
+  env = { CLAUDE_PROJECT_DIR: project };
+});
+
+function payload(description, taskId, sessionId) {
+  return {
+    hook_event_name: 'TaskCompleted',
+    session_id: sessionId || 'session-A',
+    task_id: taskId || '1',
+    task_subject: 'Do the thing',
+    task_description: description,
+  };
+}
+
+function run(p) {
+  const result = runScriptRaw('task-completed.js', p, env);
+  assert.equal(result.status, 0, result.stderr);
+  return result.stdout;
+}
+
+function entry(id, status) {
+  return { id, title: 'a', status, why: '', what: '', notes: '', commits: [], touches: [], depends_on: [] };
+}
+
+const MARKER = 'This task is ROADMAP.jsonl entry `001`. Mark it in_progress before doing anything else.';
+const MARKER_NO_TICKS = 'This task is ROADMAP.jsonl entry 001. Mark it in_progress before doing anything else.';
+
+describe('task-completed marker extraction (shared regex)', () => {
+  test('backticked id matches and gates a planned entry', () => {
+    writeRoadmap(project, [entry('001', 'planned')]);
+    const out = run(payload(MARKER));
+    assert.notEqual(out, '');
+  });
+
+  test('non-backticked id matches and gates a planned entry', () => {
+    writeRoadmap(project, [entry('001', 'planned')]);
+    const out = run(payload(MARKER_NO_TICKS));
+    assert.notEqual(out, '');
+  });
+});
+
+describe('task-completed status matrix', () => {
+  test('planned entry is gated', () => {
+    writeRoadmap(project, [entry('001', 'planned')]);
+    assert.notEqual(run(payload(MARKER)), '');
+  });
+
+  test('in_progress entry is gated', () => {
+    writeRoadmap(project, [entry('001', 'in_progress')]);
+    assert.notEqual(run(payload(MARKER)), '');
+  });
+
+  for (const status of ['done', 'dropped', 'rejected', 'deferred']) {
+    test(`${status} entry is silent`, () => {
+      writeRoadmap(project, [entry('001', status)]);
+      assert.equal(run(payload(MARKER)), '');
+    });
+  }
+
+  test('missing entry id is silent', () => {
+    writeRoadmap(project, [entry('002', 'planned')]);
+    assert.equal(run(payload(MARKER)), ''); // names 001, which does not exist
+  });
+
+  test('no marker in description is silent', () => {
+    writeRoadmap(project, [entry('001', 'planned')]);
+    assert.equal(run(payload('An ordinary task about entry 001 with no marker phrase.')), '');
+  });
+
+  test('no ROADMAP.jsonl is silent', () => {
+    assert.equal(run(payload(MARKER)), '');
+  });
+
+  test('a non-TaskCompleted event is ignored defensively', () => {
+    writeRoadmap(project, [entry('001', 'planned')]);
+    assert.equal(run({ ...payload(MARKER), hook_event_name: 'TaskCreated' }), '');
+  });
+});
+
+describe('task-completed fails open on a corrupt roadmap', () => {
+  test('corrupt roadmap is a silent no-op', () => {
+    fs.writeFileSync(path.join(project, 'ROADMAP.jsonl'), '{broken\n', 'utf-8');
+    assert.equal(run(payload(MARKER)), '');
+  });
+});
+
+describe('task-completed gate-mode config resolution', () => {
+  test('off: always silent even for an open entry', () => {
+    writeRoadmap(project, [entry('001', 'planned')]);
+    writeConfig(project, { taskCloseGate: 'off' });
+    assert.equal(run(payload(MARKER)), '');
+  });
+
+  test('nudge: emits systemMessage, no decision field', () => {
+    writeRoadmap(project, [entry('001', 'planned')]);
+    writeConfig(project, { taskCloseGate: 'nudge' });
+    const out = JSON.parse(run(payload(MARKER)));
+    assert.equal(typeof out.systemMessage, 'string');
+    assert.ok(out.systemMessage.includes('001'));
+    assert.equal(out.decision, undefined);
+  });
+
+  test('block: emits decision block with a reason', () => {
+    writeRoadmap(project, [entry('001', 'planned')]);
+    writeConfig(project, { taskCloseGate: 'block' });
+    const out = JSON.parse(run(payload(MARKER)));
+    assert.equal(out.decision, 'block');
+    assert.equal(typeof out.reason, 'string');
+  });
+
+  test('absent config defaults to nudge', () => {
+    writeRoadmap(project, [entry('001', 'planned')]);
+    const out = JSON.parse(run(payload(MARKER)));
+    assert.equal(typeof out.systemMessage, 'string');
+    assert.equal(out.decision, undefined);
+  });
+
+  test('invalid config value defaults to nudge', () => {
+    writeRoadmap(project, [entry('001', 'planned')]);
+    writeConfig(project, { taskCloseGate: 'nonsense' });
+    const out = JSON.parse(run(payload(MARKER)));
+    assert.equal(typeof out.systemMessage, 'string');
+    assert.equal(out.decision, undefined);
+  });
+});
+
+describe('task-completed once-only latch per task_id', () => {
+  test('a second completion for the same task_id passes silently', () => {
+    writeRoadmap(project, [entry('001', 'planned')]);
+    writeConfig(project, { taskCloseGate: 'block' });
+    const first = run(payload(MARKER, 'task-A'));
+    assert.notEqual(first, '');
+    const second = run(payload(MARKER, 'task-A'));
+    assert.equal(second, '');
+  });
+
+  test('a different task_id still gates', () => {
+    writeRoadmap(project, [entry('001', 'planned')]);
+    writeConfig(project, { taskCloseGate: 'block' });
+    run(payload(MARKER, 'task-A'));
+    const other = run(payload(MARKER, 'task-B'));
+    assert.notEqual(other, '');
+  });
+
+  test('a reused task_id from a different session still gates (cross-session collision)', () => {
+    // task_id is a small per-session counter that restarts at 1 in every
+    // fresh session -- session-B reusing session-A's task_id '1' must not
+    // let it inherit session-A's already-latched gate.
+    writeRoadmap(project, [entry('001', 'planned'), entry('002', 'planned')]);
+    writeConfig(project, { taskCloseGate: 'block' });
+    const MARKER_002 = 'This task is ROADMAP.jsonl entry `002`. Mark it in_progress before doing anything else.';
+    const first = run(payload(MARKER, '1', 'session-A'));
+    assert.notEqual(first, '');
+    const second = run(payload(MARKER_002, '1', 'session-B'));
+    assert.notEqual(second, '');
+  });
+});
+
+describe('task-completed block-mode reason shape', () => {
+  test('reason carries the entry id, the close command, provenance, and a complete-again instruction', () => {
+    writeRoadmap(project, [entry('001', 'planned')]);
+    writeConfig(project, { taskCloseGate: 'block' });
+    const out = JSON.parse(run(payload(MARKER)));
+    assert.equal(out.decision, 'block');
+    assert.ok(out.reason.includes('001'));
+    assert.ok(out.reason.includes('update-status'));
+    assert.ok(/automated/i.test(out.reason));
+    assert.ok(/not you declining|not the user declining/i.test(out.reason));
+    assert.ok(/complet(e|ing) (this task |it )?again/i.test(out.reason));
+  });
+});
+
+describe('task-completed never throws', () => {
+  test('garbage stdin exits cleanly with no output', () => {
+    const result = runScriptRaw('task-completed.js', '{not json at all', env);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, '');
+  });
+
+  test('empty stdin exits cleanly with no output', () => {
+    const result = runScriptRaw('task-completed.js', '', env);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, '');
+  });
+});

@@ -3,7 +3,7 @@ name: roadmap
 description: Ongoing entry point for a project's ROADMAP.jsonl. Pick the next task to work on (reasons about dependencies and file-touch collisions like a software architect, then crafts a self-contained handoff prompt), add a new task, or review roadmap status.
 when_to_use: Trigger when the user asks what to work on next, wants to add something to the roadmap, wants to see roadmap status, says "what's next", "pick a task", "add to the roadmap", "roadmap status", or invokes /foreman:roadmap.
 argument-hint: "<optional — a task description to add, or a hint about what to pick next>"
-allowed-tools: AskUserQuestion, Read, Write, Bash, PowerShell, TaskCreate, Agent
+allowed-tools: AskUserQuestion, Read, Write, Bash, PowerShell, TaskCreate, Agent, SendMessage
 ---
 
 # foreman:roadmap — pick, add to, or review the project roadmap
@@ -82,9 +82,13 @@ work already started somewhere — offer to finish it before starting
 something new. Those entries take the top option slot(s) in Q1 (at most 2;
 oldest `updated_at` first), labeled `Resume: <title> (<id>)`, with the
 first one carrying `(Recommended)`. Description: `why` plus
-"in progress since <updated_at>". Planned candidates fill the remaining
-slots. This is a suggestion, never a gate — picking a planned candidate
-proceeds exactly as before.
+"in progress since <updated_at>" — plus, when the entry's `notes` carry the
+background-agent marker (see step 5's delivery bullet below), "will try
+resuming the original agent first". Preview: same fields as the candidate
+preview below, plus a short excerpt of the entry's `notes` (prior
+findings) — the reason a resume is worth previewing at all. Planned
+candidates fill the remaining slots. This is a suggestion, never a gate —
+picking a planned candidate proceeds exactly as before.
 
 **Q1** — "Which task next?"
 Options, one per candidate (already ranked — take the order as given, or
@@ -100,6 +104,14 @@ your hint-aware order when args supplied one; resume options lead when
   anyway (that's `foreman:survey`'s job); it only bloats the dialog. Add
   "(possible file overlap with in-progress work)" to the description if
   `collision:true` — still a caution, not a blocker.
+- Preview: plain text built from the entry's `title`, `why`, `what`,
+  `depends_on`, and `updated_at`, capped at ~10 lines. This is where the
+  detail the description bullet deliberately excludes goes instead —
+  visible only when the user focuses the option, never printed into chat.
+  It supplements the description rule above, never replaces it. Resume
+  options get the same fields plus the `notes` excerpt noted in the
+  finish-first check above. A harness whose `AskUserQuestion` doesn't
+  support `preview` simply ignores the field — no fallback logic needed.
 
 Plus the standard escape to describe something else not on the list.
 
@@ -111,6 +123,22 @@ X" — rather than just picking a different one — offer to mark it
 `next-candidates` and re-ask Q1. Don't defer on your own judgment — only
 when the user signals it; a task that's merely lower-priority stays
 `planned`.
+
+**Resume via the original agent, before Q2**: if the picked option was a
+resume entry and its `notes` carry the background-agent marker (the phrase
+"background agent" followed by the backticked id — written by step 5's
+delivery bullet below), try continuing that exact agent before asking
+anything else. Pull the id out of the marker and call `SendMessage` with
+`to: "<id>"` and a short re-brief (current status?, plus any new context
+the user just gave) instead of the destination question and prompt-crafting
+steps below. On success, that *is* the resume — relay what the agent
+reports and stop here; the resumed agent owns closing its own entry the
+same as any other handoff. On any failure (`success:false`, or the tool
+isn't available), fall back **silently** to the flow below exactly as if
+there were no marker — go on to Q2 and craft the re-crafted prompt (Resume
+variant, step 3) from the entry's notes. Never surface the SendMessage
+failure itself; the re-craft path isn't a degraded fallback, it's the
+original design.
 
 **Q2** — "How do you want to run this?" — ask this now, before the prompt
 exists, not after. There is nothing to preview yet; the destination decides
@@ -194,6 +222,14 @@ tasks spawned through it don't get MCP tools.
      tracker) for its own `in_progress`/`completed` transitions as you go.
    - **Background Agent**: call `Agent` with `prompt` = the assembled XML
      prompt, `description` = a 3-5 word summary, `run_in_background: true`.
+     The tool result trails with the dispatched agent's id (`agentId:
+     a<16 hex>`). Capture it immediately with one annotate call, so a later
+     session can resume this exact agent instead of re-crafting a prompt
+     from its notes:
+     `` echo '{"id":"<id>","notes":"dispatched to background agent `<agent-id>` (<date>)"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js annotate ``
+     The phrase "background agent" followed by the backticked id is the
+     exact marker grammar the resume flow above parses — the id's own
+     charset (`a` + lowercase hex) never needs escaping.
    - **Clipboard**: `Write` the assembled prompt to a temp file first —
      never pass it as an inline shell string, a large prompt breaks shell
      quoting and the copy fails. Then pipe the file's content into the

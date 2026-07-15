@@ -87,7 +87,12 @@ scope — only to work that's genuinely a separate concern from
 [If `"tone"` is in `omit` (from `render-sections.js`), drop this whole
 `<tone>` block — unless the chosen destination is a background `Agent`,
 where step 0's carve-out keeps the default below in place (no output style
-reaches that session, so the opt-out's premise doesn't hold there).]
+reaches that session, so the opt-out's premise doesn't hold there).
+Separately, if the Workflow-stage output flavor was selected (see the
+`<output_format>` block below), drop this whole `<tone>` block
+unconditionally instead — a schema-forced stage has no prose surface for
+voice to govern, and the background-Agent carve-out above does not extend
+to this flavor.]
 <tone>
 [If Tone was selected as an optional section: the user's custom tone,
 full stop — it replaces everything below. Otherwise include: "Minimal,
@@ -152,6 +157,29 @@ following automated step — name a specific XML tag here explicitly and say
 who/what consumes it. Otherwise omit this bracket entirely; don't wrap by
 default "just in case".]
 </output_format>
+
+[WORKFLOW-STAGE FLAVOR — if the output-format selection was "Workflow
+stage" (prompt plus a JSON Schema the tool layer enforces, for a Workflow
+`agent(prompt, {schema})` stage), it overrides both blocks above instead of
+using them:
+- Drop the `<tone>` block unconditionally (see the note above) — a
+  schema-forced stage has no prose surface for voice to govern.
+- Replace the whole `<output_format>` block above with this single fixed
+  sentence, no XML tags:
+  Your return value is enforced by the attached schema; your final text is
+  the return value, not a human-facing message.
+- Assemble a second artifact alongside the prompt: a fenced `json` JSON
+  Schema derived from the user's answer to "what should come back".
+  Authoring rules: object root with a `required` array; a `description` on
+  every property (descriptions double as instructions to the
+  StructuredOutput layer); enums for verdict-like fields; for
+  evidence-bearing claims use the cited-pair shape `{"cite": "file:line or
+  doc URL", "note": string}`; keep schemas small — every validation retry
+  costs a full subagent turn.
+- Delivery: both artifacts travel together to the chosen destination — a
+  clipboard temp file carries the prompt then the schema; a `TaskCreate`
+  description carries both. The never-print-into-chat rule covers both
+  artifacts.]
 ```
 
 ---
@@ -186,6 +214,10 @@ default "just in case".]
 - [ ] the destination (`TaskCreate` / background `Agent` / clipboard) was
       decided *before* assembly, and the raw XML never appears in the chat
       response (clipboard's no-tool fallback is the only exception)
+- [ ] Workflow-stage flavor (if selected): `<tone>` was dropped
+      unconditionally, `<output_format>` was replaced by the fixed
+      enforcement sentence, and a JSON Schema artifact was assembled and
+      travels with the prompt to the destination
 
 ## When NOT to hand off — do it inline instead
 
