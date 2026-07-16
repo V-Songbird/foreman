@@ -33,6 +33,25 @@ function readConfig(root) {
   }
 }
 
+const VALID_TARGET_MODELS = new Set(["haiku", "sonnet", "opus", "inherit"]);
+
+// Declaration, not detection, same spirit as readUsePersona: the project
+// states which model crafted prompts/handoffs should assume runs them.
+// Default "inherit" (today's behavior, unchanged) applies whenever the
+// field is missing, unparseable, or not one of the four valid strings —
+// that last case also gets a warning instead of silently coercing.
+function readTargetModel(config) {
+  const value = config?.targetModel;
+  if (value === undefined) return { value: "inherit", warning: null };
+  if (typeof value === "string" && VALID_TARGET_MODELS.has(value)) {
+    return { value, warning: null };
+  }
+  return {
+    value: "inherit",
+    warning: `targetModel: ${JSON.stringify(value)} is not one of ${[...VALID_TARGET_MODELS].join(", ")} — defaulted to "inherit"`,
+  };
+}
+
 const TAG_RE = /^[a-z][a-z0-9_]*$/;
 
 // Every tag the fixed template already owns — a custom section can never
@@ -127,11 +146,17 @@ function render(root) {
   const config = readConfig(root);
   const sectionsResult = renderSections(config.customSections);
   const omitResult = renderOmit(config.omitSections);
+  const targetModelResult = readTargetModel(config);
   return {
     usePersona: readUsePersona(config),
     sections: sectionsResult.sections,
     omit: omitResult.omit,
-    warnings: [...sectionsResult.warnings, ...omitResult.warnings],
+    targetModel: targetModelResult.value,
+    warnings: [
+      ...sectionsResult.warnings,
+      ...omitResult.warnings,
+      ...(targetModelResult.warning ? [targetModelResult.warning] : []),
+    ],
   };
 }
 
@@ -149,6 +174,7 @@ module.exports = {
   configPath,
   readConfig,
   readUsePersona,
+  readTargetModel,
   escapeXml,
   renderSections,
   renderOmit,
@@ -156,4 +182,5 @@ module.exports = {
   TAG_RE,
   RESERVED_TAGS,
   OMITTABLE_TAGS,
+  VALID_TARGET_MODELS,
 };

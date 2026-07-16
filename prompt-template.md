@@ -18,13 +18,14 @@ optional — it is the only way the handed-off work can act correctly.
 **Craft-time environment check (do this now, once, while assembling — not
 an instruction for the spawned session to act on later):**
 
-0. **One mechanical call covers persona/custom-sections/omissions.** Run
-   `node ${CLAUDE_PLUGIN_ROOT}/scripts/render-sections.js` — always (it
-   resolves a project root from `$CLAUDE_PROJECT_DIR`/cwd and fails soft
-   to defaults when no `.foreman/config.json` exists). One JSON object:
-   `{"usePersona": bool, "sections": [{"tag", "xml"}], "omit": [...],
-   "warnings": [...]}`. All of it is project **declaration** — foreman
-   never inspects which style plugins the operator runs.
+0. **One mechanical call covers persona/custom-sections/omissions/model-
+   scoping.** Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/render-sections.js`
+   — always (it resolves a project root from `$CLAUDE_PROJECT_DIR`/cwd and
+   fails soft to defaults when no `.foreman/config.json` exists). One JSON
+   object: `{"usePersona": bool, "sections": [{"tag", "xml"}], "omit":
+   [...], "targetModel": "haiku"|"sonnet"|"opus"|"inherit", "warnings":
+   [...]}`. All of it is project **declaration** — foreman never inspects
+   which style plugins or model the operator runs.
    - `usePersona` — default `true` when missing/unparseable. Controls only
      the opening of `task_context` below: persona sentence vs domain
      framing.
@@ -42,6 +43,30 @@ an instruction for the spawned session to act on later):**
      here), never a background agent's, so the omission's premise fails
      there; the kept default still self-yields if a style does govern. The
      other three tags have no destination dependence.
+   - `targetModel` — default `"inherit"` whenever the field is missing,
+     unparseable, or not one of the four valid strings (that last case
+     also adds a `warnings` entry). Declaration, not detection, same as
+     `usePersona` — never a claim about what the target model will
+     actually manage, only how much elaboration `relevant_files`/
+     `context`/`task_rules` below carry:
+     - `haiku` — elaborate fully: name the exact symbol or behavior at
+       stake in `context`, not just the file; write the verification
+       block's `Expected:` line as the literal output or exit code, not a
+       category; one concrete action per `task_rules` bullet, nothing
+       compounded. Grounded in Foreman's own handoff benchmark: on Haiku,
+       the most-detailed of the structured prompt formats tested posted
+       the lowest reads-before-first-edit of the three on every fixture
+       measured, at equal-or-better correctness — thoroughness measurably
+       cut this model's exploratory overhead, never added to it.
+     - `sonnet`, `opus`, `inherit` — assemble exactly as already described
+       above; do not add elaboration beyond what the gathered answers
+       actually supplied. Grounded (for `sonnet`) in the same benchmark:
+       correctness saturated at 100% across every prompt format tested,
+       while the most-detailed format cost the most of the four in every
+       single task for identical correctness — extra elaboration bought
+       nothing there. `opus` has no runs in that benchmark; absent
+       evidence for a distinct treatment, it gets today's default rather
+       than an invented one.
    - `warnings` — surface briefly to the user (skipped entries from a
      malformed config); never blocks assembly.
 
@@ -103,7 +128,8 @@ it — this tone applies only in its absence."]
 </tone>
 
 [If `"background"` is in `omit`, drop this whole `<background>` block
-unconditionally.]
+unconditionally. Otherwise, step 0's `targetModel` sets how much
+elaboration `relevant_files` and `context` below carry — see its bullet.]
 <background>
 <relevant_files>
 [Exact file paths with line ranges for every file the task touches.
@@ -117,6 +143,8 @@ Example: "Uses JWT tokens in httpOnly cookies. No third-party auth libs."]
 </context>
 </background>
 
+[Step 0's `targetModel` also sets how much elaboration these bullets and
+the verification block carry — see its bullet.]
 <task_rules>
 - [What to read or explore first]
 - [What to analyze or check next]
@@ -192,7 +220,9 @@ using them:
 - [ ] `scope_discipline` present, unmodified — every handoff carries it
 - [ ] `render-sections.js` ran once at craft time (never deferred to the
       spawned session) and its `usePersona` field — not a fresh `Read` or
-      flag check — drove `<task_context>`
+      flag check — drove `<task_context>`; its `targetModel` field drove
+      how much elaboration went into `relevant_files`/`context`/
+      `task_rules` below
 - [ ] `relevant_files` lists every file path with line ranges — no vague
       references (`craft-prompt`: from the user directly; `foreman:roadmap`:
       the entry's `touches` passed through as-is, never upgraded by

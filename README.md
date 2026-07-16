@@ -80,6 +80,7 @@ Most people never touch these — `/foreman:init` asks the questions and writes 
 | `omitSections` | Prompt sections to leave out entirely (`tone`, `example`, `background`, `output_format`). |
 | `requireVerification` | Hold off marking a task done after a commit until you confirm it's verified. |
 | `taskCloseGate` | When a tracked task finishes with its roadmap entry still open: `off` says nothing, `nudge` (default) reminds you to close it, `block` holds the completion until you do. |
+| `targetModel` | How much detail crafted prompts spell out, scoped to the model that runs them: `haiku` elaborates fully, while `sonnet`, `opus`, and `inherit` (default — no fixed model) keep the standard level. |
 
 Running with razor and hush? The recommended shape is:
 

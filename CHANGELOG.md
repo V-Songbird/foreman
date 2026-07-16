@@ -8,6 +8,15 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.23.0-alpha] — 2026-07-16
+
+### Added
+
+- Setup now also asks which model will run crafted prompts and handoffs (Haiku, Sonnet, Opus, or no fixed model), stored alongside the other project settings.
+- Crafted prompts and roadmap handoffs scope their level of detail to that declared model — a Haiku target gets fuller elaboration, every other setting keeps the standard level.
+- Picking the next task now flags a candidate whose description may need more than a declared Haiku target reliably handles.
+- Handing a prompt off to a background agent now asks which model should run it, defaulted from the project's declared model. Copying a prompt to the clipboard instead shows a recommended model alongside the file path.
+
 ## [0.22.0-alpha] — 2026-07-15
 
 ### Added

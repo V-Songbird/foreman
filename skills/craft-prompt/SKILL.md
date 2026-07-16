@@ -96,6 +96,16 @@ For each section selected in Call 1 Q2, ask its detail question(s). Batch up to 
 
 ---
 
+## Resolve project config (craft-time, once)
+
+Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/render-sections.js` now — the one
+mechanical call that resolves `usePersona`/`sections`/`omit`/
+`targetModel`. Every step below (Call 6's default, Assemble the prompt's
+elaboration scoping, Deliver's clipboard recommendation) reads this same
+result. Nothing past this point calls it again.
+
+---
+
 ## Call 5 — destination
 
 Ask this now, before the prompt exists, not after assembly. There is
@@ -114,13 +124,41 @@ above instead, regardless of Desktop or CLI.
 
 ---
 
+## Call 6 — executing model (conditional)
+
+Ask this only when Call 5 Q1's answer was "Execute with a background
+Agent" — its default depends on that answer, so it can't batch into Call
+5's own question. Skip it for the other two destinations:
+- **TaskCreate** runs the task in this session — no model choice exists.
+- **Clipboard** has nothing to execute yet; see Deliver's clipboard branch
+  below for a recommendation instead of a question.
+
+**Q1** — "Which model should the background Agent run on?"
+Always these four options, reordered so the one matching `targetModel`
+(resolved above) leads, with `(Recommended)` appended to its label — same
+convention `foreman:roadmap`'s Q1 uses for its top-ranked candidate:
+- `Haiku` — the background Agent runs on Haiku.
+- `Sonnet` — the background Agent runs on Sonnet.
+- `Opus` — the background Agent runs on Opus.
+- `Inherit the session's model` — omits the `Agent` call's `model`
+  parameter entirely, running on whatever model launched this session;
+  leads when `targetModel` resolved to `inherit`.
+
+The user can always override the default. Record the answer for Deliver's
+background-Agent branch below: a concrete model becomes that literal
+`model` value (`haiku`/`sonnet`/`opus`); `Inherit the session's model`
+means leaving `model` out of the call.
+
+---
+
 ## Assemble the prompt
 
-Follow `${CLAUDE_PLUGIN_ROOT}/prompt-template.md` exactly — its craft-time
-environment check (one `render-sections.js` call resolving
-`usePersona`/`sections`/`omit`) and its XML template, both verbatim. Never re-derive or
-duplicate either here; if the template changes, this skill picks up the
-change automatically by reading it fresh each time. Map this skill's
+Follow `${CLAUDE_PLUGIN_ROOT}/prompt-template.md` exactly for its XML
+template, verbatim. Its craft-time environment check (`render-sections.js`)
+already ran above, before Call 5 — use that same result, don't invoke it
+again. Never re-derive or duplicate the per-model elaboration guidance
+`targetModel` drives either; if the template changes, this skill picks up
+the change automatically by reading it fresh each time. Map this skill's
 gathered fields onto the template's placeholders:
 
 - `task_context`: role ← Call 2 Q1, goal ← Call 2 Q2
@@ -161,7 +199,10 @@ the task in this session, using `TaskUpdate` to mark it `in_progress` then
 `completed` as you go.
 
 **If background Agent:** call `Agent` with `prompt` = the assembled XML
-prompt, `description` = a 3-5 word summary, `run_in_background: true`.
+prompt, `description` = a 3-5 word summary, `run_in_background: true`, and
+`model` = Call 6's answer — a concrete choice as its literal string
+(`haiku`/`sonnet`/`opus`); omit the `model` parameter entirely when the
+answer was "Inherit the session's model".
 
 **If clipboard:** `Write` the assembled prompt to a temp file first — never
 pass it as an inline shell string, a large prompt breaks shell quoting and
@@ -170,4 +211,9 @@ command: `Get-Content -Raw <file> | Set-Clipboard` on Windows, `pbcopy <
 <file>` on macOS, `xclip -selection clipboard < <file>` (or `wl-copy <
 <file>`) on Linux. Mention the file path too, in case the clipboard step
 fails. If no clipboard tool is available at all, fall back to showing the
-prompt in a fenced `xml` code block instead.
+prompt in a fenced `xml` code block instead. If `targetModel` resolved to
+a concrete model, add one more line alongside the file path: "Recommended
+model: [Haiku/Sonnet/Opus] — this prompt's elaboration level was
+calibrated for it." Skip that line when `targetModel` resolved to
+`inherit` — the project declared no fixed target, so there's nothing to
+recommend.

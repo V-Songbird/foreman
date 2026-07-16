@@ -50,7 +50,7 @@ they want to get done soon)
 
 ---
 
-## Call 2 — the policy toggles (batch 3, these are the key decisions)
+## Call 2 — the policy toggles (batch 4, these are the key decisions)
 
 **Q1** — "Should the roadmap accept Claude-suggested entries after commits?"
 Options:
@@ -84,6 +84,22 @@ Options:
   touched files are still recorded immediately, but the task stays in
   progress until you confirm the work actually holds up. Becomes
   `"requireVerification": true`.
+
+**Q4** — "Which model will run the prompts and handoffs Foreman crafts
+for this project?"
+Options:
+- `Haiku` — crafted prompts elaborate fully, spelling out details a
+  stronger model could otherwise infer. Becomes `"targetModel": "haiku"`.
+- `Sonnet` — crafted prompts assemble at today's default level of detail.
+  Becomes `"targetModel": "sonnet"`.
+- `Opus` — same default level of detail as Sonnet — nothing in Foreman's
+  benchmarks yet justifies a distinct treatment. Becomes
+  `"targetModel": "opus"`.
+- `No fixed model / it varies` — today's behavior, unchanged. Becomes
+  `"targetModel": "inherit"`.
+
+This is a declaration, not detection — Foreman never inspects which model
+actually executes a session; the user states the expected target here.
 
 ---
 
@@ -130,7 +146,7 @@ the updated draft, ask again. Repeat until approved.
    `created_at`/`updated_at`, and validates the file after every write —
    no manual parsing, no hand-computed ids.
 3. Write `.foreman/config.json` —
-   `{"discoverySuggestions": <bool>, "usePersona": <bool>, "omitSections": [...], "requireVerification": <bool>}`
+   `{"discoverySuggestions": <bool>, "usePersona": <bool>, "omitSections": [...], "requireVerification": <bool>, "targetModel": "<haiku|sonnet|opus|inherit>"}`
    from the Call 2 answers (skip this file write if the pre-check "keep,
    add to it" branch found an existing config already).
 4. Stage and commit just these two files:

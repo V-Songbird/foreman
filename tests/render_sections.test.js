@@ -244,3 +244,50 @@ describe('render-sections — usePersona', () => {
     assert.equal('inheritOperatorTone' in json, false);
   });
 });
+
+describe('render-sections — targetModel', () => {
+  test('no config.json -> targetModel defaults to "inherit"', () => {
+    const { json } = run();
+    assert.equal(json.targetModel, 'inherit');
+    assert.deepEqual(json.warnings, []);
+  });
+
+  test('config.json without targetModel -> defaults to "inherit"', () => {
+    writeConfig(project, { discoverySuggestions: true });
+    const { json } = run();
+    assert.equal(json.targetModel, 'inherit');
+  });
+
+  for (const value of ['haiku', 'sonnet', 'opus', 'inherit']) {
+    test(`targetModel: "${value}" passes through`, () => {
+      writeConfig(project, { targetModel: value });
+      const { json } = run();
+      assert.equal(json.targetModel, value);
+      assert.deepEqual(json.warnings, []);
+    });
+  }
+
+  test('an invalid targetModel defaults to "inherit" with a warning, no throw', () => {
+    writeConfig(project, { targetModel: 'gpt4' });
+    const { status, json } = run();
+    assert.equal(status, 0);
+    assert.equal(json.targetModel, 'inherit');
+    assert.equal(json.warnings.length, 1);
+    assert.match(json.warnings[0], /not one of/);
+  });
+
+  test('a non-string targetModel defaults to "inherit" with a warning', () => {
+    writeConfig(project, { targetModel: 42 });
+    const { json } = run();
+    assert.equal(json.targetModel, 'inherit');
+    assert.match(json.warnings[0], /not one of/);
+  });
+
+  test('corrupt config.json fails soft -> targetModel "inherit", no throw', () => {
+    fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
+    fs.writeFileSync(path.join(project, '.foreman', 'config.json'), '{not json', 'utf-8');
+    const { status, json } = run();
+    assert.equal(status, 0);
+    assert.equal(json.targetModel, 'inherit');
+  });
+});

@@ -169,6 +169,26 @@ tasks spawned through it don't get MCP tools.
      same sentence twice. The remaining bullets, tone, and the verification
      command — ask the same way `craft-prompt` does only if genuinely not
      inferable from the entry; don't turn this into a second interview.
+   - `targetModel` fit — this is the DISPATCH-time judgment, made now,
+     never at pick time or when the entry was created: if
+     `.foreman/config.json` declares a `targetModel` other than
+     `inherit` (already in hand from the render-sections.js call in step
+     1), weigh it against this candidate's own `touches`/`what` —
+     reasoning from those recorded fields only, same no-investigation rule
+     as the rest of this branch. Foreman's own benchmark data shows a real
+     capability cliff here, not a wording gap: a naming/reference mismatch
+     went unresolved in every prompt format tested when the target was
+     Haiku, no matter how structured the handoff. So when `targetModel`
+     is `haiku` and the candidate's `what` describes reconciling stale,
+     conflicting, or renamed references, mention that as a one-line
+     caution in this session's own delivery message — e.g. "this may need
+     more than Haiku reliably handles; consider Sonnet/Opus, or proceed
+     anyway" — never inside the assembled prompt itself (the target model
+     never sees a description of its own expected failure modes), never a
+     block, never a status or schema change. Every other `targetModel`
+     value skips this — nothing grounded suggests a caution at that scope
+     for `sonnet`/`opus`, and `inherit` has no declared target to weigh
+     against.
    - Add one more fixed paragraph right after `scope_discipline`, naming
      this entry's id, so the destination session — not Foreman — is the one
      that flips it to `in_progress`:
