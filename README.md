@@ -4,7 +4,7 @@
     <img src="assets/logo.svg" alt="foreman" width="240" />
   </picture>
   <h1>Foreman</h1>
-  <p><strong>A living to-do list for your project, plus expertly written prompts to hand any task to a fresh Claude session.</strong></p>
+  <p><strong>A living to-do list for your project, plus the prompt that hands any task to a fresh Claude session.</strong></p>
 
   <img src="assets/bench-signoff.svg" alt="Every haiku run in the benchmark suite drawn as a stamp, grouped by task. The one-line-ask row is checked off green except for four red rejected stamps, all in the same group — every run shipped broken code the moment the target file had been renamed. The Foreman-handoff row is signed off green across all twelve runs, on every task including that one." width="700" />
 
@@ -17,14 +17,14 @@
 
 ## What is this?
 
-Every project builds up a pile of "we should do X someday" — in your head, in chat logs, in sticky notes that scroll away. Foreman keeps that pile **inside the project itself**, in a plain-language roadmap that travels with your code. Ask "what's next?" and it picks the best task to do now, then writes a complete, professional prompt you can hand straight to a fresh Claude session — no prompt-engineering skills required.
+Every project builds up a pile of "we should do X someday" — in your head, in chat logs, in sticky notes that scroll away. Foreman keeps that pile **inside the project itself**, in a plain-language roadmap that travels with your code. Ask "what's next?" and it picks the best task to do now, then writes a prompt you can hand straight to a fresh Claude session — no prompt-engineering skills required.
 
 It's built for real engineering work — projects that outlive any one chat window, where the next session never remembers the last.
 
 ## Why you'd want it
 
 - **Your plan survives between sessions.** The roadmap lives in your repository, committed like code — and every new session gets reminded what was left in progress, with the chance to finish it first.
-- **Great prompts without the skill.** Every handoff prompt is assembled from a proven template, with guardrails built in — you just say what you want in plain language.
+- **No prompt-engineering skill needed.** Every handoff prompt comes from the same template, guardrails built in — you just say what you want in plain language.
 - **It keeps itself up to date.** After each commit, Foreman notices when you've finished a task and records it. Opt in, and it also spots new work the commit uncovered — and asks what to do with it.
 - **It never acts without asking.** Nothing is added, changed, or marked done behind your back, and a project you haven't set up is never touched.
 
@@ -73,7 +73,7 @@ We measured what a good handoff is actually worth: the same real coding jobs, ru
 
 ## Under the hood
 
-If you're curious, the roadmap is just a plain file in your repo (field-by-field details in [`roadmap-schema.md`](roadmap-schema.md)), and every prompt Foreman assembles is script-checked before it ships — a malformed handoff never reaches a session. Pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush): razor cuts the code, hush cuts the noise, Foreman writes the prompts — and measured together, the three add no overhead to each other.
+The roadmap is just a plain file in your repo (field-by-field details in [`roadmap-schema.md`](roadmap-schema.md)), and every prompt Foreman assembles is script-checked before it ships — a malformed handoff never reaches a session. Pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush): razor cuts the code, hush cuts the noise, Foreman writes the prompts — and measured together, the three add no overhead to each other.
 
 ## Settings
 

@@ -1,29 +1,28 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 212" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 186" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif">
   <style>
     .title{fill:#1f2937;font-size:17px;font-weight:700}
     .sub{fill:#6b7280;font-size:12.5px}
-    .fmlab{fill:#16a34a;font-size:13px;font-weight:700}
-    .fail{fill:#e0653f}.pass{fill:#16a34a}.badge{fill:#16a34a}
-    .foot{fill:#6b7280;font-size:12.5px}
+    .item{fill:#374151;font-size:13.5px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .fmitem{fill:#16a34a;font-size:13.5px;font-weight:700;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .failamt{fill:#e0653f;font-size:14px;font-weight:700;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .fmamt{fill:#16a34a;font-size:14px;font-weight:700;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .rule{stroke:#d7dde4;stroke-width:1}
+    .foot{fill:#6b7280;font-size:12.5px}.em{fill:#16a34a;font-weight:700}
     @media (prefers-color-scheme:dark){
-      .title{fill:#e6edf3}.sub{fill:#9198a1}.fmlab{fill:#22c55e}
-      .fail{fill:#ef6c46}.pass{fill:#22c55e}.badge{fill:#22c55e}.foot{fill:#9198a1}
+      .title{fill:#e6edf3}.sub{fill:#9198a1}.item{fill:#c9d1d9}.fmitem{fill:#22c55e}
+      .failamt{fill:#ef6c46}.fmamt{fill:#22c55e}.rule{stroke:#30363d}.foot{fill:#9198a1}.em{fill:#22c55e}
     }
   </style>
   <text x="16" y="28" class="title">The brief pointed at a file that had been renamed</text>
   <text x="16" y="50" class="sub">Did broken work ship, on the smaller model?</text>
 
-  <rect x="618" y="4" width="86" height="34" rx="17" class="badge"/>
-  <text x="661" y="27" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle">never</text>
+  <text x="16" y="92" class="item">one-line ask</text>
+  <text x="704" y="92" class="failamt" text-anchor="end">every time</text>
 
-  <rect x="258" y="78" width="380" height="28" rx="3" class="fail"/>
-  <text x="16" y="97" class="sub">one-line ask</text>
-  <text x="630" y="97" text-anchor="end" font-size="13" font-weight="700" fill="#ffffff">every time</text>
+  <text x="16" y="120" class="fmitem">Foreman handoff</text>
+  <text x="704" y="120" class="fmamt" text-anchor="end">never</text>
 
-  <rect x="258" y="114" width="5" height="28" rx="2" class="pass"/>
-  <text x="16" y="133" class="fmlab">Foreman handoff</text>
-  <text x="279" y="133" class="fmlab">never &#8212; it checked the brief against the code first</text>
+  <line x1="16" y1="140" x2="704" y2="140" class="rule"/>
 
-  <text x="16" y="166" class="foot">The one-line ask patched the wrong file every single time; the handoff checked first and shipped working code.</text>
-  <text x="16" y="190" class="sub">A hand-written brief recovers too &#8212; Foreman just writes it for you.</text>
+  <text x="16" y="164" class="foot">The one-line ask patched the wrong file every single time; the handoff <tspan class="em">checked first</tspan> and shipped working code.</text>
 </svg>
