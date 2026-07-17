@@ -81,14 +81,19 @@ const CREATE_STATUSES = new Set(["planned", "rejected"]);
 // Dense means specific (exact paths/symbols), not exhaustive prose.
 const WHY_WARN_CHARS = 240;
 const WHAT_WARN_CHARS = 400;
-const NOTES_APPEND_WARN_CHARS = 240;
+// notes is the durable home for full findings (see roadmap-schema.md), not
+// a one-line breadcrumb — a dense paragraph of specific findings routinely
+// runs into the thousands of chars. This still catches the real failure
+// mode: a wholesale serialized-JSON-blob dump.
+const NOTES_APPEND_WARN_CHARS = 3000;
+const NOTES_WARN_HINT = "a dense finding, not a wall of narrative or a serialized blob";
 
 function fieldWarnings(fields) {
   const warnings = [];
-  for (const [name, text, max] of fields) {
+  for (const [name, text, max, hint] of fields) {
     if (text && text.length > max) {
       warnings.push(
-        `${name} is ${text.length} chars — aim for under ${max} (roughly 1-2 sentences). ` +
+        `${name} is ${text.length} chars — aim for under ${max} (${hint || "roughly 1-2 sentences"}). ` +
           "Dense means specific (exact paths/symbols), not an exhaustive essay."
       );
     }
@@ -191,7 +196,7 @@ function cmdUpdateStatus(root, payload) {
   }
   entry.updated_at = today();
   writeEntries(root, entries);
-  const warnings = notes ? fieldWarnings([["notes", notes, NOTES_APPEND_WARN_CHARS]]) : [];
+  const warnings = notes ? fieldWarnings([["notes", notes, NOTES_APPEND_WARN_CHARS, NOTES_WARN_HINT]]) : [];
   const result = { entry };
   if (derivedTouches.length) result.derived_touches = derivedTouches;
   return warnings.length ? { ...result, warnings } : result;
@@ -210,7 +215,7 @@ function cmdAnnotate(root, payload) {
   entry.notes = entry.notes ? `${entry.notes}; ${notes}` : notes;
   entry.updated_at = today();
   writeEntries(root, entries);
-  const warnings = fieldWarnings([["notes", notes, NOTES_APPEND_WARN_CHARS]]);
+  const warnings = fieldWarnings([["notes", notes, NOTES_APPEND_WARN_CHARS, NOTES_WARN_HINT]]);
   return warnings.length ? { entry, warnings } : { entry };
 }
 

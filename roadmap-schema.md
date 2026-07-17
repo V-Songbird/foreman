@@ -43,7 +43,7 @@ itself can't parse it to operate on it.
 | `commits` | array\<string\> | yes (may be `[]`) | Short SHAs (`git rev-parse --short HEAD` output) that implemented this task. |
 | `created_at` | string (`YYYY-MM-DD`) | yes | Set once, at creation, never rewritten. |
 | `updated_at` | string (`YYYY-MM-DD`) | yes | Rewritten on every change to the entry. |
-| `notes` | string | yes (may be `""`) | Free text. **Append-only** — add to it, never overwrite what's already there. Each individual append should be a short breadcrumb (warns past ~240 chars), not a paragraph — and never a serialized JSON blob (e.g. dumping an imported/legacy record's full JSON as a string here defeats the point of a structured schema; if migrating from another tracker, map its fields onto `why`/`what`/`touches` instead of stuffing the original object into `notes`). |
+| `notes` | string | yes (may be `""`) | Free text. **Append-only** — add to it, never overwrite what's already there. This is the durable home for full findings, not a one-line breadcrumb — a dense paragraph of specific findings (exact paths/symbols, what was tried, what shipped) is expected and normal (warns past ~3000 chars). Still never a serialized JSON blob (e.g. dumping an imported/legacy record's full JSON as a string here defeats the point of a structured schema; if migrating from another tracker, map its fields onto `why`/`what`/`touches` instead of stuffing the original object into `notes`). |
 
 ### `status` values
 

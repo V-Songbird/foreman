@@ -245,7 +245,7 @@ describe('annotate', () => {
   });
 
   test('returns a warning for an overlong notes append, but still writes', () => {
-    const { status, json } = run(['annotate'], { id: '001', notes: 'y'.repeat(300) });
+    const { status, json } = run(['annotate'], { id: '001', notes: 'y'.repeat(3500) });
     assert.equal(status, 0);
     assert.ok(json.warnings && json.warnings.some((w) => w.startsWith('notes')));
   });
@@ -577,7 +577,7 @@ describe('field length warnings', () => {
 
   test('update-status returns a warning for an overlong notes append', () => {
     writeRoadmap(project, [{ id: '001', title: 'a', why: 'a', what: 'a', status: 'planned', source: 'user', depends_on: [], touches: [], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '' }]);
-    const { json } = run(['update-status'], { id: '001', status: 'planned', notes: 'y'.repeat(300) });
+    const { json } = run(['update-status'], { id: '001', status: 'planned', notes: 'y'.repeat(3500) });
     assert.ok(json.warnings && json.warnings.some((w) => w.startsWith('notes')));
   });
 });
