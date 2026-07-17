@@ -50,7 +50,7 @@ they want to get done soon)
 
 ---
 
-## Call 2 — the policy toggles (batch 4, these are the key decisions)
+## Call 2 — the policy toggles (batch 5, these are the key decisions)
 
 **Q1** — "Should the roadmap accept Claude-suggested entries after commits?"
 Options:
@@ -101,6 +101,15 @@ Options:
 This is a declaration, not detection — Foreman never inspects which model
 actually executes a session; the user states the expected target here.
 
+**Q5** — "When a tracked task completes but its roadmap entry is still
+open, what should Foreman do?"
+Options:
+- `Nothing` — becomes `"taskCloseGate": "off"`.
+- `Remind me to close it` — the task completes normally, with a reminder
+  surfaced alongside it. Becomes `"taskCloseGate": "nudge"`.
+- `Block completion until I close it` — the task stays incomplete until
+  the roadmap entry is closed. Becomes `"taskCloseGate": "block"`.
+
 ---
 
 ## Draft phase (no AskUserQuestion)
@@ -146,7 +155,7 @@ the updated draft, ask again. Repeat until approved.
    `created_at`/`updated_at`, and validates the file after every write —
    no manual parsing, no hand-computed ids.
 3. Write `.foreman/config.json` —
-   `{"discoverySuggestions": <bool>, "usePersona": <bool>, "omitSections": [...], "requireVerification": <bool>, "targetModel": "<haiku|sonnet|opus|inherit>"}`
+   `{"discoverySuggestions": <bool>, "usePersona": <bool>, "omitSections": [...], "requireVerification": <bool>, "targetModel": "<haiku|sonnet|opus|inherit>", "taskCloseGate": "<off|nudge|block>"}`
    from the Call 2 answers (skip this file write if the pre-check "keep,
    add to it" branch found an existing config already).
 4. Stage and commit just these two files:
