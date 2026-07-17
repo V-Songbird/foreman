@@ -54,15 +54,15 @@ You talk to Foreman in plain language — you never edit the roadmap file by han
 
 We measured what a good handoff is actually worth: the same real coding jobs, run as full agent sessions — never a single canned reply — started four ways, from a bare one-line ask up to a Foreman handoff, with the real bill read straight from the API.
 
-<p align="center"><img src="assets/bench-rescue.svg" alt="The brief pointed at a file that had been renamed: the one-line ask shipped broken work every time, the Foreman handoff never did — it checked the brief against the code first" width="640"></p>
+<p align="center"><img src="assets/bench-rescue.svg" alt="The brief pointed at a file that had been renamed: the one-line ask shipped broken work every time, the Foreman handoff never did — it checked the brief against the code first" width="700"></p>
 
 **When the brief goes stale, the one-line ask ships broken work.** Every living repo accumulates stale detail — a file gets renamed, a note outlives the code it described. We planted exactly that trap, and on the smaller model the one-line ask patched the wrong file and shipped a broken result every single time. The Foreman handoff has the session check the brief against the code before acting — it found the real file and finished the job, every single time.
 
-<p align="center"><img src="assets/bench-cost.svg" alt="The same jobs asked two ways on the bigger model: the one-line ask cost $0.21 per session, the Foreman handoff $0.16 — about a quarter less" width="640"></p>
+<p align="center"><img src="assets/bench-cost.svg" alt="The same jobs asked two ways on the bigger model: the one-line ask cost $0.21 per session, the Foreman handoff $0.16 — about a quarter less" width="700"></p>
 
 **Skipping the brief doesn't skip the cost.** Every fact you leave out of the ask, the session buys back by exploring your codebase at your expense. On the bigger model, the one-line ask cost about a third more than the Foreman handoff for the same jobs — the shortest prompt was the most expensive session.
 
-<p align="center"><img src="assets/bench-picks.svg" alt="Cost per what-should-I-work-on-next as the backlog grows: a to-do file costs $0.12 at 10 tasks, $0.14 at 50, $0.21 at 150 — Foreman's roadmap answers free at any size, with the same answer every time" width="640"></p>
+<p align="center"><img src="assets/bench-picks.svg" alt="Cost per what-should-I-work-on-next as the backlog grows: a to-do file costs $0.12 at 10 tasks, $0.14 at 50, $0.21 at 150 — Foreman's roadmap answers free at any size, with the same answer every time" width="700"></p>
 
 **"What's next?" is free, every time you ask.** Keep your backlog in a plain to-do file and Claude re-reads and re-reasons over the whole thing on every ask — the bill grows with the list, and the pick can change with the model's mood. Foreman reads the roadmap mechanically: instant, free at any size, and the same answer every time.
 

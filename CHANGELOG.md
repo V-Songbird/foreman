@@ -8,6 +8,10 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.24.2-alpha] — 2026-07-17
+
+Doc-only: the three benchmark charts now carry dark-mode-aware colors and the same title/subtitle treatment as the header chart. No behavior change.
+
 ## [0.24.1-alpha] — 2026-07-17
 
 Doc-only: the README header now carries a benchmark chart and tagline, matching hush and razor. No behavior change.
