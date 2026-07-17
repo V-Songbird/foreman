@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 240" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif">
+  <style>
+    .title{fill:#1f2937;font-size:17px;font-weight:700}
+    .sub{fill:#6b7280;font-size:12.5px}
+    .lab{fill:#4b5563;font-size:13px;font-weight:600}
+    .fmlab{fill:#16a34a;font-size:13px;font-weight:700}
+    .note{fill:#9aa3ad;font-size:11.5px}
+    .task{fill:#9aa3ad;font-size:10.5px}
+    .pass{fill:#16a34a}.fail{fill:#e0653f}
+    .mark{stroke:#ffffff;stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+    .rule{stroke:#d7dde4;stroke-width:1}
+    .div{stroke:#eef2f6;stroke-width:1}
+    @media (prefers-color-scheme:dark){
+      .title{fill:#e6edf3}.sub{fill:#9198a1}.lab{fill:#b0b8c0}.fmlab{fill:#22c55e}
+      .note{fill:#6e7681}.task{fill:#6e7681}.pass{fill:#22c55e}.fail{fill:#ef6c46}
+      .rule{stroke:#30363d}.div{stroke:#21262d}
+    }
+  </style>
+  <text x="16" y="28" class="title">What the foreman signs off on</text>
+  <text x="16" y="50" class="sub">Every haiku run in the suite, one stamp each &#8212; red is a run that shipped broken code</text>
+
+  <text x="16" y="78" class="lab">one-line ask</text>
+  <text x="704" y="78" class="note" text-anchor="end">8 of 12 signed off</text>
+    <line x1="245.33" y1="70" x2="245.33" y2="124" class="div"/>
+    <line x1="474.67" y1="70" x2="474.67" y2="124" class="div"/>
+  <line x1="16" y1="118" x2="704" y2="118" class="rule"/>
+    <rect x="35.67" y="92" width="18" height="18" rx="4" class="pass"/>
+    <path d="M40.67,101 L45.17,105.5 L48.67,97" class="mark"/>
+    <rect x="93.00" y="92" width="18" height="18" rx="4" class="pass"/>
+    <path d="M98.00,101 L102.50,105.5 L106.00,97" class="mark"/>
+    <rect x="150.33" y="92" width="18" height="18" rx="4" class="pass"/>
+    <path d="M155.33,101 L159.83,105.5 L163.33,97" class="mark"/>
+    <rect x="207.67" y="92" width="18" height="18" rx="4" class="pass"/>
+    <path d="M212.67,101 L217.17,105.5 L220.67,97" class="mark"/>
+    <rect x="265.00" y="92" width="18" height="18" rx="4" class="pass"/>
+    <path d="M270.00,101 L274.50,105.5 L278.00,97" class="mark"/>
+    <rect x="322.33" y="92" width="18" height="18" rx="4" class="pass"/>
+    <path d="M327.33,101 L331.83,105.5 L335.33,97" class="mark"/>
+    <rect x="379.67" y="92" width="18" height="18" rx="4" class="pass"/>
+    <path d="M384.67,101 L389.17,105.5 L392.67,97" class="mark"/>
+    <rect x="437.00" y="92" width="18" height="18" rx="4" class="pass"/>
+    <path d="M442.00,101 L446.50,105.5 L450.00,97" class="mark"/>
+    <rect x="494.33" y="92" width="18" height="18" rx="4" class="fail"/>
+    <path d="M499.33,97 L507.33,105 M507.33,97 L499.33,105" class="mark"/>
+    <rect x="551.67" y="92" width="18" height="18" rx="4" class="fail"/>
+    <path d="M556.67,97 L564.67,105 M564.67,97 L556.67,105" class="mark"/>
+    <rect x="609.00" y="92" width="18" height="18" rx="4" class="fail"/>
+    <path d="M614.00,97 L622.00,105 M622.00,97 L614.00,105" class="mark"/>
+    <rect x="666.33" y="92" width="18" height="18" rx="4" class="fail"/>
+    <path d="M671.33,97 L679.33,105 M679.33,97 L671.33,105" class="mark"/>
+
+  <text x="16" y="158" class="fmlab">Foreman handoff</text>
+  <text x="704" y="158" class="note" text-anchor="end">12 of 12 signed off</text>
+    <line x1="245.33" y1="150" x2="245.33" y2="204" class="div"/>
+    <line x1="474.67" y1="150" x2="474.67" y2="204" class="div"/>
+  <line x1="16" y1="198" x2="704" y2="198" class="rule"/>
+    <rect x="35.67" y="172" width="18" height="18" rx="4" class="pass"/>
+    <path d="M40.67,181 L45.17,185.5 L48.67,177" class="mark"/>
+    <rect x="93.00" y="172" width="18" height="18" rx="4" class="pass"/>
+    <path d="M98.00,181 L102.50,185.5 L106.00,177" class="mark"/>
+    <rect x="150.33" y="172" width="18" height="18" rx="4" class="pass"/>
+    <path d="M155.33,181 L159.83,185.5 L163.33,177" class="mark"/>
+    <rect x="207.67" y="172" width="18" height="18" rx="4" class="pass"/>
+    <path d="M212.67,181 L217.17,185.5 L220.67,177" class="mark"/>
+    <rect x="265.00" y="172" width="18" height="18" rx="4" class="pass"/>
+    <path d="M270.00,181 L274.50,185.5 L278.00,177" class="mark"/>
+    <rect x="322.33" y="172" width="18" height="18" rx="4" class="pass"/>
+    <path d="M327.33,181 L331.83,185.5 L335.33,177" class="mark"/>
+    <rect x="379.67" y="172" width="18" height="18" rx="4" class="pass"/>
+    <path d="M384.67,181 L389.17,185.5 L392.67,177" class="mark"/>
+    <rect x="437.00" y="172" width="18" height="18" rx="4" class="pass"/>
+    <path d="M442.00,181 L446.50,185.5 L450.00,177" class="mark"/>
+    <rect x="494.33" y="172" width="18" height="18" rx="4" class="pass"/>
+    <path d="M499.33,181 L503.83,185.5 L507.33,177" class="mark"/>
+    <rect x="551.67" y="172" width="18" height="18" rx="4" class="pass"/>
+    <path d="M556.67,181 L561.17,185.5 L564.67,177" class="mark"/>
+    <rect x="609.00" y="172" width="18" height="18" rx="4" class="pass"/>
+    <path d="M614.00,181 L618.50,185.5 L622.00,177" class="mark"/>
+    <rect x="666.33" y="172" width="18" height="18" rx="4" class="pass"/>
+    <path d="M671.33,181 L675.83,185.5 L679.33,177" class="mark"/>
+
+  <text x="130.67" y="222" class="task" text-anchor="middle">misleading nearby files</text>
+  <text x="360.00" y="222" class="task" text-anchor="middle">a rule two files away</text>
+  <text x="589.33" y="222" class="task" text-anchor="middle">the target file got renamed</text>
+</svg>
