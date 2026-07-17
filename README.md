@@ -4,7 +4,7 @@
     <img src="assets/logo.svg" alt="foreman" width="240" />
   </picture>
   <h1>Foreman</h1>
-  <p><strong>A living to-do list for your project, plus the prompt that hands any task to a fresh Claude session.</strong></p>
+  <p><strong>Every Claude Code session forgets everything when it ends. Foreman is what's waiting when the next one wakes up.</strong></p>
 
   <img src="assets/bench-signoff.svg" alt="Every haiku run in the benchmark suite drawn as a stamp, grouped by task. The one-line-ask row is checked off green except for four red rejected stamps, all in the same group — every run shipped broken code the moment the target file had been renamed. The Foreman-handoff row is signed off green across all twelve runs, on every task including that one." width="700" />
 
@@ -17,16 +17,18 @@
 
 ## What is this?
 
-Every project builds up a pile of "we should do X someday" — in your head, in chat logs, in sticky notes that scroll away. Foreman keeps that pile **inside the project itself**, in a plain-language roadmap that travels with your code. Ask "what's next?" and it picks the best task to do now, then writes a prompt you can hand straight to a fresh Claude session — no prompt-engineering skills required.
+Close the laptop and every plan that only ever lived in your head closes with it. Open Claude Code tomorrow and it's starting from zero — no memory of what you were building, what you already ruled out, or that the file it's about to edit got renamed yesterday.
 
-It's built for real engineering work — projects that outlive any one chat window, where the next session never remembers the last.
+Foreman keeps the plan where the code lives: a plain-language roadmap, committed like any other file. Ask "what's next?" and it hands back the best task and a ready-to-run prompt, built from what's actually true about your project right now — not what you half-remembered and never wrote down.
+
+It's built for real engineering work — the kind that outlives a single chat window, where the next session has to pick up a story it never heard the first half of.
 
 ## Why you'd want it
 
-- **Your plan survives between sessions.** The roadmap lives in your repository, committed like code — and every new session gets reminded what was left in progress, with the chance to finish it first.
-- **No prompt-engineering skill needed.** Every handoff prompt comes from the same template, guardrails built in — you just say what you want in plain language.
-- **It keeps itself up to date.** After each commit, Foreman notices when you've finished a task and records it. Opt in, and it also spots new work the commit uncovered — and asks what to do with it.
-- **It never acts without asking.** Nothing is added, changed, or marked done behind your back, and a project you haven't set up is never touched.
+- **Your plan survives you forgetting it.** The roadmap lives in your repo, committed like code — so the next session picks up exactly where you left off, not from a shrug.
+- **You don't have to be good at prompting.** Every handoff prompt comes from the same template, guardrails built in — say what you want in plain language, Foreman does the rest.
+- **It updates itself so you don't have to remember to.** After each commit, Foreman checks what got finished and marks it. Opt in, and it also flags new work the commit uncovered, before that gets forgotten too.
+- **Nothing moves without you.** No task gets added, changed, or checked off behind your back, and a project you haven't set up stays untouched.
 
 ## Install
 
@@ -34,14 +36,14 @@ Inside Claude Code, run:
 
 ```
 /plugin marketplace add V-Songbird/foundry
-/plugin install foreman
+/plugin install foreman@foundry
 ```
 
-Then, in each project you want a roadmap for, run `/foreman:init` once. That's the only setup — it asks a few questions about your project and creates the roadmap for you.
+Then, in each project you want a roadmap for, run `/foreman:init` once — it asks a few questions and builds the roadmap for you. That's the whole setup.
 
 ## What you can do
 
-You talk to Foreman in plain language — you never edit the roadmap file by hand.
+You talk to Foreman in plain language. Touching the roadmap file by hand defeats the point, so don't.
 
 | You want to… | Command |
 | --- | --- |

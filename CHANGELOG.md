@@ -8,6 +8,10 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.24.4-alpha] — 2026-07-17
+
+Doc-only: rewrote the README in the marketplace's sharpened voice, and fixed the install command, which was missing `@foundry`. No behavior change.
+
 ## [0.24.3-alpha] — 2026-07-17
 
 Doc-only: dropped the bar visual from the renamed-file chart in favor of the same plain-list style as the other two benchmark charts, and tightened the README's wording to match the rest of the marketplace's voice. No behavior change.
