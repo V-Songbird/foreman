@@ -249,6 +249,33 @@ using them:
       enforcement sentence, and a JSON Schema artifact was assembled and
       travels with the prompt to the destination
 
+## Mechanical gate (REQUIRED, after the checklist)
+
+The checklist items a script can verify, verified by a script. `Write` the
+assembled prompt to a temp file (the clipboard delivery path needs that
+file anyway), then run:
+
+```
+node ${CLAUDE_PLUGIN_ROOT}/scripts/check-prompt.js <file> --destination <task|agent|clipboard>
+```
+
+- `--destination` — `task` for TaskCreate, `agent` for a background
+  Agent, `clipboard` for copy. This is how the checker knows whether an
+  omitted `tone` must stay (agent) or go.
+- `--entry <id>` — add for a `foreman:roadmap` pick, so the embedded
+  entry paragraph is verified too; add `--resume` when the pick resumed
+  an `in_progress` entry.
+- `--research` — add for a pure-investigation task with no verification
+  command.
+- `--workflow-stage` — add when the Workflow-stage flavor was selected.
+
+`{"ok":true}` is the gate: fix every error and re-run until it passes —
+never deliver a prompt the checker rejected. Surface its `warnings`
+alongside the delivery message. The checker validates structure (guardrail
+blocks verbatim, no unfilled placeholders, omit compliance, verification
+present); it can't judge content quality — the checklist above still
+applies to what the fields actually say.
+
 ## When NOT to hand off — do it inline instead
 
 - Vague observations ("this could be cleaner") — not confirmed, skip it

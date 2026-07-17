@@ -291,11 +291,33 @@ function cmdList(root, filters) {
   return { entries: filtered };
 }
 
+// Statuses that still want their dependencies finished — a done/dropped/
+// rejected dependent no longer benefits from anything landing, so it
+// neither counts toward unblocks nor extends a dependency chain.
+const OPEN_STATUSES = new Set(["planned", "in_progress", "deferred"]);
+
+// Fraction of the hint's own words found in the entry's text — containment,
+// not jaccard, so a long entry isn't penalized for having words the hint
+// didn't mention.
+function hintScore(hintWords, entry) {
+  if (!hintWords.size) return 0;
+  const words = normalizeWords(
+    [entry.title, entry.why, entry.what, (entry.touches || []).join(" "), entry.notes]
+      .filter(Boolean)
+      .join(" ")
+  );
+  let hit = 0;
+  for (const w of hintWords) if (words.has(w)) hit += 1;
+  return hit / hintWords.size;
+}
+
 // Mechanical filter + rank for "what should I work on next" — no stored,
-// staleness-prone priority field. unblocks (how many other entries depend
-// on this one) is a derived proxy for importance instead.
+// staleness-prone priority field. unblocks (how much open work depends on
+// this entry, directly and down the chain) is a derived proxy for
+// importance instead.
 function cmdNextCandidates(root, filters) {
   const limit = filters && filters.limit ? parseInt(filters.limit, 10) : 3;
+  const hintWords = normalizeWords(filters && typeof filters.hint === "string" ? filters.hint : "");
   const entries = readEntries(root);
   const doneIds = new Set(entries.filter((e) => e.status === "done").map((e) => e.id));
 
@@ -305,11 +327,29 @@ function cmdNextCandidates(root, filters) {
     for (const t of e.touches || []) inProgressTouches.add(t);
   }
 
-  const unblocksCount = new Map();
+  // Reverse dependency edges, open dependents only.
+  const openDependents = new Map();
   for (const e of entries) {
-    for (const dep of e.depends_on || []) {
-      unblocksCount.set(dep, (unblocksCount.get(dep) || 0) + 1);
+    if (!OPEN_STATUSES.has(e.status)) continue;
+    for (const dep of new Set(e.depends_on || [])) {
+      if (!openDependents.has(dep)) openDependents.set(dep, []);
+      openDependents.get(dep).push(e.id);
     }
+  }
+
+  // Distinct open entries transitively waiting behind this one — the walk
+  // stays on open nodes (openDependents only ever holds them), so a chain
+  // severed by a dropped middle entry doesn't inflate the count.
+  function transitiveUnblocks(id) {
+    const seen = new Set();
+    const stack = [...(openDependents.get(id) || [])];
+    while (stack.length) {
+      const cur = stack.pop();
+      if (seen.has(cur)) continue;
+      seen.add(cur);
+      for (const next of openDependents.get(cur) || []) stack.push(next);
+    }
+    return seen.size;
   }
 
   const unblocked = entries
@@ -325,13 +365,21 @@ function cmdNextCandidates(root, filters) {
       what: e.what,
       touches: e.touches || [],
       depends_on: e.depends_on || [],
-      unblocks: unblocksCount.get(e.id) || 0,
+      unblocks: (openDependents.get(e.id) || []).length,
+      unblocks_total: transitiveUnblocks(e.id),
+      ...(hintWords.size ? { hint_score: hintScore(hintWords, e) } : {}),
       collision: (e.touches || []).some((t) => inProgressTouches.has(t)),
       created_at: e.created_at,
       notes: e.notes || "",
     }))
     .sort((a, b) => {
+      if (hintWords.size && b.hint_score !== a.hint_score) return b.hint_score - a.hint_score;
+      if (b.unblocks_total !== a.unblocks_total) return b.unblocks_total - a.unblocks_total;
       if (b.unblocks !== a.unblocks) return b.unblocks - a.unblocks;
+      // A candidate whose files an in_progress task is already touching
+      // ranks below an otherwise-equal clean one — start where nothing
+      // is mid-flight, all else equal.
+      if (a.collision !== b.collision) return a.collision ? 1 : -1;
       return String(a.created_at || "").localeCompare(String(b.created_at || ""));
     });
 
@@ -352,11 +400,18 @@ function cmdNextCandidates(root, filters) {
       updated_at: e.updated_at,
     }));
 
-  return {
+  const result = {
     candidates: unblocked.slice(0, limit),
     total_unblocked: unblocked.length,
     in_progress: inProgress,
   };
+  // hint_matched tells the caller whether relevance actually reordered
+  // anything — all-zero scores mean the list below is just the standard
+  // ranking, and the caller should say the hint found nothing.
+  if (filters && filters.hint !== undefined) {
+    result.hint_matched = unblocked.some((c) => (c.hint_score || 0) > 0);
+  }
+  return result;
 }
 
 function normalizeWords(text) {
@@ -439,7 +494,15 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     id/title/status/depends_on -- use for whole-roadmap
                     renders, then fetch the few needing prose via --ids)
   next-candidates   flag: --limit N   (optional, default 3)
-                    candidates now include depends_on
+                    flag: --hint "words"   (optional: rank by how many of
+                    the hint's words appear in each candidate's
+                    title/why/what/touches/notes -- hint_score per
+                    candidate, hint_matched:false in the result when no
+                    candidate matched at all)
+                    candidates include depends_on, unblocks (open entries
+                    depending directly), and unblocks_total (the whole
+                    open chain behind it); ranked unblocks_total, then
+                    unblocks, then no-collision, then oldest
   check-duplicate   stdin JSON: {title, why}
                     word-overlap match against ALL entries regardless of
                     status; each match includes its status so callers can

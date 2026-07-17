@@ -133,8 +133,8 @@ not an automatic mutation:
   `in_progress`).
   This is a soft signal, not a mechanical reorder — `next-candidates` now
   returns this candidate's `notes`, so the next `foreman:roadmap` pick sees
-  it as context, but ranking itself (`unblocks` then `created_at`) doesn't
-  change. Say this explicitly if the user expects a guaranteed reorder —
+  it as context, but ranking itself (`unblocks_total`, then `unblocks`,
+  then no-collision, then `created_at`) doesn't change. Say this explicitly if the user expects a guaranteed reorder —
   that would need a stored priority field this schema deliberately doesn't
   have (see `roadmap-schema.md`'s comment on why not).
 

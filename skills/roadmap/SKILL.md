@@ -48,9 +48,11 @@ mechanical call, one question, assemble, done.
 
 1. `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js next-candidates` —
    already filtered (unblocked: `planned` with every `depends_on` done),
-   ranked (most-unblocking first, then oldest), limited to 3 by default,
-   with a `collision` flag per candidate (its `touches` overlaps a
-   currently-`in_progress` task's). Do not re-derive this by calling
+   ranked (most open work waiting behind it first — `unblocks_total`
+   counts the whole dependency chain, not just direct dependents — then
+   collision-free before colliding, then oldest), limited to 3 by
+   default, with a `collision` flag per candidate (its `touches` overlaps
+   a currently-`in_progress` task's). Do not re-derive this by calling
    `list` and reasoning over the whole file yourself — that's exactly the
    cost `next-candidates` exists to cut.
 
@@ -62,12 +64,15 @@ mechanical call, one question, assemble, done.
    again at assembly, reuse this call's output (and surface its `warnings`
    then, if any).
 
-   **If args carried a pick hint**, pass `--limit 10` instead of the
-   default and choose the 3 candidates to present yourself: hint relevance
-   first, then the returned order as the tiebreak. If nothing matches the
-   hint, say so in one line and present the top 3 as usual — never invent
-   a candidate to satisfy a hint, and never let a hint surface a blocked
-   or non-`planned` entry (the script's filter already decided that).
+   **If args carried a pick hint**, pass it to the script instead of
+   filtering yourself: `--hint "<the hint's words>"`. Relevance ranking is
+   mechanical — the script scores each candidate by how many of the
+   hint's words appear in its fields and sorts by that first, so take the
+   returned order as given, same as the no-hint case. If the result says
+   `hint_matched: false`, say in one line that nothing matches the hint
+   and present the returned top 3 as usual — never invent a candidate to
+   satisfy a hint, and never let a hint surface a blocked or
+   non-`planned` entry (the script's filter already decided that).
 
    **Never paste or print this JSON output into your chat response.** It's
    input to the next step, not something to show — the full `what`/
@@ -91,13 +96,14 @@ candidates fill the remaining slots. This is a suggestion, never a gate —
 picking a planned candidate proceeds exactly as before.
 
 **Q1** — "Which task next?"
-Options, one per candidate (already ranked — take the order as given, or
-your hint-aware order when args supplied one; resume options lead when
-`in_progress` is non-empty, per the finish-first check above):
+Options, one per candidate (already ranked — take the order as given,
+hint or not; resume options lead when `in_progress` is non-empty, per the
+finish-first check above):
 - Label: `<title> (<id>)`. The first-ranked candidate's label gets
   `(Recommended)` appended — unless a resume option already carries it —
-  it's first for a reason (most-unblocking, or oldest on a tie), say so
-  with the tag instead of making the user infer it from list order alone.
+  it's first for a reason (most open work behind it, hint relevance, or
+  oldest on a tie), say so with the tag instead of making the user infer
+  it from list order alone.
 - Description: `why` only, trimmed to one sentence if it runs longer. Never
   fold `what`/`touches`/`notes`/`unblocks` into the description — none of
   that is a pick-time decision input if the session isn't ground-truthing
@@ -224,6 +230,11 @@ tasks spawned through it don't get MCP tools.
    or a temp file piped to clipboard — not something to show the user. The
    one exception is already below: the clipboard-fallback fenced block when
    no clipboard tool exists.
+
+   Then run `prompt-template.md`'s mechanical gate on the assembled prompt
+   (its "Mechanical gate" section has the exact call — pass
+   `--entry <id>`, plus `--resume` for a resumed pick) and fix every error
+   until it passes before delivering.
 4. **Foreman never marks the entry `in_progress` itself.** It stays
    `planned` — even after this prompt is assembled, delivered, or copied —
    until whichever session actually starts the work runs the

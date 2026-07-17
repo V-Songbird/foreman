@@ -8,6 +8,20 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.24.0-alpha] — 2026-07-16
+
+### Added
+
+- Every assembled prompt is now checked before delivery — a handoff with a missing section, an altered guardrail, or an unfilled placeholder never ships.
+- Picking the next task now weighs the whole chain of open work waiting behind each candidate, not just its direct dependents, and prefers a candidate whose files aren't already being touched by in-progress work.
+- `/foreman:roadmap <hint>` now ranks candidates by hint relevance mechanically, with the same answer every time.
+- Setup now asks whether finishing a task should be held until its roadmap entry is closed (`taskCloseGate`), instead of the setting being config-file-only.
+
+### Changed
+
+- Already-closed tasks no longer count toward a candidate's importance ranking.
+- The long-notes warning now triggers only on genuinely oversized appends.
+
 ## [0.23.0-alpha] — 2026-07-16
 
 ### Added

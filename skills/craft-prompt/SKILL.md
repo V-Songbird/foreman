@@ -184,7 +184,10 @@ exception is the clipboard-fallback fenced block in "Deliver" below, used
 only when no clipboard tool exists.
 
 Before moving to the next phase, verify the assembled prompt against
-`prompt-template.md`'s own checklist — don't re-list it here either.
+`prompt-template.md`'s own checklist, then run its mechanical gate
+(`scripts/check-prompt.js` — the template's "Mechanical gate" section has
+the exact call) and fix every error until it passes — don't re-list
+either here.
 
 ---
 

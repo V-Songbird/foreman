@@ -67,7 +67,7 @@ We measured what a good handoff is actually worth: the same real coding jobs, ru
 
 ## Under the hood
 
-If you're curious, the roadmap is just a plain file in your repo — the field-by-field details live in [`roadmap-schema.md`](roadmap-schema.md) if you ever want them. Pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush): razor cuts the code, hush cuts the noise, Foreman writes the prompts — and measured together, the three add no overhead to each other.
+If you're curious, the roadmap is just a plain file in your repo (field-by-field details in [`roadmap-schema.md`](roadmap-schema.md)), and every prompt Foreman assembles is script-checked before it ships — a malformed handoff never reaches a session. Pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush): razor cuts the code, hush cuts the noise, Foreman writes the prompts — and measured together, the three add no overhead to each other.
 
 ## Settings
 

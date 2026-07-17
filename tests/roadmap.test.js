@@ -11,8 +11,10 @@
 //     rejecting unknown ids and self-dependencies
 //   - list filters by status and/or ids (combinable), returns everything
 //     with no filter
-//   - next-candidates filters unblocked planned tasks, ranks by unblocks
-//     count then recency, flags touches collisions against in_progress,
+//   - next-candidates filters unblocked planned tasks, ranks by open
+//     transitive unblocks, then direct unblocks, then no-collision, then
+//     oldest created_at; counts only open dependents; supports --hint
+//     relevance ranking; flags touches collisions against in_progress,
 //     surfaces each candidate's notes and depends_on, and defaults to a
 //     limit of 3
 //   - add/update-status return a `warnings` field for long why/what/notes
@@ -448,18 +450,73 @@ describe('next-candidates', () => {
   });
 
   test('ranks by unblocks-count (most depended-on first)', () => {
-    // 003/004 aren't candidates themselves (status dropped) — what matters
-    // is 002 being referenced by two other entries' depends_on, computed
-    // from the full file regardless of those entries' own status.
     writeRoadmap(project, [
       { id: '001', title: 'unblocks nothing', status: 'planned', depends_on: [], touches: [], created_at: '2026-07-01' },
       { id: '002', title: 'unblocks two others', status: 'planned', depends_on: [], touches: [], created_at: '2026-07-01' },
-      { id: '003', title: 'not planned, just a referrer', status: 'dropped', depends_on: ['002'], touches: [] },
-      { id: '004', title: 'also a referrer', status: 'dropped', depends_on: ['002'], touches: [] },
+      { id: '003', title: 'waiting on 002', status: 'planned', depends_on: ['002'], touches: [] },
+      { id: '004', title: 'also waiting on 002', status: 'planned', depends_on: ['002'], touches: [] },
     ]);
     const { json } = run(['next-candidates']);
     assert.equal(json.candidates[0].id, '002');
     assert.equal(json.candidates[0].unblocks, 2);
+    assert.equal(json.candidates[0].unblocks_total, 2);
+  });
+
+  test('closed referrers do not count as unblocks', () => {
+    // A done/dropped/rejected dependent no longer benefits from this entry
+    // landing — only open work (planned/in_progress/deferred) counts.
+    writeRoadmap(project, [
+      { id: '001', title: 'a', status: 'planned', depends_on: [], touches: [], created_at: '2026-07-01' },
+      { id: '002', title: 'b', status: 'planned', depends_on: [], touches: [], created_at: '2026-07-02' },
+      { id: '003', title: 'closed referrer', status: 'dropped', depends_on: ['002'], touches: [] },
+      { id: '004', title: 'done referrer', status: 'done', depends_on: ['002'], touches: [] },
+      { id: '005', title: 'deferred referrer', status: 'deferred', depends_on: ['001'], touches: [] },
+    ]);
+    const { json } = run(['next-candidates']);
+    const byId = Object.fromEntries(json.candidates.map((c) => [c.id, c]));
+    assert.equal(byId['002'].unblocks, 0);
+    assert.equal(byId['001'].unblocks, 1); // deferred still wants its dep
+    assert.equal(json.candidates[0].id, '001');
+  });
+
+  test('a whole open chain outranks more direct-but-shallow dependents', () => {
+    // 001 sits under a 3-deep chain (002<-003<-004); 005 has 2 direct
+    // dependents and nothing further. The chain wins on unblocks_total.
+    writeRoadmap(project, [
+      { id: '001', title: 'chain root', status: 'planned', depends_on: [], touches: [], created_at: '2026-07-02' },
+      { id: '002', title: 'chain 2', status: 'planned', depends_on: ['001'], touches: [] },
+      { id: '003', title: 'chain 3', status: 'planned', depends_on: ['002'], touches: [] },
+      { id: '004', title: 'chain 4', status: 'planned', depends_on: ['003'], touches: [] },
+      { id: '005', title: 'two shallow', status: 'planned', depends_on: [], touches: [], created_at: '2026-07-01' },
+      { id: '006', title: 'leaf a', status: 'planned', depends_on: ['005'], touches: [] },
+      { id: '007', title: 'leaf b', status: 'planned', depends_on: ['005'], touches: [] },
+    ]);
+    const { json } = run(['next-candidates']);
+    assert.equal(json.candidates[0].id, '001');
+    assert.equal(json.candidates[0].unblocks_total, 3);
+    assert.equal(json.candidates[0].unblocks, 1);
+    assert.equal(json.candidates[1].id, '005');
+    assert.equal(json.candidates[1].unblocks_total, 2);
+  });
+
+  test('a chain severed by a dropped middle entry does not inflate unblocks_total', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'root', status: 'planned', depends_on: [], touches: [] },
+      { id: '002', title: 'dropped middle', status: 'dropped', depends_on: ['001'], touches: [] },
+      { id: '003', title: 'behind the dropped one', status: 'planned', depends_on: ['002'], touches: [] },
+    ]);
+    const { json } = run(['next-candidates']);
+    assert.equal(json.candidates.find((c) => c.id === '001').unblocks_total, 0);
+  });
+
+  test('ties in unblocks prefer the candidate without a touches collision', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'in flight', status: 'in_progress', depends_on: [], touches: ['src/shared.ts'] },
+      { id: '002', title: 'older but colliding', status: 'planned', depends_on: [], touches: ['src/shared.ts'], created_at: '2026-06-01' },
+      { id: '003', title: 'newer and clean', status: 'planned', depends_on: [], touches: ['src/other.ts'], created_at: '2026-07-01' },
+    ]);
+    const { json } = run(['next-candidates']);
+    assert.deepEqual(json.candidates.map((c) => c.id), ['003', '002']);
   });
 
   test('ties in unblocks-count break by oldest created_at first', () => {
@@ -536,6 +593,44 @@ describe('next-candidates', () => {
     writeRoadmap(project, [{ id: '001', title: 'a', status: 'planned', why: 'w', what: 'x', depends_on: [] }]);
     const { json } = run(['next-candidates']);
     assert.deepEqual(json.in_progress, []);
+  });
+
+  test('--hint ranks by relevance and reports hint_matched', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'Refactor payment retries', why: 'flaky checkout', what: 'backoff in payments.js', status: 'planned', depends_on: [], touches: ['src/payments.js'], created_at: '2026-06-01' },
+      { id: '002', title: 'Fix auth token refresh', why: 'sessions expire', what: 'refresh middleware', status: 'planned', depends_on: [], touches: ['src/auth/middleware.ts'], created_at: '2026-07-01' },
+    ]);
+    const { json } = run(['next-candidates', '--hint', 'something about auth tokens']);
+    assert.equal(json.hint_matched, true);
+    assert.equal(json.candidates[0].id, '002');
+    assert.ok(json.candidates[0].hint_score > 0);
+    assert.equal(json.candidates[1].hint_score, 0);
+  });
+
+  test('--hint matches against touches paths too', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'Tidy formatting', why: 'w', what: 'x', status: 'planned', depends_on: [], touches: ['src/format.js'], created_at: '2026-06-01' },
+      { id: '002', title: 'Speed up parser', why: 'w', what: 'x', status: 'planned', depends_on: [], touches: ['src/tokenizer.js'], created_at: '2026-07-01' },
+    ]);
+    const { json } = run(['next-candidates', '--hint', 'tokenizer work']);
+    assert.equal(json.candidates[0].id, '002');
+  });
+
+  test('--hint with no match keeps standard order and says so', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'older', why: 'w', what: 'x', status: 'planned', depends_on: [], touches: [], created_at: '2026-06-01' },
+      { id: '002', title: 'newer', why: 'w', what: 'x', status: 'planned', depends_on: [], touches: [], created_at: '2026-07-01' },
+    ]);
+    const { json } = run(['next-candidates', '--hint', 'quantum blockchain']);
+    assert.equal(json.hint_matched, false);
+    assert.deepEqual(json.candidates.map((c) => c.id), ['001', '002']);
+  });
+
+  test('no --hint means no hint fields at all', () => {
+    writeRoadmap(project, [{ id: '001', title: 'a', why: 'w', what: 'x', status: 'planned', depends_on: [] }]);
+    const { json } = run(['next-candidates']);
+    assert.equal(json.hint_matched, undefined);
+    assert.equal(json.candidates[0].hint_score, undefined);
   });
 
   test('respects --limit and reports total_unblocked separately', () => {
