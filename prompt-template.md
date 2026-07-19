@@ -63,7 +63,7 @@ an instruction for the spawned session to act on later):**
        the lowest reads-before-first-edit of the three on every fixture
        measured, at equal-or-better correctness — thoroughness measurably
        cut this model's exploratory overhead, never added to it.
-     - `sonnet`, `opus`, `fable`, `inherit` — assemble exactly as already
+     - `sonnet`, `opus`, `inherit` — assemble exactly as already
        described above; do not add elaboration beyond what the gathered
        answers actually supplied. Grounded (for `sonnet`) in the same
        benchmark: correctness saturated at 100% across every prompt format
@@ -71,10 +71,14 @@ an instruction for the spawned session to act on later):**
        every single task for identical correctness — extra elaboration
        bought nothing there. `opus` has no runs in that benchmark; absent
        evidence for a distinct treatment, it gets today's default rather
-       than an invented one. `fable` is grounded in the official Fable
-       prompting guide (source-d): brief steering beats enumerating each
-       behavior, so the default level with nothing added is the
-       evidence-matched treatment.
+       than an invented one.
+     - `fable` — assemble at the default level, and leave the
+       read-first/run-first micro-step bullets out of `task_rules`: state
+       what to change, the constraints, and the verification block — the
+       model sequences its own exploration. Grounded in the official
+       Fable prompting guide (source-d, brief steering beats enumerating)
+       and Foreman's own probe: equal correctness and trap recovery with
+       one fewer turn and lower cost per run.
    - `warnings` — surface briefly to the user (skipped entries from a
      malformed config); never blocks assembly.
 
@@ -247,8 +251,10 @@ using them:
       handoff time)
 - [ ] `task_rules` has read/analyze/implement steps AND a runnable
       verification command with expected output (a pure-investigation
-      handoff carries the question plus exact commands instead of steps,
-      and the gate's `--research` flag waives the verification pair)
+      handoff carries the question plus exact commands instead of steps;
+      a `fable`-target handoff carries the implement step without the
+      read/run micro-steps; the gate's `--research` flag waives the
+      verification pair)
 - [ ] custom sections were rendered by `render-sections.js` and inlined
       verbatim after `task_rules` — never hand-written — and its
       `warnings` were surfaced to the user

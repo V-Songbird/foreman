@@ -8,6 +8,12 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.27.0-alpha] — 2026-07-18
+
+### Changed
+
+- Prompts crafted for a `fable` target now leave out the step-by-step read/run scaffolding — the model sequences its own exploration. Constraints and the verification requirement are unchanged.
+
 ## [0.26.0-alpha] — 2026-07-18
 
 ### Changed
