@@ -8,6 +8,13 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.31.0-alpha] — 2026-07-19
+
+### Added
+
+- Prompts handed to a background Agent now carry the official autonomous-operation reminder — those sessions have no user to answer questions, and the agent harness doesn't provide it. The prompt gate enforces it for that destination and flags it as misplaced elsewhere.
+- Review-flavored prompts now tell the reviewer that reporting sound work is a valid outcome, so they stop inventing gaps.
+
 ## [0.30.0-alpha] — 2026-07-19
 
 ### Changed

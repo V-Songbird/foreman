@@ -191,6 +191,23 @@ if Call 1 selected it.]
 
 Reason through the approach and edge cases in your thinking before editing — not in prose between tool calls. The steps and commands above are a working plan, not a narration script: whatever output style governs this session decides what you say aloud, so don't announce step transitions or restate command results in chat. The same style governs the register of your final message. Full evidence and findings belong in their durable home — the roadmap entry, the commit message, or the artifact the task names — with the final message stating the outcome and pointing there.
 
+[BACKGROUND-AGENT DESTINATION — if the chosen destination is a background
+`Agent`, include the following paragraph verbatim right here. It is the
+official autonomous-operation reminder (source-d); the agent harness does
+not carry it (probe-confirmed), and a background agent has no user to
+answer a question. Omit it for the other two destinations — a TaskCreate
+or pasted session has a user present.
+You are operating autonomously. The user is not watching in real time and
+cannot answer questions mid-task, so asking "Want me to…?" or "Shall
+I…?" will block the work. For reversible actions that follow from the
+original request, proceed without asking. Offering follow-ups after the
+task is done is fine; asking permission before doing the work is not.
+Before ending your turn, check your last paragraph. If it is a plan, an
+analysis, a question, a list of next steps, or a promise about work you
+have not done ("I'll…", "let me know when…"), do that work now with tool
+calls. End your turn only when the task is complete or you are blocked on
+input only the user can provide.]
+
 [If `"output_format"` is in `omit`, drop this whole block unconditionally,
 even if Call 1 selected `Custom output format`.]
 <output_format>

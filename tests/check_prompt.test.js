@@ -34,6 +34,7 @@ const {
 
 const CHECK = path.join(SCRIPTS_DIR, 'check-prompt.js');
 const canonical = readCanonical();
+const AUTONOMY = 'You are operating autonomously. The user is not watching in real time and cannot answer questions mid-task. End your turn only when the task is complete or you are blocked on input only the user can provide.';
 const PLUGIN_ROOT = '/plugins/foreman';
 const scopeText = canonical.scopeDiscipline.split('${CLAUDE_PLUGIN_ROOT}').join(PLUGIN_ROOT);
 
@@ -48,6 +49,7 @@ function goodPrompt(overrides = {}) {
     task_rules: '<task_rules>\n- Explore relevant_files first (see truth_grounding above).\n- Check the refresh path against the failing test.\n- Fix the bug.\n\nConstraints:\n- Do not modify the public API.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\nDo NOT claim success without running this. If it fails, iterate until it passes.\n</task_rules>',
     custom_sections: '',
     request: 'Fix the token refresh bug in the auth middleware.',
+    autonomy: '',
     closing: canonical.closing,
     output_format: '<output_format>\nGive a concise, human-readable summary: what changed, and the verification result. No XML tags in the visible response.\n</output_format>',
     ...overrides,
@@ -72,7 +74,8 @@ describe('well-formed prompts', () => {
   test('passes for every destination', () => {
     const project = makeTmpProject();
     for (const dest of ['task', 'agent', 'clipboard']) {
-      const { status, json } = check(project, goodPrompt(), ['--destination', dest]);
+      const prompt = goodPrompt({ autonomy: dest === 'agent' ? AUTONOMY : '' });
+      const { status, json } = check(project, prompt, ['--destination', dest]);
       assert.equal(status, 0, JSON.stringify(json));
       assert.equal(json.ok, true);
     }
@@ -169,7 +172,7 @@ describe('omitSections compliance', () => {
     assert.ok(check(project, withTone, ['--destination', 'clipboard']).json.errors.some((e) => e.includes('<tone> present')));
     assert.equal(check(project, withoutTone, ['--destination', 'clipboard']).json.ok, true);
     assert.ok(check(project, withoutTone, ['--destination', 'agent']).json.errors.some((e) => e.includes('STAYS')));
-    assert.equal(check(project, withTone, ['--destination', 'agent']).json.ok, true);
+    assert.equal(check(project, goodPrompt({ autonomy: AUTONOMY }), ['--destination', 'agent']).json.ok, true);
   });
 
   test('an omitted example/output_format must be absent', () => {
@@ -260,6 +263,15 @@ describe('persona and assumed context', () => {
     const { json } = check(project, goodPrompt(), ['--destination', 'clipboard']);
     assert.equal(json.ok, true);
     assert.ok(!json.warnings.some((w) => w.includes('reasoning_extraction')));
+  });
+
+  test('agent destination requires the autonomy paragraph; others warn if it appears', () => {
+    const project = makeTmpProject();
+    const missing = check(project, goodPrompt(), ['--destination', 'agent']);
+    assert.ok(missing.json.errors.some((e) => e.includes('operating autonomously')));
+    const misplaced = check(project, goodPrompt({ autonomy: AUTONOMY }), ['--destination', 'clipboard']);
+    assert.equal(misplaced.json.ok, true);
+    assert.ok(misplaced.json.warnings.some((w) => w.includes('user present')));
   });
 });
 

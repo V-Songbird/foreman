@@ -39,6 +39,7 @@ const PLACEHOLDER_FRAGMENTS = [
   "[pass/fail signal",
   "[CUSTOM SECTIONS",
   "[OPTIONAL",
+  "[BACKGROUND-AGENT DESTINATION",
   "[Before snippet",
   "[The immediate",
   "[Only if something downstream",
@@ -59,6 +60,10 @@ const ASSUMED_CONTEXT_RE =
 
 const WORKFLOW_STAGE_SENTENCE =
   "Your return value is enforced by the attached schema; your final text is the return value, not a human-facing message.";
+
+// Sentinel for the official autonomous-operation reminder a background-
+// Agent destination must carry (the agent harness doesn't inject it).
+const AUTONOMY_SENTENCE = "You are operating autonomously.";
 
 function norm(text) {
   return String(text).replace(/\s+/g, " ").trim();
@@ -229,6 +234,14 @@ function checkPrompt(prompt, opts) {
   const assumed = prompt.match(ASSUMED_CONTEXT_RE);
   if (assumed) {
     warnings.push(`assumes the crafting conversation's context ("${assumed[0]}") — the handed-off session has none`);
+  }
+
+  // --- background-Agent autonomy reminder ---
+  const hasAutonomy = prompt.includes(AUTONOMY_SENTENCE);
+  if (opts.destination === "agent" && !hasAutonomy) {
+    errors.push('missing the autonomous-operation paragraph ("You are operating autonomously.") — a background Agent has no user to answer questions');
+  } else if (opts.destination !== "agent" && hasAutonomy) {
+    warnings.push("carries the autonomous-operation paragraph but the destination has a user present — drop it for task/clipboard");
   }
 
   // --- reasoning-echo instructions ---

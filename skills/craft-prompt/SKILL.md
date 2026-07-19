@@ -172,6 +172,10 @@ gathered fields onto the template's placeholders:
 - `relevant_files` ← Call 2 Q3
 - `task_rules`: steps ← Call 2 Q4; Constraints ← Call 4's Constraints
   answers, if selected; Verification ← Call 3, if gathered
+- review-flavored tasks (the `Security audit` task type, or the
+  `Code reviewer` role): add one constraint bullet to `task_rules` —
+  "Flag only gaps that affect correctness or security — reporting that
+  the work is sound is a valid outcome."
 - `tone` ← Call 4's Tone answer, if selected (overrides the template's
   default entirely, same as the template already says); otherwise the
   template's own craft-time gate applies unchanged
