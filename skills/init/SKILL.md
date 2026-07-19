@@ -63,14 +63,22 @@ Options:
 Record the answer — it becomes `.foreman/config.json`'s `discoverySuggestions`
 field verbatim.
 
-**Q2** — "Do other plugins already set the persona or voice in your
-sessions (an output style, a rigor plugin)?"
+**Q2** — "Do other plugins already own the persona or the voice in your
+sessions? (for example: razor owns persona, hush owns voice)"
+(multiSelect: true — a project may run one without the other)
 Options:
-- `Yes — let them own it` — crafted prompts open with domain framing
-  instead of a "You are a [role]" sentence and skip the tone block
-  entirely. Becomes `"usePersona": false, "omitSections": ["tone"]`.
-- `No — Foreman sets persona and tone` — the template's defaults apply
-  unchanged. Becomes `"usePersona": true, "omitSections": []`.
+- `A persona plugin (e.g. razor)` — crafted prompts open with domain
+  framing instead of a "You are a [role]" sentence. Selecting this sets
+  `"usePersona": false`.
+- `A voice plugin (e.g. hush)` — crafted prompts skip the tone block.
+  Selecting this adds `"tone"` to `omitSections`.
+
+Neither selected means the template's defaults apply unchanged:
+`"usePersona": true, "omitSections": []`. Both selected is the full trio
+shape: `"usePersona": false, "omitSections": ["tone"]`. Leave
+`output_format` alone either way — its default already defers to the
+session's style, and it is the guard against raw XML tags echoing into
+chat.
 
 This is a declaration, not detection — Foreman never inspects which
 plugins the project runs; the user states the shape they want here.

@@ -8,6 +8,12 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.30.0-alpha] — 2026-07-19
+
+### Changed
+
+- Setup's persona-and-voice question now names razor and hush as examples and takes multiple selections, so a project running only one of them gets exactly the right config.
+
 ## [0.29.0-alpha] — 2026-07-19
 
 ### Changed
