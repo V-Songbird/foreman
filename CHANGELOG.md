@@ -8,6 +8,12 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.28.0-alpha] — 2026-07-19
+
+### Changed
+
+- Prompts crafted for a `sonnet` target now also leave out the step-by-step read/run scaffolding, the same treatment `fable` targets already get. Constraints and the verification requirement are unchanged.
+
 ## [0.27.0-alpha] — 2026-07-18
 
 ### Changed
