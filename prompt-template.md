@@ -63,21 +63,19 @@ an instruction for the spawned session to act on later):**
        the lowest reads-before-first-edit of the three on every fixture
        measured, at equal-or-better correctness — thoroughness measurably
        cut this model's exploratory overhead, never added to it.
-     - `opus`, `inherit` — assemble exactly as already described above;
-       do not add elaboration beyond what the gathered answers actually
-       supplied. `opus` has no runs in Foreman's benchmarks; absent
-       evidence for a distinct treatment, it gets today's default rather
-       than an invented one, and `inherit` has no declared target to
-       tune for.
-     - `sonnet`, `fable` — assemble at the default level, and leave the
-       read-first/run-first micro-step bullets out of `task_rules`: state
-       what to change, the constraints, and the verification block — the
-       model sequences its own exploration. Grounded for `fable` in the
-       official Fable prompting guide (source-d, brief steering beats
-       enumerating) plus Foreman's own probe, and for `sonnet` in two
-       first-party results: added elaboration bought nothing at saturated
-       correctness, and removing the scaffolding lost nothing on any
-       trap fixture while costing less and narrating less.
+     - `inherit` — assemble exactly as already described above; do not
+       add elaboration beyond what the gathered answers actually
+       supplied. No declared target to tune for, so the full default
+       shape stays.
+     - `sonnet`, `opus`, `fable` — assemble at the default level, and
+       leave the read-first/run-first micro-step bullets out of
+       `task_rules`: state what to change, the constraints, and the
+       verification block — the model sequences its own exploration.
+       Grounded for `fable` in the official Fable prompting guide
+       (source-d, brief steering beats enumerating) plus Foreman's own
+       probe, and for `sonnet` and `opus` in first-party probes across
+       all three trap fixtures: equal correctness and trap compliance,
+       lower cost in every cell, turns never higher.
    - `warnings` — surface briefly to the user (skipped entries from a
      malformed config); never blocks assembly.
 
@@ -251,9 +249,9 @@ using them:
 - [ ] `task_rules` has read/analyze/implement steps AND a runnable
       verification command with expected output (a pure-investigation
       handoff carries the question plus exact commands instead of steps;
-      a `sonnet`- or `fable`-target handoff carries the implement step
-      without the read/run micro-steps; the gate's `--research` flag
-      waives the verification pair)
+      a `sonnet`-, `opus`-, or `fable`-target handoff carries the
+      implement step without the read/run micro-steps; the gate's
+      `--research` flag waives the verification pair)
 - [ ] custom sections were rendered by `render-sections.js` and inlined
       verbatim after `task_rules` — never hand-written — and its
       `warnings` were surfaced to the user
