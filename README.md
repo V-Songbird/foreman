@@ -11,7 +11,11 @@
   <p><em>This is what passes inspection.</em></p>
 </div>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE) [![Claude Code](https://img.shields.io/badge/Claude_Code-E5582B)](https://docs.anthropic.com/en/docs/claude-code)
+<p align="center">
+    <a href="https://github.com/V-Songbird/foreman/stargazers"><img src="https://img.shields.io/github/stars/V-Songbird/foreman?style=social" alt="GitHub stars"/></a>
+    <a href="https://https://github.com/V-Songbird/foreman/blob/main/LICENSE"><img src="https://img.shields.io/github/license/github/spec-kit" alt="License"/></a>
+    <a href="https://docs.anthropic.com/en/docs/claude-code"><img src="https://img.shields.io/badge/Claude_Code-E5582B" alt="License"/></a>
+</p>
 
 > **TL;DR** — Every Claude Code session starts with amnesia. Foreman keeps the plan in your repo, committed like code: ask "what's next?" and you get the best task with a ready-to-run prompt, checked against the actual codebase — about a quarter cheaper per session than a bare one-line ask.
 
