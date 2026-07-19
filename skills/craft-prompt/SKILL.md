@@ -126,30 +126,33 @@ above instead, regardless of Desktop or CLI.
 
 ## Call 6 — executing model (conditional)
 
-Ask this only when Call 5 Q1's answer was "Execute with a background
-Agent" — its default depends on that answer, so it can't batch into Call
-5's own question. Skip it for the other two destinations:
-- **TaskCreate** runs the task in this session — no model choice exists.
-- **Clipboard** has nothing to execute yet; see Deliver's clipboard branch
-  below for a recommendation instead of a question.
+Ask this when Call 5 Q1's answer was "Execute with a background Agent"
+or "Copy prompt to clipboard" — its default depends on that answer, so
+it can't batch into Call 5's own question. Skip it for **TaskCreate**:
+that destination runs the task in this session, so no model choice
+exists.
 
-**Q1** — "Which model should the background Agent run on?"
+**Q1** — background Agent: "Which model should the background Agent run
+on?" Clipboard: "Which model will run the pasted prompt?"
 Always four options, reordered so the one matching `targetModel`
 (resolved above) leads, with `(Recommended)` appended to its label — same
 convention `foreman:roadmap`'s Q1 uses for its top-ranked candidate:
-- `Haiku` — the background Agent runs on Haiku.
-- `Sonnet` — the background Agent runs on Sonnet.
-- `Opus` — the background Agent runs on Opus. When `targetModel` resolved
-  to `fable`, a `Fable` option takes this slot instead (the Agent tool
-  accepts `fable` as a model value).
-- `Inherit the session's model` — omits the `Agent` call's `model`
-  parameter entirely, running on whatever model launched this session;
-  leads when `targetModel` resolved to `inherit`.
+- `Haiku`
+- `Sonnet`
+- `Opus` — when `targetModel` resolved to `fable`, a `Fable` option takes
+  this slot instead (the Agent tool accepts `fable` as a model value).
+- `Inherit the session's model` (background Agent) or `Unknown — it
+  varies` (clipboard) — no override; leads when `targetModel` resolved
+  to `inherit`.
 
-The user can always override the default. Record the answer for Deliver's
-background-Agent branch below: a concrete model becomes that literal
-`model` value (`haiku`/`sonnet`/`opus`/`fable`); `Inherit the session's model`
-means leaving `model` out of the call.
+The user can always override the default. The answer does two jobs:
+- **Elaboration**: a concrete model becomes the effective target model
+  for the template's elaboration scoping, overriding `targetModel` — the
+  model actually running the task wins over the project declaration.
+  `Inherit` / `Unknown` keeps the resolved `targetModel`.
+- **Dispatch** (background Agent only): a concrete model becomes the
+  `Agent` call's literal `model` value (`haiku`/`sonnet`/`opus`/`fable`);
+  `Inherit the session's model` means leaving `model` out of the call.
 
 ---
 
@@ -158,9 +161,11 @@ means leaving `model` out of the call.
 Follow `${CLAUDE_PLUGIN_ROOT}/prompt-template.md` exactly for its XML
 template, verbatim. Its craft-time environment check (`render-sections.js`)
 already ran above, before Call 5 — use that same result, don't invoke it
-again. Never re-derive or duplicate the per-model elaboration guidance
-`targetModel` drives either; if the template changes, this skill picks up
-the change automatically by reading it fresh each time. Map this skill's
+again. Elaboration scoping uses the effective target model: Call 6's
+concrete answer when one was gathered, otherwise the result's
+`targetModel`. Never re-derive or duplicate the per-model elaboration
+guidance itself; if the template changes, this skill picks up the change
+automatically by reading it fresh each time. Map this skill's
 gathered fields onto the template's placeholders:
 
 - `task_context`: role ← Call 2 Q1, goal ← Call 2 Q2
@@ -216,9 +221,9 @@ command: `Get-Content -Raw <file> | Set-Clipboard` on Windows, `pbcopy <
 <file>` on macOS, `xclip -selection clipboard < <file>` (or `wl-copy <
 <file>`) on Linux. Mention the file path too, in case the clipboard step
 fails. If no clipboard tool is available at all, fall back to showing the
-prompt in a fenced `xml` code block instead. If `targetModel` resolved to
-a concrete model, add one more line alongside the file path: "Recommended
-model: [Haiku/Sonnet/Opus/Fable] — this prompt's elaboration level was
-calibrated for it." Skip that line when `targetModel` resolved to
-`inherit` — the project declared no fixed target, so there's nothing to
-recommend.
+prompt in a fenced `xml` code block instead. If the effective target
+model (Call 6's answer, else `targetModel`) is concrete, add one more
+line alongside the file path: "Recommended model:
+[Haiku/Sonnet/Opus/Fable] — this prompt's elaboration level was
+calibrated for it." Skip that line when it resolved to `inherit` or
+`Unknown` — no fixed target, so there's nothing to recommend.

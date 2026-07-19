@@ -49,7 +49,11 @@ an instruction for the spawned session to act on later):**
      also adds a `warnings` entry). Declaration, not detection, same as
      `usePersona` — never a claim about what the target model will
      actually manage, only how much elaboration `relevant_files`/
-     `context`/`task_rules` below carry:
+     `context`/`task_rules` below carry. A concrete executing-model
+     answer gathered at craft time (`craft-prompt`'s executing-model
+     question) overrides this declaration for that scoping — the model
+     actually running the task wins over the project default; an
+     inherit/unknown answer keeps the declared value:
      - `haiku` — elaborate fully: name the exact symbol or behavior at
        stake in `context`, not just the file; write the verification
        block's `Expected:` line as the literal output or exit code, not a
@@ -232,9 +236,10 @@ using them:
 - [ ] `scope_discipline` present, unmodified — every handoff carries it
 - [ ] `render-sections.js` ran once at craft time (never deferred to the
       spawned session) and its `usePersona` field — not a fresh `Read` or
-      flag check — drove `<task_context>`; its `targetModel` field drove
-      how much elaboration went into `relevant_files`/`context`/
-      `task_rules` below
+      flag check — drove `<task_context>`; its `targetModel` field —
+      overridden by a concrete executing-model answer when the crafting
+      flow gathered one — drove how much elaboration went into
+      `relevant_files`/`context`/`task_rules` below
 - [ ] `relevant_files` lists every file path with line ranges — no vague
       references (`craft-prompt`: from the user directly; `foreman:roadmap`:
       the entry's `touches` passed through as-is, never upgraded by

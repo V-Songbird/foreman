@@ -8,6 +8,13 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.26.0-alpha] — 2026-07-18
+
+### Changed
+
+- Crafting a prompt for the clipboard now asks which model will run it, the same question background-Agent handoffs already got.
+- A concrete answer to that question now tailors the prompt's level of detail to the model actually running the task, overriding the project's `targetModel` default.
+
 ## [0.25.0-alpha] — 2026-07-18
 
 ### Added
