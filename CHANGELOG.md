@@ -8,6 +8,10 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.24.5-alpha] — 2026-07-18
+
+Docs only. The README is rebuilt around a TL;DR up top and one unified section order shared with hush and razor, including a new how-it-works table.
+
 ## [0.24.4-alpha] — 2026-07-17
 
 Doc-only: rewrote the README in the marketplace's sharpened voice, and fixed the install command, which was missing `@foundry`. No behavior change.
