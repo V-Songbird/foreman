@@ -21,6 +21,8 @@ const PLACEHOLDER_FRAGMENTS = [
   "[If step 0's",
   "[specific role",
   "[one sentence",
+  "[One more sentence when the purpose is known",
+  "[Pure-investigation handoff:",
   "[If Tone was selected",
   "[If `\"tone\"`",
   "[If `\"background\"`",
@@ -42,6 +44,13 @@ const PLACEHOLDER_FRAGMENTS = [
   "[Only if something downstream",
   "[WORKFLOW-STAGE FLAVOR",
 ];
+
+// Instructions asking the destination to echo its internal reasoning as
+// response text — the official Fable prompting guide (template source-d)
+// says these can trigger reasoning_extraction refusals on Fable-class
+// models. Warning, not error: other targets tolerate them.
+const REASONING_ECHO_RE =
+  /\b(?:show|explain|reproduce|transcribe|echo)\b[^.\n]{0,60}\b(?:your|its)\s+(?:reasoning|thought process|chain of thought|internal thinking)\b|\bthink(?:ing)? out loud\b/i;
 
 // Phrases that assume the crafting conversation's context — the handed-off
 // session has none.
@@ -222,6 +231,12 @@ function checkPrompt(prompt, opts) {
     warnings.push(`assumes the crafting conversation's context ("${assumed[0]}") — the handed-off session has none`);
   }
 
+  // --- reasoning-echo instructions ---
+  const echo = prompt.match(REASONING_ECHO_RE);
+  if (echo) {
+    warnings.push(`asks the destination to echo its reasoning ("${echo[0]}") — this can trigger reasoning_extraction refusals on Fable-class models; ask for the outcome instead`);
+  }
+
   return { errors, warnings, configWarnings: config.warnings };
 }
 
@@ -298,5 +313,6 @@ module.exports = {
   norm,
   PLACEHOLDER_FRAGMENTS,
   WORKFLOW_STAGE_SENTENCE,
+  REASONING_ECHO_RE,
   TEMPLATE_PATH,
 };

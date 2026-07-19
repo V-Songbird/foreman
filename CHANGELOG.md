@@ -8,6 +8,15 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.25.0-alpha] — 2026-07-18
+
+### Added
+
+- `targetModel` now accepts `fable`, matching the models a background Agent can run on. Crafted prompts keep the standard level of detail for it.
+- Crafted prompts can carry a purpose sentence — what the output feeds and who it's for — so the destination session can calibrate depth.
+- Pure-investigation handoffs now hand over the question under investigation and the exact commands worth running, instead of a prescribed step sequence.
+- The prompt gate warns when a prompt asks the destination session to echo its reasoning in the response — phrasing that can be refused outright on newer models.
+
 ## [0.24.5-alpha] — 2026-07-18
 
 Docs only. The README is rebuilt around a TL;DR up top and one unified section order shared with hush and razor, including a new how-it-works table.

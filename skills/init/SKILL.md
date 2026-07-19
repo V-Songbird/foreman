@@ -98,6 +98,10 @@ Options:
 - `No fixed model / it varies` — today's behavior, unchanged. Becomes
   `"targetModel": "inherit"`.
 
+`fable` is the fifth valid value, declared via Other — same default level
+of detail as Sonnet and Opus (the official Fable prompting guide favors
+brief steering over enumerated detail).
+
 This is a declaration, not detection — Foreman never inspects which model
 actually executes a session; the user states the expected target here.
 

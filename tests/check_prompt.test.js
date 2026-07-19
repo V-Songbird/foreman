@@ -246,6 +246,21 @@ describe('persona and assumed context', () => {
     assert.equal(json.ok, true);
     assert.ok(json.warnings.some((w) => w.includes('as we discussed')));
   });
+
+  test('reasoning-echo phrasing is a warning, not an error', () => {
+    const project = makeTmpProject();
+    const prompt = goodPrompt({ request: 'Fix the bug and show your reasoning in the final message.' });
+    const { json } = check(project, prompt, ['--destination', 'clipboard']);
+    assert.equal(json.ok, true);
+    assert.ok(json.warnings.some((w) => w.includes('reasoning_extraction')));
+  });
+
+  test('the canonical closing paragraph does not trip the reasoning-echo warning', () => {
+    const project = makeTmpProject();
+    const { json } = check(project, goodPrompt(), ['--destination', 'clipboard']);
+    assert.equal(json.ok, true);
+    assert.ok(!json.warnings.some((w) => w.includes('reasoning_extraction')));
+  });
 });
 
 describe('workflow-stage flavor', () => {

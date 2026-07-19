@@ -33,12 +33,12 @@ function readConfig(root) {
   }
 }
 
-const VALID_TARGET_MODELS = new Set(["haiku", "sonnet", "opus", "inherit"]);
+const VALID_TARGET_MODELS = new Set(["haiku", "sonnet", "opus", "fable", "inherit"]);
 
 // Declaration, not detection, same spirit as readUsePersona: the project
 // states which model crafted prompts/handoffs should assume runs them.
 // Default "inherit" (today's behavior, unchanged) applies whenever the
-// field is missing, unparseable, or not one of the four valid strings —
+// field is missing, unparseable, or not one of the five valid strings —
 // that last case also gets a warning instead of silently coercing.
 function readTargetModel(config) {
   const value = config?.targetModel;

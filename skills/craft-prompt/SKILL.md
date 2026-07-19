@@ -134,19 +134,21 @@ Agent" — its default depends on that answer, so it can't batch into Call
   below for a recommendation instead of a question.
 
 **Q1** — "Which model should the background Agent run on?"
-Always these four options, reordered so the one matching `targetModel`
+Always four options, reordered so the one matching `targetModel`
 (resolved above) leads, with `(Recommended)` appended to its label — same
 convention `foreman:roadmap`'s Q1 uses for its top-ranked candidate:
 - `Haiku` — the background Agent runs on Haiku.
 - `Sonnet` — the background Agent runs on Sonnet.
-- `Opus` — the background Agent runs on Opus.
+- `Opus` — the background Agent runs on Opus. When `targetModel` resolved
+  to `fable`, a `Fable` option takes this slot instead (the Agent tool
+  accepts `fable` as a model value).
 - `Inherit the session's model` — omits the `Agent` call's `model`
   parameter entirely, running on whatever model launched this session;
   leads when `targetModel` resolved to `inherit`.
 
 The user can always override the default. Record the answer for Deliver's
 background-Agent branch below: a concrete model becomes that literal
-`model` value (`haiku`/`sonnet`/`opus`); `Inherit the session's model`
+`model` value (`haiku`/`sonnet`/`opus`/`fable`); `Inherit the session's model`
 means leaving `model` out of the call.
 
 ---
@@ -204,8 +206,8 @@ the task in this session, using `TaskUpdate` to mark it `in_progress` then
 **If background Agent:** call `Agent` with `prompt` = the assembled XML
 prompt, `description` = a 3-5 word summary, `run_in_background: true`, and
 `model` = Call 6's answer — a concrete choice as its literal string
-(`haiku`/`sonnet`/`opus`); omit the `model` parameter entirely when the
-answer was "Inherit the session's model".
+(`haiku`/`sonnet`/`opus`/`fable`); omit the `model` parameter entirely when
+the answer was "Inherit the session's model".
 
 **If clipboard:** `Write` the assembled prompt to a temp file first — never
 pass it as an inline shell string, a large prompt breaks shell quoting and
@@ -216,7 +218,7 @@ command: `Get-Content -Raw <file> | Set-Clipboard` on Windows, `pbcopy <
 fails. If no clipboard tool is available at all, fall back to showing the
 prompt in a fenced `xml` code block instead. If `targetModel` resolved to
 a concrete model, add one more line alongside the file path: "Recommended
-model: [Haiku/Sonnet/Opus] — this prompt's elaboration level was
+model: [Haiku/Sonnet/Opus/Fable] — this prompt's elaboration level was
 calibrated for it." Skip that line when `targetModel` resolved to
 `inherit` — the project declared no fixed target, so there's nothing to
 recommend.

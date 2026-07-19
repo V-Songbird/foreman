@@ -258,7 +258,7 @@ describe('render-sections — targetModel', () => {
     assert.equal(json.targetModel, 'inherit');
   });
 
-  for (const value of ['haiku', 'sonnet', 'opus', 'inherit']) {
+  for (const value of ['haiku', 'sonnet', 'opus', 'fable', 'inherit']) {
     test(`targetModel: "${value}" passes through`, () => {
       writeConfig(project, { targetModel: value });
       const { json } = run();

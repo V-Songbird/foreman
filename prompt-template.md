@@ -1,10 +1,11 @@
 # Foreman — prompt template
 
-<!-- foreman:practices lastmod:2026-07-10
+<!-- foreman:practices lastmod:2026-07-18
      source-a: https://code.claude.com/docs/en/best-practices.md
      source-b: https://code.claude.com/docs/en/sub-agents.md
      source-c: Anthropic Prompting 101 — Code w/ Claude 2025-05-22
-     source-d: https://code.claude.com/docs/en/about-claude/models/prompting-fable5 -->
+     source-d: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5
+     source-e: Claude Code 2.1.214 embedded delegation guidance -->
 
 The handed-off session — whether run via `TaskCreate` in this session, a
 background `Agent`, or copy-pasted elsewhere — has **zero memory** of this
@@ -23,7 +24,7 @@ an instruction for the spawned session to act on later):**
    — always (it resolves a project root from `$CLAUDE_PROJECT_DIR`/cwd and
    fails soft to defaults when no `.foreman/config.json` exists). One JSON
    object: `{"usePersona": bool, "sections": [{"tag", "xml"}], "omit":
-   [...], "targetModel": "haiku"|"sonnet"|"opus"|"inherit", "warnings":
+   [...], "targetModel": "haiku"|"sonnet"|"opus"|"fable"|"inherit", "warnings":
    [...]}`. All of it is project **declaration** — foreman never inspects
    which style plugins or model the operator runs.
    - `usePersona` — default `true` when missing/unparseable. Controls only
@@ -44,7 +45,7 @@ an instruction for the spawned session to act on later):**
      there; the kept default still self-yields if a style does govern. The
      other three tags have no destination dependence.
    - `targetModel` — default `"inherit"` whenever the field is missing,
-     unparseable, or not one of the four valid strings (that last case
+     unparseable, or not one of the five valid strings (that last case
      also adds a `warnings` entry). Declaration, not detection, same as
      `usePersona` — never a claim about what the target model will
      actually manage, only how much elaboration `relevant_files`/
@@ -58,15 +59,18 @@ an instruction for the spawned session to act on later):**
        the lowest reads-before-first-edit of the three on every fixture
        measured, at equal-or-better correctness — thoroughness measurably
        cut this model's exploratory overhead, never added to it.
-     - `sonnet`, `opus`, `inherit` — assemble exactly as already described
-       above; do not add elaboration beyond what the gathered answers
-       actually supplied. Grounded (for `sonnet`) in the same benchmark:
-       correctness saturated at 100% across every prompt format tested,
-       while the most-detailed format cost the most of the four in every
-       single task for identical correctness — extra elaboration bought
-       nothing there. `opus` has no runs in that benchmark; absent
+     - `sonnet`, `opus`, `fable`, `inherit` — assemble exactly as already
+       described above; do not add elaboration beyond what the gathered
+       answers actually supplied. Grounded (for `sonnet`) in the same
+       benchmark: correctness saturated at 100% across every prompt format
+       tested, while the most-detailed format cost the most of the four in
+       every single task for identical correctness — extra elaboration
+       bought nothing there. `opus` has no runs in that benchmark; absent
        evidence for a distinct treatment, it gets today's default rather
-       than an invented one.
+       than an invented one. `fable` is grounded in the official Fable
+       prompting guide (source-d): brief steering beats enumerating each
+       behavior, so the default level with nothing added is the
+       evidence-matched treatment.
    - `warnings` — surface briefly to the user (skipped entries from a
      malformed config); never blocks assembly.
 
@@ -77,6 +81,10 @@ senior security engineer", "a TypeScript developer"]." If `false`: a
 persona is established elsewhere — use domain framing, "Domain: [specific
 role/specialization].", never a second "You are a" sentence.]
 Your goal is [one sentence — what "done" looks like for this specific task].
+[One more sentence when the purpose is known — what this output feeds and
+who it's for, e.g. "This informs a PR description — focus on user-facing
+changes." It lets the session calibrate depth and emphasis; drop the line
+when there's nothing beyond the goal itself.]
 </task_context>
 
 <truth_grounding>
@@ -146,6 +154,10 @@ Example: "Uses JWT tokens in httpOnly cookies. No third-party auth libs."]
 [Step 0's `targetModel` also sets how much elaboration these bullets and
 the verification block carry — see its bullet.]
 <task_rules>
+[Pure-investigation handoff: replace the three step bullets below with the
+question under investigation plus any exact commands worth running — hand
+over the question, not a prescribed exploration sequence. Implementation
+tasks keep the bullets.]
 - [What to read or explore first]
 - [What to analyze or check next]
 - [What to implement, fix, or produce]
@@ -229,7 +241,9 @@ using them:
       exploring the codebase — `truth_grounding` covers that gap at
       handoff time)
 - [ ] `task_rules` has read/analyze/implement steps AND a runnable
-      verification command with expected output
+      verification command with expected output (a pure-investigation
+      handoff carries the question plus exact commands instead of steps,
+      and the gate's `--research` flag waives the verification pair)
 - [ ] custom sections were rendered by `render-sections.js` and inlined
       verbatim after `task_rules` — never hand-written — and its
       `warnings` were surfaced to the user

@@ -193,8 +193,8 @@ tasks spawned through it don't get MCP tools.
      never sees a description of its own expected failure modes), never a
      block, never a status or schema change. Every other `targetModel`
      value skips this — nothing grounded suggests a caution at that scope
-     for `sonnet`/`opus`, and `inherit` has no declared target to weigh
-     against.
+     for `sonnet`/`opus`/`fable`, and `inherit` has no declared target to
+     weigh against.
    - Add one more fixed paragraph right after `scope_discipline`, naming
      this entry's id, so the destination session — not Foreman — is the one
      that flips it to `in_progress`:
