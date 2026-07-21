@@ -28,7 +28,8 @@ If `ROADMAP.jsonl` already exists at the project root, ask before doing
 anything else:
 
 **Q1** — "ROADMAP.jsonl already exists. What do you want to do?"
-Options: `Overwrite it (start fresh)`, `Keep it, just add to it`, `Cancel`
+Options: `Overwrite it (start fresh — discards done entries and their
+accumulated notes)`, `Keep it, just add to it`, `Cancel`
 
 - Overwrite → continue to Call 1, the draft phase replaces the file.
 - Keep, add to it → skip straight to the draft phase, append new entries
@@ -155,9 +156,18 @@ the updated draft, ask again. Repeat until approved.
 
 ## Write phase
 
-1. If the pre-check chose Overwrite: clear any existing file first —
-   `Bash`: `> ROADMAP.jsonl` (or delete it). `roadmap.js add` always
-   appends, so a fresh file means ids start at `001` again.
+1. If the pre-check chose Overwrite: snapshot the existing file into git
+   before clearing it, so the discarded history is recoverable —
+   `Bash`: `git commit -m "chore: snapshot roadmap before foreman re-init" -- ROADMAP.jsonl`.
+   Use that pathspec form, never `git add` + commit: this branch runs in an
+   established project where unrelated staged work is likely, and a broad
+   `git add` would sweep it into a commit titled "snapshot roadmap". A
+   non-zero exit is fine and expected (no repo, nothing to commit, a
+   rejecting pre-commit hook) — but **say which happened** in the
+   report-back, because it is the difference between "your old roadmap is
+   in git" and "it is gone". Then clear the file — `Bash`:
+   `> ROADMAP.jsonl` (or delete it). `roadmap.js add` always appends, so a
+   fresh file means ids start at `001` again.
 2. For each drafted task, call `add` with its fields as JSON over stdin:
    ```
    echo '{"title":"...","why":"...","what":"...","source":"user","depends_on":[],"touches":[]}' \
@@ -165,11 +175,24 @@ the updated draft, ask again. Repeat until approved.
    ```
    The script computes the id, sets `status:"planned"`, stamps
    `created_at`/`updated_at`, and validates the file after every write —
-   no manual parsing, no hand-computed ids.
+   no manual parsing, no hand-computed ids. A drafted task may only
+   `depends_on` a task drafted above it: entries are written in this
+   order, and `add` rejects an id that doesn't exist yet. If any call
+   returns `warnings`, mention them once at the end rather than per entry.
 3. Write `.foreman/config.json` —
    `{"discoverySuggestions": <bool>, "usePersona": <bool>, "omitSections": [...], "requireVerification": <bool>, "targetModel": "<haiku|sonnet|opus|inherit>", "taskCloseGate": "<off|nudge|block>"}`
    from the Call 2 answers (skip this file write if the pre-check "keep,
    add to it" branch found an existing config already).
+   **If the file already exists, `Read` it first and set those six keys on
+   the parsed object — any other key present must survive untouched.** This
+   applies whenever the file exists, not only on the Overwrite branch: the
+   pre-check only fires when `ROADMAP.jsonl` exists, so a project with a
+   config but no roadmap is never asked anything and would otherwise have
+   its config replaced silently. Today the key at risk is `customSections`,
+   which no skill ever writes and only `render-sections.js` reads — but the
+   rule is "everything else survives", not a list, so the next key is
+   covered without another edit. If the file exists but won't parse, write
+   the six keys alone and say so in the report-back.
 4. Stage and commit just these two files:
    `git add ROADMAP.jsonl .foreman/config.json && git commit -m "chore: init foreman roadmap"`
    (Only the files this skill wrote — never a broader `git add`.)

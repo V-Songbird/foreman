@@ -88,6 +88,17 @@ const WHAT_WARN_CHARS = 400;
 const NOTES_APPEND_WARN_CHARS = 3000;
 const NOTES_WARN_HINT = "a dense finding, not a wall of narrative or a serialized blob";
 
+// notes accumulates across sessions, so each append gets its own dated line.
+// updated_at only says the entry moved, never which note moved it, and a
+// bare separator collapsed N sessions of findings into one run-on string.
+// The newline survives writeEntries' JSON.stringify as an escape, so the
+// one-line-per-entry invariant holds. Pre-existing "; "-joined history is
+// left alone — no migration.
+function appendNote(existing, note) {
+  const line = `${today()} ${note}`;
+  return existing ? `${existing}\n${line}` : line;
+}
+
 function fieldWarnings(fields) {
   const warnings = [];
   for (const [name, text, max, hint] of fields) {
@@ -114,6 +125,15 @@ function cmdAdd(root, payload) {
     throw new Error(`add status must be one of ${[...CREATE_STATUSES].join("|")}`);
   }
   const entries = readEntries(root);
+  // Same trust boundary update-deps already guards: an id that doesn't
+  // resolve strands the entry out of next-candidates permanently — the
+  // guard hook denies the hand-edit repair and depends_on only ever grows.
+  // Self-reference and cycles stay unreachable here: id comes from nextId,
+  // so it isn't in entries yet and nothing can reference it.
+  const deps = Array.isArray(depends_on) ? depends_on : [];
+  const knownIds = new Set(entries.map((e) => e.id));
+  const unknown = deps.filter((dep) => !knownIds.has(dep));
+  if (unknown.length) throw new Error(`unknown depends_on id(s): ${unknown.join(", ")}`);
   const id = nextId(entries);
   const date = today();
   const entry = {
@@ -123,7 +143,7 @@ function cmdAdd(root, payload) {
     what,
     status: entryStatus,
     source,
-    depends_on: Array.isArray(depends_on) ? depends_on : [],
+    depends_on: deps,
     touches: Array.isArray(touches) ? touches : [],
     commits: [],
     created_at: date,
@@ -180,7 +200,7 @@ function cmdUpdateStatus(root, payload) {
   }
   if (notes) {
     // append-only invariant: never replace existing notes
-    entry.notes = entry.notes ? `${entry.notes}; ${notes}` : notes;
+    entry.notes = appendNote(entry.notes, notes);
   }
   // touches is a growing footprint, same append-only spirit as commits — the
   // creation-time guess stays, and both what the commit's diff actually
@@ -212,7 +232,7 @@ function cmdAnnotate(root, payload) {
   const entry = entries.find((e) => e.id === id);
   if (!entry) throw new Error(`no entry with id ${id}`);
   // append-only invariant: never replace existing notes
-  entry.notes = entry.notes ? `${entry.notes}; ${notes}` : notes;
+  entry.notes = appendNote(entry.notes, notes);
   entry.updated_at = today();
   writeEntries(root, entries);
   const warnings = fieldWarnings([["notes", notes, NOTES_APPEND_WARN_CHARS, NOTES_WARN_HINT]]);
@@ -241,27 +261,36 @@ function reaches(entries, startId, targetId) {
 // reads. Unlike notes, this changes future ranking mechanically instead of
 // just leaving a breadcrumb for a human/Claude to notice.
 function cmdUpdateDeps(root, payload) {
-  const { id, add_depends_on } = payload || {};
-  if (!id || !Array.isArray(add_depends_on) || !add_depends_on.length) {
+  const { id, add_depends_on, remove_depends_on } = payload || {};
+  const adds = Array.isArray(add_depends_on) ? add_depends_on : [];
+  const removes = Array.isArray(remove_depends_on) ? remove_depends_on : [];
+  if (!id || (!adds.length && !removes.length)) {
     throw new Error("update-deps requires id and a non-empty add_depends_on array");
   }
   const entries = readEntries(root);
   const entry = entries.find((e) => e.id === id);
   if (!entry) throw new Error(`no entry with id ${id}`);
   const knownIds = new Set(entries.map((e) => e.id));
-  const unknown = add_depends_on.filter((dep) => !knownIds.has(dep));
+  const unknown = adds.filter((dep) => !knownIds.has(dep));
   if (unknown.length) throw new Error(`unknown depends_on id(s): ${unknown.join(", ")}`);
-  if (add_depends_on.includes(id)) throw new Error("a task cannot depend on itself");
+  if (adds.includes(id)) throw new Error("a task cannot depend on itself");
   // A cycle can only be introduced here — add sets depends_on once, at
   // creation, when no other entry can reference the not-yet-existing id.
-  const cyclic = add_depends_on.filter((dep) => reaches(entries, dep, id));
+  const cyclic = adds.filter((dep) => reaches(entries, dep, id));
   if (cyclic.length) {
     throw new Error(
       `depends_on id(s) would create a cycle back to ${id}: ${cyclic.join(", ")}`
     );
   }
   entry.depends_on = Array.isArray(entry.depends_on) ? entry.depends_on : [];
-  for (const dep of add_depends_on) {
+  // Removals run first and need no guard of their own — dropping an edge
+  // can't create a cycle or a dangling reference, and removing an id that
+  // isn't there is a no-op, same spirit as the dedup on insert below. This
+  // is the recovery path for an edge whose dependency was later dropped.
+  if (removes.length) {
+    entry.depends_on = entry.depends_on.filter((dep) => !removes.includes(dep));
+  }
+  for (const dep of adds) {
     if (!entry.depends_on.includes(dep)) entry.depends_on.push(dep);
   }
   entry.updated_at = today();
@@ -473,6 +502,8 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
 
   add               stdin JSON: {title, why, what, source, depends_on?, touches?, notes?, status?}
                     source: "user" | "claude-suggested"
+                    depends_on ids must already exist -- an id that doesn't
+                    resolve would strand the entry out of next-candidates
                     status (create-time only): "planned" (default) | "rejected"
   update-status     stdin JSON: {id, status, commit?, notes?, add_touches?}
                     status: "planned" | "in_progress" | "deferred" | "done" | "dropped" | "rejected"
@@ -487,7 +518,11 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     appends notes and bumps updated_at without touching
                     status -- use for a breadcrumb write so a stale status
                     read never regresses an entry another session moved
-  update-deps       stdin JSON: {id, add_depends_on}   (add_depends_on: non-empty array of ids)
+  update-deps       stdin JSON: {id, add_depends_on?, remove_depends_on?}
+                    at least one must be a non-empty array of ids --
+                    remove_depends_on is the recovery path when a dependency
+                    was later dropped; removing an id that isn't there is a
+                    no-op
   list              flag: --status planned,in_progress   (optional, comma-separated)
                     flag: --ids 002,005   (optional, comma-separated, combinable with --status)
                     flag: --summary   (optional: entries carry only

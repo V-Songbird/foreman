@@ -185,7 +185,11 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
    XML structure, straight from the candidate's fields — no verification
    pass:
    - `task_context` goal ← `title` + `why`
-   - `background` / `context` ← `what`
+   - `background` / `context` ← `what`, plus the candidate's `notes` when
+     non-empty, attributed as prior recorded findings on this entry (a
+     survey verdict, a defer trigger, a previous session's evidence) — the
+     candidate already carries them, so this costs nothing and stops the
+     destination re-deriving what someone already wrote down
    - `relevant_files` seed ← `touches`, passed through as-is (area-level
      hints, not confirmed file:line ranges — that's fine, don't upgrade
      them yourself)
@@ -293,7 +297,8 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      a<16 hex>`). Capture it immediately with one annotate call, so a later
      session can resume this exact agent instead of re-crafting a prompt
      from its notes:
-     `` echo '{"id":"<id>","notes":"dispatched to background agent `<agent-id>` (<date>)"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js annotate ``
+     `` echo '{"id":"<id>","notes":"dispatched to background agent `<agent-id>`"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js annotate `` (the
+     script date-stamps each appended note itself — don't write one in)
      The phrase "background agent" followed by the backticked id is the
      exact marker grammar the resume flow above parses — the id's own
      charset (`a` + lowercase hex) never needs escaping.
@@ -320,11 +325,22 @@ picking `Execute here` above, not this skill deciding on its own.
    the user through every field if they've already given enough in a
    one-line description (args or a natural request) — ask only for what's
    missing.
-2. `echo '{"title":"...","why":"...","what":"...","source":"user","depends_on":[...],"touches":[...]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js add`
-   — the script computes the id, validates required fields, and confirms
-   the file is still well-formed after writing.
-3. Confirm back to the user with the new task's id and title (from the
-   script's JSON response).
+2. Before writing it, check it isn't already tracked:
+   `echo '{"title":"...","why":"..."}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js check-duplicate`
+   — matches carry each entry's status. On a match, name the existing
+   id/title/status in one line and ask whether to add anyway
+   (`AskUserQuestion`: `Add it anyway` / `Never mind`); a `rejected` match
+   means the user already declined this, say so. No match: add it without
+   comment. Ask *before* the write, not after — `add` has no undo, `title`/
+   `why`/`what` are immutable once written, and the only exit is
+   `update-status dropped`, which leaves the row in the file forever.
+3. `echo '{"title":"...","why":"...","what":"...","source":"user","depends_on":[...],"touches":[...]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js add`
+   — the script computes the id, validates required fields (including that
+   every `depends_on` id already exists), and confirms the file is still
+   well-formed after writing.
+4. Confirm back to the user with the new task's id and title (from the
+   script's JSON response), and surface any `warnings` the response carries,
+   verbatim, in the same line.
 
 ---
 
@@ -336,7 +352,12 @@ below needs; the full entries' prose would multiply the payload for
 nothing on a large roadmap. Render a compact list grouped by `status`
 (`in_progress` first, then `planned` — noting which are blocked and on
 what, derivable from `depends_on` plus the other entries' statuses — then
-`deferred`, then `done`, `dropped`, `rejected` last). If any `deferred`
+`deferred`, then `done`, `dropped`, `rejected` last). When a `planned`
+entry's blocker resolves to an entry that is `dropped` or `rejected` — or
+to an id no entry has — say so explicitly rather than calling it plain
+"blocked": it will not reappear in the pick list until that dependency is
+moved back with `update-status`, or its edge is removed with
+`update-deps`'s `remove_depends_on`. If any `deferred`
 entries exist, fetch just those in full for the "waiting on what" word —
 `list --ids <deferred ids>` — drawn from their `why`/`notes`. No writes,
 no further questions.

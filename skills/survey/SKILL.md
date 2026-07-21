@@ -59,9 +59,12 @@ Same reasoning applies to `touches`: collect every path named across the
 candidates being surveyed (dedup), and check existence directly —
 `test -e <path>` (Bash) / `Test-Path <path>` (PowerShell), relative to the
 project root, one call per unique path (or a short loop in one call).
-Build a `path_exists: true/false` map from this too. A missing path is
-already `stale-touches` evidence on its own — no agent needs a `Read`/`Glob`
-round trip just to learn a file isn't there.
+Build a `path_exists: true/false` map from this too — no agent needs a
+`Read`/`Glob` round trip just to learn a file isn't there. A missing path
+is a **question, not a verdict**: `touches` is a forward-looking best guess
+written at `add`/`init` time and routinely names files the task will
+create, so absence alone is expected on a healthy backlog and proves
+nothing by itself.
 
 ---
 
@@ -81,11 +84,14 @@ step 1:
   and the pre-computed `exists` flag for each of those commits — the agent
   consumes this fact, it does not re-derive it.
 - Ask it to check, and report a verdict for each:
-  1. **Touches still real?** Any path step 1 already flagged missing is
-     `stale-touches` evidence on its own — no further check needed for it.
-     For paths confirmed to exist, does their current content still match
-     what `what` describes? (`git log --oneline -- <path>` plus a read of
-     the file's current state.)
+  1. **Touches still real?** A path step 1 flagged missing is
+     `stale-touches` only if it can be shown to have *once existed and
+     moved* — `git log --diff-filter=D -- <path>`, or `--follow` showing a
+     rename. Nothing found means the task simply hasn't created it yet:
+     verdict stays `valid`, nothing to annotate. For paths confirmed to
+     exist, does their current content still match what `what` describes?
+     (`git log --oneline -- <path>` plus a read of the file's current
+     state.)
   2. **Dependencies actually satisfied?** If step 1's `exists` map already
      flags a `done` entry's commit as missing, that alone is a red flag —
      no further check needed. Otherwise, for commits confirmed to exist,
@@ -121,12 +127,13 @@ not an automatic mutation:
   session later: it's baked into the graph the ranking algorithm reads,
   not a note someone has to remember to check.
 - **`already-done` / `duplicate`** → on confirm:
-  `echo '{"id":"<candidate>","status":"dropped","notes":"survey <date>: <one-line evidence>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
+  `echo '{"id":"<candidate>","status":"dropped","notes":"survey: <one-line evidence>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
   (or `"done"` with the actual `commit` if the evidence points to a specific
   commit that already did the work).
 - **`stale-touches`** with no structural fix (the description just needs
   updating, nothing to block on) → notes-only, status untouched:
-  `echo '{"id":"<candidate>","notes":"survey <date>: <one-line evidence>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js annotate`
+  `echo '{"id":"<candidate>","notes":"survey: <one-line evidence>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js annotate`
+  (the script date-stamps each appended note itself — don't write one in)
   `annotate` exists precisely for this write: unlike `update-status`, it
   can't regress the entry to a status read before the survey ran (e.g.
   re-asserting `planned` on an entry another session has since moved to

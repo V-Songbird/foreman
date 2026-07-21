@@ -88,6 +88,25 @@ describe('add', () => {
     assert.match(json.error, /requires title, why, what/);
   });
 
+  test('rejects a depends_on id that does not exist', () => {
+    run(['add'], { title: 'a', why: 'a', what: 'a', source: 'user' });
+    const { status, json } = run(['add'], {
+      title: 'b', why: 'b', what: 'b', source: 'user', depends_on: ['099'],
+    });
+    assert.equal(status, 1);
+    assert.equal(json.ok, false);
+    assert.match(json.error, /unknown depends_on id\(s\): 099/);
+  });
+
+  test('accepts a depends_on id that already exists', () => {
+    run(['add'], { title: 'a', why: 'a', what: 'a', source: 'user' });
+    const { status, json } = run(['add'], {
+      title: 'b', why: 'b', what: 'b', source: 'user', depends_on: ['001'],
+    });
+    assert.equal(status, 0);
+    assert.deepEqual(json.entry.depends_on, ['001']);
+  });
+
   test('rejects invalid source', () => {
     const { status, json } = run(['add'], { title: 'a', why: 'a', what: 'a', source: 'bot' });
     assert.equal(status, 1);
@@ -122,10 +141,21 @@ describe('update-status', () => {
     assert.deepEqual(json.entry.commits, ['a1b2c3d']);
   });
 
-  test('appends notes rather than replacing them', () => {
+  test('appends notes on their own dated line rather than replacing them', () => {
     run(['update-status'], { id: '001', status: 'in_progress', notes: 'first' });
     const { json } = run(['update-status'], { id: '001', status: 'in_progress', notes: 'second' });
-    assert.equal(json.entry.notes, 'first; second');
+    const lines = json.entry.notes.split('\n');
+    assert.equal(lines.length, 2);
+    assert.match(lines[0], /^\d{4}-\d{2}-\d{2} first$/);
+    assert.match(lines[1], /^\d{4}-\d{2}-\d{2} second$/);
+  });
+
+  test('a multi-line notes history still round-trips as one JSONL line', () => {
+    run(['update-status'], { id: '001', status: 'in_progress', notes: 'first' });
+    run(['update-status'], { id: '001', status: 'in_progress', notes: 'second' });
+    const raw = fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf-8').trim();
+    assert.equal(raw.split('\n').length, 1);
+    assert.equal(JSON.parse(raw).notes.split('\n').length, 2);
   });
 
   test('rejects unknown id', () => {
@@ -221,7 +251,9 @@ describe('annotate', () => {
   test('appends notes and bumps updated_at without touching status', () => {
     const { status, json } = run(['annotate'], { id: '001', notes: 'second' });
     assert.equal(status, 0);
-    assert.equal(json.entry.notes, 'first; second');
+    const lines = json.entry.notes.split('\n');
+    assert.equal(lines[0], 'first');
+    assert.match(lines[1], /^\d{4}-\d{2}-\d{2} second$/);
     assert.equal(json.entry.status, 'in_progress');
     assert.notEqual(json.entry.updated_at, '2026-07-01');
   });
@@ -231,7 +263,7 @@ describe('annotate', () => {
       { id: '001', title: 'a', why: 'a', what: 'a', status: 'planned', source: 'user', depends_on: [], touches: [], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '' },
     ]);
     const { json } = run(['annotate'], { id: '001', notes: 'only note' });
-    assert.equal(json.entry.notes, 'only note');
+    assert.match(json.entry.notes, /^\d{4}-\d{2}-\d{2} only note$/);
   });
 
   test('rejects a missing notes field', () => {
@@ -313,6 +345,38 @@ describe('update-deps', () => {
     const { status, json } = run(['update-deps'], { id: '002', add_depends_on: [] });
     assert.equal(status, 1);
     assert.match(json.error, /requires id and a non-empty add_depends_on/);
+  });
+
+  test('removes a dependency', () => {
+    run(['update-deps'], { id: '002', add_depends_on: ['001'] });
+    const { json } = run(['update-deps'], { id: '002', remove_depends_on: ['001'] });
+    assert.deepEqual(json.entry.depends_on, []);
+  });
+
+  test('removing a dependency that is not there is a no-op', () => {
+    const { status, json } = run(['update-deps'], { id: '002', remove_depends_on: ['001'] });
+    assert.equal(status, 0);
+    assert.deepEqual(json.entry.depends_on, []);
+  });
+
+  test('removals apply before additions in the same call', () => {
+    run(['update-deps'], { id: '002', add_depends_on: ['001'] });
+    const { json } = run(['update-deps'], {
+      id: '002',
+      remove_depends_on: ['001'],
+      add_depends_on: ['001'],
+    });
+    assert.deepEqual(json.entry.depends_on, ['001']);
+  });
+
+  test('a removal alone does not need a cycle or existence check', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'prereq', why: 'a', what: 'a', status: 'dropped', source: 'user', depends_on: [], touches: [], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '' },
+      { id: '002', title: 'target', why: 'a', what: 'a', status: 'planned', source: 'user', depends_on: ['001', '099'], touches: [], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '' },
+    ]);
+    const { status, json } = run(['update-deps'], { id: '002', remove_depends_on: ['099'] });
+    assert.equal(status, 0);
+    assert.deepEqual(json.entry.depends_on, ['001']);
   });
 });
 

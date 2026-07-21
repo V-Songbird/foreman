@@ -202,6 +202,26 @@ describe('discovery block', () => {
     assert.match(out, /Log it/);
   });
 
+  test('names the planned entries as already-covered ground', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'Add JWT refresh', status: 'planned' },
+      { id: '002', title: 'Ship the parser', status: 'done' },
+      { id: '003', title: 'Abandoned idea', status: 'dropped' },
+    ]);
+    writeConfig(project, { discoverySuggestions: true });
+    const out = run(bashPayload('git commit -m "add feature"'));
+    assert.match(out, /already on the roadmap as planned: 001 \(\\"Add JWT refresh\\"\)/);
+    assert.doesNotMatch(out, /Ship the parser/);
+    assert.doesNotMatch(out, /Abandoned idea/);
+  });
+
+  test('says nothing about coverage when no entry is planned', () => {
+    writeRoadmap(project, [{ id: '001', title: 'Done thing', status: 'in_progress' }]);
+    writeConfig(project, { discoverySuggestions: true });
+    const out = run(bashPayload('git commit -m "add feature"'));
+    assert.doesNotMatch(out, /already on the roadmap as planned/);
+  });
+
   test('does not fire when config is missing', () => {
     writeRoadmap(project, [{ id: '001', status: 'planned' }]);
     const out = run(bashPayload('git commit -m "add feature"'));

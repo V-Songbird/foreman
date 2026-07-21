@@ -8,6 +8,26 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.33.0-alpha] — 2026-07-21
+
+### Added
+
+- A task's dependencies can now be removed, not just added — `update-deps` takes `remove_depends_on`. This is the way back when a task you depend on gets dropped.
+- Adding a task now rejects a dependency on an id that doesn't exist, instead of accepting a reference that would keep the task off the pick list forever.
+- Each note appended to a task now lands on its own dated line, so a task worked across several sessions reads as a log.
+- Adding a task now checks whether it's already on the roadmap first, and asks before writing a near-duplicate.
+- Review status now says when a task's blocker has been dropped or rejected, so you can tell it apart from one that's merely waiting.
+
+### Changed
+
+- Re-running `/foreman:init` over an existing project now commits a snapshot of your old roadmap before starting fresh, and keeps any settings it doesn't own instead of replacing the whole config file.
+- A handoff prompt now carries the task's own recorded notes, so prior findings reach the session doing the work.
+- A `.foreman/config.json` that exists but can't be read as JSON now says so, instead of silently falling back to defaults.
+
+### Fixed
+
+- A task's file hints no longer count as stale just because a file isn't there yet — the survey now needs evidence the file once existed and moved.
+
 ## [0.32.0-alpha] — 2026-07-21
 
 ### Added

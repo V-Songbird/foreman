@@ -24,12 +24,27 @@ function readUsePersona(config) {
 
 // Fail-soft, same spirit as post-commit.js's readConfig: a missing or
 // corrupt config.json never blocks prompt assembly, it just means no
-// custom sections/omissions this time.
+// custom sections/omissions this time. Fail-soft is not fail-silent
+// though: a file that exists but won't parse loses every setting to its
+// default — including usePersona, which reverts to true, so a persona
+// opener would pass the gate in a usePersona:false project (check-prompt.js
+// imports this same render()). A missing file is the uninitialized case and
+// stays silent by construction.
+// razor: this is the only reader with a user-visible warning channel. The
+// two hook-side readers (hooks/post-commit.js, hooks/task-completed.js)
+// keep swallowing their own parse errors because SessionStart/PostToolUse
+// have nowhere to surface one — which is why this warning names them.
 function readConfig(root) {
   try {
-    return JSON.parse(fs.readFileSync(configPath(root), "utf-8")) || {};
-  } catch {
-    return {};
+    return { config: JSON.parse(fs.readFileSync(configPath(root), "utf-8")) || {}, warning: null };
+  } catch (err) {
+    if (err && err.code === "ENOENT") return { config: {}, warning: null };
+    return {
+      config: {},
+      warning:
+        '.foreman/config.json exists but could not be read as JSON — every setting fell back to its ' +
+        "default for this prompt, including the ones foreman's hooks read. Fix the file and re-run.",
+    };
   }
 }
 
@@ -143,7 +158,7 @@ function renderOmit(raw) {
 }
 
 function render(root) {
-  const config = readConfig(root);
+  const { config, warning: configWarning } = readConfig(root);
   const sectionsResult = renderSections(config.customSections);
   const omitResult = renderOmit(config.omitSections);
   const targetModelResult = readTargetModel(config);
@@ -153,6 +168,7 @@ function render(root) {
     omit: omitResult.omit,
     targetModel: targetModelResult.value,
     warnings: [
+      ...(configWarning ? [configWarning] : []),
       ...sectionsResult.warnings,
       ...omitResult.warnings,
       ...(targetModelResult.warning ? [targetModelResult.warning] : []),

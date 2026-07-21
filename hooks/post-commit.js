@@ -187,9 +187,27 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification) {
   return "[Foreman] " + parts.join(" ");
 }
 
-function discoveryBlock() {
+// The planned titles ride along as a negative list. check-duplicate stays
+// the mechanical backstop, but its word-overlap score can't catch a
+// paraphrase of an entry that already covers the same ground — naming them
+// is the free half, since main() has already read every entry.
+// razor: the whole planned list is inlined; if a backlog ever makes this
+// block dominate the hook payload, cap it or drop back to check-duplicate.
+function alreadyCovered(entries) {
+  const planned = (entries || []).filter((e) => e.status === "planned");
+  if (!planned.length) return "";
+  const list = planned.map((e) => `${e.id} ("${e.title}")`).join(", ");
   return (
-    "[Foreman] Roadmap discovery is enabled for this project. Scan this " +
+    `These are already on the roadmap as planned: ${list}. Do not propose ` +
+    "anything they already cover, even reworded. "
+  );
+}
+
+function discoveryBlock(entries) {
+  return (
+    "[Foreman] Roadmap discovery is enabled for this project. " +
+    alreadyCovered(entries) +
+    "Scan this " +
     "commit's work for CONFIRMED opportunities, bugs, or ideas — not vague " +
     "hunches. If you add one to the roadmap, write it dense using only " +
     "what's already in this session's context (exact paths, line ranges, " +
@@ -258,7 +276,7 @@ function main() {
     blocks.push(statusSyncBlock(inProgress, freshlyDone, config.requireVerification));
   }
   if (config.discoverySuggestions) {
-    blocks.push(discoveryBlock());
+    blocks.push(discoveryBlock(entries));
   }
   if (!blocks.length) return;
 

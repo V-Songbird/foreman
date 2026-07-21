@@ -75,6 +75,19 @@ describe('render-sections', () => {
     assert.deepEqual(json.sections, []);
   });
 
+  test('corrupt config.json warns rather than failing silently', () => {
+    fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
+    fs.writeFileSync(path.join(project, '.foreman', 'config.json'), '{not json', 'utf-8');
+    const { json } = run();
+    assert.ok(json.warnings.some((w) => w.includes('could not be read as JSON')));
+  });
+
+  test('a missing config.json is the uninitialized case and stays silent', () => {
+    const { status, json } = run();
+    assert.equal(status, 0);
+    assert.deepEqual(json.warnings, []);
+  });
+
   test('valid entry renders as <tag>\\ncontent\\n</tag>', () => {
     writeConfig(project, {
       customSections: [{ tag: 'compliance_notice', content: 'Needs sign-off.' }],
