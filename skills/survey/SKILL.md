@@ -100,8 +100,11 @@ step 1:
   3. **Hidden dependency?** Reading the code the candidate's `touches`
      point to, does it already reference/import/call something that
      another *not-done* task's `touches` claims to own, which isn't in this
-     candidate's `depends_on`? Only report this with a concrete
-     file:line citation — no hunches.
+     candidate's `depends_on`? Then the same question in reverse: does
+     anything *outside* this candidate's `touches` consume the code it
+     changes, in a way that makes another not-done entry depend on this
+     one? Only report either direction with a concrete file:line citation
+     — no hunches.
   4. **Already done, or duplicate?** Does the working tree already contain
      what `what` describes, or does it closely overlap another entry?
 

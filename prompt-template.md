@@ -318,6 +318,59 @@ blocks verbatim, no unfilled placeholders, omit compliance, verification
 present); it can't judge content quality — the checklist above still
 applies to what the fields actually say.
 
+## Delivery mechanics
+
+Shared by every skill that assembles this template. The skill decides
+*which* destination applies and in what order it offers them; this section
+says what each one does once picked.
+
+**Never call `mcp__ccd_session__spawn_task`** — it has a known bug where
+tasks spawned through it don't get MCP tools. Use one of the three
+destinations below instead, regardless of Desktop or CLI.
+
+**Execution-mode options** — asked only when the destination is `Execute
+here`, and asked separately: it decides how the work is tracked, not what
+the prompt says, so it can't batch into the destination question. The other
+two destinations skip it entirely.
+- `Tasks from the checks (Recommended)` — one tracked task per
+  verification command
+- `One task, then work it` — a single tracked task carrying the whole
+  prompt
+- `Run now, no tracking` — start immediately, no task rows
+
+`AskUserQuestion` appends its own free-text option; never author one. That
+free text is where a user names the pieces, or gives a fixed number of
+tasks — the splitting section below says what to do with a bare number.
+
+**`Execute here`** — the execution-mode answer picks which of these runs.
+- `Run now, no tracking` — no task rows at all. Work the assembled prompt
+  in this session directly.
+- `One task, then work it` — call `TaskCreate` with `subject` = a verb-first
+  imperative ≤60 chars, `description` = the assembled XML prompt,
+  `activeForm` = its present-continuous form. Then work the task in this
+  session, using `TaskUpdate` to mark it `in_progress` then `completed`.
+- `Tasks from the checks` — the same `TaskCreate` shape per row, split and
+  chained exactly as the splitting section below describes. Then work them
+  in order, `TaskUpdate` per row as you go.
+
+**Background Agent** — call `Agent` with `prompt` = the assembled XML
+prompt, `description` = a 3-5 word summary, `run_in_background: true`.
+
+**Clipboard** — `Write` the assembled prompt to a temp file first; never
+pass it as an inline shell string, a large prompt breaks shell quoting and
+the copy silently fails. Then pipe the file's content into the clipboard
+command: `Get-Content -Raw <file> | Set-Clipboard` on Windows, `pbcopy <
+<file>` on macOS, `xclip -selection clipboard < <file>` (or `wl-copy <
+<file>`) on Linux. Mention the file path too, in case the clipboard step
+fails. If no clipboard tool is available at all, fall back to showing the
+prompt in a fenced `xml` code block instead.
+
+**Never paste or print the assembled XML prompt into your response text** —
+it is data for `TaskCreate`'s `description`, `Agent`'s `prompt`, or a temp
+file piped to clipboard, not something to show the user. The one exception
+is the clipboard fallback block above, used only when no clipboard tool
+exists.
+
 ## Splitting an `Execute here` handoff into several tasks
 
 Only for the `Execute here` destination, and only when its execution-mode

@@ -157,23 +157,13 @@ Options, in this order:
 - `Execute here` — run it in this session
 - `Execute with a background Agent` — offload it, get notified on completion
 
-**Never call `mcp__ccd_session__spawn_task`** — it has a known bug where
-tasks spawned through it don't get MCP tools.
+The `spawn_task` ban applies here — see `prompt-template.md`'s "Delivery
+mechanics" section.
 
 **Q3 — execution mode**, asked only when Q2's answer was `Execute here`.
-It decides how the work is tracked, not what the prompt says, so it can't
-batch into Q2. The other two destinations skip it entirely.
-"How should it run here?"
-- `Tasks from the checks (Recommended)` — one tracked task per
-  verification command
-- `One task, then work it` — a single tracked task carrying the whole
-  prompt
-- `Run now, no tracking` — start immediately, no task rows
-
-`AskUserQuestion` appends its own free-text option; never author one. That
-free text is where a user names the pieces, or gives a fixed number of
-tasks — `prompt-template.md`'s splitting section says what to do with a
-bare number.
+The other two destinations skip it entirely. "How should it run here?" —
+options and their free-text rule are `prompt-template.md`'s "Delivery
+mechanics" section, verbatim.
 
 `Run now, no tracking` creates no task row, so neither `task-created.js`
 nor `task-completed.js` fires: the entry's opening and its close gate both
@@ -254,12 +244,6 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      `background`/`context` — for a resume they're prior findings, exactly
      the context the destination shouldn't have to rebuild.
 
-   **Never paste or print the assembled XML prompt into your response
-   text.** It is data for `TaskCreate`'s `description`, `Agent`'s `prompt`,
-   or a temp file piped to clipboard — not something to show the user. The
-   one exception is already below: the clipboard-fallback fenced block when
-   no clipboard tool exists.
-
    Then run `prompt-template.md`'s mechanical gate on the assembled prompt
    (its "Mechanical gate" section has the exact call — pass
    `--entry <id>`, plus `--resume` for a resumed pick) and fix every error
@@ -270,19 +254,14 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
    `update-status` call embedded in step 3 above. Picking or copying a task
    is not the same as starting it; only the session that begins acting on
    it should say so.
-5. Deliver via whatever Q2 picked:
-   - **`Execute here`**: Q3 picked which of these three runs.
-     - `Run now, no tracking` — no task rows. Work the assembled prompt in
-       this session directly; nothing mechanizes the entry's status here,
-       so the prompt's own embedded instructions carry it end to end.
-     - `One task, then work it` — call `TaskCreate` with `subject` = a
-       verb-first imperative ≤60 chars from the entry's `title`,
-       `description` = the assembled XML prompt. Work it in this session.
-     - `Tasks from the checks` — the same `TaskCreate` shape per row, split
-       and chained exactly as `prompt-template.md`'s "Splitting an
-       `Execute here` handoff into several tasks" section describes. The
-       entry paragraph rides the last row only, per that section. Then work
-       them in order.
+5. Deliver via whatever Q2 picked. Each destination's mechanics are
+   `prompt-template.md`'s "Delivery mechanics" section; the `Execute here`
+   sub-mode is Q3's answer, and `subject` derives from the entry's `title`.
+   What this skill layers on top:
+   - **`Execute here`**: on `Run now, no tracking`, nothing mechanizes the
+     entry's status, so the prompt's own embedded instructions carry it end
+     to end. On `Tasks from the checks`, the entry paragraph rides the last
+     row only, per the splitting section.
 
      On either tracked mode, Foreman's `task-created` hook marks the entry
      `in_progress` mechanically the moment the row carrying the embedded
@@ -291,25 +270,16 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      and re-running that update is a harmless no-op. Still use `TaskUpdate`
      (a separate, session-local tracker) for each row's own `in_progress`/
      `completed` transitions as you go.
-   - **Background Agent**: call `Agent` with `prompt` = the assembled XML
-     prompt, `description` = a 3-5 word summary, `run_in_background: true`.
-     The tool result trails with the dispatched agent's id (`agentId:
-     a<16 hex>`). Capture it immediately with one annotate call, so a later
-     session can resume this exact agent instead of re-crafting a prompt
-     from its notes:
+   - **Background Agent**: the tool result trails with the dispatched
+     agent's id (`agentId: a<16 hex>`). Capture it immediately with one
+     annotate call, so a later session can resume this exact agent instead
+     of re-crafting a prompt from its notes:
      `` echo '{"id":"<id>","notes":"dispatched to background agent `<agent-id>`"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js annotate `` (the
      script date-stamps each appended note itself — don't write one in)
      The phrase "background agent" followed by the backticked id is the
      exact marker grammar the resume flow above parses — the id's own
      charset (`a` + lowercase hex) never needs escaping.
-   - **Clipboard**: `Write` the assembled prompt to a temp file first —
-     never pass it as an inline shell string, a large prompt breaks shell
-     quoting and the copy fails. Then pipe the file's content into the
-     clipboard command: `Get-Content -Raw <file> | Set-Clipboard` on
-     Windows, `pbcopy < <file>` on macOS, `xclip -selection clipboard <
-     <file>` (or `wl-copy < <file>`) on Linux. Mention the file path too,
-     in case the clipboard step fails. Fall back to a fenced `xml` block
-     only if no clipboard tool is available at all.
+   - **Clipboard**: nothing beyond the shared mechanics.
 
 **Hard rule — state this explicitly if the user pushes back**: this skill
 always asks before doing anything — it never silently executes a task, and

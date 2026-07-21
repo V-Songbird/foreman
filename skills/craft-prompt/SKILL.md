@@ -123,31 +123,20 @@ Options:
 - `Execute with a background Agent` — offload it, get notified on completion
 - `Copy prompt to clipboard` — just get the text, no execution
 
-**Never call `mcp__ccd_session__spawn_task`** — it has a known bug where
-tasks spawned through it don't get MCP tools. Use one of the three options
-above instead, regardless of Desktop or CLI.
+The `spawn_task` ban applies here — see `prompt-template.md`'s "Delivery
+mechanics" section.
 
 ---
 
 ## Call 5b — execution mode (conditional)
 
-Ask this only when Call 5 Q1's answer was `Execute here`. It decides how
-the work is tracked, not what the prompt says, so it can't batch into Call
-5's own question. The other two destinations skip it and go to Call 6
-instead — the two questions are mutually exclusive.
+Ask this only when Call 5 Q1's answer was `Execute here`. The other two
+destinations skip it and go to Call 6 instead — the two questions are
+mutually exclusive.
 
 **Q1** — "How should it run here?"
-Options:
-- `Tasks from the checks (Recommended)` — one tracked task per
-  verification command
-- `One task, then work it` — a single tracked task carrying the whole
-  prompt
-- `Run now, no tracking` — start immediately, no task rows
-
-`AskUserQuestion` appends its own free-text option; never author one. That
-free text is where a user names the pieces, or gives a fixed number of
-tasks — `prompt-template.md`'s splitting section says what to do with a
-bare number.
+Options and their free-text rule: `prompt-template.md`'s "Delivery
+mechanics" section, verbatim.
 
 ---
 
@@ -215,12 +204,6 @@ gathered fields onto the template's placeholders:
   mechanical tone omission, schema-authoring and delivery rules all live
   there) — the schema itself derives from Call 4's Workflow-stage answer
 
-**Never paste or print the assembled prompt into your response text** — it
-is data for `TaskCreate`'s `description`, `Agent`'s `prompt`, or a temp
-file piped to clipboard, not something to show the user. The one
-exception is the clipboard-fallback fenced block in "Deliver" below, used
-only when no clipboard tool exists.
-
 Before moving to the next phase, verify the assembled prompt against
 `prompt-template.md`'s own checklist, then run its mechanical gate
 (`scripts/check-prompt.js` — the template's "Mechanical gate" section has
@@ -231,37 +214,17 @@ either here.
 
 ## Deliver
 
-Deliver via whatever Calls 5 and 5b picked — no further question.
+Deliver via whatever Calls 5 and 5b picked — no further question. Each
+destination's mechanics are `prompt-template.md`'s "Delivery mechanics"
+section; the `Execute here` sub-mode is Call 5b's answer. Two additions
+this skill layers on top:
 
-**If `Execute here`:** Call 5b picked which of these three runs.
-- `Run now, no tracking` — no task rows at all. Work the assembled prompt
-  in this session directly.
-- `One task, then work it` — call `TaskCreate` with `subject` = a verb-first
-  imperative ≤60 chars derived from the task description, `description` =
-  the assembled XML prompt, `activeForm` = its present-continuous form.
-  Then work the task in this session, using `TaskUpdate` to mark it
-  `in_progress` then `completed` as you go.
-- `Tasks from the checks` — the same `TaskCreate` shape per row, split and
-  chained exactly as `prompt-template.md`'s "Splitting an `Execute here`
-  handoff into several tasks" section describes. Then work them in order,
-  `TaskUpdate` per row as you go.
-
-**If background Agent:** call `Agent` with `prompt` = the assembled XML
-prompt, `description` = a 3-5 word summary, `run_in_background: true`, and
-`model` = Call 6's answer — a concrete choice as its literal string
-(`haiku`/`sonnet`/`opus`/`fable`); omit the `model` parameter entirely when
-the answer was "Inherit the session's model".
-
-**If clipboard:** `Write` the assembled prompt to a temp file first — never
-pass it as an inline shell string, a large prompt breaks shell quoting and
-the copy silently fails. Then pipe the file's content into the clipboard
-command: `Get-Content -Raw <file> | Set-Clipboard` on Windows, `pbcopy <
-<file>` on macOS, `xclip -selection clipboard < <file>` (or `wl-copy <
-<file>`) on Linux. Mention the file path too, in case the clipboard step
-fails. If no clipboard tool is available at all, fall back to showing the
-prompt in a fenced `xml` code block instead. If the effective target
-model (Call 6's answer, else `targetModel`) is concrete, add one more
-line alongside the file path: "Recommended model:
-[Haiku/Sonnet/Opus/Fable] — this prompt's elaboration level was
-calibrated for it." Skip that line when it resolved to `inherit` or
-`Unknown` — no fixed target, so there's nothing to recommend.
+- **Background Agent** — pass `model` = Call 6's answer as its literal
+  string (`haiku`/`sonnet`/`opus`/`fable`); omit the `model` parameter
+  entirely when the answer was "Inherit the session's model".
+- **Clipboard** — if the effective target model (Call 6's answer, else
+  `targetModel`) is concrete, add one more line alongside the file path:
+  "Recommended model: [Haiku/Sonnet/Opus/Fable] — this prompt's
+  elaboration level was calibrated for it." Skip that line when it
+  resolved to `inherit` or `Unknown` — no fixed target, so there's nothing
+  to recommend.
