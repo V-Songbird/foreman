@@ -1,9 +1,9 @@
 ---
 name: craft-prompt
-description: Interactive prompt builder. Guides you through assembling a self-contained spawned-session prompt following Foreman's template — asks which optional sections to include, gathers required info via AskUserQuestion, assembles the XML, then hands it off via TaskCreate, a background Agent, or copies it to the clipboard.
+description: Interactive prompt builder. Guides you through assembling a self-contained spawned-session prompt following Foreman's template — asks which optional sections to include, gathers required info via AskUserQuestion, assembles the XML, then runs it here as one or several tracked tasks, hands it to a background Agent, or copies it to the clipboard.
 when_to_use: Trigger when the user wants to create a task, spawn a background agent, craft a prompt for a spawned session, or says "craft a prompt", "build a prompt", "foreman prompt", "new task prompt", or invokes /foreman:craft-prompt.
 argument-hint: "<brief task description — optional seed>"
-allowed-tools: AskUserQuestion, TaskCreate, Agent, Read, Write, Bash, PowerShell
+allowed-tools: AskUserQuestion, TaskCreate, TaskUpdate, Agent, Read, Write, Bash, PowerShell
 ---
 
 # foreman:craft-prompt — interactive prompt builder
@@ -56,11 +56,16 @@ Options: `I'll describe them`
 
 Skip this call only if the task type is pure research/investigation with no code changes.
 
-**Q1** — "What command verifies success?"
+**Q1** — "What command or commands verify success?"
 Options: `npm test`, `npm run build`, `pytest`, `cargo test`, `go test ./...`
 
 **Q2** — "What's the expected outcome?"
 Options: `All tests pass`, `Build succeeds with exit code 0`, `No lint errors`, `Report file produced`
+
+Several checks, named in the order they should run, are fine and normal —
+each becomes its own `Run:`/`Expected:` pair in the prompt. They are also
+what Call 5b's task split cuts on, so a task with three real checks is
+worth listing all three here.
 
 ---
 
@@ -114,7 +119,7 @@ delivered, not the other way around.
 
 **Q1** — "How do you want to run this?"
 Options:
-- `Execute with TaskCreate` — track it and work it in this session
+- `Execute here` — run it in this session
 - `Execute with a background Agent` — offload it, get notified on completion
 - `Copy prompt to clipboard` — just get the text, no execution
 
@@ -124,13 +129,35 @@ above instead, regardless of Desktop or CLI.
 
 ---
 
+## Call 5b — execution mode (conditional)
+
+Ask this only when Call 5 Q1's answer was `Execute here`. It decides how
+the work is tracked, not what the prompt says, so it can't batch into Call
+5's own question. The other two destinations skip it and go to Call 6
+instead — the two questions are mutually exclusive.
+
+**Q1** — "How should it run here?"
+Options:
+- `Tasks from the checks (Recommended)` — one tracked task per
+  verification command
+- `One task, then work it` — a single tracked task carrying the whole
+  prompt
+- `Run now, no tracking` — start immediately, no task rows
+
+`AskUserQuestion` appends its own free-text option; never author one. That
+free text is where a user names the pieces, or gives a fixed number of
+tasks — `prompt-template.md`'s splitting section says what to do with a
+bare number.
+
+---
+
 ## Call 6 — executing model (conditional)
 
 Ask this when Call 5 Q1's answer was "Execute with a background Agent"
 or "Copy prompt to clipboard" — its default depends on that answer, so
-it can't batch into Call 5's own question. Skip it for **TaskCreate**:
+it can't batch into Call 5's own question. Skip it for **`Execute here`**:
 that destination runs the task in this session, so no model choice
-exists.
+exists (Call 5b runs instead).
 
 **Q1** — background Agent: "Which model should the background Agent run
 on?" Clipboard: "Which model will run the pasted prompt?"
@@ -204,13 +231,20 @@ either here.
 
 ## Deliver
 
-Deliver via whatever Call 5 picked — no further question.
+Deliver via whatever Calls 5 and 5b picked — no further question.
 
-**If TaskCreate:** call `TaskCreate` with `subject` = a verb-first
-imperative ≤60 chars derived from the task description, `description` = the
-assembled XML prompt, `activeForm` = its present-continuous form. Then work
-the task in this session, using `TaskUpdate` to mark it `in_progress` then
-`completed` as you go.
+**If `Execute here`:** Call 5b picked which of these three runs.
+- `Run now, no tracking` — no task rows at all. Work the assembled prompt
+  in this session directly.
+- `One task, then work it` — call `TaskCreate` with `subject` = a verb-first
+  imperative ≤60 chars derived from the task description, `description` =
+  the assembled XML prompt, `activeForm` = its present-continuous form.
+  Then work the task in this session, using `TaskUpdate` to mark it
+  `in_progress` then `completed` as you go.
+- `Tasks from the checks` — the same `TaskCreate` shape per row, split and
+  chained exactly as `prompt-template.md`'s "Splitting an `Execute here`
+  handoff into several tasks" section describes. Then work them in order,
+  `TaskUpdate` per row as you go.
 
 **If background Agent:** call `Agent` with `prompt` = the assembled XML
 prompt, `description` = a 3-5 word summary, `run_in_background: true`, and

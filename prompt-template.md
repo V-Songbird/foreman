@@ -7,7 +7,7 @@
      source-d: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5
      source-e: Claude Code 2.1.214 embedded delegation guidance -->
 
-The handed-off session — whether run via `TaskCreate` in this session, a
+The handed-off session — whether run here in this session, by a
 background `Agent`, or copy-pasted elsewhere — has **zero memory** of this
 conversation. Fill every required section. A self-contained prompt is not
 optional — it is the only way the handed-off work can act correctly.
@@ -40,8 +40,8 @@ an instruction for the spawned session to act on later):**
      project-level omit beats a per-prompt selection. One
      destination-scoped exception: an omitted `tone` STAYS when the chosen
      destination is a background `Agent` — output styles govern only
-     main-loop sessions (a pasted interactive session, or `TaskCreate` run
-     here), never a background agent's, so the omission's premise fails
+     main-loop sessions (a pasted interactive session, or an `Execute here`
+     run), never a background agent's, so the omission's premise fails
      there; the kept default still self-yields if a style does govern. The
      other three tags have no destination dependence.
    - `targetModel` — default `"inherit"` whenever the field is missing,
@@ -174,6 +174,9 @@ Constraints:
 Verification (REQUIRED):
 Run: [exact command — e.g. "npm test -- --testPathPattern=auth"]
 Expected: [pass/fail signal — e.g. "all tests pass", "exit code 0"]
+[Repeat the Run:/Expected: pair, in running order, for every check the
+task actually has. An `Execute here` task split cuts on these boundaries —
+see the splitting section below.]
 Do NOT claim success without running this. If it fails, iterate until it passes.
 </task_rules>
 
@@ -195,8 +198,8 @@ Reason through the approach and edge cases in your thinking before editing — n
 `Agent`, include the following paragraph verbatim right here. It is the
 official autonomous-operation reminder (source-d); the agent harness does
 not carry it (probe-confirmed), and a background agent has no user to
-answer a question. Omit it for the other two destinations — a TaskCreate
-or pasted session has a user present.
+answer a question. Omit it for the other two destinations — an
+`Execute here` or pasted session has a user present.
 You are operating autonomously. The user is not watching in real time and
 cannot answer questions mid-task, so asking "Want me to…?" or "Shall
 I…?" will block the work. For reversible actions that follow from the
@@ -280,7 +283,7 @@ using them:
 - [ ] a verb-first imperative name (under 60 chars) and a 1–2 sentence
       plain-language summary are ready — `TaskCreate` and a background
       `Agent` both need them
-- [ ] the destination (`TaskCreate` / background `Agent` / clipboard) was
+- [ ] the destination (`Execute here` / background `Agent` / clipboard) was
       decided *before* assembly, and the raw XML never appears in the chat
       response (clipboard's no-tool fallback is the only exception)
 - [ ] Workflow-stage flavor (if selected): `<tone>` was dropped
@@ -298,9 +301,9 @@ file anyway), then run:
 node ${CLAUDE_PLUGIN_ROOT}/scripts/check-prompt.js <file> --destination <task|agent|clipboard>
 ```
 
-- `--destination` — `task` for TaskCreate, `agent` for a background
-  Agent, `clipboard` for copy. This is how the checker knows whether an
-  omitted `tone` must stay (agent) or go.
+- `--destination` — `task` for `Execute here` in any of its execution
+  modes, `agent` for a background Agent, `clipboard` for copy. This is how
+  the checker knows whether an omitted `tone` must stay (agent) or go.
 - `--entry <id>` — add for a `foreman:roadmap` pick, so the embedded
   entry paragraph is verified too; add `--resume` when the pick resumed
   an `in_progress` entry.
@@ -314,6 +317,43 @@ alongside the delivery message. The checker validates structure (guardrail
 blocks verbatim, no unfilled placeholders, omit compliance, verification
 present); it can't judge content quality — the checklist above still
 applies to what the fields actually say.
+
+## Splitting an `Execute here` handoff into several tasks
+
+Only for the `Execute here` destination, and only when its execution-mode
+question asked for several tasks. Every other destination, and the
+single-task mode, skips this section entirely.
+
+- **Slice at verification boundaries** — one task per runnable check. Never
+  slice the read/analyze/implement bullets: a `sonnet`, `opus`, or `fable`
+  target doesn't carry them at all, so there is nothing there to cut. Never
+  slice by file either — `touches`-style groupings are unverified guesses,
+  not a schedule. One check means one task; say so and move on rather than
+  inventing slices to reach a number.
+- **The first task carries the whole assembled prompt** in its
+  `description`. Every later task's `description` is short: its own goal,
+  the files it touches, and its own verification command with the expected
+  result. They run in this same session and share its context —
+  `truth_grounding` guards a cold start, which a sibling task is not.
+- **Chain them.** Once the rows exist, one `TaskUpdate` per task from the
+  second onward with `addBlockedBy: ["<the previous task's id>"]`. The
+  harness then refuses to start a task before its predecessor resolves,
+  which is what makes "the last task" mean anything.
+- **A roadmap entry paragraph goes on the last task only**
+  (`foreman:roadmap` handoffs — `craft-prompt` assembles no such
+  paragraph). `hooks/task-completed.js` gates every completing task whose
+  description names an entry, so repeating that paragraph on each row would
+  demand the entry be closed `done` while its siblings are still pending.
+  Hold it out of the first task's description and put it verbatim in the
+  last one's — `hooks/task-created.js` still opens the entry the moment
+  that last row is created, which is before any of the work starts.
+- **A fixed number** (the execution-mode question's free-text answer) cuts
+  into that many slices at whatever verification boundaries exist. Don't add
+  a confirmation question — the created rows are the preview, and a wrong
+  one is removed with `TaskUpdate` `status: "deleted"`.
+- The mechanical gate above runs **once**, on the assembled prompt, with
+  `--destination task`. Splitting is a delivery-layer choice and changes
+  nothing the checker inspects.
 
 ## When NOT to hand off — do it inline instead
 

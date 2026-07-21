@@ -37,6 +37,7 @@ const PLACEHOLDER_FRAGMENTS = [
   "[Style or pattern",
   "[exact command",
   "[pass/fail signal",
+  "[Repeat the Run:/Expected: pair",
   "[CUSTOM SECTIONS",
   "[OPTIONAL",
   "[BACKGROUND-AGENT DESTINATION",
@@ -260,8 +261,9 @@ Prints one JSON line: {"ok":true,"warnings":[...]} or
   node check-prompt.js <prompt-file> --destination task|agent|clipboard
                        [--entry <id> [--resume]] [--research] [--workflow-stage]
 
-  --destination   required: where the prompt is going (task = TaskCreate in
-                  this session, agent = background Agent, clipboard = copy).
+  --destination   required: where the prompt is going (task = Execute here
+                  in this session, in any of its execution modes,
+                  agent = background Agent, clipboard = copy).
                   Decides whether an omitted tone must stay (agent) or go.
   --entry <id>    the ROADMAP.jsonl entry this handoff opens/closes --
                   requires the embedded entry paragraph (roadmap picks).

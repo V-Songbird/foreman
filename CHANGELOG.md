@@ -8,6 +8,16 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.32.0-alpha] — 2026-07-21
+
+### Added
+
+- A handoff run in this session can now be split into several tracked tasks — one per verification command, each blocked on the one before it. A single task, or no task rows at all, stay available, and the free-text answer takes a fixed number of tasks instead.
+
+### Changed
+
+- The in-session handoff is now called `Execute here` and asks how the work should be tracked once you pick it.
+
 ## [0.31.0-alpha] — 2026-07-19
 
 ### Added

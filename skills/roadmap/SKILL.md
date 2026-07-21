@@ -3,7 +3,7 @@ name: roadmap
 description: Ongoing entry point for a project's ROADMAP.jsonl. Pick the next task to work on (reasons about dependencies and file-touch collisions like a software architect, then crafts a self-contained handoff prompt), add a new task, or review roadmap status.
 when_to_use: Trigger when the user asks what to work on next, wants to add something to the roadmap, wants to see roadmap status, says "what's next", "pick a task", "add to the roadmap", "roadmap status", or invokes /foreman:roadmap.
 argument-hint: "<optional — a task description to add, or a hint about what to pick next>"
-allowed-tools: AskUserQuestion, Read, Write, Bash, PowerShell, TaskCreate, Agent, SendMessage
+allowed-tools: AskUserQuestion, Read, Write, Bash, PowerShell, TaskCreate, TaskUpdate, Agent, SendMessage
 ---
 
 # foreman:roadmap — pick, add to, or review the project roadmap
@@ -154,11 +154,32 @@ Options, in this order:
   execution. Leads because nothing starts and the entry stays `planned`
   until someone actually runs the prompt (see step 4 below) — picking a
   task is not the same as starting it.
-- `Execute with TaskCreate` — track it and work it in this session
+- `Execute here` — run it in this session
 - `Execute with a background Agent` — offload it, get notified on completion
 
 **Never call `mcp__ccd_session__spawn_task`** — it has a known bug where
 tasks spawned through it don't get MCP tools.
+
+**Q3 — execution mode**, asked only when Q2's answer was `Execute here`.
+It decides how the work is tracked, not what the prompt says, so it can't
+batch into Q2. The other two destinations skip it entirely.
+"How should it run here?"
+- `Tasks from the checks (Recommended)` — one tracked task per
+  verification command
+- `One task, then work it` — a single tracked task carrying the whole
+  prompt
+- `Run now, no tracking` — start immediately, no task rows
+
+`AskUserQuestion` appends its own free-text option; never author one. That
+free text is where a user names the pieces, or gives a fixed number of
+tasks — `prompt-template.md`'s splitting section says what to do with a
+bare number.
+
+`Run now, no tracking` creates no task row, so neither `task-created.js`
+nor `task-completed.js` fires: the entry's opening and its close gate both
+fall back to the prompt's own embedded instructions, exactly as on the
+clipboard path. Say that in one line when the user picks it, so a project
+running `taskCloseGate: "block"` knows the gate is not in play this time.
 
 3. Craft the handoff prompt using `${CLAUDE_PLUGIN_ROOT}/prompt-template.md`'s
    XML structure, straight from the candidate's fields — no verification
@@ -175,6 +196,10 @@ tasks spawned through it don't get MCP tools.
      same sentence twice. The remaining bullets, tone, and the verification
      command — ask the same way `craft-prompt` does only if genuinely not
      inferable from the entry; don't turn this into a second interview.
+     One exception: when Q3 picked `Tasks from the checks`, the
+     verification commands are what the split cuts on, so gather them
+     properly instead of settling for one inferred command — a single
+     check yields a single task.
    - `targetModel` fit — this is the DISPATCH-time judgment, made now,
      never at pick time or when the entry was created: if
      `.foreman/config.json` declares a `targetModel` other than
@@ -242,15 +267,26 @@ tasks spawned through it don't get MCP tools.
    is not the same as starting it; only the session that begins acting on
    it should say so.
 5. Deliver via whatever Q2 picked:
-   - **TaskCreate**: call `TaskCreate` with `subject` = a verb-first
-     imperative ≤60 chars from the entry's `title`, `description` = the
-     assembled XML prompt. Work it in this session. Foreman's
-     `task-created` hook marks the entry `in_progress` mechanically the
-     moment the task is created (it reads the entry id from the embedded
-     paragraph) — finding it already `in_progress` when the embedded
-     instruction runs is expected, and re-running that update is a
-     harmless no-op. Still use `TaskUpdate` (a separate, session-local
-     tracker) for its own `in_progress`/`completed` transitions as you go.
+   - **`Execute here`**: Q3 picked which of these three runs.
+     - `Run now, no tracking` — no task rows. Work the assembled prompt in
+       this session directly; nothing mechanizes the entry's status here,
+       so the prompt's own embedded instructions carry it end to end.
+     - `One task, then work it` — call `TaskCreate` with `subject` = a
+       verb-first imperative ≤60 chars from the entry's `title`,
+       `description` = the assembled XML prompt. Work it in this session.
+     - `Tasks from the checks` — the same `TaskCreate` shape per row, split
+       and chained exactly as `prompt-template.md`'s "Splitting an
+       `Execute here` handoff into several tasks" section describes. The
+       entry paragraph rides the last row only, per that section. Then work
+       them in order.
+
+     On either tracked mode, Foreman's `task-created` hook marks the entry
+     `in_progress` mechanically the moment the row carrying the embedded
+     paragraph is created (it reads the entry id out of it) — finding it
+     already `in_progress` when the embedded instruction runs is expected,
+     and re-running that update is a harmless no-op. Still use `TaskUpdate`
+     (a separate, session-local tracker) for each row's own `in_progress`/
+     `completed` transitions as you go.
    - **Background Agent**: call `Agent` with `prompt` = the assembled XML
      prompt, `description` = a 3-5 word summary, `run_in_background: true`.
      The tool result trails with the dispatched agent's id (`agentId:
@@ -273,7 +309,7 @@ tasks spawned through it don't get MCP tools.
 **Hard rule — state this explicitly if the user pushes back**: this skill
 always asks before doing anything — it never silently executes a task, and
 it never mentions or routes to any other plugin. "Do it now" means
-picking `Execute with TaskCreate` above, not this skill deciding on its own.
+picking `Execute here` above, not this skill deciding on its own.
 
 ---
 

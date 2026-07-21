@@ -203,8 +203,8 @@ function discoveryBlock() {
     "in_progress/done/...) means it's already tracked: skip it, or mention " +
     "the existing entry's id if the new observation adds something. Only " +
     "when there's no match, ask the user " +
-    "(AskUserQuestion) what to do with it: Add to roadmap / Execute with " +
-    "TaskCreate (work it now in this session, tracked) / Execute with a " +
+    "(AskUserQuestion) what to do with it: Add to roadmap / Execute here " +
+    "(work it now in this session) / Execute with a " +
     "background Agent (run_in_background: true) / Reject — both Add and " +
     "Reject use the same `add` call, only the status field differs " +
     '("planned" for Add, "rejected" for Reject): ' +
