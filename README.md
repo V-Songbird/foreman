@@ -43,6 +43,8 @@ Foreman keeps the plan where the code lives: a plain-language roadmap, committed
 | You commit | Finished tasks get checked off; opt in and new work the commit uncovered gets flagged too |
 | You suspect the plan has drifted | The top tasks get double-checked against the actual code, and the roadmap corrected |
 
+And when a handoff runs here as tracked tasks, every finished task lands as a commit on a dedicated `foreman/<slug>` branch — done work stays done, and at the end you choose: squash, merge, PR, or keep.
+
 ## Install
 
 Inside Claude Code, run:

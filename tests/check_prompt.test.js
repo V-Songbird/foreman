@@ -301,6 +301,14 @@ describe('drift pins', () => {
     }
   });
 
+  test('the template still carries the checkpointing protocol literals', () => {
+    const raw = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
+    assert.ok(raw.includes('## Checkpointing a task-split run'));
+    assert.ok(raw.includes('foreman/<slug>'));
+    assert.ok(raw.includes('task <n>/<total>:'));
+    assert.ok(raw.includes('Squash merge (Recommended)'));
+  });
+
   test('the roadmap skill still uses the entry-paragraph grammar the checker expects', () => {
     const skill = fs.readFileSync(path.join(__dirname, '..', 'skills', 'roadmap', 'SKILL.md'), 'utf-8');
     assert.ok(skill.includes('Mark it `in_progress`'));

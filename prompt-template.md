@@ -333,7 +333,8 @@ here`, and asked separately: it decides how the work is tracked, not what
 the prompt says, so it can't batch into the destination question. The other
 two destinations skip it entirely.
 - `Tasks from the checks (Recommended)` — one tracked task per
-  verification command
+  verification command, each finished task checkpointed as a commit on a
+  dedicated branch
 - `One task, then work it` — a single tracked task carrying the whole
   prompt
 - `Run now, no tracking` — start immediately, no task rows
@@ -351,7 +352,8 @@ tasks — the splitting section below says what to do with a bare number.
   session, using `TaskUpdate` to mark it `in_progress` then `completed`.
 - `Tasks from the checks` — the same `TaskCreate` shape per row, split and
   chained exactly as the splitting section below describes. Then work them
-  in order, `TaskUpdate` per row as you go.
+  in order, `TaskUpdate` per row as you go, committing each finished task
+  as the checkpointing section below describes.
 
 **Background Agent** — call `Agent` with `prompt` = the assembled XML
 prompt, `description` = a 3-5 word summary, `run_in_background: true`.
@@ -407,6 +409,40 @@ single-task mode, skips this section entirely.
 - The mechanical gate above runs **once**, on the assembled prompt, with
   `--destination task`. Splitting is a delivery-layer choice and changes
   nothing the checker inspects.
+
+## Checkpointing a task-split run
+
+Only for the `Tasks from the checks` execution mode, and only when the
+split produced two or more tasks. Single-task mode, `Run now`, and the
+other destinations skip this section entirely.
+
+- **Settle the branch before the first task.** Resolve the default branch
+  with `git symbolic-ref --short refs/remotes/origin/HEAD` and take the
+  name after `origin/`; if the ref is unset, treat `main` as the default.
+  On the default branch, create and switch to `foreman/<slug>` — slug is a
+  kebab-case cut of the goal, 40 chars max. On any other branch, create
+  nothing and checkpoint in place.
+- **Still before task 1:** if `git status --porcelain` is non-empty, tell
+  the user in one line that pre-existing changes will ride along in the
+  checkpoints, then proceed.
+- **One commit per finished task.** After a task's verification passes and
+  the task is marked completed: `git add -A`, then commit with the message
+  `task <n>/<total>: <task subject>`. If the repo has a remote, push — the
+  first push sets the upstream. No remote, no push, no comment.
+- **A roadmap-entry close cites the last checkpoint commit's sha** (when
+  the handoff carries one): commit first, close the entry, then mark the
+  final task completed. The entry-paragraph and gate rules above are
+  unchanged.
+- **After the last task, ask what to do with the branch** — only if this
+  run created it. When the run checkpointed on a pre-existing branch, skip
+  the question entirely. One `AskUserQuestion`:
+  - `Squash merge (Recommended)` — squash onto the base branch, commit
+    with a real message summarizing the whole change, delete the
+    checkpoint branch
+  - `Merge` — true merge, keep the branch
+  - `Open a PR` — push and `gh pr create` against the base branch; if
+    `gh` is unavailable, say so and keep the branch
+  - `Keep the branch` — do nothing
 
 ## When NOT to hand off — do it inline instead
 

@@ -8,6 +8,13 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.35.0-alpha] — 2026-07-22
+
+### Added
+
+- Task-split runs checkpoint each finished task as a commit on a dedicated `foreman/<slug>` branch, created automatically when the run starts from the default branch.
+- When a task-split run ends, Foreman asks whether to squash merge, merge, open a PR, or keep the checkpoint branch.
+
 ## [0.34.0-alpha] — 2026-07-21
 
 ### Changed
