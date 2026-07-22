@@ -8,6 +8,12 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.34.0-alpha] — 2026-07-21
+
+### Changed
+
+- Picking the next task is friendlier: candidate descriptions and the delivery message now restate a task in plain English for someone new to the codebase, and when only one task is open the pick question is skipped.
+
 ## [0.33.0-alpha] — 2026-07-21
 
 ### Added
