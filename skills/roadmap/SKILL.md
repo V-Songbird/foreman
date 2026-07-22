@@ -95,6 +95,13 @@ findings) — the reason a resume is worth previewing at all. Planned
 candidates fill the remaining slots. This is a suggestion, never a gate —
 picking a planned candidate proceeds exactly as before.
 
+**Single-option skip**: when the menu would hold exactly one option —
+candidates and resume entries combined — skip Q1 and take that entry as
+the pick. Q2 then opens with it instead: prefix Q2's question with the
+entry's `title` (`<id>`) and its `why` restated per Q1's description
+rule below, so the user can still veto or redirect through Q2's escape.
+Two or more options of any kind ask Q1 as usual.
+
 **Q1** — "Which task next?"
 Options, one per candidate (already ranked — take the order as given,
 hint or not; resume options lead when `in_progress` is non-empty, per the
@@ -104,7 +111,9 @@ finish-first check above):
   it's first for a reason (most open work behind it, hint relevance, or
   oldest on a tie), say so with the tag instead of making the user infer
   it from list order alone.
-- Description: `why` only, trimmed to one sentence if it runs longer. Never
+- Description: the entry's `why` restated in your own everyday words, one
+  sentence, written for a teammate who has never seen this codebase —
+  never the field pasted verbatim. Never
   fold `what`/`touches`/`notes`/`unblocks` into the description — none of
   that is a pick-time decision input if the session isn't ground-truthing
   anyway (that's `foreman:survey`'s job); it only bloats the dialog. Add
@@ -257,6 +266,12 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
 5. Deliver via whatever Q2 picked. Each destination's mechanics are
    `prompt-template.md`'s "Delivery mechanics" section; the `Execute here`
    sub-mode is Q3's answer, and `subject` derives from the entry's `title`.
+   Whatever the destination, open the delivery message with a brief: one
+   or two sentences in everyday words on what is about to change and why
+   it matters, drawn from the entry's `why` and `what` only, restated for
+   a teammate who has never seen this codebase — never the fields pasted
+   verbatim. The brief is chat-only; the assembled prompt keeps every
+   field dense and untranslated.
    What this skill layers on top:
    - **`Execute here`**: on `Run now, no tracking`, nothing mechanizes the
      entry's status, so the prompt's own embedded instructions carry it end
