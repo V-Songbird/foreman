@@ -51,7 +51,7 @@ they want to get done soon)
 
 ---
 
-## Call 2 — the policy toggles (batch 5, these are the key decisions)
+## Call 2 — the policy toggles (batch 4, these are the key decisions)
 
 **Q1** — "Should the roadmap accept Claude-suggested entries after commits?"
 Options:
@@ -94,27 +94,7 @@ Options:
   progress until you confirm the work actually holds up. Becomes
   `"requireVerification": true`.
 
-**Q4** — "Which model will run the prompts and handoffs Foreman crafts
-for this project?"
-Options:
-- `Haiku` — crafted prompts elaborate fully, spelling out details a
-  stronger model could otherwise infer. Becomes `"targetModel": "haiku"`.
-- `Sonnet` — crafted prompts assemble at today's default level of detail.
-  Becomes `"targetModel": "sonnet"`.
-- `Opus` — same default level of detail as Sonnet — nothing in Foreman's
-  benchmarks yet justifies a distinct treatment. Becomes
-  `"targetModel": "opus"`.
-- `No fixed model / it varies` — today's behavior, unchanged. Becomes
-  `"targetModel": "inherit"`.
-
-`fable` is the fifth valid value, declared via Other — same default level
-of detail as Sonnet and Opus (the official Fable prompting guide favors
-brief steering over enumerated detail).
-
-This is a declaration, not detection — Foreman never inspects which model
-actually executes a session; the user states the expected target here.
-
-**Q5** — "When a tracked task completes but its roadmap entry is still
+**Q4** — "When a tracked task completes but its roadmap entry is still
 open, what should Foreman do?"
 Options:
 - `Nothing` — becomes `"taskCloseGate": "off"`.
@@ -180,19 +160,20 @@ the updated draft, ask again. Repeat until approved.
    order, and `add` rejects an id that doesn't exist yet. If any call
    returns `warnings`, mention them once at the end rather than per entry.
 3. Write `.foreman/config.json` —
-   `{"discoverySuggestions": <bool>, "usePersona": <bool>, "omitSections": [...], "requireVerification": <bool>, "targetModel": "<haiku|sonnet|opus|inherit>", "taskCloseGate": "<off|nudge|block>"}`
+   `{"discoverySuggestions": <bool>, "usePersona": <bool>, "omitSections": [...], "requireVerification": <bool>, "taskCloseGate": "<off|nudge|block>"}`
    from the Call 2 answers (skip this file write if the pre-check "keep,
    add to it" branch found an existing config already).
-   **If the file already exists, `Read` it first and set those six keys on
+   **If the file already exists, `Read` it first and set those five keys on
    the parsed object — any other key present must survive untouched.** This
    applies whenever the file exists, not only on the Overwrite branch: the
    pre-check only fires when `ROADMAP.jsonl` exists, so a project with a
    config but no roadmap is never asked anything and would otherwise have
-   its config replaced silently. Today the key at risk is `customSections`,
-   which no skill ever writes and only `render-sections.js` reads — but the
-   rule is "everything else survives", not a list, so the next key is
-   covered without another edit. If the file exists but won't parse, write
-   the six keys alone and say so in the report-back.
+   its config replaced silently. Today the keys at risk are `customSections`
+   and a hand-set `targetModel` pin — init writes neither, and only
+   `render-sections.js` reads them — but the rule is "everything else
+   survives", not a list, so the next key is covered without another edit.
+   If the file exists but won't parse, write the five keys alone and say so
+   in the report-back.
 4. Stage and commit just these two files:
    `git add ROADMAP.jsonl .foreman/config.json && git commit -m "chore: init foreman roadmap"`
    (Only the files this skill wrote — never a broader `git add`.)

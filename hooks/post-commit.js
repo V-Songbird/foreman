@@ -6,7 +6,7 @@ const os = require("os");
 const path = require("path");
 const crypto = require("crypto");
 
-const { readEntries, today } = require("../scripts/roadmap");
+const { readEntries, today, filesTouchedByCommit } = require("../scripts/roadmap");
 
 const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
   ? path.resolve(process.env.CLAUDE_PLUGIN_ROOT)
@@ -123,6 +123,37 @@ function readConfig(root) {
   }
 }
 
+// A short tag on each surfaced in_progress task saying whether this commit's
+// changed files intersect the task's recorded `touches`. This is the signal
+// the hook otherwise lacks: under concurrent sessions sharing one working
+// tree, a commit from one workstream surfaces every other workstream's
+// in_progress task with no way to tell them apart. Never suppresses — the tag
+// ranks, it does not filter:
+//   - no committed files resolvable (git absent / non-git project) -> no tag
+//   - a task with no `touches` yet -> no tag (nothing to compare against)
+// razor: exact path membership only; an area-level touches hint ("src/auth/")
+// won't match an exact committed path under it. Upgrade to prefix/area
+// matching here if area hints prove common enough to matter — the caveat
+// below already keeps a no-overlap task from being wrongly skipped meanwhile.
+function touchesTag(entry, committedSet) {
+  if (!committedSet.size) return "";
+  const touches = entry.touches || [];
+  if (!touches.length) return "";
+  return touches.some((t) => committedSet.has(t))
+    ? " [files overlap its touches]"
+    : " [no touches overlap]";
+}
+
+// Emitted once, only when at least one tag is shown, to keep the recall-first
+// contract explicit: a no-overlap tag must never be read as "skip this task",
+// because `touches` is an append-only guess and a real completion can add
+// files it never listed. Without this, precision labeling could induce the
+// one thing the design forbids — a missed real completion (false negative).
+const OVERLAP_CAVEAT =
+  "(The [...touches] tags compare this commit's changed files to each task's " +
+  "recorded touches — a ranking hint, not proof: touches is an append-only " +
+  "guess, so a task tagged no-overlap can still be the one this commit completes.)";
+
 // Two independent triggers, since a task stops getting any nudge the moment
 // it's marked done — real usage showed a same-day follow-up bugfix commit
 // (found right after finishing a task, before moving on) silently loses its
@@ -139,10 +170,13 @@ function readConfig(root) {
 // (commit/touches) is never worth gating on a human, only the status label
 // is — so under the flag, the in_progress branch still records immediately
 // but leaves status alone until the user actually confirms it.
-function statusSyncBlock(inProgress, freshlyDone, requireVerification) {
+function statusSyncBlock(inProgress, freshlyDone, requireVerification, committedFiles) {
   const parts = [];
   if (inProgress.length) {
-    const list = inProgress.map((e) => `${e.id} ("${e.title}")`).join(", ");
+    const committedSet = new Set(committedFiles || []);
+    const tags = inProgress.map((e) => touchesTag(e, committedSet));
+    const list = inProgress.map((e, i) => `${e.id} ("${e.title}")${tags[i]}`).join(", ");
+    const caveat = tags.some(Boolean) ? " " + OVERLAP_CAVEAT : "";
     if (requireVerification) {
       parts.push(
         `This commit may complete an in-progress ROADMAP.jsonl task (${list}), ` +
@@ -156,7 +190,8 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification) {
           `echo '{"id":"<id>","status":"done"}' | node ${SCRIPT_PATH} update-status. ` +
           "If they say it's not ready, leave it in_progress — don't mark done. " +
           "If this session has no user to ask (a background agent), leave it " +
-          "in_progress too — the user confirms later."
+          "in_progress too — the user confirms later." +
+          caveat
       );
     } else {
       parts.push(
@@ -165,7 +200,8 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification) {
           `echo '{"id":"<id>","status":"done","commit":"<sha>"}' | node ${SCRIPT_PATH} update-status. ` +
           "The script computes updated_at, appends the SHA, and auto-folds that " +
           "commit's actual changed files into touches — don't hand-edit the file, " +
-          "and no need to list touched files yourself, the script derives them."
+          "and no need to list touched files yourself, the script derives them." +
+          caveat
       );
     }
   }
@@ -271,9 +307,15 @@ function main() {
   const freshlyDone = doneToday.filter((e) => unnudged.has(e.id));
   const config = readConfig(root);
 
+  // The just-created commit is HEAD (this hook fires after `git commit`).
+  // Best-effort — [] when git can't name the files — so the tag degrades to
+  // no-tag rather than a misleading "no overlap". Only fetched when it can
+  // matter (an in_progress task to tag).
+  const committedFiles = inProgress.length ? filesTouchedByCommit(root, "HEAD") : [];
+
   const blocks = [];
   if (inProgress.length || freshlyDone.length) {
-    blocks.push(statusSyncBlock(inProgress, freshlyDone, config.requireVerification));
+    blocks.push(statusSyncBlock(inProgress, freshlyDone, config.requireVerification, committedFiles));
   }
   if (config.discoverySuggestions) {
     blocks.push(discoveryBlock(entries));
@@ -311,6 +353,7 @@ module.exports = {
   readConfig,
   projectDir,
   statusSyncBlock,
+  touchesTag,
   discoveryBlock,
   SCRIPT_PATH,
 };

@@ -18,7 +18,14 @@
 const { test, describe, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { runScriptRaw, makeTmpProject, writeRoadmap, writeConfig } = require('./helpers');
+const {
+  runScriptRaw,
+  makeTmpProject,
+  writeRoadmap,
+  writeConfig,
+  initGitRepo,
+  commitFile,
+} = require('./helpers');
 
 let project;
 let env;
@@ -366,5 +373,89 @@ describe('exit-code gating (best-effort)', () => {
       })
     );
     assert.notEqual(out, '');
+  });
+});
+
+describe('touches correlation label', () => {
+  // Reproduces the concurrent-session mis-attribution: one session's commit
+  // touches files unrelated to another session's in_progress task, yet the
+  // hook surfaced that task with no way to tell it apart. The fix never
+  // suppresses — it tags each surfaced task with whether this commit's files
+  // intersect its `touches`, so an unrelated task is legible as such.
+  function setupRepo(committedPath) {
+    initGitRepo(project);
+    commitFile(project, committedPath, 'content\n');
+  }
+
+  test('disjoint touches: unrelated task still surfaces, tagged no-overlap', () => {
+    setupRepo('plugins/other/src.js');
+    writeRoadmap(project, [
+      { id: '001', title: 'surface a CLI in-session', status: 'in_progress', touches: ['hooks/post-commit.js'] },
+    ]);
+    const out = run(bashPayload('git commit -m "unrelated plugin work"'));
+    // never-suppress: the task is still surfaced (recall preserved)...
+    assert.match(out, /may complete an in-progress/i);
+    assert.match(out, /001/);
+    // ...but now legible as unrelated to this commit.
+    assert.match(out, /\[no touches overlap\]/);
+    assert.doesNotMatch(out, /\[files overlap its touches\]/);
+  });
+
+  test('overlapping touches: the likely task is tagged as overlapping', () => {
+    setupRepo('plugins/other/src.js');
+    writeRoadmap(project, [
+      { id: '001', title: 'work the other plugin', status: 'in_progress', touches: ['plugins/other/src.js'] },
+    ]);
+    const out = run(bashPayload('git commit -m "finish it"'));
+    assert.match(out, /001 \(.*\) \[files overlap its touches\]/);
+    assert.doesNotMatch(out, /\[no touches overlap\]/);
+  });
+
+  test('mixed: both surface, tagged apart, with the ranking-not-proof caveat', () => {
+    setupRepo('plugins/other/src.js');
+    writeRoadmap(project, [
+      { id: '001', title: 'related', status: 'in_progress', touches: ['plugins/other/src.js'] },
+      { id: '002', title: 'unrelated', status: 'in_progress', touches: ['hooks/post-commit.js'] },
+    ]);
+    const out = run(bashPayload('git commit -m "wip"'));
+    assert.match(out, /001 \(.*\) \[files overlap its touches\]/);
+    assert.match(out, /002 \(.*\) \[no touches overlap\]/);
+    // the caveat keeps a no-overlap tag from being read as "skip" (no false negatives)
+    assert.match(out, /ranking hint, not proof/);
+    assert.match(out, /can still be the one this commit completes/);
+  });
+
+  test('a task with no touches yet gets no tag (nothing to compare)', () => {
+    setupRepo('plugins/other/src.js');
+    writeRoadmap(project, [{ id: '001', title: 'just started', status: 'in_progress' }]);
+    const out = run(bashPayload('git commit -m "wip"'));
+    assert.match(out, /may complete an in-progress/i);
+    assert.doesNotMatch(out, /touches overlap/);
+    assert.doesNotMatch(out, /files overlap its touches/);
+    // no tags shown => no caveat either
+    assert.doesNotMatch(out, /ranking hint, not proof/);
+  });
+
+  test('non-git project: degrades to no tags, block otherwise unchanged', () => {
+    // no initGitRepo — git can't name HEAD's files, so tagging stays inert
+    writeRoadmap(project, [
+      { id: '001', title: 'x', status: 'in_progress', touches: ['plugins/other/src.js'] },
+    ]);
+    const out = run(bashPayload('git commit -m "wip"'));
+    assert.match(out, /may complete an in-progress/i);
+    assert.doesNotMatch(out, /touches overlap/);
+    assert.doesNotMatch(out, /files overlap its touches/);
+  });
+
+  test('requireVerification path is tagged too', () => {
+    setupRepo('plugins/other/src.js');
+    writeRoadmap(project, [
+      { id: '001', title: 'unrelated', status: 'in_progress', touches: ['hooks/post-commit.js'] },
+    ]);
+    writeConfig(project, { requireVerification: true });
+    const out = run(bashPayload('git commit -m "wip"'));
+    assert.match(out, /requireVerification is on/);
+    assert.match(out, /\[no touches overlap\]/);
+    assert.match(out, /ranking hint, not proof/);
   });
 });

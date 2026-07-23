@@ -151,16 +151,21 @@ exists (Call 5b runs instead).
 
 **Q1** — background Agent: "Which model should the background Agent run
 on?" Clipboard: "Which model will run the pasted prompt?"
-Always four options, reordered so the one matching `targetModel`
-(resolved above) leads, with `(Recommended)` appended to its label — same
-convention `foreman:roadmap`'s Q1 uses for its top-ranked candidate:
+Always four options, reordered so the **recommended** model leads, with
+`(Recommended)` appended to its label — same convention
+`foreman:roadmap`'s Q1 uses for its top-ranked candidate. The
+recommendation is the resolved `targetModel` when the project pinned a
+concrete one; otherwise (`inherit`) judge it from the task the user
+described against `prompt-template.md`'s "Model fit" note, and add a
+one-line why to Q1's context (e.g. "bounded single-file change — Haiku
+fits", or "reconciles renamed refs — Sonnet/Opus, past the Haiku cliff"):
 - `Haiku`
 - `Sonnet`
-- `Opus` — when `targetModel` resolved to `fable`, a `Fable` option takes
-  this slot instead (the Agent tool accepts `fable` as a model value).
+- `Opus` — when the recommendation resolved to `fable`, a `Fable` option
+  takes this slot instead (the Agent tool accepts `fable` as a model value).
 - `Inherit the session's model` (background Agent) or `Unknown — it
-  varies` (clipboard) — no override; leads when `targetModel` resolved
-  to `inherit`.
+  varies` (clipboard) — no override; leads when the project left
+  `targetModel` at `inherit` and the task gives no clear model signal.
 
 The user can always override the default. The answer does two jobs:
 - **Elaboration**: a concrete model becomes the effective target model

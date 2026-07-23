@@ -8,6 +8,12 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.38.0-alpha] — 2026-07-22
+
+### Changed
+
+- `/foreman:init` no longer asks which model will run crafted prompts. Foreman now recommends a model per task at craft and dispatch time for you to confirm or override, and `targetModel` in `.foreman/config.json` stays available as an optional pin.
+
 ## [0.37.0-alpha] — 2026-07-22
 
 ### Added

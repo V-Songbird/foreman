@@ -47,14 +47,16 @@ an instruction for the spawned session to act on later):**
      other three tags have no destination dependence.
    - `targetModel` — default `"inherit"` whenever the field is missing,
      unparseable, or not one of the five valid strings (that last case
-     also adds a `warnings` entry). Declaration, not detection, same as
-     `usePersona` — never a claim about what the target model will
-     actually manage, only how much elaboration `relevant_files`/
-     `context`/`task_rules` below carry. A concrete executing-model
-     answer gathered at craft time (`craft-prompt`'s executing-model
-     question) overrides this declaration for that scoping — the model
-     actually running the task wins over the project default; an
-     inherit/unknown answer keeps the declared value:
+     also adds a `warnings` entry). It sets only how much elaboration
+     `relevant_files`/`context`/`task_rules` below carry, never a claim
+     about what the target model will actually manage. The effective model
+     is always the executing-model answer confirmed at craft time
+     (`craft-prompt`'s Call 6, `foreman:roadmap`'s dispatch step). Foreman
+     seeds that answer's recommended default: a concrete `targetModel` pin
+     in config when the project set one, otherwise a per-task recommendation
+     judged from the task's own fit (see "Model fit" below). A confirmed
+     concrete answer tunes elaboration to that model; an inherit/unknown
+     answer keeps the full default shape:
      - `haiku` — elaborate fully: name the exact symbol or behavior at
        stake in `context`, not just the file; write the verification
        block's `Expected:` line as the literal output or exit code, not a
@@ -77,6 +79,23 @@ an instruction for the spawned session to act on later):**
        probe, and for `sonnet` and `opus` in first-party probes across
        all three trap fixtures: equal correctness and trap compliance,
        lower cost in every cell, turns never higher.
+
+     **Model fit** — how to seed the recommended default when `targetModel`
+     is `inherit`; a recommendation the operator confirms or overrides,
+     never an automatic switch. Judge from the task's own `what`/`touches`,
+     recorded fields only:
+       - `haiku` for mechanical, well-scoped work — a single file or a
+         bounded change with an unambiguous spec. Cheapest, and per the
+         elaboration note above a fully-spelled-out Haiku prompt cut its
+         own exploration overhead at equal correctness.
+       - `sonnet` or `opus` when the task turns on judgment — design
+         decisions, ambiguity, cross-cutting `touches`, or logic no spec
+         pins down.
+       - one caution: a `what` that reconciles stale, renamed, or
+         conflicting references hit a proven capability cliff on Haiku in
+         every prompt format tested — recommend Sonnet/Opus there whatever
+         the scope. Never bake this into the assembled prompt: the target
+         model never sees a description of its own expected failure modes.
    - `decisionLog` — `{enabled, dir}`, the project's declaration of the
      decision-log feature (default `{enabled:false, dir:"docs/foreman"}`).
      When `enabled` is `true`, include the `<decision_log>` block below,

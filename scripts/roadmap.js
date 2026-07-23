@@ -699,6 +699,7 @@ module.exports = {
   cmdList,
   cmdNextCandidates,
   cmdCheckDuplicate,
+  filesTouchedByCommit,
   reaches,
   normalizeWords,
   jaccard,

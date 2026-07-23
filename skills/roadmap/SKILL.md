@@ -203,26 +203,27 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      verification commands are what the split cuts on, so gather them
      properly instead of settling for one inferred command — a single
      check yields a single task.
-   - `targetModel` fit — this is the DISPATCH-time judgment, made now,
-     never at pick time or when the entry was created: if
-     `.foreman/config.json` declares a `targetModel` other than
-     `inherit` (already in hand from the render-sections.js call in step
-     1), weigh it against this candidate's own `touches`/`what` —
-     reasoning from those recorded fields only, same no-investigation rule
-     as the rest of this branch. Foreman's own benchmark data shows a real
-     capability cliff here, not a wording gap: a naming/reference mismatch
-     went unresolved in every prompt format tested when the target was
-     Haiku, no matter how structured the handoff. So when `targetModel`
-     is `haiku` and the candidate's `what` describes reconciling stale,
-     conflicting, or renamed references, mention that as a one-line
-     caution in this session's own delivery message — e.g. "this may need
-     more than Haiku reliably handles; consider Sonnet/Opus, or proceed
-     anyway" — never inside the assembled prompt itself (the target model
-     never sees a description of its own expected failure modes), never a
-     block, never a status or schema change. Every other `targetModel`
-     value skips this — nothing grounded suggests a caution at that scope
-     for `sonnet`/`opus`/`fable`, and `inherit` has no declared target to
-     weigh against.
+   - Model fit — a DISPATCH-time recommendation, judged now from this
+     candidate's own `touches`/`what` (recorded fields only, same
+     no-investigation rule as the rest of this branch), never at pick time
+     or when the entry was created. If `.foreman/config.json` pins a
+     concrete `targetModel` (already in hand from the render-sections.js
+     call in step 1), that project declaration is the recommendation;
+     otherwise (`inherit`, the default) recommend a model per
+     `prompt-template.md`'s "Model fit" note — including its grounded
+     caution for a `what` that reconciles stale, conflicting, or renamed
+     references, which hit a real capability cliff on Haiku in every prompt
+     format tested. Surface it as a one-line recommendation with a short
+     why in this session's own delivery message — e.g. "reconciles renamed
+     refs, past what Haiku reliably handles; recommend Sonnet/Opus". It
+     seeds the model the work runs on: dispatching a background `Agent`,
+     pass the confirmed model as that call's `model`
+     (`haiku`/`sonnet`/`opus`/`fable`, omitted for inherit/varies); either
+     way it tunes the assembled prompt's elaboration. The operator confirms
+     or overrides — never an automatic switch, never inside the assembled
+     prompt itself (the target model never sees a description of its own
+     expected failure modes), never a block, never a status or schema
+     change.
    - `decision_log` — when step 1's render-sections result carries
      `decisionLog.enabled` true, include the template's `<decision_log>`
      block, substituting its `dir` for `<dir>` and this entry's id for
