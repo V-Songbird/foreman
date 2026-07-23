@@ -168,9 +168,9 @@ the updated draft, ask again. Repeat until approved.
    applies whenever the file exists, not only on the Overwrite branch: the
    pre-check only fires when `ROADMAP.jsonl` exists, so a project with a
    config but no roadmap is never asked anything and would otherwise have
-   its config replaced silently. Today the keys at risk are `customSections`
-   and a hand-set `targetModel` pin — init writes neither, and only
-   `render-sections.js` reads them — but the rule is "everything else
+   its config replaced silently. Today the keys at risk are `customSections`,
+   `targetModel`, `fableEnabled`, `checkpoints`, and `decisionLog` — init
+   writes none of them — but the rule is "everything else
    survives", not a list, so the next key is covered without another edit.
    If the file exists but won't parse, write the five keys alone and say so
    in the report-back.

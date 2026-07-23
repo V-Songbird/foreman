@@ -346,6 +346,13 @@ describe('render-sections — fableEnabled', () => {
     assert.deepEqual(json.sections, []);
     assert.match(json.warnings[0], /reserved/);
   });
+
+  test('a customSections tag named "decision_log" is reserved and skipped', () => {
+    writeConfig(project, { customSections: [{ tag: 'decision_log', content: 'x' }] });
+    const { json } = run();
+    assert.deepEqual(json.sections, []);
+    assert.match(json.warnings[0], /reserved/);
+  });
 });
 
 describe('render-sections — decisionLog', () => {

@@ -8,6 +8,14 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.40.1-alpha] — 2026-07-22
+
+### Fixed
+
+- A custom section can no longer use the reserved `decision_log` tag and shadow the template's decision-log block — it is skipped with a warning, like the other reserved tags.
+- The `update-deps` error message now mentions `remove_depends_on` alongside `add_depends_on`.
+- Documentation corrected where it lagged the code: the template's settings shape, the schema doc's completion-check coverage, a broken README link, and init's list of preserved config keys.
+
 ## [0.40.0-alpha] — 2026-07-22
 
 ### Added

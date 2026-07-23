@@ -176,7 +176,7 @@ for — exact paths and line ranges instead of a vague "the fetch wrapper."
 Sibling runtime file, also at the project root, also committed. Plain JSON,
 no CLI wraps it (unlike `ROADMAP.jsonl`) — edited directly with `Read`/
 `Write` when a flag needs to change. Full field reference is in
-[`README.md`](README.md#the-config-file); the one relevant to this file's
+[`README.md`](README.md#settings); the one relevant to this file's
 own consumer (`post-commit.js`) is `discoverySuggestions` — missing or
 unparseable → treated as `false` (silent, no nudging).
 
@@ -233,4 +233,8 @@ All access — from any caller — goes through `scripts/roadmap.js`, and
   marker completes while that entry is still `planned` or `in_progress`,
   and, depending on the `taskCloseGate` setting, reminds you or holds the
   completion until the entry is closed through `roadmap.js` in the usual
-  way. Any other state, id, or description: silent no-op.
+  way. With `decisionLog` enabled, it also audits a `done` close: the
+  entry must record its `doc` (a path or `"none"`), and a named doc must
+  exist with an anchor comment in one of the entry's commits — enforced
+  per `decisionLog.gate`. Any other state, id, or description: silent
+  no-op.

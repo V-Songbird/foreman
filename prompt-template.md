@@ -25,7 +25,8 @@ an instruction for the spawned session to act on later):**
    fails soft to defaults when no `.foreman/config.json` exists). One JSON
    object: `{"usePersona": bool, "sections": [{"tag", "xml"}], "omit":
    [...], "targetModel": "haiku"|"sonnet"|"opus"|"fable"|"inherit",
-   "decisionLog": {"enabled": bool, "dir": string}, "warnings": [...]}`.
+   "fableEnabled": bool, "decisionLog": {"enabled": bool, "dir": string},
+   "warnings": [...]}`.
    All of it is project **declaration** — foreman never inspects
    which style plugins or model the operator runs.
    - `usePersona` — default `true` when missing/unparseable. Controls only

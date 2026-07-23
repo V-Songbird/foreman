@@ -324,7 +324,7 @@ function cmdUpdateDeps(root, payload) {
   const adds = Array.isArray(add_depends_on) ? add_depends_on : [];
   const removes = Array.isArray(remove_depends_on) ? remove_depends_on : [];
   if (!id || (!adds.length && !removes.length)) {
-    throw new Error("update-deps requires id and a non-empty add_depends_on array");
+    throw new Error("update-deps requires id and a non-empty add_depends_on or remove_depends_on array");
   }
   const entries = readEntries(root);
   const entry = entries.find((e) => e.id === id);

@@ -114,6 +114,7 @@ const RESERVED_TAGS = new Set([
   "example",
   "output_format",
   "orchestration",
+  "decision_log",
 ]);
 
 // Only these template tags are ever conditional in the first place — the
