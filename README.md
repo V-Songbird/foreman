@@ -105,6 +105,7 @@ Most people never touch these — `/foreman:init` asks the questions and writes 
 | `omitSections` | Prompt sections to leave out entirely (`tone`, `example`, `background`, `output_format`). |
 | `requireVerification` | Hold off marking a task done after a commit until you confirm it's verified. |
 | `taskCloseGate` | When a tracked task finishes with its roadmap entry still open: `off` says nothing, `nudge` (default) reminds you to close it, `block` holds the completion until you do. |
+| `checkpoints` | How task-split runs commit their work. Four optional keys: `baseBranch` names the base branch (default: auto-detect), `branch: false` checkpoints on the current branch instead of creating a `foreman/<slug>` one, `push: true` pushes each checkpoint commit (default: keep them local), and `onFinish` set to `squash`, `merge`, `pr`, or `keep` performs that end-of-run action directly instead of asking (default: `ask`). |
 | `targetModel` | How much detail crafted prompts spell out, scoped to the model that runs them: `haiku` elaborates fully, `sonnet`, `opus`, and `fable` skip step-by-step scaffolding those models don't need, and `inherit` (default — no fixed model) keeps the standard level. Picking a concrete model while crafting overrides this default for that prompt. |
 
 Running with razor and hush? The recommended shape is:

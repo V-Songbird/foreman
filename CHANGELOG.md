@@ -8,6 +8,16 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.36.0-alpha] — 2026-07-22
+
+### Added
+
+- A `checkpoints` block in `.foreman/config.json` configures how task-split runs commit their work: `baseBranch`, `branch`, `push`, and `onFinish` — every key optional.
+
+### Changed
+
+- Checkpoint commits now stay local by default; set `checkpoints.push` to `true` to push each one.
+
 ## [0.35.0-alpha] — 2026-07-22
 
 ### Added

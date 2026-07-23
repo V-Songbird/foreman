@@ -307,6 +307,9 @@ describe('drift pins', () => {
     assert.ok(raw.includes('foreman/<slug>'));
     assert.ok(raw.includes('task <n>/<total>:'));
     assert.ok(raw.includes('Squash merge (Recommended)'));
+    assert.ok(raw.includes('the `checkpoints`\n  block of `.foreman/config.json`'));
+    assert.ok(raw.includes('`onFinish` `"ask"`'));
+    assert.ok(raw.includes('With `push` `true` and a remote'));
   });
 
   test('the roadmap skill still uses the entry-paragraph grammar the checker expects', () => {

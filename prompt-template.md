@@ -416,26 +416,37 @@ Only for the `Tasks from the checks` execution mode, and only when the
 split produced two or more tasks. Single-task mode, `Run now`, and the
 other destinations skip this section entirely.
 
-- **Settle the branch before the first task.** Resolve the default branch
-  with `git symbolic-ref --short refs/remotes/origin/HEAD` and take the
-  name after `origin/`; if the ref is unset, treat `main` as the default.
-  On the default branch, create and switch to `foreman/<slug>` — slug is a
-  kebab-case cut of the goal, 40 chars max. On any other branch, create
-  nothing and checkpoint in place.
+- **Read the config first.** Before anything else, read the `checkpoints`
+  block of `.foreman/config.json` at the project root. A missing file,
+  block, or key means that key's default: `branch` `true`, `push` `false`,
+  `onFinish` `"ask"`, `baseBranch` unset (auto-detect). These four keys
+  drive the steps below.
+- **Settle the branch before the first task.** When `baseBranch` is set,
+  that IS the base branch — skip detection. Otherwise resolve it with
+  `git symbolic-ref --short refs/remotes/origin/HEAD` and take the name
+  after `origin/`; if the ref is unset, treat `main` as the base. With
+  `branch` `true` and currently on the base branch, create and switch to
+  `foreman/<slug>` — slug is a kebab-case cut of the goal, 40 chars max.
+  On any other branch, or with `branch` `false`, create nothing and
+  checkpoint in place on the current branch.
 - **Still before task 1:** if `git status --porcelain` is non-empty, tell
   the user in one line that pre-existing changes will ride along in the
   checkpoints, then proceed.
 - **One commit per finished task.** After a task's verification passes and
   the task is marked completed: `git add -A`, then commit with the message
-  `task <n>/<total>: <task subject>`. If the repo has a remote, push — the
-  first push sets the upstream. No remote, no push, no comment.
+  `task <n>/<total>: <task subject>`. With `push` `true` and a remote
+  present, push after each commit — the first push sets the upstream. With
+  `push` `false` (the default) or no remote, the commit stays local, no
+  comment.
 - **A roadmap-entry close cites the last checkpoint commit's sha** (when
   the handoff carries one): commit first, close the entry, then mark the
   final task completed. The entry-paragraph and gate rules above are
   unchanged.
-- **After the last task, ask what to do with the branch** — only if this
-  run created it. When the run checkpointed on a pre-existing branch, skip
-  the question entirely. One `AskUserQuestion`:
+- **After the last task, `onFinish` decides the branch's fate** — only if
+  this run created the branch. When the run checkpointed on a pre-existing
+  branch, or `branch` is `false`, skip this step entirely. `"ask"` (the
+  default) asks with the `AskUserQuestion` below; `"squash"`, `"merge"`,
+  `"pr"`, or `"keep"` performs the matching option directly, no question:
   - `Squash merge (Recommended)` — squash onto the base branch, commit
     with a real message summarizing the whole change, delete the
     checkpoint branch
