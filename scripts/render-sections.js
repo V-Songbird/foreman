@@ -3,6 +3,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { readDecisionLog } = require("./decision-log-config");
 
 function projectDir() {
   return path.resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
@@ -65,6 +66,21 @@ function readTargetModel(config) {
     value: "inherit",
     warning: `targetModel: ${JSON.stringify(value)} is not one of ${[...VALID_TARGET_MODELS].join(", ")} — defaulted to "inherit"`,
   };
+}
+
+// Delegates the decision-log settings chain (env override ->
+// .foreman/config.json's `decisionLog` group -> defaults) to the module
+// that owns it for all three consumers, instead of restating the parse
+// here. Only `enabled`/`dir` reach a crafted prompt — `gate` is a
+// close-time concern hooks/task-completed.js reads, never a craft-time
+// one, so it is dropped from this shape. Its `warning` rides the same
+// user-visible channel as readConfig's corrupt warning; decision-log-config
+// reads the file itself, so a corrupt config yields one warning from each
+// reader (both accurate — every setting AND every decisionLog setting fell
+// to default).
+function readDecisionLogSection(root) {
+  const { enabled, dir, warning } = readDecisionLog(root);
+  return { enabled, dir, warning };
 }
 
 const TAG_RE = /^[a-z][a-z0-9_]*$/;
@@ -162,16 +178,19 @@ function render(root) {
   const sectionsResult = renderSections(config.customSections);
   const omitResult = renderOmit(config.omitSections);
   const targetModelResult = readTargetModel(config);
+  const decisionLog = readDecisionLogSection(root);
   return {
     usePersona: readUsePersona(config),
     sections: sectionsResult.sections,
     omit: omitResult.omit,
     targetModel: targetModelResult.value,
+    decisionLog: { enabled: decisionLog.enabled, dir: decisionLog.dir },
     warnings: [
       ...(configWarning ? [configWarning] : []),
       ...sectionsResult.warnings,
       ...omitResult.warnings,
       ...(targetModelResult.warning ? [targetModelResult.warning] : []),
+      ...(decisionLog.warning ? [decisionLog.warning] : []),
     ],
   };
 }
@@ -191,6 +210,7 @@ module.exports = {
   readConfig,
   readUsePersona,
   readTargetModel,
+  readDecisionLogSection,
   escapeXml,
   renderSections,
   renderOmit,

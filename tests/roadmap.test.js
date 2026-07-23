@@ -24,6 +24,12 @@
 //     carrying each match's status so callers can tell declined from tracked
 //   - a corrupt line in the file fails loudly (ok:false, exit 1) instead of
 //     silently skipping it
+//   - doc accepts "none" or a relative .md path on add/update-status,
+//     rejects traversal/absolute/non-md values, omits itself when unset,
+//     and survives list/next-candidates serialization
+//   - DECISION_ANCHOR_RE/anchorIdsIn/anchorHasId: single- and multi-id
+//     anchor comments, ids in ordinary prose not wrapped in the anchor
+//     never match
 
 const { test, describe, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
@@ -776,6 +782,151 @@ describe('unknown subcommand', () => {
     const { status, json } = run(['bogus']);
     assert.equal(status, 1);
     assert.match(json.error, /unknown subcommand/);
+  });
+});
+
+describe('doc field', () => {
+  test('add accepts "none"', () => {
+    const { status, json } = run(['add'], { title: 'a', why: 'a', what: 'a', source: 'user', doc: 'none' });
+    assert.equal(status, 0);
+    assert.equal(json.entry.doc, 'none');
+  });
+
+  test('add accepts a relative .md path', () => {
+    const { status, json } = run(['add'], {
+      title: 'a', why: 'a', what: 'a', source: 'user', doc: 'docs/foreman/001.md',
+    });
+    assert.equal(status, 0);
+    assert.equal(json.entry.doc, 'docs/foreman/001.md');
+  });
+
+  test('add omits doc entirely when not given -- not defaulted', () => {
+    const { json } = run(['add'], { title: 'a', why: 'a', what: 'a', source: 'user' });
+    assert.equal('doc' in json.entry, false);
+  });
+
+  test('add rejects a value that is neither "none" nor .md', () => {
+    const { status, json } = run(['add'], { title: 'a', why: 'a', what: 'a', source: 'user', doc: 'docs/foreman/001.txt' });
+    assert.equal(status, 1);
+    assert.match(json.error, /doc must be "none" or a relative path ending in \.md/);
+  });
+
+  test('add rejects an absolute posix path', () => {
+    const { status, json } = run(['add'], { title: 'a', why: 'a', what: 'a', source: 'user', doc: '/docs/foreman/001.md' });
+    assert.equal(status, 1);
+    assert.match(json.error, /doc must be a relative path/);
+  });
+
+  test('add rejects a drive-letter path', () => {
+    const { status, json } = run(['add'], { title: 'a', why: 'a', what: 'a', source: 'user', doc: 'C:/docs/001.md' });
+    assert.equal(status, 1);
+    assert.match(json.error, /doc must be a relative path/);
+  });
+
+  test('add rejects a path with a ".." traversal segment', () => {
+    const { status, json } = run(['add'], { title: 'a', why: 'a', what: 'a', source: 'user', doc: '../secrets/001.md' });
+    assert.equal(status, 1);
+    assert.match(json.error, /doc must not contain "\.\." path segments/);
+  });
+
+  describe('update-status', () => {
+    beforeEach(() => {
+      writeRoadmap(project, [
+        { id: '001', title: 'a', why: 'a', what: 'a', status: 'planned', source: 'user', depends_on: [], touches: [], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '' },
+      ]);
+    });
+
+    test('accepts and sets doc', () => {
+      const { status, json } = run(['update-status'], { id: '001', status: 'in_progress', doc: 'docs/foreman/001.md' });
+      assert.equal(status, 0);
+      assert.equal(json.entry.doc, 'docs/foreman/001.md');
+    });
+
+    test('accepts "none"', () => {
+      const { json } = run(['update-status'], { id: '001', status: 'in_progress', doc: 'none' });
+      assert.equal(json.entry.doc, 'none');
+    });
+
+    test('overwrites rather than appending on a second call -- not append-only like notes', () => {
+      run(['update-status'], { id: '001', status: 'in_progress', doc: 'none' });
+      const { json } = run(['update-status'], { id: '001', status: 'in_progress', doc: 'docs/foreman/001.md' });
+      assert.equal(json.entry.doc, 'docs/foreman/001.md');
+    });
+
+    test('rejects an invalid value and does not write', () => {
+      const { status, json } = run(['update-status'], { id: '001', status: 'in_progress', doc: '/abs/001.md' });
+      assert.equal(status, 1);
+      assert.match(json.error, /doc must be a relative path/);
+    });
+
+    test('omits doc when not given, leaving an entry with no doc untouched', () => {
+      const { json } = run(['update-status'], { id: '001', status: 'in_progress' });
+      assert.equal('doc' in json.entry, false);
+    });
+  });
+
+  test('doc survives list serialization', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'a', why: 'a', what: 'a', status: 'planned', source: 'user', depends_on: [], touches: [], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '', doc: 'docs/foreman/001.md' },
+      { id: '002', title: 'b', why: 'a', what: 'a', status: 'planned', source: 'user', depends_on: [], touches: [], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '' },
+    ]);
+    const { json } = run(['list']);
+    assert.equal(json.entries.find((e) => e.id === '001').doc, 'docs/foreman/001.md');
+    assert.equal('doc' in json.entries.find((e) => e.id === '002'), false);
+  });
+
+  test('doc survives next-candidates serialization for both candidates and in_progress', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'candidate', status: 'planned', why: 'w', what: 'x', depends_on: [], touches: [], doc: 'docs/foreman/001.md' },
+      { id: '002', title: 'started', status: 'in_progress', why: 'w', what: 'x', depends_on: [], touches: [], doc: 'none' },
+    ]);
+    const { json } = run(['next-candidates']);
+    assert.equal(json.candidates[0].doc, 'docs/foreman/001.md');
+    assert.equal(json.in_progress[0].doc, 'none');
+  });
+});
+
+describe('anchor comments (DECISION_ANCHOR_RE / anchorIdsIn / anchorHasId)', () => {
+  const { anchorIdsIn, anchorHasId } = require('../scripts/roadmap');
+
+  test('finds a single id in a single anchor comment', () => {
+    assert.deepEqual(anchorIdsIn('// [Foreman: 019]\nfunction f() {}'), ['019']);
+  });
+
+  test('finds every id in a multi-id anchor comment', () => {
+    assert.deepEqual(anchorIdsIn('// [Foreman: 019, 034]'), ['019', '034']);
+  });
+
+  test('tolerates no space around the comma', () => {
+    assert.deepEqual(anchorIdsIn('[Foreman: 019,034]'), ['019', '034']);
+  });
+
+  test('dedupes ids repeated across separate anchor comments', () => {
+    const text = '// [Foreman: 019]\n...\n// [Foreman: 019, 034]';
+    assert.deepEqual(anchorIdsIn(text), ['019', '034']);
+  });
+
+  test('returns an empty array for null, undefined, or no match at all', () => {
+    assert.deepEqual(anchorIdsIn(null), []);
+    assert.deepEqual(anchorIdsIn(undefined), []);
+    assert.deepEqual(anchorIdsIn('no anchors in this file'), []);
+  });
+
+  test('an id written in ordinary prose, without the [Foreman: ] wrapper, does not match', () => {
+    assert.deepEqual(anchorIdsIn('see roadmap entry 019 and also 034 for context'), []);
+  });
+
+  test('a 4-digit run does not match -- ids are always exactly 3 digits', () => {
+    assert.deepEqual(anchorIdsIn('[Foreman: 0199]'), []);
+  });
+
+  test('anchorHasId is true when the id is present in an anchor', () => {
+    assert.equal(anchorHasId('// [Foreman: 019, 034]', '034'), true);
+  });
+
+  test('anchorHasId is false when the id is absent, or only appears unwrapped', () => {
+    assert.equal(anchorHasId('// [Foreman: 019]', '034'), false);
+    assert.equal(anchorHasId('see entry 034 in passing', '034'), false);
   });
 });
 

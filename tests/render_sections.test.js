@@ -17,6 +17,10 @@
 //     a non-string entry, and a duplicate are each skipped with a warning
 //   - usePersona: declared in config (default true); other plugins' flag
 //     files and the legacy inheritOperatorTone key are ignored entirely
+//   - decisionLog: {enabled,dir} delegated to decision-log-config; disabled
+//     by default, honored from config and the FOREMAN_DECISION_LOG* env
+//     path, and its warning (invalid dir / corrupt config) surfaced through
+//     render's own warning channel
 
 const { test, describe, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
@@ -302,5 +306,76 @@ describe('render-sections — targetModel', () => {
     const { status, json } = run();
     assert.equal(status, 0);
     assert.equal(json.targetModel, 'inherit');
+  });
+});
+
+describe('render-sections — decisionLog', () => {
+  test('no config.json -> disabled, default dir, no warnings', () => {
+    const { json } = run();
+    assert.equal(json.decisionLog.enabled, false);
+    assert.equal(json.decisionLog.dir, 'docs/foreman');
+    assert.deepEqual(json.warnings, []);
+  });
+
+  test('config.json without decisionLog -> disabled, default dir', () => {
+    writeConfig(project, { discoverySuggestions: true });
+    const { json } = run();
+    assert.equal(json.decisionLog.enabled, false);
+    assert.equal(json.decisionLog.dir, 'docs/foreman');
+  });
+
+  test('decisionLog.enabled:true flows into the output shape', () => {
+    writeConfig(project, { decisionLog: { enabled: true } });
+    const { json } = run();
+    assert.equal(json.decisionLog.enabled, true);
+    assert.equal(json.decisionLog.dir, 'docs/foreman');
+    assert.deepEqual(json.warnings, []);
+  });
+
+  test('a custom dir flows through to the rendered output', () => {
+    writeConfig(project, { decisionLog: { enabled: true, dir: 'docs/adr' } });
+    const { json } = run();
+    assert.equal(json.decisionLog.enabled, true);
+    assert.equal(json.decisionLog.dir, 'docs/adr');
+  });
+
+  // gate is a close-time concern (task-completed.js); it never reaches the
+  // craft-time output shape even when set.
+  test('gate is not exposed in the craft-time output', () => {
+    writeConfig(project, { decisionLog: { enabled: true, gate: 'block' } });
+    const { json } = run();
+    assert.equal('gate' in json.decisionLog, false);
+  });
+
+  test('FOREMAN_DECISION_LOG=1 enables via the env path', () => {
+    env.FOREMAN_DECISION_LOG = '1';
+    const { json } = run();
+    assert.equal(json.decisionLog.enabled, true);
+  });
+
+  test('FOREMAN_DECISION_LOG_DIR overrides the dir via the env path', () => {
+    env.FOREMAN_DECISION_LOG = '1';
+    env.FOREMAN_DECISION_LOG_DIR = 'docs/decisions';
+    const { json } = run();
+    assert.equal(json.decisionLog.enabled, true);
+    assert.equal(json.decisionLog.dir, 'docs/decisions');
+  });
+
+  test('an invalid dir defaults and surfaces a warning through render-sections', () => {
+    writeConfig(project, { decisionLog: { enabled: true, dir: '../escape' } });
+    const { status, json } = run();
+    assert.equal(status, 0);
+    assert.equal(json.decisionLog.enabled, true);
+    assert.equal(json.decisionLog.dir, 'docs/foreman');
+    assert.ok(json.warnings.some((w) => /relative path/.test(w)));
+  });
+
+  test('corrupt config.json surfaces the decisionLog corrupt warning too', () => {
+    fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
+    fs.writeFileSync(path.join(project, '.foreman', 'config.json'), '{not json', 'utf-8');
+    const { status, json } = run();
+    assert.equal(status, 0);
+    assert.equal(json.decisionLog.enabled, false);
+    assert.ok(json.warnings.some((w) => w.includes('decisionLog')));
   });
 });

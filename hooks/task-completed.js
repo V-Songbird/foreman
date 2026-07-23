@@ -29,8 +29,10 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const crypto = require("crypto");
+const { spawnSync } = require("child_process");
 
-const { readEntries } = require("../scripts/roadmap");
+const { readEntries, anchorHasId } = require("../scripts/roadmap");
+const { readDecisionLog } = require("../scripts/decision-log-config");
 const { ENTRY_MARKER_RE, entryIdFromDescription } = require("./task-created");
 
 const OPEN_STATUSES = new Set(["planned", "in_progress"]);
@@ -123,6 +125,107 @@ function blockReason(id) {
   );
 }
 
+// --- Decision-log backstop (roadmap entry 092) --------------------------
+//
+// A separate, opt-in gate that fires only on a `done` close, only when the
+// existing open-entry gate above did NOT fire (an entry can't be both open
+// and done, so the two never contend in one run). It checks that a closed
+// task recorded WHERE its decision lives: either an ADR doc under the
+// configured dir, or the forced "none" (decided nothing worth recording).
+// When a doc path is named, it also verifies the code carries an anchor
+// comment `[Foreman: <id>]` in one of the entry's commits, so the doc and
+// the code it governs stay wired together.
+//
+// Infrastructure never blocks completion: any git failure (not a repo, bad
+// sha, git absent) treats the anchor sub-check as passed, and the config
+// read is fail-soft (a null/absent config means disabled -> silent).
+
+// The close command that repairs a doc-missing entry. Shows both the doc
+// path shape (<dir>/<id>.md) and the "none" escape hatch, mirroring the
+// forced choice the roadmap schema enforces.
+function dlCloseCommand(id, dir) {
+  return (
+    `echo '{"id":"${id}","status":"done","doc":"${dir}/${id}.md"}' | node ${SCRIPT_PATH} update-status ` +
+    '(or use `"doc":"none"` if this task decided nothing worth an ADR)'
+  );
+}
+
+// Combined patch text for the entry's commits, or null on any git failure
+// (missing repo, bad sha, git not installed, timeout). Null is the signal
+// to treat the anchor sub-check as passed -- infra never blocks completion.
+function gitShow(root, shas) {
+  let result;
+  try {
+    result = spawnSync("git", ["show", "--pretty=format:", ...shas], {
+      cwd: root,
+      encoding: "utf-8",
+      timeout: 30000,
+    });
+  } catch {
+    return null;
+  }
+  if (!result || result.error || result.status !== 0) return null;
+  return result.stdout || "";
+}
+
+// The imperative core of a decision-log violation, or null when the entry
+// is compliant (doc "none", a doc file plus an anchored commit, or an
+// investigation-only close with no commits to audit). Callers wrap this
+// core in either the nudge or the block framing.
+function decisionLogCore(root, entry, dir) {
+  const id = entry.id;
+  const doc = entry.doc;
+
+  // (1) No doc field: the close never recorded where the decision lives.
+  if (typeof doc !== "string" || doc === "") {
+    return (
+      `ROADMAP.jsonl entry ${id} is closed but records no decision doc. Record where this ` +
+      `task's choice lives, then re-close it: ${dlCloseCommand(id, dir)}.`
+    );
+  }
+
+  // (2) Forced "none": the task decided nothing worth an ADR -- pass.
+  if (doc === "none") return null;
+
+  // (3a) doc names a path: the file must exist under the project root.
+  if (!fs.existsSync(path.resolve(root, doc))) {
+    return (
+      `ROADMAP.jsonl entry ${id} names decision doc ${doc}, but no file exists there. Create ` +
+      `the ADR at ${doc}, or re-close the entry with \`"doc":"none"\` if it decided nothing worth recording.`
+    );
+  }
+
+  // (3b) An anchor comment must sit at the governed code. An empty/absent
+  // commits array is an investigation-only close -- nothing to audit, skip.
+  const commits = Array.isArray(entry.commits) ? entry.commits.filter(Boolean) : [];
+  if (commits.length === 0) return null;
+
+  const patch = gitShow(root, commits);
+  if (patch === null) return null; // git failure -- infra never blocks
+  if (anchorHasId(patch, id)) return null;
+
+  return (
+    `ROADMAP.jsonl entry ${id} has decision doc ${doc}, but none of its commits carry an ` +
+    `anchor comment for it. Add a \`[Foreman: ${id}]\` comment at the code the decision governs, ` +
+    `amend the commit to include it, then re-close entry ${id} with that commit's sha.`
+  );
+}
+
+function dlNudgeMessage(core) {
+  return `[Foreman] ${core}`;
+}
+
+// Same probe-derived framing as blockReason above: the provenance opener
+// (this is Foreman's checkpoint, adjust and retry) plus the "complete it
+// again" closer that keeps a driver from reading the block as a refusal.
+function dlBlockReason(core) {
+  return (
+    `[Foreman] This is Foreman's automated roadmap checkpoint, not you declining the ` +
+    `completion -- adjust and retry, don't abandon it. ${core} Then mark this task completed ` +
+    "again -- completing it again after fixing the record is the correct next step, not a repeat of a denied action."
+  );
+}
+
 function write(payload) {
   try {
     process.stdout.write(Buffer.from(JSON.stringify(payload), "utf-8"));
@@ -148,19 +251,45 @@ function main() {
     return; // corrupt file -- never block or complicate task completion
   }
   const entry = entries.find((e) => e.id === id);
-  if (!entry || !OPEN_STATUSES.has(entry.status)) return;
-
-  const mode = readConfig(root);
-  if (mode === "off") return;
+  if (!entry) return;
 
   const taskId = String(data.task_id || "");
-  const latchId = taskId ? `${String(data.session_id || "")}:${taskId}` : "";
-  if (latchId && !shouldGate(root, latchId)) return; // already gated once for this session's task_id
+  const baseLatch = taskId ? `${String(data.session_id || "")}:${taskId}` : "";
 
-  if (mode === "block") {
-    write({ decision: "block", reason: blockReason(id) });
+  // Existing open-entry gate -- keeps precedence. An open entry is fully
+  // handled here; the decision-log check below is only reached for a closed
+  // entry, so the two never both fire in one run.
+  if (OPEN_STATUSES.has(entry.status)) {
+    const mode = readConfig(root);
+    if (mode === "off") return;
+    if (baseLatch && !shouldGate(root, baseLatch)) return; // already gated once for this session's task_id
+    if (mode === "block") {
+      write({ decision: "block", reason: blockReason(id) });
+    } else {
+      write({ systemMessage: nudgeMessage(id) });
+    }
+    return;
+  }
+
+  // Decision-log backstop -- only a `done` close is auditable for an ADR
+  // (dropped/rejected/deferred decided nothing to record).
+  if (entry.status !== "done") return;
+
+  const dl = readDecisionLog(root);
+  if (!dl.enabled || dl.gate === "off") return; // opt-in; disabled/off -> silent
+
+  const core = decisionLogCore(root, entry, dl.dir);
+  if (!core) return; // compliant close
+
+  // Own latch, suffixed off the base key -- fires even after the open gate
+  // consumed `session:task`, and itself at most once per session's task_id.
+  const dlLatch = baseLatch ? `${baseLatch}:dl` : "";
+  if (dlLatch && !shouldGate(root, dlLatch)) return;
+
+  if (dl.gate === "block") {
+    write({ decision: "block", reason: dlBlockReason(core) });
   } else {
-    write({ systemMessage: nudgeMessage(id) });
+    write({ systemMessage: dlNudgeMessage(core) });
   }
 }
 
@@ -181,5 +310,8 @@ module.exports = {
   latchStatePath,
   nudgeMessage,
   blockReason,
+  decisionLogCore,
+  dlNudgeMessage,
+  dlBlockReason,
   SCRIPT_PATH,
 };

@@ -8,6 +8,17 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.37.0-alpha] — 2026-07-22
+
+### Added
+
+- A `decisionLog` block in `.foreman/config.json` turns on per-task decision docs, with `enabled`, `dir`, and `gate` keys, plus `FOREMAN_DECISION_LOG` and `FOREMAN_DECISION_LOG_DIR` environment overrides.
+- Crafted prompts now include a decision-log section when the feature is on, instructing the session to write an ADR doc and mark the code it governs with an anchor comment.
+- Roadmap entries gained an optional `doc` field recording where a task's decision lives, or `"none"` when it decided nothing worth an ADR.
+- Closing a task now checks that its decision doc is recorded and, when one is named, that a commit carries the matching anchor comment — configurable as a silent, nudging, or blocking check.
+- Reading or editing a file with a decision-doc anchor comment now surfaces the doc it points to.
+- A decision-doc template ships at `decision-doc-template.md`.
+
 ## [0.36.0-alpha] — 2026-07-22
 
 ### Added

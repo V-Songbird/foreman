@@ -105,9 +105,10 @@ For each section selected in Call 1 Q2, ask its detail question(s). Batch up to 
 
 Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/render-sections.js` now — the one
 mechanical call that resolves `usePersona`/`sections`/`omit`/
-`targetModel`. Every step below (Call 6's default, Assemble the prompt's
-elaboration scoping, Deliver's clipboard recommendation) reads this same
-result. Nothing past this point calls it again.
+`targetModel`/`decisionLog`. Every step below (Call 6's default, Assemble
+the prompt's elaboration scoping and its `<decision_log>` block, Deliver's
+clipboard recommendation) reads this same result. Nothing past this point
+calls it again.
 
 ---
 
@@ -203,6 +204,11 @@ gathered fields onto the template's placeholders:
   template's Workflow-stage flavor overrides both (fixed sentence,
   mechanical tone omission, schema-authoring and delivery rules all live
   there) — the schema itself derives from Call 4's Workflow-stage answer
+- `decision_log` ← include the template's `<decision_log>` block when the
+  render-sections result's `decisionLog.enabled` is true, substituting its
+  `dir` for `<dir>`; omit it when false (the template's own craft-time gate
+  says the same). A craft-prompt task carries no roadmap entry, so name the
+  doc after a short kebab slug of the goal in place of `<entry-id>`.
 
 Before moving to the next phase, verify the assembled prompt against
 `prompt-template.md`'s own checklist, then run its mechanical gate

@@ -223,6 +223,13 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      value skips this — nothing grounded suggests a caution at that scope
      for `sonnet`/`opus`/`fable`, and `inherit` has no declared target to
      weigh against.
+   - `decision_log` — when step 1's render-sections result carries
+     `decisionLog.enabled` true, include the template's `<decision_log>`
+     block, substituting its `dir` for `<dir>` and this entry's id for
+     every `<entry-id>`. Omit the block when `enabled` is false (the
+     default). This is the only thing that connects the entry's close to a
+     decision doc, so its `doc` field on the close command (below) is
+     paired with it.
    - Add one more fixed paragraph right after `scope_discipline`, naming
      this entry's id, so the destination session — not Foreman — is the one
      that flips it to `in_progress`:
@@ -238,6 +245,11 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      lands it; a task that changed nothing (pure investigation) closes
      without one:
      `echo '{"id":"<id>","status":"<status>","commit":"<sha>","notes":"<findings>"}' | node
+     ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
+     When this prompt carries a `<decision_log>` block, add `doc` to that
+     close call — the decision doc's path, or `"none"` when nothing was
+     decided:
+     `echo '{"id":"<id>","status":"<status>","commit":"<sha>","notes":"<findings>","doc":"<path or none>"}' | node
      ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
      The entry's `notes` is where the depth lives; your final chat message
      states the outcome and points at the entry."

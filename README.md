@@ -94,6 +94,16 @@ We measured what a good handoff is actually worth: the same real coding jobs, ru
 
 The roadmap is a plain file in your repo (field-by-field details in [`roadmap-schema.md`](roadmap-schema.md)), and every prompt Foreman assembles is script-checked before it ships — a malformed handoff never reaches a session. Pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush): razor cuts the code, hush cuts the noise, Foreman writes the prompts — and measured together, the three add no overhead to each other.
 
+### Decision docs
+
+Git remembers every diff. Nobody remembers why. Turn on `decisionLog` and any task that decides something writes a short ADR — one file per roadmap entry, at `<dir>/<id>.md` — and marks the code it governs with an anchor comment, `[Foreman: 019]` (or `[Foreman: 019, 034]` once more than one decision lands on the same spot). Come back in six months and you get the choice, the alternatives that lost, and the consequences — not a git-blame dig.
+
+Closing a task is a forced choice, not an afterthought: every finished entry names its doc, or says `"none"` when nothing was worth writing down. Skip that, point it at a doc that was never written, or forget the anchor in the commit, and the completion check catches it — `gate` decides how loud: `off` stays silent, `nudge` (the default) reminds you, `block` holds the completion until the record's fixed.
+
+The anchors keep paying off after the fact, too: read or edit any file carrying one and Foreman surfaces the doc it points to — before you violate a decision you didn't know was there, not after.
+
+Decision docs are dated records, never rewritten backward. Change your mind later and the old doc stays as it was; the new one names it in its own `supersedes` frontmatter instead. The history stays honest either way.
+
 ## Settings
 
 Most people never touch these — `/foreman:init` asks the questions and writes `.foreman/config.json` for you. The knobs, if you ever want them by hand:
@@ -105,6 +115,7 @@ Most people never touch these — `/foreman:init` asks the questions and writes 
 | `omitSections` | Prompt sections to leave out entirely (`tone`, `example`, `background`, `output_format`). |
 | `requireVerification` | Hold off marking a task done after a commit until you confirm it's verified. |
 | `taskCloseGate` | When a tracked task finishes with its roadmap entry still open: `off` says nothing, `nudge` (default) reminds you to close it, `block` holds the completion until you do. |
+| `decisionLog` | Per-task decision docs: `{enabled, dir, gate}`. `enabled` (default `false`) turns them on, `dir` (default `docs/foreman`) is where they're written, `gate` (default `nudge`) sets how a missing doc or anchor is enforced at completion — `off`, `nudge`, or `block`, same ladder as `taskCloseGate`. Environment overrides can flip it on or repoint the folder for a single run without touching the file. |
 | `checkpoints` | How task-split runs commit their work. Four optional keys: `baseBranch` names the base branch (default: auto-detect), `branch: false` checkpoints on the current branch instead of creating a `foreman/<slug>` one, `push: true` pushes each checkpoint commit (default: keep them local), and `onFinish` set to `squash`, `merge`, `pr`, or `keep` performs that end-of-run action directly instead of asking (default: `ask`). |
 | `targetModel` | How much detail crafted prompts spell out, scoped to the model that runs them: `haiku` elaborates fully, `sonnet`, `opus`, and `fable` skip step-by-step scaffolding those models don't need, and `inherit` (default — no fixed model) keeps the standard level. Picking a concrete model while crafting overrides this default for that prompt. |
 

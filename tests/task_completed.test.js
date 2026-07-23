@@ -13,7 +13,14 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { runScriptRaw, makeTmpProject, writeRoadmap, writeConfig } = require('./helpers');
+const {
+  runScriptRaw,
+  makeTmpProject,
+  writeRoadmap,
+  writeConfig,
+  initGitRepo,
+  commitFile,
+} = require('./helpers');
 
 let project;
 let env;
@@ -188,6 +195,168 @@ describe('task-completed block-mode reason shape', () => {
     assert.ok(/automated/i.test(out.reason));
     assert.ok(/not you declining|not the user declining/i.test(out.reason));
     assert.ok(/complet(e|ing) (this task |it )?again/i.test(out.reason));
+  });
+});
+
+// --- Decision-log backstop (entry 092) ----------------------------------
+//
+// Fires only on a `done` close, only when decisionLog.enabled is true, and
+// only after the open-entry gate above did NOT fire. Its config lives under
+// the `decisionLog` group ({enabled, dir, gate}) -- distinct from the
+// top-level taskCloseGate the open gate reads.
+
+function doneEntry(id, extra) {
+  return { ...entry(id, 'done'), ...(extra || {}) };
+}
+
+function dlConfig(gate, extra) {
+  return { decisionLog: { enabled: true, gate, ...(extra || {}) } };
+}
+
+describe('decision-log backstop: enablement', () => {
+  test('disabled by default: a done entry with no doc is silent', () => {
+    writeRoadmap(project, [doneEntry('001')]);
+    assert.equal(run(payload(MARKER)), '');
+  });
+
+  test('explicitly disabled: still silent', () => {
+    writeRoadmap(project, [doneEntry('001')]);
+    writeConfig(project, { decisionLog: { enabled: false, gate: 'block' } });
+    assert.equal(run(payload(MARKER)), '');
+  });
+
+  test('enabled but gate off: silent', () => {
+    writeRoadmap(project, [doneEntry('001')]);
+    writeConfig(project, dlConfig('off'));
+    assert.equal(run(payload(MARKER)), '');
+  });
+});
+
+describe('decision-log backstop: missing doc', () => {
+  test('nudge mode emits systemMessage naming the close command, no decision', () => {
+    writeRoadmap(project, [doneEntry('001')]);
+    writeConfig(project, dlConfig('nudge'));
+    const out = JSON.parse(run(payload(MARKER)));
+    assert.equal(typeof out.systemMessage, 'string');
+    assert.ok(out.systemMessage.includes('001'));
+    assert.match(out.systemMessage, /update-status/);
+    assert.match(out.systemMessage, /"doc"/);
+    assert.equal(out.decision, undefined);
+  });
+
+  test('block mode emits a decision block reusing the checkpoint framing', () => {
+    writeRoadmap(project, [doneEntry('001')]);
+    writeConfig(project, dlConfig('block'));
+    const out = JSON.parse(run(payload(MARKER)));
+    assert.equal(out.decision, 'block');
+    assert.match(out.reason, /automated roadmap checkpoint/i);
+    assert.match(out.reason, /not you declining/i);
+    assert.ok(out.reason.includes('001'));
+    assert.match(out.reason, /no decision doc/i);
+  });
+});
+
+describe('decision-log backstop: doc value handling', () => {
+  test('doc "none" passes silently', () => {
+    writeRoadmap(project, [doneEntry('001', { doc: 'none' })]);
+    writeConfig(project, dlConfig('block'));
+    assert.equal(run(payload(MARKER)), '');
+  });
+
+  test('doc path with no file on disk is a violation naming the path', () => {
+    writeRoadmap(project, [doneEntry('001', { doc: 'docs/foreman/001.md' })]);
+    writeConfig(project, dlConfig('block'));
+    const out = JSON.parse(run(payload(MARKER)));
+    assert.equal(out.decision, 'block');
+    assert.ok(out.reason.includes('docs/foreman/001.md'));
+    assert.match(out.reason, /no file exists/i);
+  });
+});
+
+describe('decision-log backstop: anchor placement (real git)', () => {
+  function writeDoc(rel) {
+    const full = path.join(project, rel);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, '# ADR 001\n', 'utf-8');
+  }
+
+  test('doc file present + a commit carrying the anchor passes silently', () => {
+    initGitRepo(project);
+    const sha = commitFile(project, 'src/thing.js', '// [Foreman: 001]\nmodule.exports = 1;\n');
+    writeDoc('docs/foreman/001.md');
+    writeRoadmap(project, [doneEntry('001', { doc: 'docs/foreman/001.md', commits: [sha] })]);
+    writeConfig(project, dlConfig('block'));
+    assert.equal(run(payload(MARKER)), '');
+  });
+
+  test('doc file present but no commit carries the anchor is a violation', () => {
+    initGitRepo(project);
+    const sha = commitFile(project, 'src/thing.js', 'module.exports = 1;\n');
+    writeDoc('docs/foreman/001.md');
+    writeRoadmap(project, [doneEntry('001', { doc: 'docs/foreman/001.md', commits: [sha] })]);
+    writeConfig(project, dlConfig('block'));
+    const out = JSON.parse(run(payload(MARKER)));
+    assert.equal(out.decision, 'block');
+    assert.match(out.reason, /\[Foreman: 001\]/);
+    assert.match(out.reason, /anchor/i);
+  });
+
+  test('git failure (bogus sha, no repo) treats the anchor check as passed', () => {
+    // No initGitRepo -- git show cannot resolve the sha; infra never blocks.
+    writeDoc('docs/foreman/001.md');
+    writeRoadmap(project, [doneEntry('001', { doc: 'docs/foreman/001.md', commits: ['deadbeef'] })]);
+    writeConfig(project, dlConfig('block'));
+    assert.equal(run(payload(MARKER)), '');
+  });
+});
+
+describe('decision-log backstop: commitless (investigation-only) close', () => {
+  test('doc path + file present + no commits skips the anchor check (silent)', () => {
+    const full = path.join(project, 'docs/foreman/001.md');
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, '# ADR 001\n', 'utf-8');
+    writeRoadmap(project, [doneEntry('001', { doc: 'docs/foreman/001.md', commits: [] })]);
+    writeConfig(project, dlConfig('block'));
+    assert.equal(run(payload(MARKER)), '');
+  });
+
+  test('no doc + no commits still demands a doc-or-none record', () => {
+    writeRoadmap(project, [doneEntry('001', { commits: [] })]);
+    writeConfig(project, dlConfig('block'));
+    const out = JSON.parse(run(payload(MARKER)));
+    assert.equal(out.decision, 'block');
+    assert.match(out.reason, /no decision doc/i);
+  });
+});
+
+describe('decision-log backstop: precedence and latch independence', () => {
+  test('an open entry uses the open-entry gate, never the decision-log check', () => {
+    // Open entry + decisionLog enabled: the open gate (taskCloseGate:nudge)
+    // owns the turn; the decision-log block must not also fire.
+    writeRoadmap(project, [entry('001', 'planned')]);
+    writeConfig(project, { taskCloseGate: 'nudge', decisionLog: { enabled: true, gate: 'block' } });
+    const out = JSON.parse(run(payload(MARKER)));
+    assert.equal(typeof out.systemMessage, 'string');
+    assert.match(out.systemMessage, /still open/);
+    assert.equal(out.decision, undefined);
+  });
+
+  test('the decision-log check fires after the open gate consumed the base latch, once per task', () => {
+    writeConfig(project, { taskCloseGate: 'block', decisionLog: { enabled: true, gate: 'block' } });
+
+    // Open entry: open gate fires, consuming session-A:task-A.
+    writeRoadmap(project, [entry('001', 'planned')]);
+    const opened = JSON.parse(run(payload(MARKER, 'task-A')));
+    assert.match(opened.reason, /still open/);
+
+    // Same task_id, entry now done without a doc: the decision-log check has
+    // its own :dl latch, so the consumed base latch does not suppress it.
+    writeRoadmap(project, [doneEntry('001')]);
+    const dl = JSON.parse(run(payload(MARKER, 'task-A')));
+    assert.match(dl.reason, /no decision doc/i);
+
+    // ...and it fires at most once per task_id.
+    assert.equal(run(payload(MARKER, 'task-A')), '');
   });
 });
 

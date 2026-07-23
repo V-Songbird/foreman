@@ -24,8 +24,9 @@ an instruction for the spawned session to act on later):**
    — always (it resolves a project root from `$CLAUDE_PROJECT_DIR`/cwd and
    fails soft to defaults when no `.foreman/config.json` exists). One JSON
    object: `{"usePersona": bool, "sections": [{"tag", "xml"}], "omit":
-   [...], "targetModel": "haiku"|"sonnet"|"opus"|"fable"|"inherit", "warnings":
-   [...]}`. All of it is project **declaration** — foreman never inspects
+   [...], "targetModel": "haiku"|"sonnet"|"opus"|"fable"|"inherit",
+   "decisionLog": {"enabled": bool, "dir": string}, "warnings": [...]}`.
+   All of it is project **declaration** — foreman never inspects
    which style plugins or model the operator runs.
    - `usePersona` — default `true` when missing/unparseable. Controls only
      the opening of `task_context` below: persona sentence vs domain
@@ -76,6 +77,12 @@ an instruction for the spawned session to act on later):**
        probe, and for `sonnet` and `opus` in first-party probes across
        all three trap fixtures: equal correctness and trap compliance,
        lower cost in every cell, turns never higher.
+   - `decisionLog` — `{enabled, dir}`, the project's declaration of the
+     decision-log feature (default `{enabled:false, dir:"docs/foreman"}`).
+     When `enabled` is `true`, include the `<decision_log>` block below,
+     substituting `dir` for every `<dir>`; when `false`, omit that block
+     entirely. `dir` is a relative path the destination writes ADR docs
+     under.
    - `warnings` — surface briefly to the user (skipped entries from a
      malformed config); never blocks assembly.
 
@@ -121,6 +128,30 @@ log. This doesn't apply to legitimate refinement of this task's own
 scope — only to work that's genuinely a separate concern from
 `task_context` above.
 </scope_discipline>
+
+[If step 0's `decisionLog.enabled` is true, include the `<decision_log>`
+block below verbatim — substitute the resolved `dir` for every `<dir>`,
+and this task's roadmap entry id for every `<entry-id>` (a craft-prompt
+task with no entry id names the doc after a short kebab slug of the goal
+instead). When `enabled` is false (the default), omit the whole block.]
+<decision_log>
+Before editing a file, scan it for `[Foreman: <id>]` anchor comments; when present, read the listed docs under `<dir>/` first.
+When this task decides between real alternatives, write `<dir>/<entry-id>.md` before closing, in this shape:
+  ---
+  id: <entry-id>
+  title: <imperative title>
+  date: <YYYY-MM-DD>
+  supersedes: [<id>, ...]   # optional whole-doc key; omit when nothing is superseded
+  ---
+  ## Decision — the choice, named, in one paragraph
+  ## Context — the constraint that forced it
+  ## Alternatives rejected — one line each: the option and the single reason it lost
+  ## Consequences — what future work is committed to, plus any never-touch warning
+  ## Findings — optional; drop when empty
+Cite functions by name, never file:line. Never edit an existing decision doc backward — a reversal is a new doc that cites the old one in `supersedes`.
+Mark each code site the decision governs with an ID-only `[Foreman: <entry-id>]` anchor comment in the file's own comment syntax; append your id to any anchor already there — `[Foreman: 019, 034]`.
+When closing the entry, pass `doc` in update-status: the doc path, or `"none"` when nothing was decided.
+</decision_log>
 
 [If `"tone"` is in `omit` (from `render-sections.js`), drop this whole
 `<tone>` block — unless the chosen destination is a background `Agent`,
@@ -275,6 +306,8 @@ using them:
 - [ ] custom sections were rendered by `render-sections.js` and inlined
       verbatim after `task_rules` — never hand-written — and its
       `warnings` were surfaced to the user
+- [ ] `<decision_log>` present iff step 0's `decisionLog.enabled` was
+      `true`, with `dir`/`<entry-id>` substituted (absent by default)
 - [ ] every tag in `omit` is absent from the assembled prompt, overriding
       a conflicting per-prompt selection (exception: an omitted `tone`
       stays for a background-`Agent` destination — step 0's carve-out);

@@ -69,6 +69,40 @@ function today() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+// Anchor comment format pointing code at its decision-log doc: `[Foreman: 019]`
+// or multi-id `[Foreman: 019, 034]` -- 3-digit zero-padded ids only, comma-
+// separated, spaces around the comma optional. Exported so the close gate
+// and the anchor tripwire hook share one definition instead of two regexes
+// drifting apart. A trailing/leading digit run outside the exact {3} width
+// (e.g. a 4-digit id) fails the whole bracketed match rather than partially
+// matching -- deliberate, ids are always zero-padded to exactly 3 digits.
+const DECISION_ANCHOR_RE = /\[Foreman:\s*\d{3}(?:\s*,\s*\d{3})*\s*\]/g;
+
+// All 3-digit ids named across every anchor comment in `text`, deduped,
+// first-seen order. String.prototype.matchAll clones the regex per call,
+// so the shared `g` flag's lastIndex never leaks across calls or into
+// other consumers of DECISION_ANCHOR_RE.
+function anchorIdsIn(text) {
+  if (!text) return [];
+  const ids = [];
+  const seen = new Set();
+  for (const match of String(text).matchAll(DECISION_ANCHOR_RE)) {
+    for (const id of match[0].match(/\d{3}/g) || []) {
+      if (!seen.has(id)) {
+        seen.add(id);
+        ids.push(id);
+      }
+    }
+  }
+  return ids;
+}
+
+// True when some anchor comment in `text` names this exact id (string
+// comparison -- callers pass the same zero-padded id shape entries use).
+function anchorHasId(text, id) {
+  return anchorIdsIn(text).includes(String(id));
+}
+
 const STATUSES = new Set(["planned", "in_progress", "deferred", "done", "dropped", "rejected"]);
 const SOURCES = new Set(["user", "claude-suggested"]);
 // A newly created entry only ever starts as planned or rejected — nothing
@@ -112,8 +146,28 @@ function fieldWarnings(fields) {
   return warnings;
 }
 
+// `doc` is a forced choice, not a free-text field: exactly "none" (this
+// task decided nothing worth an ADR) or a relative .md path into the
+// project's decision-log dir. Same trust boundary as depends_on ids/
+// touches paths -- an absolute path or a `..` escape could point outside
+// the project. path.win32.isAbsolute is checked alongside posix's (it's
+// always available regardless of host OS) so a Windows-shaped drive-letter
+// or backslash-rooted path can't sneak past a check written only for `/`.
+function validateDoc(doc) {
+  if (doc === "none") return;
+  if (typeof doc !== "string" || !doc.endsWith(".md")) {
+    throw new Error('doc must be "none" or a relative path ending in .md');
+  }
+  if (path.win32.isAbsolute(doc) || path.posix.isAbsolute(doc)) {
+    throw new Error("doc must be a relative path -- no leading slash or drive letter");
+  }
+  if (doc.split(/[\\/]/).includes("..")) {
+    throw new Error('doc must not contain ".." path segments');
+  }
+}
+
 function cmdAdd(root, payload) {
-  const { title, why, what, source, status, depends_on, touches, notes } = payload || {};
+  const { title, why, what, source, status, depends_on, touches, notes, doc } = payload || {};
   if (!title || !why || !what) {
     throw new Error("add requires title, why, what");
   }
@@ -124,6 +178,7 @@ function cmdAdd(root, payload) {
   if (!CREATE_STATUSES.has(entryStatus)) {
     throw new Error(`add status must be one of ${[...CREATE_STATUSES].join("|")}`);
   }
+  if (doc !== undefined) validateDoc(doc);
   const entries = readEntries(root);
   // Same trust boundary update-deps already guards: an id that doesn't
   // resolve strands the entry out of next-candidates permanently — the
@@ -149,6 +204,8 @@ function cmdAdd(root, payload) {
     created_at: date,
     updated_at: date,
     notes: notes || "",
+    // omitted entirely when not given -- not backfilled, not defaulted
+    ...(doc !== undefined ? { doc } : {}),
   };
   entries.push(entry);
   writeEntries(root, entries);
@@ -182,7 +239,7 @@ function filesTouchedByCommit(root, sha) {
 }
 
 function cmdUpdateStatus(root, payload) {
-  const { id, status, commit, notes, add_touches } = payload || {};
+  const { id, status, commit, notes, add_touches, doc } = payload || {};
   if (!id || !status) throw new Error("update-status requires id, status");
   if (!STATUSES.has(status)) {
     throw new Error(`status must be one of ${[...STATUSES].join("|")}`);
@@ -190,10 +247,12 @@ function cmdUpdateStatus(root, payload) {
   if (add_touches !== undefined && !Array.isArray(add_touches)) {
     throw new Error("add_touches must be an array of paths");
   }
+  if (doc !== undefined) validateDoc(doc);
   const entries = readEntries(root);
   const entry = entries.find((e) => e.id === id);
   if (!entry) throw new Error(`no entry with id ${id}`);
   entry.status = status;
+  if (doc !== undefined) entry.doc = doc;
   if (commit) {
     entry.commits = Array.isArray(entry.commits) ? entry.commits : [];
     if (!entry.commits.includes(commit)) entry.commits.push(commit);
@@ -400,6 +459,7 @@ function cmdNextCandidates(root, filters) {
       collision: (e.touches || []).some((t) => inProgressTouches.has(t)),
       created_at: e.created_at,
       notes: e.notes || "",
+      ...(e.doc !== undefined ? { doc: e.doc } : {}),
     }))
     .sort((a, b) => {
       if (hintWords.size && b.hint_score !== a.hint_score) return b.hint_score - a.hint_score;
@@ -427,6 +487,7 @@ function cmdNextCandidates(root, filters) {
       depends_on: e.depends_on || [],
       notes: e.notes || "",
       updated_at: e.updated_at,
+      ...(e.doc !== undefined ? { doc: e.doc } : {}),
     }));
 
   const result = {
@@ -500,12 +561,15 @@ const USAGE = `roadmap.js -- mechanical CRUD for ROADMAP.jsonl. Every call
 prints one JSON line to stdout: {"ok":true, ...} on success,
 {"ok":false,"error":"..."} (exit 1) on failure.
 
-  add               stdin JSON: {title, why, what, source, depends_on?, touches?, notes?, status?}
+  add               stdin JSON: {title, why, what, source, depends_on?, touches?, notes?, status?, doc?}
                     source: "user" | "claude-suggested"
                     depends_on ids must already exist -- an id that doesn't
                     resolve would strand the entry out of next-candidates
                     status (create-time only): "planned" (default) | "rejected"
-  update-status     stdin JSON: {id, status, commit?, notes?, add_touches?}
+                    doc: "none" | a relative path ending in .md (no leading
+                    slash, no drive letter, no ".." segments) -- a forced
+                    choice, omitted entirely (not defaulted) when not given
+  update-status     stdin JSON: {id, status, commit?, notes?, add_touches?, doc?}
                     status: "planned" | "in_progress" | "deferred" | "done" | "dropped" | "rejected"
                     "deferred" = recorded but waiting on an external trigger;
                     excluded from next-candidates until moved back to "planned"
@@ -514,6 +578,7 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     git/the sha is unavailable) -- add_touches adds more on
                     top, for anything outside that commit's diff
                     add_touches: array of paths to fold into touches (dedup, never removes)
+                    doc: same "none" | relative .md path contract as add
   annotate          stdin JSON: {id, notes}
                     appends notes and bumps updated_at without touching
                     status -- use for a breadcrumb write so a stale status
@@ -637,5 +702,8 @@ module.exports = {
   reaches,
   normalizeWords,
   jaccard,
+  DECISION_ANCHOR_RE,
+  anchorIdsIn,
+  anchorHasId,
   USAGE,
 };
