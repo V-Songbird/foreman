@@ -342,3 +342,44 @@ describe('drift pins', () => {
     assert.ok(skill.includes('ROADMAP.jsonl entry `<id>`'));
   });
 });
+
+describe('orchestration block (--orchestration)', () => {
+  const orchBlock = `<orchestration>${canonical.orchestration}</orchestration>`;
+
+  test('verbatim block passes with --orchestration', () => {
+    const project = makeTmpProject();
+    const prompt = goodPrompt({ custom_sections: orchBlock });
+    const { status, json } = check(project, prompt, ['--destination', 'clipboard', '--orchestration']);
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.equal(json.ok, true);
+  });
+
+  test('missing block with --orchestration is an error', () => {
+    const project = makeTmpProject();
+    const { json } = check(project, goodPrompt(), ['--destination', 'clipboard', '--orchestration']);
+    assert.ok(json.errors.some((e) => e.includes('missing <orchestration>')));
+  });
+
+  test('altered block with --orchestration is an error', () => {
+    const project = makeTmpProject();
+    const prompt = goodPrompt({
+      custom_sections: '<orchestration>\nDelegate whatever you feel like.\n</orchestration>',
+    });
+    const { json } = check(project, prompt, ['--destination', 'clipboard', '--orchestration']);
+    assert.ok(json.errors.some((e) => e.includes('<orchestration> differs')));
+  });
+
+  test('block present without --orchestration is an error', () => {
+    const project = makeTmpProject();
+    const prompt = goodPrompt({ custom_sections: orchBlock });
+    const { json } = check(project, prompt, ['--destination', 'agent']);
+    assert.ok(json.errors.some((e) => e.includes('not the Fable-orchestrator option')));
+  });
+
+  test('the template names the fableEnabled declaration and the two-check boundary', () => {
+    const raw = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
+    assert.ok(raw.includes('`fableEnabled`'));
+    assert.ok(raw.includes('Fable — orchestrates workers per slice'));
+    assert.ok(raw.includes('--orchestration'));
+  });
+});

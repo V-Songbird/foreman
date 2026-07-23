@@ -223,7 +223,11 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      or overrides — never an automatic switch, never inside the assembled
      prompt itself (the target model never sees a description of its own
      expected failure modes), never a block, never a status or schema
-     change.
+     change. When the render-sections result's `fableEnabled` is `true`
+     and the gathered verification checks number two or more, also offer
+     the Fable-orchestrator option per `prompt-template.md`'s
+     `fableEnabled` bullet — picking it includes the template's
+     `<orchestration>` block and the gate runs with `--orchestration`.
    - `decision_log` — when step 1's render-sections result carries
      `decisionLog.enabled` true, include the template's `<decision_log>`
      block, substituting its `dir` for `<dir>` and this entry's id for

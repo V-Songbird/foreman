@@ -68,6 +68,21 @@ function readTargetModel(config) {
   };
 }
 
+// Declaration, not detection, same spirit as readTargetModel: the project
+// states whether the operator can run Fable 5 at all (Max plan or API —
+// other plans can't). Default false. When true, the executing-model
+// question may offer the Fable-orchestrator option on multi-check tasks —
+// see prompt-template.md's fableEnabled bullet.
+function readFableEnabled(config) {
+  const value = config?.fableEnabled;
+  if (value === undefined) return { value: false, warning: null };
+  if (typeof value === "boolean") return { value, warning: null };
+  return {
+    value: false,
+    warning: `fableEnabled: ${JSON.stringify(value)} is not a boolean — defaulted to false`,
+  };
+}
+
 // Delegates the decision-log settings chain (env override ->
 // .foreman/config.json's `decisionLog` group -> defaults) to the module
 // that owns it for all three consumers, instead of restating the parse
@@ -98,6 +113,7 @@ const RESERVED_TAGS = new Set([
   "task_rules",
   "example",
   "output_format",
+  "orchestration",
 ]);
 
 // Only these template tags are ever conditional in the first place — the
@@ -178,18 +194,21 @@ function render(root) {
   const sectionsResult = renderSections(config.customSections);
   const omitResult = renderOmit(config.omitSections);
   const targetModelResult = readTargetModel(config);
+  const fableEnabledResult = readFableEnabled(config);
   const decisionLog = readDecisionLogSection(root);
   return {
     usePersona: readUsePersona(config),
     sections: sectionsResult.sections,
     omit: omitResult.omit,
     targetModel: targetModelResult.value,
+    fableEnabled: fableEnabledResult.value,
     decisionLog: { enabled: decisionLog.enabled, dir: decisionLog.dir },
     warnings: [
       ...(configWarning ? [configWarning] : []),
       ...sectionsResult.warnings,
       ...omitResult.warnings,
       ...(targetModelResult.warning ? [targetModelResult.warning] : []),
+      ...(fableEnabledResult.warning ? [fableEnabledResult.warning] : []),
       ...(decisionLog.warning ? [decisionLog.warning] : []),
     ],
   };
@@ -210,6 +229,7 @@ module.exports = {
   readConfig,
   readUsePersona,
   readTargetModel,
+  readFableEnabled,
   readDecisionLogSection,
   escapeXml,
   renderSections,

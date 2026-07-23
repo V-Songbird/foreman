@@ -8,6 +8,13 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.40.0-alpha] — 2026-07-22
+
+### Added
+
+- New `fableEnabled` setting in `.foreman/config.json` (default `false`). Declare it `true` when your plan can run Fable 5, and tasks with two or more verification checks gain a `Fable — orchestrates workers per slice` option in the executing-model question: Fable never edits files itself, it dispatches one implementer subagent per check and reviews each result before accepting it.
+- The prompt gate (`check-prompt.js`) gained an `--orchestration` flag that verifies the orchestration block rides verbatim, and flags it when it appears for any other executing model.
+
 ## [0.39.0-alpha] — 2026-07-22
 
 ### Added

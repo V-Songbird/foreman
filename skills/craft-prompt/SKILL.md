@@ -159,10 +159,16 @@ concrete one; otherwise (`inherit`) judge it from the task the user
 described against `prompt-template.md`'s "Model fit" note, and add a
 one-line why to Q1's context (e.g. "bounded single-file change — Haiku
 fits", or "reconciles renamed refs — Sonnet/Opus, past the Haiku cliff"):
-- `Haiku`
+- `Haiku` — when the render-sections result's `fableEnabled` is `true`
+  AND Call 3 gathered two or more verification checks, a
+  `Fable — orchestrates workers per slice` option takes this slot instead
+  (`prompt-template.md`'s `fableEnabled` bullet owns the rule; a
+  multi-check task is past Haiku's fit anyway).
 - `Sonnet`
 - `Opus` — when the recommendation resolved to `fable`, a `Fable` option
-  takes this slot instead (the Agent tool accepts `fable` as a model value).
+  takes this slot instead (the Agent tool accepts `fable` as a model
+  value); if the Fable-orchestrator option is already showing in Haiku's
+  slot, Opus keeps this one.
 - `Inherit the session's model` (background Agent) or `Unknown — it
   varies` (clipboard) — no override; leads when the project left
   `targetModel` at `inherit` and the task gives no clear model signal.
@@ -175,6 +181,10 @@ The user can always override the default. The answer does two jobs:
 - **Dispatch** (background Agent only): a concrete model becomes the
   `Agent` call's literal `model` value (`haiku`/`sonnet`/`opus`/`fable`);
   `Inherit the session's model` means leaving `model` out of the call.
+
+The Fable-orchestrator option is `fable` for both jobs, plus one more:
+the assembled prompt includes the template's `<orchestration>` block, and
+the mechanical gate runs with `--orchestration`.
 
 ---
 
@@ -209,6 +219,9 @@ gathered fields onto the template's placeholders:
   template's Workflow-stage flavor overrides both (fixed sentence,
   mechanical tone omission, schema-authoring and delivery rules all live
   there) — the schema itself derives from Call 4's Workflow-stage answer
+- `orchestration` ← include the template's `<orchestration>` block,
+  verbatim, only when Call 6's answer was the Fable-orchestrator option
+  (the template's own craft-time gate says the same); omit it otherwise
 - `decision_log` ← include the template's `<decision_log>` block when the
   render-sections result's `decisionLog.enabled` is true, substituting its
   `dir` for `<dir>`; omit it when false (the template's own craft-time gate

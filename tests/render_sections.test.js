@@ -309,6 +309,45 @@ describe('render-sections — targetModel', () => {
   });
 });
 
+describe('render-sections — fableEnabled', () => {
+  test('no config.json -> fableEnabled defaults to false', () => {
+    const { json } = run();
+    assert.equal(json.fableEnabled, false);
+    assert.deepEqual(json.warnings, []);
+  });
+
+  test('config.json without fableEnabled -> defaults to false', () => {
+    writeConfig(project, { discoverySuggestions: true });
+    const { json } = run();
+    assert.equal(json.fableEnabled, false);
+  });
+
+  for (const value of [true, false]) {
+    test(`fableEnabled: ${value} passes through`, () => {
+      writeConfig(project, { fableEnabled: value });
+      const { json } = run();
+      assert.equal(json.fableEnabled, value);
+      assert.deepEqual(json.warnings, []);
+    });
+  }
+
+  test('a non-boolean fableEnabled defaults to false with a warning, no throw', () => {
+    writeConfig(project, { fableEnabled: 'on' });
+    const { status, json } = run();
+    assert.equal(status, 0);
+    assert.equal(json.fableEnabled, false);
+    assert.equal(json.warnings.length, 1);
+    assert.match(json.warnings[0], /not a boolean/);
+  });
+
+  test('a customSections tag named "orchestration" is reserved and skipped', () => {
+    writeConfig(project, { customSections: [{ tag: 'orchestration', content: 'x' }] });
+    const { json } = run();
+    assert.deepEqual(json.sections, []);
+    assert.match(json.warnings[0], /reserved/);
+  });
+});
+
 describe('render-sections — decisionLog', () => {
   test('no config.json -> disabled, default dir, no warnings', () => {
     const { json } = run();
