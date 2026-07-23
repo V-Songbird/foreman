@@ -96,7 +96,7 @@ The roadmap is a plain file in your repo (field-by-field details in [`roadmap-sc
 
 ### Why-notes for decisions
 
-Git remembers every diff. Nobody remembers *why*. Turn on `decisionLog` and any task that makes a real call writes a short note — the choice, the options that lost, the consequences — one file per task, tagged into the code with a `[Foreman: 019]` anchor. Six months later you get the reasoning, not a git-blame dig. Open a file that carries an anchor and Foreman shows you the note before you undo a decision you didn't know was there. A task can't close without one, or an explicit `"none"`.
+Git remembers every diff. Nobody remembers *why*. With foreman, any task that makes a real call writes a short note — the choice, the options that lost, the consequences — one file per task, tagged into the code with a `[Foreman: 019]` anchor. Six months later you get the reasoning, not a git-blame dig. Open a file that carries an anchor and Foreman shows you the note before you undo a decision you didn't know was there. A task can't close without one, or an explicit `"none"`.
 
 ## Settings
 
