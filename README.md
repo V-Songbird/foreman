@@ -43,7 +43,7 @@ Foreman keeps the plan where the code lives: a plain-language roadmap, committed
 | You commit | Finished tasks get checked off; opt in and new work the commit uncovered gets flagged too |
 | You suspect the plan has drifted | The top tasks get double-checked against the actual code, and the roadmap corrected |
 
-And when a handoff runs as tracked tasks — here, or pasted into another session from a copied prompt with several checks — every finished task lands as a commit on a dedicated `foreman/<slug>` branch — done work stays done, and at the end you choose: squash, merge, PR, or keep.
+Hand a task off as tracked work and every finished piece lands as its own commit on a `foreman/<slug>` branch. Done work stays done. At the end you pick what happens to it: squash, merge, PR, or keep.
 
 ## Install
 
@@ -94,15 +94,9 @@ We measured what a good handoff is actually worth: the same real coding jobs, ru
 
 The roadmap is a plain file in your repo (field-by-field details in [`roadmap-schema.md`](roadmap-schema.md)), and every prompt Foreman assembles is script-checked before it ships — a malformed handoff never reaches a session. Pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush): razor cuts the code, hush cuts the noise, Foreman writes the prompts — and measured together, the three add no overhead to each other.
 
-### Decision docs
+### Why-notes for decisions
 
-Git remembers every diff. Nobody remembers why. Turn on `decisionLog` and any task that decides something writes a short ADR — one file per roadmap entry, at `<dir>/<id>.md` — and marks the code it governs with an anchor comment, `[Foreman: 019]` (or `[Foreman: 019, 034]` once more than one decision lands on the same spot). Come back in six months and you get the choice, the alternatives that lost, and the consequences — not a git-blame dig.
-
-Closing a task is a forced choice, not an afterthought: every finished entry names its doc, or says `"none"` when nothing was worth writing down. Skip that, point it at a doc that was never written, or forget the anchor in the commit, and the completion check catches it — `gate` decides how loud: `off` stays silent, `nudge` (the default) reminds you, `block` holds the completion until the record's fixed.
-
-The anchors keep paying off after the fact, too: read or edit any file carrying one and Foreman surfaces the doc it points to — before you violate a decision you didn't know was there, not after.
-
-Decision docs are dated records, never rewritten backward. Change your mind later and the old doc stays as it was; the new one names it in its own `supersedes` frontmatter instead. The history stays honest either way.
+Git remembers every diff. Nobody remembers *why*. Turn on `decisionLog` and any task that makes a real call writes a short note — the choice, the options that lost, the consequences — one file per task, tagged into the code with a `[Foreman: 019]` anchor. Six months later you get the reasoning, not a git-blame dig. Open a file that carries an anchor and Foreman shows you the note before you undo a decision you didn't know was there. A task can't close without one, or an explicit `"none"`.
 
 ## Settings
 
@@ -116,10 +110,10 @@ Most people never touch these — `/foreman:init` asks the questions and writes 
 | `customSections` | Extra sections to add to crafted prompts, each `{tag, content}` rendered as an inline `<tag>` block. Tags reserved by the template are rejected. Default none. |
 | `requireVerification` | Hold off marking a task done after a commit until you confirm it's verified. Default `false`. |
 | `taskCloseGate` | When a tracked task finishes with its roadmap entry still open: `off` says nothing, `nudge` (default) reminds you to close it, `block` holds the completion until you do. |
-| `decisionLog` | Per-task decision docs: `{enabled, dir, gate}`. `enabled` (default `true`) turns them on — set `false` to opt out — `dir` (default `docs/foreman`) is where they're written, `gate` (default `nudge`) sets how a missing doc or anchor is enforced at completion — `off`, `nudge`, or `block`, same ladder as `taskCloseGate`. Environment overrides can flip it on or repoint the folder for a single run without touching the file. |
-| `checkpoints` | How task-split runs commit their work. Four optional keys: `baseBranch` names the base branch (default: auto-detect), `branch: false` checkpoints on the current branch instead of creating a `foreman/<slug>` one, `push: true` pushes each checkpoint commit (default: keep them local), and `onFinish` set to `squash`, `merge`, `pr`, or `keep` performs that end-of-run action directly instead of asking (default: `ask`). |
-| `targetModel` | How much detail crafted prompts spell out, scoped to the model that runs them: `haiku` elaborates fully, `sonnet`, `opus`, and `fable` skip scaffolding those models don't need, and `inherit` (default) keeps the standard level. At `inherit`, Foreman recommends a model per task at craft and dispatch time for you to confirm or override; set a concrete value to pin one for every prompt. |
-| `fableEnabled` | Declare that your plan can run Fable 5 (Max or API). On tasks with two or more verification checks, the executing-model question then offers `Fable — orchestrates workers per slice`: Fable never edits files itself, it dispatches one implementer subagent per check and reviews each result before accepting it. Default `false`. |
+| `decisionLog` | The why-notes above: `{enabled, dir, gate}`. `dir` is where they're written (default `docs/foreman`), `gate` sets how strictly a missing note is enforced — `off`, `nudge`, or `block`. On by default. |
+| `checkpoints` | How task-split runs save their work. Optional keys set the base branch, whether to use a `foreman/<slug>` branch, whether to push each commit, and what to do at the end — `squash`, `merge`, `pr`, or `keep`. Default: ask you. |
+| `targetModel` | How much detail a prompt spells out, tuned to the model that runs it — smaller models get more scaffolding, bigger ones less. Default `inherit` keeps a standard level and suggests a model per task; set a concrete value to pin one. |
+| `fableEnabled` | Say your plan can run Fable 5. On tasks with two or more checks, Foreman then offers to let Fable orchestrate — it hands each check to its own worker and reviews the result instead of editing files itself. Default `false`. |
 
 Running with razor and hush? The recommended shape is:
 
