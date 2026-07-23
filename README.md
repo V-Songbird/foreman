@@ -110,12 +110,13 @@ Most people never touch these — `/foreman:init` asks the questions and writes 
 
 | Setting | What it does |
 | --- | --- |
-| `discoverySuggestions` | After each commit, offer new roadmap entries Claude spotted in the work. |
-| `usePersona` | Whether handoff prompts open with a "You are a…" role sentence, or plain domain framing. |
-| `omitSections` | Prompt sections to leave out entirely (`tone`, `example`, `background`, `output_format`). |
-| `requireVerification` | Hold off marking a task done after a commit until you confirm it's verified. |
+| `discoverySuggestions` | After each commit, offer new roadmap entries Claude spotted in the work. On by default; set `false` to silence it. |
+| `usePersona` | Whether handoff prompts open with a "You are a…" role sentence (default `true`), or plain domain framing. |
+| `omitSections` | Prompt sections to leave out entirely (`tone`, `example`, `background`, `output_format`). Default none. |
+| `customSections` | Extra sections to add to crafted prompts, each `{tag, content}` rendered as an inline `<tag>` block. Tags reserved by the template are rejected. Default none. |
+| `requireVerification` | Hold off marking a task done after a commit until you confirm it's verified. Default `false`. |
 | `taskCloseGate` | When a tracked task finishes with its roadmap entry still open: `off` says nothing, `nudge` (default) reminds you to close it, `block` holds the completion until you do. |
-| `decisionLog` | Per-task decision docs: `{enabled, dir, gate}`. `enabled` (default `false`) turns them on, `dir` (default `docs/foreman`) is where they're written, `gate` (default `nudge`) sets how a missing doc or anchor is enforced at completion — `off`, `nudge`, or `block`, same ladder as `taskCloseGate`. Environment overrides can flip it on or repoint the folder for a single run without touching the file. |
+| `decisionLog` | Per-task decision docs: `{enabled, dir, gate}`. `enabled` (default `true`) turns them on — set `false` to opt out — `dir` (default `docs/foreman`) is where they're written, `gate` (default `nudge`) sets how a missing doc or anchor is enforced at completion — `off`, `nudge`, or `block`, same ladder as `taskCloseGate`. Environment overrides can flip it on or repoint the folder for a single run without touching the file. |
 | `checkpoints` | How task-split runs commit their work. Four optional keys: `baseBranch` names the base branch (default: auto-detect), `branch: false` checkpoints on the current branch instead of creating a `foreman/<slug>` one, `push: true` pushes each checkpoint commit (default: keep them local), and `onFinish` set to `squash`, `merge`, `pr`, or `keep` performs that end-of-run action directly instead of asking (default: `ask`). |
 | `targetModel` | How much detail crafted prompts spell out, scoped to the model that runs them: `haiku` elaborates fully, `sonnet`, `opus`, and `fable` skip scaffolding those models don't need, and `inherit` (default) keeps the standard level. At `inherit`, Foreman recommends a model per task at craft and dispatch time for you to confirm or override; set a concrete value to pin one for every prompt. |
 | `fableEnabled` | Declare that your plan can run Fable 5 (Max or API). On tasks with two or more verification checks, the executing-model question then offers `Fable — orchestrates workers per slice`: Fable never edits files itself, it dispatches one implementer subagent per check and reviews each result before accepting it. Default `false`. |

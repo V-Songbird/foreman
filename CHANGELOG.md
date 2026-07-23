@@ -8,6 +8,23 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.41.0-alpha] — 2026-07-23
+
+### Added
+
+- Roadmap closes can now land inside the closing commit itself: pass `staged:true` to `update-status` after staging your work — touches derive from the index, ROADMAP.jsonl is staged alongside, and a final `Foreman: <id>` line in the commit message links entry and commit, with no sha to record and no roadmap change left uncommitted.
+- Bug-fix prompts now ask for the failing output verbatim and carry it in the prompt, so the handed-off session reads the real error instead of a paraphrase.
+- Relevant files can include a `Pattern:` line naming an existing implementation for the new code to imitate.
+
+### Changed
+
+- Roadmap discovery suggestions are now on by default — set `discoverySuggestions: false` to silence the after-commit nudge.
+- Per-task decision docs are now on by default — set `decisionLog.enabled: false` to opt out.
+- The "what does done look like" question now nudges performance and coverage goals toward a concrete metric and threshold.
+- The post-commit reminder recognizes `Foreman: <id>` commit trailers: no follow-up nudge for an entry the commit already closes, and a pointer at the named entry when one is still open.
+- When a Fable orchestrator sends a worker back, the follow-up brief now names the specific gap the work missed.
+- The decision-log audit follows trailer-linked commits when an entry records no sha.
+
 ## [0.40.2-alpha] — 2026-07-22
 
 ### Changed

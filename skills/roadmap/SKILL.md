@@ -247,16 +247,23 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
      When the work concludes, close the entry the same way — the status it
      actually earned (`done`, `dropped`, `rejected`) and your full findings
-     in `notes`. If the work changed code, commit it before closing and
-     pass the sha — `done` means the work landed, and the commit is what
-     lands it; a task that changed nothing (pure investigation) closes
-     without one:
-     `echo '{"id":"<id>","status":"<status>","commit":"<sha>","notes":"<findings>"}' | node
+     in `notes`. If the work changed code, land the close inside the same
+     commit instead of after it: stage everything (`git add -A`), close
+     with `staged:true` (the script folds the staged files into `touches`
+     and stages ROADMAP.jsonl alongside), then commit once with
+     `Foreman: <id>` as the final line of the message — that trailer is
+     the durable link between entry and commit, so no sha gets recorded
+     and the roadmap never trails uncommitted:
+     `echo '{"id":"<id>","status":"<status>","staged":true,"notes":"<findings>"}' | node
      ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
+     A task that changed nothing (pure investigation) closes without
+     staging or trailer. If the commit already landed before the close,
+     pass `"commit":"<sha>"` instead of `staged` — that path still works
+     and auto-folds touches from the commit's diff.
      When this prompt carries a `<decision_log>` block, add `doc` to that
      close call — the decision doc's path, or `"none"` when nothing was
      decided:
-     `echo '{"id":"<id>","status":"<status>","commit":"<sha>","notes":"<findings>","doc":"<path or none>"}' | node
+     `echo '{"id":"<id>","status":"<status>","staged":true,"notes":"<findings>","doc":"<path or none>"}' | node
      ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
      The entry's `notes` is where the depth lives; your final chat message
      states the outcome and points at the entry."
@@ -268,7 +275,7 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      by an earlier session — don't re-mark it; earlier findings may sit in
      its `notes` (included below), read them before re-deriving anything."
      and keep the closing instructions (status earned, findings in `notes`,
-     commit-before-done) unchanged. Include the entry's existing `notes` in
+     staged close with the `Foreman: <id>` trailer) unchanged. Include the entry's existing `notes` in
      `background`/`context` — for a resume they're prior findings, exactly
      the context the destination shouldn't have to rebuild.
 

@@ -6,7 +6,9 @@ const os = require("os");
 const path = require("path");
 const crypto = require("crypto");
 
-const { readEntries, today, filesTouchedByCommit } = require("../scripts/roadmap");
+const { execFileSync } = require("child_process");
+
+const { readEntries, today, filesTouchedByCommit, trailerIdsIn } = require("../scripts/roadmap");
 
 const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
   ? path.resolve(process.env.CLAUDE_PLUGIN_ROOT)
@@ -115,11 +117,11 @@ function readConfig(root) {
   try {
     const parsed = JSON.parse(fs.readFileSync(p, "utf-8"));
     return {
-      discoverySuggestions: parsed?.discoverySuggestions === true,
+      discoverySuggestions: parsed?.discoverySuggestions !== false,
       requireVerification: parsed?.requireVerification === true,
     };
   } catch {
-    return { discoverySuggestions: false, requireVerification: false };
+    return { discoverySuggestions: true, requireVerification: false };
   }
 }
 
@@ -142,6 +144,21 @@ function touchesTag(entry, committedSet) {
   return touches.some((t) => committedSet.has(t))
     ? " [files overlap its touches]"
     : " [no touches overlap]";
+}
+
+// HEAD's commit message, for `Foreman: <id>` trailer detection. Fail-soft
+// like every other git read here: no repo / no git -> no trailer ids.
+function headTrailerIds(root) {
+  try {
+    const msg = execFileSync("git", ["log", "-1", "--format=%B"], {
+      cwd: root,
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    return trailerIdsIn(msg);
+  } catch {
+    return [];
+  }
 }
 
 // Emitted once, only when at least one tag is shown, to keep the recall-first
@@ -170,11 +187,19 @@ const OVERLAP_CAVEAT =
 // (commit/touches) is never worth gating on a human, only the status label
 // is — so under the flag, the in_progress branch still records immediately
 // but leaves status alone until the user actually confirms it.
-function statusSyncBlock(inProgress, freshlyDone, requireVerification, committedFiles) {
+function statusSyncBlock(inProgress, freshlyDone, requireVerification, committedFiles, trailerIds) {
   const parts = [];
+  const trailerSet = new Set(trailerIds || []);
   if (inProgress.length) {
     const committedSet = new Set(committedFiles || []);
-    const tags = inProgress.map((e) => touchesTag(e, committedSet));
+    // A trailer naming the entry outranks any touches heuristic — the
+    // commit message says which entry it meant, the staged close just
+    // didn't happen before the commit.
+    const tags = inProgress.map((e) =>
+      trailerSet.has(e.id)
+        ? " [named in this commit's Foreman: trailer — this is the one]"
+        : touchesTag(e, committedSet)
+    );
     const list = inProgress.map((e, i) => `${e.id} ("${e.title}")${tags[i]}`).join(", ");
     const caveat = tags.some(Boolean) ? " " + OVERLAP_CAVEAT : "";
     if (requireVerification) {
@@ -300,7 +325,14 @@ function main() {
 
   const todayStr = today();
   const inProgress = entries.filter((e) => e.status === "in_progress");
-  const doneToday = entries.filter((e) => e.status === "done" && e.updated_at === todayStr);
+  // A `Foreman: <id>` trailer in the just-landed commit's message is a
+  // staged close's link. A done-today entry it names needs no follow-up
+  // nudge — this commit IS its closing commit, and appending the sha
+  // would re-dirty the roadmap the staged close just kept clean. Later
+  // commits (no trailer for it) still nudge as before.
+  const doneTodayAll = entries.filter((e) => e.status === "done" && e.updated_at === todayStr);
+  const trailerIds = inProgress.length || doneTodayAll.length ? headTrailerIds(root) : [];
+  const doneToday = doneTodayAll.filter((e) => !trailerIds.includes(e.id));
   const unnudged = doneToday.length
     ? filterUnnudged(root, doneToday.map((e) => e.id), todayStr)
     : new Set();
@@ -315,7 +347,7 @@ function main() {
 
   const blocks = [];
   if (inProgress.length || freshlyDone.length) {
-    blocks.push(statusSyncBlock(inProgress, freshlyDone, config.requireVerification, committedFiles));
+    blocks.push(statusSyncBlock(inProgress, freshlyDone, config.requireVerification, committedFiles, trailerIds));
   }
   if (config.discoverySuggestions) {
     blocks.push(discoveryBlock(entries));
@@ -354,6 +386,7 @@ module.exports = {
   projectDir,
   statusSyncBlock,
   touchesTag,
+  headTrailerIds,
   discoveryBlock,
   SCRIPT_PATH,
 };

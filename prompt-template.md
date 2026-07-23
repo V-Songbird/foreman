@@ -1,11 +1,12 @@
 # Foreman — prompt template
 
-<!-- foreman:practices lastmod:2026-07-18
+<!-- foreman:practices lastmod:2026-07-23
      source-a: https://code.claude.com/docs/en/best-practices.md
      source-b: https://code.claude.com/docs/en/sub-agents.md
      source-c: Anthropic Prompting 101 — Code w/ Claude 2025-05-22
      source-d: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5
-     source-e: Claude Code 2.1.214 embedded delegation guidance -->
+     source-e: Claude Code 2.1.214 embedded delegation guidance
+     source-f: https://code.claude.com/docs/en/prompt-library.md -->
 
 The handed-off session — whether run here in this session, by a
 background `Agent`, or copy-pasted elsewhere — has **zero memory** of this
@@ -131,7 +132,9 @@ an instruction for the spawned session to act on later):**
 senior security engineer", "a TypeScript developer"]." If `false`: a
 persona is established elsewhere — use domain framing, "Domain: [specific
 role/specialization].", never a second "You are a" sentence.]
-Your goal is [one sentence — what "done" looks like for this specific task].
+Your goal is [one sentence — what "done" looks like for this specific task;
+a performance or coverage goal names the metric and threshold, e.g. "p95
+under 500ms", so completion is checkable rather than declared].
 [One more sentence when the purpose is known — what this output feeds and
 who it's for, e.g. "This informs a PR description — focus on user-facing
 changes." It lets the session calibrate depth and emphasis; drop the line
@@ -217,12 +220,17 @@ elaboration `relevant_files` and `context` below carry — see its bullet.]
 <relevant_files>
 [Exact file paths with line ranges for every file the task touches.
 Example: src/auth/middleware.ts:42-80 — token refresh logic
-Include every file. No vague references like "the auth module".]
+Include every file. No vague references like "the auth module".
+When an analogous implementation exists, add one reference line —
+Pattern: src/webhooks/github.ts — build the new code the same way
+— a named reference beats general best practices.]
 </relevant_files>
 <context>
 [Architectural decisions, constraints, patterns already in use.
 Anything needed to understand the codebase without prior conversation.
-Example: "Uses JWT tokens in httpOnly cookies. No third-party auth libs."]
+Example: "Uses JWT tokens in httpOnly cookies. No third-party auth libs."
+For a bug fix, include the observed failing output verbatim under an
+"Observed failure:" line — the artifact itself, not a paraphrase of it.]
 </context>
 </background>
 
@@ -263,7 +271,8 @@ that turns on judgment) with a self-contained brief: the files to change,
 the exact change, the constraints above, and that slice's verification
 command. When it returns, review the work yourself — read the changed
 files — and run the slice's check before accepting; if it falls short,
-dispatch a corrected follow-up instead of fixing it by hand. Workers share
+dispatch a corrected follow-up naming the specific gap it missed instead
+of fixing it by hand. Workers share
 this working tree: dispatch slices one at a time, in their stated order,
 unless two slices touch disjoint files. Reading files and running commands
 yourself is fine — writing code is the one thing you always delegate.
@@ -563,10 +572,14 @@ craft time.
   present, push after each commit — the first push sets the upstream. With
   `push` `false` (the default) or no remote, the commit stays local, no
   comment.
-- **A roadmap-entry close cites the last checkpoint commit's sha** (when
-  the handoff carries one): commit first, close the entry, then mark the
-  final task completed. The entry-paragraph and gate rules above are
-  unchanged.
+- **A roadmap-entry close lands inside the last checkpoint commit** (when
+  the handoff carries one): stage everything, close the entry with
+  `staged:true` (touches derive from the index, and the script stages
+  ROADMAP.jsonl alongside), then commit with `Foreman: <id>` as the
+  message's final line — entry and commit link through that trailer, so
+  no sha gets recorded and the roadmap never trails uncommitted. Then
+  mark the final task completed. The entry-paragraph and gate rules above
+  are unchanged.
 - **After the last task, `onFinish` decides the branch's fate** — only if
   this run created the branch. When the run checkpointed on a pre-existing
   branch, or `branch` is `false`, skip this step entirely. `"ask"` (the

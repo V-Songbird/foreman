@@ -74,6 +74,7 @@ describe('no ROADMAP.jsonl', () => {
 describe('status-sync block', () => {
   test('fires when an in_progress entry exists, discovery off', () => {
     writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    writeConfig(project, { discoverySuggestions: false });
     const out = run(bashPayload('git commit -m "finish task"'));
     assert.match(out, /status-sync|in-progress ROADMAP/i);
     assert.doesNotMatch(out, /Roadmap discovery is enabled/);
@@ -81,6 +82,7 @@ describe('status-sync block', () => {
 
   test('does not fire when nothing is in_progress', () => {
     writeRoadmap(project, [{ id: '001', status: 'planned' }]);
+    writeConfig(project, { discoverySuggestions: false });
     const out = run(bashPayload('git commit -m "unrelated"'));
     assert.equal(out, '');
   });
@@ -137,6 +139,7 @@ describe('freshly-done follow-up fix', () => {
     writeRoadmap(project, [
       { id: '001', title: 'ship the thing', status: 'done', updated_at: '2020-01-01' },
     ]);
+    writeConfig(project, { discoverySuggestions: false });
     const out = run(bashPayload('git commit -m "unrelated later work"'));
     assert.equal(out, '');
   });
@@ -229,20 +232,20 @@ describe('discovery block', () => {
     assert.doesNotMatch(out, /already on the roadmap as planned/);
   });
 
-  test('does not fire when config is missing', () => {
+  test('fires by default when config is missing', () => {
     writeRoadmap(project, [{ id: '001', status: 'planned' }]);
     const out = run(bashPayload('git commit -m "add feature"'));
-    assert.equal(out, '');
+    assert.match(out, /Roadmap discovery is enabled/);
   });
 
-  test('does not fire when config is malformed JSON', () => {
+  test('fires by default when config is malformed JSON', () => {
     writeRoadmap(project, [{ id: '001', status: 'planned' }]);
     const fs = require('fs');
     const path = require('path');
     fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
     fs.writeFileSync(path.join(project, '.foreman', 'config.json'), '{not json', 'utf-8');
     const out = run(bashPayload('git commit -m "add feature"'));
-    assert.equal(out, '');
+    assert.match(out, /Roadmap discovery is enabled/);
   });
 
   test('does not fire when discoverySuggestions is explicitly false', () => {
@@ -269,6 +272,7 @@ describe('freshly-done nudge fires once per entry per day', () => {
 
   test('second commit the same day stays silent for an already-nudged entry', () => {
     writeRoadmap(project, [{ id: '001', title: 'done today', status: 'done', updated_at: todayStr() }]);
+    writeConfig(project, { discoverySuggestions: false });
     const first = run(bashPayload('git commit -m "fix 1"'));
     assert.match(first, /follow-up fix/);
     const second = run(bashPayload('git commit -m "fix 2"'));

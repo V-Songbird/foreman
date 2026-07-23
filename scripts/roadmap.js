@@ -103,6 +103,36 @@ function anchorHasId(text, id) {
   return anchorIdsIn(text).includes(String(id));
 }
 
+// Commit-message trailer linking a commit to the entry it closes:
+// `Foreman: 042` (or multi-id `Foreman: 041, 042`) as its own line. This
+// is the inverse pointer a staged close relies on -- a commit can never
+// contain its own sha, but it can name the entry id, which is known
+// before committing. Same 3-digit zero-padded grammar as the decision
+// anchors, unbracketed because trailers follow git's `Key: value` shape.
+const COMMIT_TRAILER_RE = /^Foreman:\s*\d{3}(?:\s*,\s*\d{3})*\s*$/gm;
+
+function commitTrailerFor(id) {
+  return `Foreman: ${id}`;
+}
+
+// All 3-digit ids named across every trailer line in `text` (a commit
+// message), deduped, first-seen order. matchAll clones the regex, so the
+// shared `g` flag's lastIndex never leaks across calls.
+function trailerIdsIn(text) {
+  if (!text) return [];
+  const ids = [];
+  const seen = new Set();
+  for (const match of String(text).matchAll(COMMIT_TRAILER_RE)) {
+    for (const id of match[0].match(/\d{3}/g) || []) {
+      if (!seen.has(id)) {
+        seen.add(id);
+        ids.push(id);
+      }
+    }
+  }
+  return ids;
+}
+
 const STATUSES = new Set(["planned", "in_progress", "deferred", "done", "dropped", "rejected"]);
 const SOURCES = new Set(["user", "claude-suggested"]);
 // A newly created entry only ever starts as planned or rejected — nothing
@@ -238,11 +268,52 @@ function filesTouchedByCommit(root, sha) {
   }
 }
 
+// The staged-close twin of filesTouchedByCommit: the index instead of a
+// landed commit, so a close can derive touches BEFORE the commit exists
+// and ride inside it. Same fail-soft contract. ROADMAP.jsonl itself is
+// dropped — the close is about to stage it, and it isn't task footprint.
+function filesStagedIn(root) {
+  try {
+    const out = execFileSync(
+      "git",
+      ["diff", "--cached", "--name-only", "--relative"],
+      { cwd: root, encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] }
+    );
+    return out
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((f) => f && f !== "ROADMAP.jsonl");
+  } catch {
+    return [];
+  }
+}
+
+// Best-effort `git add ROADMAP.jsonl` so a staged close needs no extra
+// caller step to fold the roadmap change into the pending commit. False
+// (git absent / not a repo) never fails the close — the caller just
+// stages the file itself.
+function stageRoadmapFile(root) {
+  try {
+    execFileSync("git", ["add", "ROADMAP.jsonl"], {
+      cwd: root,
+      stdio: ["ignore", "ignore", "ignore"],
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function cmdUpdateStatus(root, payload) {
-  const { id, status, commit, notes, add_touches, doc } = payload || {};
+  const { id, status, commit, staged, notes, add_touches, doc } = payload || {};
   if (!id || !status) throw new Error("update-status requires id, status");
   if (!STATUSES.has(status)) {
     throw new Error(`status must be one of ${[...STATUSES].join("|")}`);
+  }
+  // A staged close exists precisely because the commit doesn't yet — the
+  // two link modes are mutually exclusive by construction.
+  if (staged && commit) {
+    throw new Error("staged and commit are mutually exclusive — staged closes before the commit exists, commit records one that already landed");
   }
   if (add_touches !== undefined && !Array.isArray(add_touches)) {
     throw new Error("add_touches must be an array of paths");
@@ -263,9 +334,13 @@ function cmdUpdateStatus(root, payload) {
   }
   // touches is a growing footprint, same append-only spirit as commits — the
   // creation-time guess stays, and both what the commit's diff actually
-  // shows and whatever add_touches names get folded in instead of leaving
-  // the record stale.
-  const derivedTouches = commit ? filesTouchedByCommit(root, commit) : [];
+  // shows (or, for a staged close, the index) and whatever add_touches
+  // names get folded in instead of leaving the record stale.
+  const derivedTouches = commit
+    ? filesTouchedByCommit(root, commit)
+    : staged
+      ? filesStagedIn(root)
+      : [];
   const newTouches = [...(add_touches || []), ...derivedTouches];
   if (newTouches.length) {
     entry.touches = Array.isArray(entry.touches) ? entry.touches : [];
@@ -278,6 +353,12 @@ function cmdUpdateStatus(root, payload) {
   const warnings = notes ? fieldWarnings([["notes", notes, NOTES_APPEND_WARN_CHARS, NOTES_WARN_HINT]]) : [];
   const result = { entry };
   if (derivedTouches.length) result.derived_touches = derivedTouches;
+  // A staged close hands back the exact trailer line the commit message
+  // must carry — the entry↔commit link the recorded sha used to be.
+  if (staged) {
+    result.trailer = commitTrailerFor(id);
+    result.roadmap_staged = stageRoadmapFile(root);
+  }
   return warnings.length ? { ...result, warnings } : result;
 }
 
@@ -569,7 +650,7 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     doc: "none" | a relative path ending in .md (no leading
                     slash, no drive letter, no ".." segments) -- a forced
                     choice, omitted entirely (not defaulted) when not given
-  update-status     stdin JSON: {id, status, commit?, notes?, add_touches?, doc?}
+  update-status     stdin JSON: {id, status, commit?, staged?, notes?, add_touches?, doc?}
                     status: "planned" | "in_progress" | "deferred" | "done" | "dropped" | "rejected"
                     "deferred" = recorded but waiting on an external trigger;
                     excluded from next-candidates until moved back to "planned"
@@ -577,6 +658,15 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     actual changed files (git show, best-effort, silent if
                     git/the sha is unavailable) -- add_touches adds more on
                     top, for anything outside that commit's diff
+                    staged: true = the staged close -- call it AFTER "git add
+                    -A" and BEFORE committing: touches auto-folds from the
+                    index instead of a commit, the script stages
+                    ROADMAP.jsonl itself, and the result carries trailer
+                    ("Foreman: <id>") to put as the commit message's final
+                    line -- entry and commit link through that trailer, so
+                    the close lands inside its own commit with no sha
+                    recorded and no roadmap ride-along. Mutually exclusive
+                    with commit (which records one that already landed).
                     add_touches: array of paths to fold into touches (dedup, never removes)
                     doc: same "none" | relative .md path contract as add
   annotate          stdin JSON: {id, notes}
@@ -615,6 +705,8 @@ Examples:
     | node roadmap.js update-status
   echo '{"id":"003","status":"done","commit":"a1b2c3d","add_touches":["docs/migration.md"]}' \\
     | node roadmap.js update-status
+  git add -A && echo '{"id":"003","status":"done","staged":true}' \\
+    | node roadmap.js update-status   # then commit with "Foreman: 003" as the last line
   echo '{"id":"004","add_depends_on":["002"]}' \\
     | node roadmap.js update-deps
   node roadmap.js next-candidates --limit 5
@@ -700,11 +792,16 @@ module.exports = {
   cmdNextCandidates,
   cmdCheckDuplicate,
   filesTouchedByCommit,
+  filesStagedIn,
+  stageRoadmapFile,
   reaches,
   normalizeWords,
   jaccard,
   DECISION_ANCHOR_RE,
   anchorIdsIn,
   anchorHasId,
+  COMMIT_TRAILER_RE,
+  commitTrailerFor,
+  trailerIdsIn,
   USAGE,
 };

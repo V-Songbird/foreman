@@ -40,7 +40,7 @@ itself can't parse it to operate on it.
 | `source` | enum | yes | `user` (added directly by a person) or `claude-suggested` (originated from the commit-hook discovery flow). |
 | `depends_on` | array\<string\> | yes (may be `[]`) | Ids of tasks that must be `done` before this one is unblocked. |
 | `touches` | array\<string\> | yes (may be `[]`) | Flat file/area path hints, e.g. `"src/auth/middleware.ts"` or `"src/auth/"`. Plain strings only — no need for glob/AST matching at this scale, this is for eyeballed collision checks. Starts as a pre-work guess (may be an area-level hint, not exact); `update-status` folds in the real footprint two ways (**append-only**, same spirit as `commits` — never shrinks): automatically, whatever files the given `commit`'s own diff touched (`git show`, best-effort — silent if git or the sha is unavailable), plus optionally `add_touches` for anything outside that commit's diff. Still not required to be exhaustive: `commits[]` is the ground truth via `git show --stat`, `touches` is a convenience index on top of it, not a second ledger. |
-| `commits` | array\<string\> | yes (may be `[]`) | Short SHAs (`git rev-parse --short HEAD` output) that implemented this task. |
+| `commits` | array\<string\> | yes (may be `[]`) | Short SHAs (`git rev-parse --short HEAD` output) that implemented this task. Stays `[]` on a `staged:true` close, where the closing commit's `Foreman: <id>` message trailer is the entry↔commit link instead — a commit can't contain its own sha, and the trailer is what lets the close land *inside* the commit (`git log --grep "Foreman:"` recovers the sha). |
 | `created_at` | string (`YYYY-MM-DD`) | yes | Set once, at creation, never rewritten. |
 | `updated_at` | string (`YYYY-MM-DD`) | yes | Rewritten on every change to the entry. |
 | `notes` | string | yes (may be `""`) | Free text. **Append-only** — add to it, never overwrite what's already there. Each append lands on its own `YYYY-MM-DD`-stamped line, written by the script; don't hand-write a date into the note text. The embedded newlines are JSON-escaped, so the file stays one line per entry. This is the durable home for full findings, not a one-line breadcrumb — a dense paragraph of specific findings (exact paths/symbols, what was tried, what shipped) is expected and normal (warns past ~3000 chars). Still never a serialized JSON blob (e.g. dumping an imported/legacy record's full JSON as a string here defeats the point of a structured schema; if migrating from another tracker, map its fields onto `why`/`what`/`touches` instead of stuffing the original object into `notes`). |
@@ -61,7 +61,9 @@ itself can't parse it to operate on it.
   gating condition lives outside the roadmap. Use it instead of leaving a
   "not yet" task as `planned`, where it would keep ranking as a candidate,
   and instead of `dropped`, which means abandoned rather than postponed.
-- `done` — finished; `commits` should be non-empty.
+- `done` — finished; linked to the work either by non-empty `commits` or by
+  a `Foreman: <id>` trailer in the closing commit's message (a `staged:true`
+  close). A pure-investigation close may have neither.
 - `dropped` — was `planned`/`in_progress`, later decided not worth doing.
 - `rejected` — a `claude-suggested` entry the user explicitly declined at
   proposal time. It never becomes `planned`. Kept on record (instead of just
@@ -116,7 +118,7 @@ JSON line to stdout: `{"ok":true, ...}` on success, `{"ok":false,"error":
 | Subcommand | Input | Does |
 |---|---|---|
 | `add` | JSON via stdin: `title`, `why`, `what`, `source`, optional `depends_on`/`touches`/`notes`/`status`/`doc` | Rejects any `depends_on` id that doesn't already exist — an unresolvable id would strand the entry out of `next-candidates` with no way back (the edge only ever grows, and the guard hook denies the hand-edit repair). Computes `id` as `max(existing)+1`, defaults `status` to `"planned"` (only `"planned"` or `"rejected"` are valid at creation — a task doesn't start out `in_progress`/`done`/`dropped`), stamps `created_at`/`updated_at`, appends the line, re-validates the file. `doc`, if given, must be `"none"` or a relative `.md` path (rejects absolute paths, drive letters, `..` segments) — omitted from the entry entirely when not passed, never defaulted. Returns the new `entry`. |
-| `update-status` | JSON via stdin: `id`, `status`, optional `commit`, optional `notes`, optional `add_touches` (array of paths), optional `doc` | Transitions status, appends `commit` to `commits[]` (no duplicates), **appends** `notes` (never overwrites). If `commit` is given, runs `git show --name-only --relative` on it and folds every changed path into `touches` automatically (no duplicates, fails soft — a missing git binary, non-git project, or unknown sha just means nothing gets derived, the rest of the call still succeeds); `add_touches` folds in more paths on top, for anything outside that commit's diff. `doc` follows the same `"none"`-or-relative-`.md`-path contract as `add` and overwrites any prior value (unlike `notes`, it isn't append-only — a task's forced choice is made once per call, not accumulated). Bumps `updated_at`, re-validates the file. Returns the updated `entry`, plus `derived_touches` when the git derivation found anything. |
+| `update-status` | JSON via stdin: `id`, `status`, optional `commit`, optional `staged`, optional `notes`, optional `add_touches` (array of paths), optional `doc` | Transitions status, appends `commit` to `commits[]` (no duplicates), **appends** `notes` (never overwrites). If `commit` is given, runs `git show --name-only --relative` on it and folds every changed path into `touches` automatically (no duplicates, fails soft — a missing git binary, non-git project, or unknown sha just means nothing gets derived, the rest of the call still succeeds); `add_touches` folds in more paths on top, for anything outside that commit's diff. `staged: true` is the **staged close** — call it after `git add -A` and *before* committing: `touches` folds from the index (`git diff --cached`) instead of a commit, the script stages ROADMAP.jsonl itself, and the result carries `trailer` (`Foreman: <id>`) to put as the commit message's final line, so the close lands inside its own commit with no sha recorded and no roadmap ride-along; mutually exclusive with `commit`. `doc` follows the same `"none"`-or-relative-`.md`-path contract as `add` and overwrites any prior value (unlike `notes`, it isn't append-only — a task's forced choice is made once per call, not accumulated). Bumps `updated_at`, re-validates the file. Returns the updated `entry`, plus `derived_touches` when the git derivation found anything. |
 | `annotate` | JSON via stdin: `id`, `notes` | **Appends** `notes` (never overwrites) and bumps `updated_at` — status untouched. The notes-only write: unlike `update-status`, it can't regress an entry's status from a stale read (e.g. re-asserting `planned` on an entry another session moved to `in_progress` in the meantime). Use it whenever the only thing changing is a breadcrumb. Returns the updated `entry`. |
 | `update-deps` | JSON via stdin: `id`, plus at least one of `add_depends_on` / `remove_depends_on` (arrays of ids) | Adds ids to an existing entry's `depends_on` (no duplicates), rejects unknown ids, self-dependencies, and any addition that would close a dependency cycle (direct or transitive — walks the existing graph before writing), bumps `updated_at`. `remove_depends_on` drops edges and needs no guard of its own — a removal can't create a cycle or a dangling reference, and removing an id that isn't there is a no-op. It is the recovery path when a dependency was later `dropped`, which would otherwise leave the dependent permanently un-pickable. For a hidden dependency discovered after the entry was created — `add` only sets `depends_on` at creation time, this is the only way to correct it later. Structural, not a breadcrumb: this changes what `next-candidates` computes as unblocked, so it's the mechanism `foreman:survey` uses to make a finding persist across sessions instead of just noting it. |
 | `list` | optional flags: `--status planned,in_progress`, `--ids 002,005` (combinable, AND semantics), `--summary` | Returns `entries` — filtered by whichever flags are given, everything otherwise. Read-only. `--ids` exists so a caller that only needs a handful of specific entries (`foreman:survey` resolving a few `depends_on` ids) doesn't have to load the whole file. `--summary` strips each entry to `id`/`title`/`status`/`depends_on` — what a whole-roadmap render (`foreman:roadmap`'s Review status) actually needs; fetch the few entries that need prose via a follow-up `--ids` call. |
@@ -134,6 +136,12 @@ echo '{"id":"002","status":"done","commit":"a1b2c3d"}' \
 # paths outside that commit's own diff:
 echo '{"id":"002","status":"done","commit":"a1b2c3d","add_touches":["docs/migration.md"]}' \
   | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status
+
+# staged close — the roadmap change rides inside the closing commit itself:
+git add -A
+echo '{"id":"002","status":"done","staged":true,"notes":"..."}' \
+  | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status
+git commit -m "Add JWT refresh middleware" -m "Foreman: 002"
 
 echo '{"id":"004","add_depends_on":["002"]}' \
   | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-deps
@@ -178,7 +186,7 @@ no CLI wraps it (unlike `ROADMAP.jsonl`) — edited directly with `Read`/
 `Write` when a flag needs to change. Full field reference is in
 [`README.md`](README.md#settings); the one relevant to this file's
 own consumer (`post-commit.js`) is `discoverySuggestions` — missing or
-unparseable → treated as `false` (silent, no nudging).
+unparseable → treated as `true` (on by default); set it `false` to silence it.
 
 ---
 

@@ -41,11 +41,13 @@ Q2 asks what the user *wants* in the prompt, not what's *true* about the code �
 **Q1** — "What role should the spawned agent play?"
 Options: `Senior engineer`, `Security engineer`, `TypeScript developer`, `Python developer`, `Technical writer`, `Code reviewer`
 
-**Q2** — "What does 'done' look like? One sentence."
+**Q2** — "What does 'done' look like? One sentence. A performance or
+coverage goal names the metric and threshold (e.g. 'p95 under 500ms')."
 Options: `Bug is fixed and all tests pass`, `Feature is implemented and tested`, `Findings are written to a file in the repo, cited`, `Refactor complete — no behavior change`
 
-**Q3** — "List the relevant files with line ranges where known."
-Options: `I'll list them` (nudge user to use Other and type paths like `src/auth/middleware.ts:42-80 — token refresh logic`)
+**Q3** — "List the relevant files with line ranges where known. If an
+analogous implementation exists, name it too as a pattern to imitate."
+Options: `I'll list them` (nudge user to use Other and type paths like `src/auth/middleware.ts:42-80 — token refresh logic`, plus `Pattern: src/webhooks/github.ts — build the new code the same way` when one applies)
 
 **Q4** — "Describe the three steps: read/explore, then analyze/check, then implement/produce."
 Options: `I'll describe them`
@@ -66,6 +68,13 @@ Several checks, named in the order they should run, are fine and normal —
 each becomes its own `Run:`/`Expected:` pair in the prompt. They are also
 what Call 5b's task split cuts on, so a task with three real checks is
 worth listing all three here.
+
+**Q3** — only when Call 1's task type was `Fix a bug`: "Paste the failing
+output — stack trace, error message, or test failure — verbatim."
+Options: `None observed`
+The answer lands in `<context>` under an `Observed failure:` line, exactly
+as pasted — the artifact, not a paraphrase (the spawned session can't ask
+what the error actually said).
 
 ---
 
@@ -201,7 +210,9 @@ automatically by reading it fresh each time. Map this skill's
 gathered fields onto the template's placeholders:
 
 - `task_context`: role ← Call 2 Q1, goal ← Call 2 Q2
-- `relevant_files` ← Call 2 Q3
+- `relevant_files` ← Call 2 Q3 (including any `Pattern:` reference line)
+- observed failure ← Call 3 Q3, when gathered and not `None observed`:
+  into `<context>` under an `Observed failure:` line, verbatim
 - `task_rules`: steps ← Call 2 Q4; Constraints ← Call 4's Constraints
   answers, if selected; Verification ← Call 3, if gathered
 - review-flavored tasks (the `Security audit` task type, or the

@@ -81,6 +81,9 @@ describe('task-completed status matrix', () => {
   for (const status of ['done', 'dropped', 'rejected', 'deferred']) {
     test(`${status} entry is silent`, () => {
       writeRoadmap(project, [entry('001', status)]);
+      // Isolate the open-entry gate from the decision-log backstop, which is
+      // now on by default and would nudge a doc-less `done` close.
+      writeConfig(project, { decisionLog: { enabled: false } });
       assert.equal(run(payload(MARKER)), '');
     });
   }
@@ -214,9 +217,12 @@ function dlConfig(gate, extra) {
 }
 
 describe('decision-log backstop: enablement', () => {
-  test('disabled by default: a done entry with no doc is silent', () => {
+  test('enabled by default: a done entry with no doc nudges', () => {
     writeRoadmap(project, [doneEntry('001')]);
-    assert.equal(run(payload(MARKER)), '');
+    const out = JSON.parse(run(payload(MARKER)));
+    assert.equal(typeof out.systemMessage, 'string');
+    assert.ok(out.systemMessage.includes('001'));
+    assert.equal(out.decision, undefined);
   });
 
   test('explicitly disabled: still silent', () => {

@@ -12,7 +12,7 @@ const fs = require('fs');
 const path = require('path');
 
 const DECISION_LOG_DEFAULTS = Object.freeze({
-  enabled: false,
+  enabled: true,
   dir: 'docs/foreman',
   gate: 'nudge',
 });

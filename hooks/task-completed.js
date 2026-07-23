@@ -31,7 +31,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { spawnSync } = require("child_process");
 
-const { readEntries, anchorHasId } = require("../scripts/roadmap");
+const { readEntries, anchorHasId, trailerIdsIn } = require("../scripts/roadmap");
 const { readDecisionLog } = require("../scripts/decision-log-config");
 const { ENTRY_MARKER_RE, entryIdFromDescription } = require("./task-created");
 
@@ -168,6 +168,33 @@ function gitShow(root, shas) {
   return result.stdout || "";
 }
 
+// Commits linked to an entry by a `Foreman: <id>` message trailer — the
+// staged close's inverse pointer, where commits[] stays empty on purpose.
+// Candidates come from a loose --grep (fixed substring), then each
+// message is verified precisely with trailerIdsIn. Null on any git
+// failure, [] when no commit names the id — callers distinguish the two.
+function trailerShasFor(root, id) {
+  let result;
+  try {
+    result = spawnSync("git", ["log", "--grep=Foreman:", "--format=%h%x00%B%x1e"], {
+      cwd: root,
+      encoding: "utf-8",
+      timeout: 30000,
+    });
+  } catch {
+    return null;
+  }
+  if (!result || result.error || result.status !== 0) return null;
+  const shas = [];
+  for (const record of (result.stdout || "").split("\x1e")) {
+    const [sha, body] = record.split("\x00");
+    if (sha && sha.trim() && body && trailerIdsIn(body).includes(String(id))) {
+      shas.push(sha.trim());
+    }
+  }
+  return shas;
+}
+
 // The imperative core of a decision-log violation, or null when the entry
 // is compliant (doc "none", a doc file plus an anchored commit, or an
 // investigation-only close with no commits to audit). Callers wrap this
@@ -195,10 +222,17 @@ function decisionLogCore(root, entry, dir) {
     );
   }
 
-  // (3b) An anchor comment must sit at the governed code. An empty/absent
-  // commits array is an investigation-only close -- nothing to audit, skip.
-  const commits = Array.isArray(entry.commits) ? entry.commits.filter(Boolean) : [];
-  if (commits.length === 0) return null;
+  // (3b) An anchor comment must sit at the governed code. An empty commits
+  // array is either a staged close (the `Foreman: <id>` trailer links the
+  // commit instead of a recorded sha) or an investigation-only close --
+  // resolve the trailer first, and only skip when no commit names the id.
+  let commits = Array.isArray(entry.commits) ? entry.commits.filter(Boolean) : [];
+  if (commits.length === 0) {
+    const linked = trailerShasFor(root, id);
+    if (linked === null) return null; // git failure -- infra never blocks
+    if (linked.length === 0) return null; // investigation-only close -- nothing to audit
+    commits = linked;
+  }
 
   const patch = gitShow(root, commits);
   if (patch === null) return null; // git failure -- infra never blocks
@@ -313,5 +347,6 @@ module.exports = {
   decisionLogCore,
   dlNudgeMessage,
   dlBlockReason,
+  trailerShasFor,
   SCRIPT_PATH,
 };

@@ -356,17 +356,17 @@ describe('render-sections — fableEnabled', () => {
 });
 
 describe('render-sections — decisionLog', () => {
-  test('no config.json -> disabled, default dir, no warnings', () => {
+  test('no config.json -> enabled by default, default dir, no warnings', () => {
     const { json } = run();
-    assert.equal(json.decisionLog.enabled, false);
+    assert.equal(json.decisionLog.enabled, true);
     assert.equal(json.decisionLog.dir, 'docs/foreman');
     assert.deepEqual(json.warnings, []);
   });
 
-  test('config.json without decisionLog -> disabled, default dir', () => {
+  test('config.json without decisionLog -> enabled by default, default dir', () => {
     writeConfig(project, { discoverySuggestions: true });
     const { json } = run();
-    assert.equal(json.decisionLog.enabled, false);
+    assert.equal(json.decisionLog.enabled, true);
     assert.equal(json.decisionLog.dir, 'docs/foreman');
   });
 
@@ -374,6 +374,14 @@ describe('render-sections — decisionLog', () => {
     writeConfig(project, { decisionLog: { enabled: true } });
     const { json } = run();
     assert.equal(json.decisionLog.enabled, true);
+    assert.equal(json.decisionLog.dir, 'docs/foreman');
+    assert.deepEqual(json.warnings, []);
+  });
+
+  test('decisionLog.enabled:false explicitly opts out of the default', () => {
+    writeConfig(project, { decisionLog: { enabled: false } });
+    const { json } = run();
+    assert.equal(json.decisionLog.enabled, false);
     assert.equal(json.decisionLog.dir, 'docs/foreman');
     assert.deepEqual(json.warnings, []);
   });
@@ -421,7 +429,7 @@ describe('render-sections — decisionLog', () => {
     fs.writeFileSync(path.join(project, '.foreman', 'config.json'), '{not json', 'utf-8');
     const { status, json } = run();
     assert.equal(status, 0);
-    assert.equal(json.decisionLog.enabled, false);
+    assert.equal(json.decisionLog.enabled, true);
     assert.ok(json.warnings.some((w) => w.includes('decisionLog')));
   });
 });
