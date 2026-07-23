@@ -27,6 +27,8 @@
 //   - doc accepts "none" or a relative .md path on add/update-status,
 //     rejects traversal/absolute/non-md values, omits itself when unset,
 //     and survives list/next-candidates serialization
+//   - kind stores "decision" on add, omits itself for "build"/unset,
+//     rejects other values, and survives next-candidates serialization
 //   - DECISION_ANCHOR_RE/anchorIdsIn/anchorHasId: single- and multi-id
 //     anchor comments, ids in ordinary prose not wrapped in the anchor
 //     never match
@@ -883,6 +885,86 @@ describe('doc field', () => {
     const { json } = run(['next-candidates']);
     assert.equal(json.candidates[0].doc, 'docs/foreman/001.md');
     assert.equal(json.in_progress[0].doc, 'none');
+  });
+});
+
+describe('kind field', () => {
+  test('add stores kind "decision"', () => {
+    const { status, json } = run(['add'], {
+      title: 'Session storage', why: 'sessions vanish', what: 'in-memory or sqlite?',
+      source: 'user', kind: 'decision',
+    });
+    assert.equal(status, 0);
+    assert.equal(json.entry.kind, 'decision');
+  });
+
+  test('add omits kind entirely for "build" -- the default is never stored', () => {
+    const { json } = run(['add'], {
+      title: 'a', why: 'a', what: 'a', source: 'user', kind: 'build',
+    });
+    assert.equal('kind' in json.entry, false);
+  });
+
+  test('add omits kind entirely when not given', () => {
+    const { json } = run(['add'], { title: 'a', why: 'a', what: 'a', source: 'user' });
+    assert.equal('kind' in json.entry, false);
+  });
+
+  test('add rejects a kind that is neither build nor decision', () => {
+    const { status, json } = run(['add'], {
+      title: 'a', why: 'a', what: 'a', source: 'user', kind: 'chore',
+    });
+    assert.equal(status, 1);
+    assert.match(json.error, /kind must be one of build\|decision/);
+  });
+
+  test('kind survives next-candidates serialization for candidates and in_progress', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'candidate', status: 'planned', why: 'w', what: 'x', depends_on: [], touches: [], kind: 'decision' },
+      { id: '002', title: 'started', status: 'in_progress', why: 'w', what: 'x', depends_on: [], touches: [], kind: 'decision' },
+      { id: '003', title: 'plain build', status: 'planned', why: 'w', what: 'x', depends_on: [], touches: [] },
+    ]);
+    const { json } = run(['next-candidates']);
+    const byId = Object.fromEntries(json.candidates.map((c) => [c.id, c]));
+    assert.equal(byId['001'].kind, 'decision');
+    assert.equal('kind' in byId['003'], false);
+    assert.equal(json.in_progress[0].kind, 'decision');
+  });
+
+  describe('update-status reclassification', () => {
+    beforeEach(() => {
+      writeRoadmap(project, [
+        { id: '001', title: 'a', why: 'a', what: 'a', status: 'planned', source: 'user', depends_on: [], touches: [], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '' },
+      ]);
+    });
+
+    test('sets kind "decision" on an existing entry', () => {
+      const { status, json } = run(['update-status'], { id: '001', status: 'planned', kind: 'decision' });
+      assert.equal(status, 0);
+      assert.equal(json.entry.kind, 'decision');
+    });
+
+    test('reclassifying back to "build" drops the key', () => {
+      writeRoadmap(project, [
+        { id: '001', title: 'a', why: 'a', what: 'a', status: 'planned', source: 'user', depends_on: [], touches: [], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '', kind: 'decision' },
+      ]);
+      const { json } = run(['update-status'], { id: '001', status: 'planned', kind: 'build' });
+      assert.equal('kind' in json.entry, false);
+    });
+
+    test('rejects an invalid kind and does not write', () => {
+      const { status, json } = run(['update-status'], { id: '001', status: 'planned', kind: 'chore' });
+      assert.equal(status, 1);
+      assert.match(json.error, /kind must be one of build\|decision/);
+    });
+
+    test('omitting kind leaves an existing decision entry untouched', () => {
+      writeRoadmap(project, [
+        { id: '001', title: 'a', why: 'a', what: 'a', status: 'planned', source: 'user', depends_on: [], touches: [], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '', kind: 'decision' },
+      ]);
+      const { json } = run(['update-status'], { id: '001', status: 'in_progress' });
+      assert.equal(json.entry.kind, 'decision');
+    });
   });
 });
 

@@ -140,6 +140,15 @@ const SOURCES = new Set(["user", "claude-suggested"]);
 // transitions applied later via update-status.
 const CREATE_STATUSES = new Set(["planned", "rejected"]);
 
+// kind declares a task's purpose: "build" (implement a slice — the default,
+// so it's omitted from the entry) or "decision" (resolve an open question,
+// producing a recorded decision, not code). Only "decision" is ever stored;
+// an entry with no kind is a build, the same omit-when-default shape as doc.
+// The pick flow reads it to hand a decision entry a "decide, don't build"
+// rule — grounded in a measured ~33% baseline over-execution rate on
+// decision-shaped entries without it.
+const KINDS = new Set(["build", "decision"]);
+
 // Soft caps, not hard limits — every entry gets re-read on every `list`,
 // so a wall-of-text why/notes multiplies cost across every future call.
 // Dense means specific (exact paths/symbols), not exhaustive prose.
@@ -196,8 +205,18 @@ function validateDoc(doc) {
   }
 }
 
+// kind is a forced choice like doc: "build" or "decision". "build" is the
+// default and never stored (the entry simply has no kind key), so only
+// "decision" ever reaches the file — same omit-when-default contract callers
+// already know from doc.
+function validateKind(kind) {
+  if (!KINDS.has(kind)) {
+    throw new Error(`kind must be one of ${[...KINDS].join("|")}`);
+  }
+}
+
 function cmdAdd(root, payload) {
-  const { title, why, what, source, status, depends_on, touches, notes, doc } = payload || {};
+  const { title, why, what, source, status, depends_on, touches, notes, doc, kind } = payload || {};
   if (!title || !why || !what) {
     throw new Error("add requires title, why, what");
   }
@@ -209,6 +228,7 @@ function cmdAdd(root, payload) {
     throw new Error(`add status must be one of ${[...CREATE_STATUSES].join("|")}`);
   }
   if (doc !== undefined) validateDoc(doc);
+  if (kind !== undefined) validateKind(kind);
   const entries = readEntries(root);
   // Same trust boundary update-deps already guards: an id that doesn't
   // resolve strands the entry out of next-candidates permanently — the
@@ -236,6 +256,8 @@ function cmdAdd(root, payload) {
     notes: notes || "",
     // omitted entirely when not given -- not backfilled, not defaulted
     ...(doc !== undefined ? { doc } : {}),
+    // only a "decision" kind is stored; "build" (or unset) leaves no key
+    ...(kind === "decision" ? { kind } : {}),
   };
   entries.push(entry);
   writeEntries(root, entries);
@@ -305,7 +327,7 @@ function stageRoadmapFile(root) {
 }
 
 function cmdUpdateStatus(root, payload) {
-  const { id, status, commit, staged, notes, add_touches, doc } = payload || {};
+  const { id, status, commit, staged, notes, add_touches, doc, kind } = payload || {};
   if (!id || !status) throw new Error("update-status requires id, status");
   if (!STATUSES.has(status)) {
     throw new Error(`status must be one of ${[...STATUSES].join("|")}`);
@@ -319,11 +341,16 @@ function cmdUpdateStatus(root, payload) {
     throw new Error("add_touches must be an array of paths");
   }
   if (doc !== undefined) validateDoc(doc);
+  if (kind !== undefined) validateKind(kind);
   const entries = readEntries(root);
   const entry = entries.find((e) => e.id === id);
   if (!entry) throw new Error(`no entry with id ${id}`);
   entry.status = status;
   if (doc !== undefined) entry.doc = doc;
+  // Reclassify: store only "decision"; setting it back to "build" (the
+  // default) drops the key so the omit-when-default invariant holds.
+  if (kind === "decision") entry.kind = "decision";
+  else if (kind === "build") delete entry.kind;
   if (commit) {
     entry.commits = Array.isArray(entry.commits) ? entry.commits : [];
     if (!entry.commits.includes(commit)) entry.commits.push(commit);
@@ -541,6 +568,7 @@ function cmdNextCandidates(root, filters) {
       created_at: e.created_at,
       notes: e.notes || "",
       ...(e.doc !== undefined ? { doc: e.doc } : {}),
+      ...(e.kind !== undefined ? { kind: e.kind } : {}),
     }))
     .sort((a, b) => {
       if (hintWords.size && b.hint_score !== a.hint_score) return b.hint_score - a.hint_score;
@@ -569,6 +597,7 @@ function cmdNextCandidates(root, filters) {
       notes: e.notes || "",
       updated_at: e.updated_at,
       ...(e.doc !== undefined ? { doc: e.doc } : {}),
+      ...(e.kind !== undefined ? { kind: e.kind } : {}),
     }));
 
   const result = {
@@ -642,7 +671,7 @@ const USAGE = `roadmap.js -- mechanical CRUD for ROADMAP.jsonl. Every call
 prints one JSON line to stdout: {"ok":true, ...} on success,
 {"ok":false,"error":"..."} (exit 1) on failure.
 
-  add               stdin JSON: {title, why, what, source, depends_on?, touches?, notes?, status?, doc?}
+  add               stdin JSON: {title, why, what, source, depends_on?, touches?, notes?, status?, doc?, kind?}
                     source: "user" | "claude-suggested"
                     depends_on ids must already exist -- an id that doesn't
                     resolve would strand the entry out of next-candidates
@@ -650,6 +679,9 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     doc: "none" | a relative path ending in .md (no leading
                     slash, no drive letter, no ".." segments) -- a forced
                     choice, omitted entirely (not defaulted) when not given
+                    kind: "build" (default, never stored) | "decision" (resolve
+                    an open question, no code) -- only "decision" is stored;
+                    the pick flow hands a decision entry a "decide, don't build" rule
   update-status     stdin JSON: {id, status, commit?, staged?, notes?, add_touches?, doc?}
                     status: "planned" | "in_progress" | "deferred" | "done" | "dropped" | "rejected"
                     "deferred" = recorded but waiting on an external trigger;
@@ -669,6 +701,8 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     with commit (which records one that already landed).
                     add_touches: array of paths to fold into touches (dedup, never removes)
                     doc: same "none" | relative .md path contract as add
+                    kind: "build" | "decision" -- reclassify the entry;
+                    "decision" is stored, "build" drops the key (the default)
   annotate          stdin JSON: {id, notes}
                     appends notes and bumps updated_at without touching
                     status -- use for a breadcrumb write so a stale status

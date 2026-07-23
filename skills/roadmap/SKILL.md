@@ -203,6 +203,18 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      verification commands are what the split cuts on, so gather them
      properly instead of settling for one inferred command — a single
      check yields a single task.
+   - **Decision entry** — when the candidate carries `kind: "decision"`
+     (surfaced by `next-candidates`), this task resolves an open question,
+     not a build. Make the first `task_rule` (before the explore bullet):
+     "This is a decision, not a build: resolve the open question — state the
+     choice and the reason it wins over the alternatives — and do **not**
+     write implementation code for it. The deliverable is the decision."
+     This is the measured lever — without it, a decision-shaped entry gets
+     implemented straight into code a real fraction of the time. It pairs
+     with `decision_log`: a decision entry's product is its doc, so when the
+     `<decision_log>` block is present (below), the recorded choice lands
+     there and the close carries the `doc` path rather than `"none"`. An
+     entry with no `kind` key is an ordinary build — add nothing.
    - Model fit — a DISPATCH-time recommendation, judged now from this
      candidate's own `touches`/`what` (recorded fields only, same
      no-investigation rule as the rest of this branch), never at pick time
@@ -336,7 +348,11 @@ picking `Execute here` above, not this skill deciding on its own.
    `depends_on` (existing ids) and `touches` (path/area hints). Don't force
    the user through every field if they've already given enough in a
    one-line description (args or a natural request) — ask only for what's
-   missing.
+   missing. If the task reads as resolving an open question rather than
+   building something — the phrasing is a choice ("X or Y?", "decide
+   whether…", "pick an approach") — pass `kind: "decision"` so the pick
+   flow later hands it a decide-don't-build rule. A build is the default;
+   don't ask unless the entry genuinely looks like a decision.
 2. Before writing it, check it isn't already tracked:
    `echo '{"title":"...","why":"..."}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js check-duplicate`
    — matches carry each entry's status. On a match, name the existing
