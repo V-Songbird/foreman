@@ -213,21 +213,23 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      `prompt-template.md`'s "Model fit" note — including its grounded
      caution for a `what` that reconciles stale, conflicting, or renamed
      references, which hit a real capability cliff on Haiku in every prompt
-     format tested. Surface it as a one-line recommendation with a short
-     why in this session's own delivery message — e.g. "reconciles renamed
-     refs, past what Haiku reliably handles; recommend Sonnet/Opus". It
-     seeds the model the work runs on: dispatching a background `Agent`,
-     pass the confirmed model as that call's `model`
-     (`haiku`/`sonnet`/`opus`/`fable`, omitted for inherit/varies); either
-     way it tunes the assembled prompt's elaboration. The operator confirms
-     or overrides — never an automatic switch, never inside the assembled
+     format tested. For a background-`Agent` or clipboard destination,
+     confirm it with `craft-prompt`'s Call 6 question, asked here once the
+     verification checks are known and before assembly — same wording,
+     same four slots and substitutions (including the Fable-orchestrator
+     offer per `prompt-template.md`'s `fableEnabled` bullet: `fableEnabled`
+     true and two or more checks; picking it includes the template's
+     `<orchestration>` block and the gate runs with `--orchestration`).
+     The answer keeps its two jobs: it tunes the assembled prompt's
+     elaboration, and a background `Agent` dispatch passes it as that
+     call's literal `model` (`haiku`/`sonnet`/`opus`/`fable`, omitted for
+     inherit/varies). An `Execute here` run asks nothing — the work runs
+     in this session, so no model choice exists and the resolved
+     `targetModel` drives elaboration unchanged. The operator's answer is
+     the decision — never an automatic switch, never inside the assembled
      prompt itself (the target model never sees a description of its own
      expected failure modes), never a block, never a status or schema
-     change. When the render-sections result's `fableEnabled` is `true`
-     and the gathered verification checks number two or more, also offer
-     the Fable-orchestrator option per `prompt-template.md`'s
-     `fableEnabled` bullet — picking it includes the template's
-     `<orchestration>` block and the gate runs with `--orchestration`.
+     change.
    - `decision_log` — when step 1's render-sections result carries
      `decisionLog.enabled` true, include the template's `<decision_log>`
      block, substituting its `dir` for `<dir>` and this entry's id for
@@ -311,7 +313,8 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      The phrase "background agent" followed by the backticked id is the
      exact marker grammar the resume flow above parses — the id's own
      charset (`a` + lowercase hex) never needs escaping.
-   - **Clipboard**: nothing beyond the shared mechanics.
+   - **Clipboard**: the same "Recommended model:" line `craft-prompt`'s
+     Deliver step adds, when the confirmed model is concrete.
 
 **Hard rule — state this explicitly if the user pushes back**: this skill
 always asks before doing anything — it never silently executes a task, and
