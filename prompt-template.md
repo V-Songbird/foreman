@@ -102,12 +102,17 @@ an instruction for the spawned session to act on later):**
          `true` AND the task carries two or more `Run:`/`Expected:` pairs
          (the same boundary the task split and the clipboard checkpoint
          embed cut on): offer `Fable — orchestrates workers per slice` in
-         Haiku's slot — a multi-check task is past Haiku's fit anyway.
-         Picking it includes the `<orchestration>` block below. Grounded
-         in Foreman's own probe: on single-slice tasks orchestration
-         matched direct Fable on correctness and cost at double the wall
-         clock — delegation only pays where independent slices exist, so
-         the option never appears without them.
+         Haiku's slot. Picking it includes the `<orchestration>` block
+         below. **Not a cost or speed pick.** Foreman's own probes (single-
+         slice, and multi-slice across genuinely independent files,
+         including a variant where the orchestrator fully trusts each
+         subagent's own report instead of re-verifying it) all show it
+         costing more and running slower than direct Fable, with identical
+         correctness either way — independent slices existing does not
+         make delegation pay off. Its one real reason to pick it is
+         wanting the code itself written by Sonnet/Opus rather than Fable
+         — recommend it on that basis alone, never as a way to go faster
+         or cheaper.
    - `fableEnabled` — boolean declaration (default `false`) that the
      operator can run Fable 5 at all (Max plan or API — other plans
      can't). Declaration, not detection, same as `targetModel` — a

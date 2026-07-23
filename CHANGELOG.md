@@ -8,6 +8,12 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [Unreleased]
+
+### Changed
+
+- The Fable-orchestrator option's guidance no longer frames it as a way to save cost or time on multi-check tasks — pick it when you want Sonnet/Opus writing the code instead of Fable, not to go faster or cheaper.
+
 ## [0.41.0-alpha] — 2026-07-23
 
 ### Added
