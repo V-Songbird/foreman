@@ -8,7 +8,11 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
-## [Unreleased]
+## [0.42.0-alpha] — 2026-07-23
+
+### Added
+
+- A roadmap entry can now be marked `kind: "decision"` for tasks that resolve a question rather than ship code — the pick flow hands it a decide-don't-build task rule instead of implementation steps.
 
 ### Removed
 
