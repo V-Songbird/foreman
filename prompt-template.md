@@ -409,6 +409,9 @@ tasks — the splitting section below says what to do with a bare number.
 
 **Background Agent** — call `Agent` with `prompt` = the assembled XML
 prompt, `description` = a 3-5 word summary, `run_in_background: true`.
+Checkpoint branches and commits stay with this crafting session — a
+background Agent shares this working tree and must not switch branches or
+commit checkpoints.
 
 **Clipboard** — `Write` the assembled prompt to a temp file first; never
 pass it as an inline shell string, a large prompt breaks shell quoting and
@@ -418,6 +421,30 @@ command: `Get-Content -Raw <file> | Set-Clipboard` on Windows, `pbcopy <
 <file>`) on Linux. Mention the file path too, in case the clipboard step
 fails. If no clipboard tool is available at all, fall back to showing the
 prompt in a fenced `xml` code block instead.
+
+**Clipboard checkpoint embed** — only when the assembled prompt carries
+two or more `Run:`/`Expected:` pairs; with one or none, embed nothing.
+The pasted session never reads this file, so the protocol must ride
+inside the prompt itself: at craft time, resolve the `checkpoints` block
+of `.foreman/config.json` exactly as the checkpointing section below
+describes (same keys, same defaults), then append a compact block to the
+end of `task_rules` with the resolved values baked in — never the
+resolution rules themselves. Keep it to a dozen imperative lines,
+instructing the pasted session to:
+- create one tracked task per `Run:`/`Expected:` pair and chain each to
+  the previous one;
+- settle the branch first — name the baked base branch, or bake the
+  detection line (`git symbolic-ref --short refs/remotes/origin/HEAD`,
+  name after `origin/`, fallback `main`) when `baseBranch` was unset;
+  with `branch` `true`, create `foreman/<slug>` only when on the base
+  branch, otherwise checkpoint in place (with `branch` `false`, always
+  in place);
+- after each task's check passes, `git add -A` and commit
+  `task <n>/<total>: <task subject>`; push per the baked `push` value;
+- after the last task, apply the baked `onFinish` — `"ask"` asks the
+  user squash/merge/PR/keep, a concrete value acts directly — only when
+  the run created the branch;
+- skip checkpointing and just work the tasks if git is unavailable.
 
 **Never paste or print the assembled XML prompt into your response text** —
 it is data for `TaskCreate`'s `description`, `Agent`'s `prompt`, or a temp
@@ -466,7 +493,9 @@ single-task mode, skips this section entirely.
 
 Only for the `Tasks from the checks` execution mode, and only when the
 split produced two or more tasks. Single-task mode, `Run now`, and the
-other destinations skip this section entirely.
+other destinations skip this section entirely — except the clipboard
+checkpoint embed above, which reuses the config-resolution step below at
+craft time.
 
 - **Read the config first.** Before anything else, read the `checkpoints`
   block of `.foreman/config.json` at the project root. A missing file,

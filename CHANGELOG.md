@@ -8,6 +8,16 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.39.0-alpha] — 2026-07-22
+
+### Added
+
+- Prompts copied to the clipboard with two or more verification checks now carry the checkpoint protocol, with the project's `checkpoints` settings baked in.
+
+### Changed
+
+- The background-Agent destination now notes it is best for orchestration; checkpoint branches and commits stay with the crafting session.
+
 ## [0.38.0-alpha] — 2026-07-22
 
 ### Changed

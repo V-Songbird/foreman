@@ -164,7 +164,7 @@ Options, in this order:
   until someone actually runs the prompt (see step 4 below) — picking a
   task is not the same as starting it.
 - `Execute here` — run it in this session
-- `Execute with a background Agent` — offload it, get notified on completion
+- `Execute with a background Agent` — offload it, get notified on completion — best for orchestration, where this session owns the commits
 
 The `spawn_task` ban applies here — see `prompt-template.md`'s "Delivery
 mechanics" section.

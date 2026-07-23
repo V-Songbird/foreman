@@ -312,6 +312,29 @@ describe('drift pins', () => {
     assert.ok(raw.includes('With `push` `true` and a remote'));
   });
 
+  test('the template still carries the clipboard checkpoint embed rules', () => {
+    const raw = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
+    assert.ok(raw.includes('**Clipboard checkpoint embed**'));
+    assert.ok(raw.includes('two or more `Run:`/`Expected:` pairs; with one or none, embed nothing'));
+    assert.ok(raw.includes('with the resolved values baked in'));
+    assert.ok(raw.includes('skip checkpointing and just work the tasks if git is unavailable'));
+  });
+
+  test('the template pins background-Agent checkpointing to the crafting session', () => {
+    const raw = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
+    assert.ok(raw.includes('must not switch branches or\ncommit checkpoints'));
+  });
+
+  test('both skills carry the background-Agent orchestration steering line', () => {
+    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'SKILL.md']]) {
+      const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8');
+      assert.ok(
+        skill.includes('best for orchestration, where this session owns the commits'),
+        `${rel.join('/')} lost the orchestration steering line`
+      );
+    }
+  });
+
   test('the roadmap skill still uses the entry-paragraph grammar the checker expects', () => {
     const skill = fs.readFileSync(path.join(__dirname, '..', 'skills', 'roadmap', 'SKILL.md'), 'utf-8');
     assert.ok(skill.includes('Mark it `in_progress`'));
