@@ -98,30 +98,13 @@ an instruction for the spawned session to act on later):**
          every prompt format tested — recommend Sonnet/Opus there whatever
          the scope. Never bake this into the assembled prompt: the target
          model never sees a description of its own expected failure modes.
-       - `fable` as orchestrator, only when step 0's `fableEnabled` is
-         `true` AND the task carries two or more `Run:`/`Expected:` pairs
-         (the same boundary the task split and the clipboard checkpoint
-         embed cut on): offer `Fable — orchestrates workers per slice` in
-         Haiku's slot. Picking it includes the `<orchestration>` block
-         below. **Not a cost or speed pick.** Foreman's own probes (single-
-         slice, and multi-slice across genuinely independent files,
-         including a variant where the orchestrator fully trusts each
-         subagent's own report instead of re-verifying it) all show it
-         costing more and running slower than direct Fable, with identical
-         correctness either way — independent slices existing does not
-         make delegation pay off. Its one real reason to pick it is
-         wanting the code itself written by Sonnet/Opus rather than Fable
-         — recommend it on that basis alone, never as a way to go faster
-         or cheaper.
    - `fableEnabled` — boolean declaration (default `false`) that the
      operator can run Fable 5 at all (Max plan or API — other plans
-     can't). Declaration, not detection, same as `targetModel` — a
-     hand-set `.foreman/config.json` key, no init question. It only
-     widens the executing-model question per the Model-fit bullet above;
-     it never changes elaboration by itself. A `targetModel: "fable"` pin
-     still means direct Fable (Opus's slot, no orchestration) — when both
-     rules apply, the orchestrator option wins the offer and Opus keeps
-     its slot.
+     can't). Asked once by `foreman:init`'s Call 2b, or hand-edited later
+     in `.foreman/config.json`. Gates whether `Fable` appears at all as a
+     selectable executing model in craft-time menus — it never changes
+     elaboration by itself, and a `targetModel: "fable"` project pin
+     still resolves and elaborates as `fable` regardless of this flag.
    - `decisionLog` — `{enabled, dir}`, the project's declaration of the
      decision-log feature (default `{enabled:false, dir:"docs/foreman"}`).
      When `enabled` is `true`, include the `<decision_log>` block below,
@@ -263,26 +246,6 @@ see the splitting section below.]
 Do NOT claim success without running this. If it fails, iterate until it passes.
 </task_rules>
 
-[ORCHESTRATION — include the block below verbatim only when the confirmed
-executing model is the Fable-orchestrator option (step 0's `fableEnabled`
-bullet: `fableEnabled` true, two or more `Run:`/`Expected:` pairs, and the
-operator picked it). Omit it entirely for every other model answer,
-including a direct-Fable `targetModel` pin.]
-<orchestration>
-You orchestrate this task — you never write code yourself. Do not call Edit
-or Write on any file. For each Run:/Expected: slice above, dispatch one
-implementer subagent (the Agent tool, model "sonnet" — "opus" for a slice
-that turns on judgment) with a self-contained brief: the files to change,
-the exact change, the constraints above, and that slice's verification
-command. When it returns, review the work yourself — read the changed
-files — and run the slice's check before accepting; if it falls short,
-dispatch a corrected follow-up naming the specific gap it missed instead
-of fixing it by hand. Workers share
-this working tree: dispatch slices one at a time, in their stated order,
-unless two slices touch disjoint files. Reading files and running commands
-yourself is fine — writing code is the one thing you always delegate.
-</orchestration>
-
 [CUSTOM SECTIONS — inline each `sections[].xml` from `render-sections.js` here,
 verbatim, in order; omit this whole line if `sections` was empty]
 
@@ -380,8 +343,6 @@ using them:
       `warnings` were surfaced to the user
 - [ ] `<decision_log>` present iff step 0's `decisionLog.enabled` was
       `true`, with `dir`/`<entry-id>` substituted (absent by default)
-- [ ] `<orchestration>` present, verbatim, iff the confirmed executing
-      model was the Fable-orchestrator option (absent by default)
 - [ ] every tag in `omit` is absent from the assembled prompt, overriding
       a conflicting per-prompt selection (exception: an omitted `tone`
       stays for a background-`Agent` destination — step 0's carve-out);
@@ -417,9 +378,6 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/check-prompt.js <file> --destination <task|ag
 - `--research` — add for a pure-investigation task with no verification
   command.
 - `--workflow-stage` — add when the Workflow-stage flavor was selected.
-- `--orchestration` — add when the confirmed executing model was the
-  Fable-orchestrator option, so the `<orchestration>` block is verified
-  verbatim (and flagged if it rides along uninvited).
 
 `{"ok":true}` is the gate: fix every error and re-run until it passes —
 never deliver a prompt the checker rejected. Surface its `warnings`

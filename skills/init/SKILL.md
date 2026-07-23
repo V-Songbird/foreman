@@ -34,7 +34,8 @@ accumulated notes)`, `Keep it, just add to it`, `Cancel`
 - Overwrite → continue to Call 1, the draft phase replaces the file.
 - Keep, add to it → skip straight to the draft phase, append new entries
   instead of replacing, don't touch `.foreman/config.json` if it already
-  exists (ask the Call 2 questions only if the config file is missing).
+  exists (ask the Call 2/Call 2b questions only if the config file is
+  missing).
 - Cancel → stop here.
 
 ---
@@ -105,6 +106,20 @@ Options:
 
 ---
 
+## Call 2b — Fable access (batch 1)
+
+**Q1** — "Can this project run Fable 5? (Max plan or API — other plans
+can't)"
+Options: `Yes`, `No`
+
+Record the answer — it becomes `.foreman/config.json`'s `fableEnabled`
+field verbatim (`Yes` → `true`, `No` → `false`, the default). When `true`,
+`Fable` becomes a selectable option alongside Haiku/Sonnet/Opus in
+`craft-prompt` and `foreman:roadmap`'s executing-model question; when
+`false`, that question offers only the three models everyone can run.
+
+---
+
 ## Draft phase (no AskUserQuestion)
 
 From the Call 1 answers, draft 3–8 initial `ROADMAP.jsonl` lines following
@@ -160,23 +175,24 @@ the updated draft, ask again. Repeat until approved.
    order, and `add` rejects an id that doesn't exist yet. If any call
    returns `warnings`, mention them once at the end rather than per entry.
 3. Write `.foreman/config.json` —
-   `{"discoverySuggestions": <bool>, "usePersona": <bool>, "omitSections": [...], "requireVerification": <bool>, "taskCloseGate": "<off|nudge|block>"}`
-   from the Call 2 answers (skip this file write if the pre-check "keep,
-   add to it" branch found an existing config already).
-   **If the file already exists, `Read` it first and set those five keys on
+   `{"discoverySuggestions": <bool>, "usePersona": <bool>, "omitSections": [...], "requireVerification": <bool>, "taskCloseGate": "<off|nudge|block>", "fableEnabled": <bool>}`
+   from the Call 2/Call 2b answers (skip this file write if the pre-check
+   "keep, add to it" branch found an existing config already).
+   **If the file already exists, `Read` it first and set those six keys on
    the parsed object — any other key present must survive untouched.** This
    applies whenever the file exists, not only on the Overwrite branch: the
    pre-check only fires when `ROADMAP.jsonl` exists, so a project with a
    config but no roadmap is never asked anything and would otherwise have
    its config replaced silently. Today the keys at risk are `customSections`,
-   `targetModel`, `fableEnabled`, `checkpoints`, and `decisionLog` — init
-   writes none of them — but the rule is "everything else
+   `targetModel`, `checkpoints`, and `decisionLog` — init writes none of
+   them — but the rule is "everything else
    survives", not a list, so the next key is covered without another edit.
-   If the file exists but won't parse, write the five keys alone and say so
+   If the file exists but won't parse, write the six keys alone and say so
    in the report-back.
 4. Stage and commit just these two files:
    `git add ROADMAP.jsonl .foreman/config.json && git commit -m "chore: init foreman roadmap"`
    (Only the files this skill wrote — never a broader `git add`.)
 
-Report back: task count, discovery-suggestions on/off, and point the user
-at `/foreman:roadmap` to pick up the first task.
+Report back: task count, discovery-suggestions on/off, Fable access
+on/off, and point the user at `/foreman:roadmap` to pick up the first
+task.

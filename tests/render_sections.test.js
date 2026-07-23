@@ -339,14 +339,9 @@ describe('render-sections — fableEnabled', () => {
     assert.equal(json.warnings.length, 1);
     assert.match(json.warnings[0], /not a boolean/);
   });
+});
 
-  test('a customSections tag named "orchestration" is reserved and skipped', () => {
-    writeConfig(project, { customSections: [{ tag: 'orchestration', content: 'x' }] });
-    const { json } = run();
-    assert.deepEqual(json.sections, []);
-    assert.match(json.warnings[0], /reserved/);
-  });
-
+describe('render-sections — reserved custom section tags', () => {
   test('a customSections tag named "decision_log" is reserved and skipped', () => {
     writeConfig(project, { customSections: [{ tag: 'decision_log', content: 'x' }] });
     const { json } = run();

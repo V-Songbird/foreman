@@ -39,7 +39,6 @@ const PLACEHOLDER_FRAGMENTS = [
   "[pass/fail signal",
   "[Repeat the Run:/Expected: pair",
   "[CUSTOM SECTIONS",
-  "[ORCHESTRATION",
   "[OPTIONAL",
   "[BACKGROUND-AGENT DESTINATION",
   "[Before snippet",
@@ -84,14 +83,13 @@ function readCanonical() {
   const xml = fence[1];
   const truthGrounding = extractBlock(xml, "truth_grounding");
   const scopeDiscipline = extractBlock(xml, "scope_discipline");
-  const orchestration = extractBlock(xml, "orchestration");
   const closing = xml
     .split("\n")
     .find((line) => line.startsWith("Reason through the approach"));
-  if (!truthGrounding || !scopeDiscipline || !orchestration || !closing) {
+  if (!truthGrounding || !scopeDiscipline || !closing) {
     throw new Error(`template at ${TEMPLATE_PATH} is missing a canonical block`);
   }
-  return { xml, truthGrounding, scopeDiscipline, orchestration, closing };
+  return { xml, truthGrounding, scopeDiscipline, closing };
 }
 
 // scope_discipline embeds ${CLAUDE_PLUGIN_ROOT} paths the assembler
@@ -247,18 +245,6 @@ function checkPrompt(prompt, opts) {
     warnings.push("carries the autonomous-operation paragraph but the destination has a user present — drop it for task/clipboard");
   }
 
-  // --- orchestration block (Fable-orchestrator executing model) ---
-  const orch = extractBlock(prompt, "orchestration");
-  if (opts.orchestration) {
-    if (!orch) {
-      errors.push("missing <orchestration> — the Fable-orchestrator executing model carries it verbatim");
-    } else if (norm(orch) !== norm(canonical.orchestration)) {
-      errors.push("<orchestration> differs from the template — it must be carried verbatim");
-    }
-  } else if (orch !== null) {
-    errors.push("<orchestration> present but the executing model is not the Fable-orchestrator option — drop it (or pass --orchestration)");
-  }
-
   // --- reasoning-echo instructions ---
   const echo = prompt.match(REASONING_ECHO_RE);
   if (echo) {
@@ -285,9 +271,6 @@ Prints one JSON line: {"ok":true,"warnings":[...]} or
   --research      pure-investigation task: no verification block required.
   --workflow-stage  the Workflow-stage flavor: tone dropped, output_format
                   replaced by the fixed enforcement sentence.
-  --orchestration  the Fable-orchestrator executing model: the
-                  <orchestration> block must ride verbatim (and is an
-                  error without this flag).
 `;
 
 function parseArgs(argv) {
@@ -299,7 +282,6 @@ function parseArgs(argv) {
     else if (a === "--resume") opts.resume = true;
     else if (a === "--research") opts.research = true;
     else if (a === "--workflow-stage") opts.workflowStage = true;
-    else if (a === "--orchestration") opts.orchestration = true;
     else if (a === "--help" || a === "-h") opts.help = true;
     else if (!a.startsWith("--") && !opts.file) opts.file = a;
     else throw new Error(`unknown argument: ${a}`);

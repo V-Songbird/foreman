@@ -113,7 +113,7 @@ Most people never touch these — `/foreman:init` asks the questions and writes 
 | `decisionLog` | The why-notes above: `{enabled, dir, gate}`. `dir` is where they're written (default `docs/foreman`), `gate` sets how strictly a missing note is enforced — `off`, `nudge`, or `block`. On by default. |
 | `checkpoints` | How task-split runs save their work. Optional keys set the base branch, whether to use a `foreman/<slug>` branch, whether to push each commit, and what to do at the end — `squash`, `merge`, `pr`, or `keep`. Default: ask you. |
 | `targetModel` | How much detail a prompt spells out, tuned to the model that runs it — smaller models get more scaffolding, bigger ones less. Default `inherit` keeps a standard level and suggests a model per task; set a concrete value to pin one. |
-| `fableEnabled` | Say your plan can run Fable 5. On tasks with two or more checks, Foreman then offers to let Fable orchestrate — it hands each check to its own worker and reviews the result instead of editing files itself. Default `false`. |
+| `fableEnabled` | Whether this project can run Fable 5 (Max plan or API only). Asked once during `/foreman:init`; `true` makes `Fable` a selectable model alongside Haiku/Sonnet/Opus. Default `false`. |
 
 Running with razor and hush? The recommended shape is:
 

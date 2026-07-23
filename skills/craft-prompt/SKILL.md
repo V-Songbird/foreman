@@ -160,40 +160,38 @@ exists (Call 5b runs instead).
 
 **Q1** — background Agent: "Which model should the background Agent run
 on?" Clipboard: "Which model will run the pasted prompt?"
-Always four options, reordered so the **recommended** model leads, with
-`(Recommended)` appended to its label — same convention
-`foreman:roadmap`'s Q1 uses for its top-ranked candidate. The
-recommendation is the resolved `targetModel` when the project pinned a
-concrete one; otherwise (`inherit`) judge it from the task the user
-described against `prompt-template.md`'s "Model fit" note, and add a
-one-line why to Q1's context (e.g. "bounded single-file change — Haiku
-fits", or "reconciles renamed refs — Sonnet/Opus, past the Haiku cliff"):
-- `Haiku` — when the render-sections result's `fableEnabled` is `true`
-  AND Call 3 gathered two or more verification checks, a
-  `Fable — orchestrates workers per slice` option takes this slot instead
-  (`prompt-template.md`'s `fableEnabled` bullet owns the rule; a
-  multi-check task is past Haiku's fit anyway).
-- `Sonnet`
-- `Opus` — when the recommendation resolved to `fable`, a `Fable` option
-  takes this slot instead (the Agent tool accepts `fable` as a model
-  value); if the Fable-orchestrator option is already showing in Haiku's
-  slot, Opus keeps this one.
-- `Inherit the session's model` (background Agent) or `Unknown — it
-  varies` (clipboard) — no override; leads when the project left
-  `targetModel` at `inherit` and the task gives no clear model signal.
+`Haiku`, `Sonnet`, `Opus` always; `Fable` too, but only when the
+render-sections result's `fableEnabled` is `true` — three options when
+it's `false` (the default), four when it's `true`. Reordered so the
+**recommended** model leads, with `(Recommended)` appended to its label —
+same convention `foreman:roadmap`'s Q1 uses for its top-ranked candidate.
+The recommendation is the resolved `targetModel` when the project pinned
+a concrete one; otherwise (`inherit`) judge it from the task the user
+described against `prompt-template.md`'s "Model fit" note. A `targetModel:
+"fable"` project pin still recommends `Fable` even when `fableEnabled` is
+`false` — a direct pin is its own declaration, independent of the
+interactive-menu gate.
+
+No fifth "Inherit"/"Unknown" slot — `AskUserQuestion` caps authored
+options at four, and the tool's own automatic `Other` already covers
+"not sure" / "whatever it inherits" as free text, so a dedicated option
+for that would cost one of the four real models a slot for no reason.
+Add a one-line why to Q1's context (e.g. "bounded single-file change —
+Haiku fits", or "reconciles renamed refs — Sonnet/Opus/Fable, past the
+Haiku cliff"), plus this hint so the user knows the escape hatch exists:
+"Not sure, or want it to inherit the session's model? Pick Other and
+leave it blank or say so."
 
 The user can always override the default. The answer does two jobs:
 - **Elaboration**: a concrete model becomes the effective target model
   for the template's elaboration scoping, overriding `targetModel` — the
-  model actually running the task wins over the project declaration.
-  `Inherit` / `Unknown` keeps the resolved `targetModel`.
+  model actually running the task wins over the project declaration. An
+  `Other` answer that doesn't name a concrete model keeps the resolved
+  `targetModel` instead.
 - **Dispatch** (background Agent only): a concrete model becomes the
   `Agent` call's literal `model` value (`haiku`/`sonnet`/`opus`/`fable`);
-  `Inherit the session's model` means leaving `model` out of the call.
-
-The Fable-orchestrator option is `fable` for both jobs, plus one more:
-the assembled prompt includes the template's `<orchestration>` block, and
-the mechanical gate runs with `--orchestration`.
+  an `Other` answer that doesn't name a concrete model means leaving
+  `model` out of the call.
 
 ---
 
@@ -230,9 +228,6 @@ gathered fields onto the template's placeholders:
   template's Workflow-stage flavor overrides both (fixed sentence,
   mechanical tone omission, schema-authoring and delivery rules all live
   there) — the schema itself derives from Call 4's Workflow-stage answer
-- `orchestration` ← include the template's `<orchestration>` block,
-  verbatim, only when Call 6's answer was the Fable-orchestrator option
-  (the template's own craft-time gate says the same); omit it otherwise
 - `decision_log` ← include the template's `<decision_log>` block when the
   render-sections result's `decisionLog.enabled` is true, substituting its
   `dir` for `<dir>`; omit it when false (the template's own craft-time gate
@@ -256,10 +251,11 @@ this skill layers on top:
 
 - **Background Agent** — pass `model` = Call 6's answer as its literal
   string (`haiku`/`sonnet`/`opus`/`fable`); omit the `model` parameter
-  entirely when the answer was "Inherit the session's model".
+  entirely when the answer was an `Other` that didn't name a concrete
+  model.
 - **Clipboard** — if the effective target model (Call 6's answer, else
   `targetModel`) is concrete, add one more line alongside the file path:
   "Recommended model: [Haiku/Sonnet/Opus/Fable] — this prompt's
   elaboration level was calibrated for it." Skip that line when it
-  resolved to `inherit` or `Unknown` — no fixed target, so there's nothing
-  to recommend.
+  resolved to `inherit` or no concrete model was named — no fixed target,
+  so there's nothing to recommend.

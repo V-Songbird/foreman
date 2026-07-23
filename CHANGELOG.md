@@ -10,9 +10,13 @@ field by convention).
 
 ## [Unreleased]
 
+### Removed
+
+- The Fable-orchestrator option is gone. Fable now always runs tasks directly, the same as any other model.
+
 ### Changed
 
-- The Fable-orchestrator option's guidance no longer frames it as a way to save cost or time on multi-check tasks — pick it when you want Sonnet/Opus writing the code instead of Fable, not to go faster or cheaper.
+- `/foreman:init` now asks whether the project can run Fable 5 (Max plan or API only). Say yes and `Fable` becomes a selectable model alongside Haiku, Sonnet, and Opus; say no (the default) and it's left out of the menu entirely.
 
 ## [0.41.0-alpha] — 2026-07-23
 

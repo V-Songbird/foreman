@@ -68,11 +68,12 @@ function readTargetModel(config) {
   };
 }
 
-// Declaration, not detection, same spirit as readTargetModel: the project
-// states whether the operator can run Fable 5 at all (Max plan or API —
-// other plans can't). Default false. When true, the executing-model
-// question may offer the Fable-orchestrator option on multi-check tasks —
-// see prompt-template.md's fableEnabled bullet.
+// Declaration, not detection: the project states whether it can run
+// Fable 5 at all (Max plan or API — other plans can't). Set once via
+// foreman:init's Call 2b, or hand-edited later. Default false. Gates
+// whether `Fable` appears as a selectable option in craft-prompt/
+// foreman:roadmap's executing-model question — see prompt-template.md's
+// fableEnabled bullet.
 function readFableEnabled(config) {
   const value = config?.fableEnabled;
   if (value === undefined) return { value: false, warning: null };
@@ -113,7 +114,6 @@ const RESERVED_TAGS = new Set([
   "task_rules",
   "example",
   "output_format",
-  "orchestration",
   "decision_log",
 ]);
 

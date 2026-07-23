@@ -228,12 +228,10 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      format tested. For a background-`Agent` or clipboard destination,
      confirm it with `craft-prompt`'s Call 6 question, asked here once the
      verification checks are known and before assembly — same wording,
-     same four slots and substitutions (including the Fable-orchestrator
-     offer per `prompt-template.md`'s `fableEnabled` bullet: `fableEnabled`
-     true and two or more checks; picking it includes the template's
-     `<orchestration>` block and the gate runs with `--orchestration`).
-     The answer keeps its two jobs: it tunes the assembled prompt's
-     elaboration, and a background `Agent` dispatch passes it as that
+     same slots and substitutions (`Fable` included only when
+     `fableEnabled` is `true`). The answer keeps its two jobs: it
+     tunes the assembled prompt's elaboration, and a background `Agent`
+     dispatch passes it as that
      call's literal `model` (`haiku`/`sonnet`/`opus`/`fable`, omitted for
      inherit/varies). An `Execute here` run asks nothing — the work runs
      in this session, so no model choice exists and the resolved
