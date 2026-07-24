@@ -8,6 +8,16 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.43.0-alpha] — 2026-07-23
+
+### Removed
+
+- The `nudge` setting is gone from `taskCloseGate` and `decisionLog.gate`. Both now accept `off` or `block`, and both default to `off` — a project that wants the close gate enforced sets `block` explicitly. A config still holding `nudge` falls back to `off`.
+
+### Fixed
+
+- The close gate's reminder mode produced no message at all. Its replacement, `block`, holds the completion and states what to close.
+
 ## [0.42.0-alpha] — 2026-07-23
 
 ### Added
