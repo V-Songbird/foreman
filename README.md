@@ -69,6 +69,12 @@ You talk to Foreman in plain language. Touching the roadmap file by hand defeats
 | Build a handoff prompt for a specific task | `/foreman:craft-prompt` |
 | Double-check the top tasks against your actual code | `/foreman:survey` |
 
+## Why-notes that find you later
+
+Git remembers every diff. Nobody remembers *why*. Turn this on and any task that makes a real call writes a short note — the choice, the options that lost, what it commits you to — tagged into the code it governs. Open that code six months later and Foreman hands you the note before you undo a decision you didn't know was there. It's off until you ask for it, since it writes files into your repo and comments into your source. The whole feature fits on one page: [`decision-log.md`](decision-log.md).
+
+Seeing `Foreman: 019` at the bottom of your commits? Different thing, always on. A finished task closes in the same commit as the code it changed, so the commit names the task instead of the roadmap chasing a SHA that doesn't exist yet — one commit, no second "update the roadmap" commit cluttering your history. Same page covers it.
+
 ## Benchmarks
 
 We measured what a good handoff is actually worth: the same real coding jobs, run as full agent sessions, started four ways — from a bare one-line ask up to a Foreman handoff — with the real bill read straight from the API.
@@ -94,13 +100,9 @@ We measured what a good handoff is actually worth: the same real coding jobs, ru
 
 The roadmap is a plain file in your repo (field-by-field details in [`roadmap-schema.md`](roadmap-schema.md)), and every prompt Foreman assembles is script-checked before it ships — a malformed handoff never reaches a session. Pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush): razor cuts the code, hush cuts the noise, Foreman writes the prompts — and measured together, the three add no overhead to each other.
 
-### Why-notes for decisions
-
-Git remembers every diff. Nobody remembers *why*. With foreman, any task that makes a real call writes a short note — the choice, the options that lost, the consequences — one file per task, tagged into the code with a `[Foreman: 019]` anchor. Six months later you get the reasoning, not a git-blame dig. Open a file that carries an anchor and Foreman shows you the note before you undo a decision you didn't know was there. A task can't close without one, or an explicit `"none"`.
-
 ## Settings
 
-Most people never touch these — `/foreman:init` asks the questions and writes `.foreman/config.json` for you. The knobs, if you ever want them by hand:
+Most people never touch these — `/foreman:init` asks about the common ones and writes `.foreman/config.json` for you. The full set, if you ever want them by hand:
 
 | Setting | What it does |
 | --- | --- |
@@ -110,7 +112,7 @@ Most people never touch these — `/foreman:init` asks the questions and writes 
 | `customSections` | Extra sections to add to crafted prompts, each `{tag, content}` rendered as an inline `<tag>` block. Tags reserved by the template are rejected. Default none. |
 | `requireVerification` | Hold off marking a task done after a commit until you confirm it's verified. Default `false`. |
 | `taskCloseGate` | When a tracked task finishes with its roadmap entry still open: `off` (default) says nothing, `block` holds the completion until you close the entry. |
-| `decisionLog` | The why-notes above: `{enabled, dir, gate}`. `dir` is where they're written (default `docs/foreman`), `gate` is `off` (default) or `block`, which holds a close that records no note. |
+| `decisionLog` | The why-notes above: `{enabled, dir, gate}`. `enabled` is `false` by default — nothing is written until you set it `true`. Full details in [`decision-log.md`](decision-log.md). |
 | `checkpoints` | How task-split runs save their work. Optional keys set the base branch, whether to use a `foreman/<slug>` branch, whether to push each commit, and what to do at the end — `squash`, `merge`, `pr`, or `keep`. Default: ask you. |
 | `targetModel` | How much detail a prompt spells out, tuned to the model that runs it — smaller models get more scaffolding, bigger ones less. Default `inherit` keeps a standard level and suggests a model per task; set a concrete value to pin one. |
 | `fableEnabled` | Whether this project can run Fable 5 (Max plan or API only). Asked once during `/foreman:init`; `true` makes `Fable` a selectable model alongside Haiku/Sonnet/Opus. Default `false`. |

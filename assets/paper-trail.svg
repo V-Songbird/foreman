@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 264" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif">
+  <style>
+    .title{fill:#1f2937;font-size:17px;font-weight:700}
+    .sub{fill:#6b7280;font-size:12.5px}
+    .box{fill:#f6f8fa;stroke:#d7dde4;stroke-width:1}
+    .where{fill:#6b7280;font-size:10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .tok{fill:#374151;font-size:12px;font-weight:700;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .toklast{fill:#16a34a;font-size:12px;font-weight:700;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .cap{fill:#6b7280;font-size:10.5px}
+    .caplast{fill:#16a34a;font-size:10.5px;font-weight:700}
+    .arrow{stroke:#9aa4b0;stroke-width:1.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+    .rule{stroke:#d7dde4;stroke-width:1}
+    .mark{fill:#16a34a}
+    .line{fill:#374151;font-size:12.5px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}
+    @media (prefers-color-scheme:dark){
+      .title{fill:#e6edf3}.sub{fill:#9198a1}
+      .box{fill:#161b22;stroke:#30363d}
+      .where{fill:#9198a1}.tok{fill:#c9d1d9}.toklast{fill:#22c55e}
+      .cap{fill:#9198a1}.caplast{fill:#22c55e}
+      .arrow{stroke:#6b7280}.rule{stroke:#30363d}.mark{fill:#22c55e}.line{fill:#c9d1d9}
+    }
+  </style>
+
+  <text x="16" y="28" class="title">One task, one id</text>
+  <text x="16" y="50" class="sub">Task 019 &#8212; &#8220;expire sessions server-side&#8221; &#8212; from roadmap entry to git history</text>
+
+  <rect x="16" y="78" width="154" height="70" rx="6" class="box"/>
+  <text x="93" y="100" class="where" text-anchor="middle">ROADMAP.jsonl</text>
+  <text x="93" y="121" class="tok" text-anchor="middle">&quot;id&quot;: &quot;019&quot;</text>
+  <text x="93" y="139" class="cap" text-anchor="middle">the task</text>
+
+  <path d="M176 107 L184 113 L176 119" class="arrow"/>
+
+  <rect x="194" y="78" width="154" height="70" rx="6" class="box"/>
+  <text x="271" y="100" class="where" text-anchor="middle">docs/foreman/019.md</text>
+  <text x="271" y="121" class="tok" text-anchor="middle">## Decision</text>
+  <text x="271" y="139" class="cap" text-anchor="middle">why it won</text>
+
+  <path d="M354 107 L362 113 L354 119" class="arrow"/>
+
+  <rect x="372" y="78" width="154" height="70" rx="6" class="box"/>
+  <text x="449" y="100" class="where" text-anchor="middle">your code</text>
+  <text x="449" y="121" class="tok" text-anchor="middle">// [Foreman: 019]</text>
+  <text x="449" y="139" class="cap" text-anchor="middle">the anchor</text>
+
+  <path d="M532 107 L540 113 L532 119" class="arrow"/>
+
+  <rect x="550" y="78" width="154" height="70" rx="6" class="box"/>
+  <text x="627" y="100" class="where" text-anchor="middle">commit message</text>
+  <text x="627" y="121" class="toklast" text-anchor="middle">Foreman: 019</text>
+  <text x="627" y="139" class="caplast" text-anchor="middle">the trailer</text>
+
+  <line x1="16" y1="176" x2="704" y2="176" class="rule"/>
+
+  <rect x="16" y="195" width="5" height="5" class="mark"/>
+  <text x="32" y="200" class="line">Open a file that carries an anchor &#8594; Foreman hands you the note before you change it.</text>
+
+  <rect x="16" y="219" width="5" height="5" class="mark"/>
+  <text x="32" y="224" class="line">Commit mid-task &#8594; Foreman reads the trailer and knows which task that commit closed.</text>
+
+  <rect x="16" y="243" width="5" height="5" class="mark"/>
+  <text x="32" y="248" class="line">Six months later &#8594; <tspan class="mono">git log --grep=&quot;Foreman: 019&quot;</tspan> is the whole trail.</text>
+</svg>

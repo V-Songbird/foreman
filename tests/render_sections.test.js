@@ -351,17 +351,17 @@ describe('render-sections — reserved custom section tags', () => {
 });
 
 describe('render-sections — decisionLog', () => {
-  test('no config.json -> enabled by default, default dir, no warnings', () => {
+  test('no config.json -> disabled by default, default dir, no warnings', () => {
     const { json } = run();
-    assert.equal(json.decisionLog.enabled, true);
+    assert.equal(json.decisionLog.enabled, false);
     assert.equal(json.decisionLog.dir, 'docs/foreman');
     assert.deepEqual(json.warnings, []);
   });
 
-  test('config.json without decisionLog -> enabled by default, default dir', () => {
+  test('config.json without decisionLog -> disabled by default, default dir', () => {
     writeConfig(project, { discoverySuggestions: true });
     const { json } = run();
-    assert.equal(json.decisionLog.enabled, true);
+    assert.equal(json.decisionLog.enabled, false);
     assert.equal(json.decisionLog.dir, 'docs/foreman');
   });
 
@@ -424,7 +424,7 @@ describe('render-sections — decisionLog', () => {
     fs.writeFileSync(path.join(project, '.foreman', 'config.json'), '{not json', 'utf-8');
     const { status, json } = run();
     assert.equal(status, 0);
-    assert.equal(json.decisionLog.enabled, true);
+    assert.equal(json.decisionLog.enabled, false);
     assert.ok(json.warnings.some((w) => w.includes('decisionLog')));
   });
 });

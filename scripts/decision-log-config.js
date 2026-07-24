@@ -11,8 +11,13 @@
 const fs = require('fs');
 const path = require('path');
 
+// Off by default: enabling it writes ADR files into the project and anchor
+// comments into its source, and the retrieval side is still file-triggered
+// only (hooks/decision-anchors.js fires when an anchored file is opened --
+// nothing surfaces an upstream entry's doc at dispatch time). Writing on by
+// default would scale the cost ahead of the payoff, so a project opts in.
 const DECISION_LOG_DEFAULTS = Object.freeze({
-  enabled: true,
+  enabled: false,
   dir: 'docs/foreman',
   gate: 'off',
 });
