@@ -8,6 +8,12 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.46.0-alpha] — 2026-07-24
+
+### Changed
+
+- `Execute here` is now the recommended, default pick for running a task or a handoff prompt.
+
 ## [0.45.0-alpha] — 2026-07-24
 
 ### Added
