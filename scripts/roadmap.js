@@ -515,6 +515,7 @@ function cmdNextCandidates(root, filters) {
   const limit = filters && filters.limit ? parseInt(filters.limit, 10) : 3;
   const hintWords = normalizeWords(filters && typeof filters.hint === "string" ? filters.hint : "");
   const entries = readEntries(root);
+  const byId = new Map(entries.map((e) => [e.id, e]));
   const doneIds = new Set(entries.filter((e) => e.status === "done").map((e) => e.id));
 
   const inProgressTouches = new Set();
@@ -567,6 +568,13 @@ function cmdNextCandidates(root, filters) {
       collision: (e.touches || []).some((t) => inProgressTouches.has(t)),
       created_at: e.created_at,
       notes: e.notes || "",
+      // Upstream decision docs the dispatch should read before starting, so a
+      // task building on an earlier decision on new files doesn't re-decide it.
+      // Direct parents only, not the transitive chain. [Foreman: 097]
+      depends_on_docs: (e.depends_on || [])
+        .map((dep) => byId.get(dep))
+        .filter((d) => d && typeof d.doc === "string" && d.doc !== "none")
+        .map((d) => d.doc),
       ...(e.doc !== undefined ? { doc: e.doc } : {}),
       ...(e.kind !== undefined ? { kind: e.kind } : {}),
     }))

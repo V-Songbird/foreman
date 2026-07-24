@@ -192,6 +192,11 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
    - `relevant_files` seed ← `touches`, passed through as-is (area-level
      hints, not confirmed file:line ranges — that's fine, don't upgrade
      them yourself)
+   - `depends_on_docs` — when the candidate carries a non-empty one (the
+     resolved decision-doc paths of its dependencies), list those paths in
+     the handoff (in `background`/`context`) so the destination reads those
+     decisions before starting, instead of silently re-deciding a settled
+     question. Omit when empty.
    - `task_rules`' first bullet defaults to: "Explore `relevant_files` first
      (see `truth_grounding` above)." — short on purpose, `truth_grounding`
      (fixed, right above it in the same prompt) already carries the full

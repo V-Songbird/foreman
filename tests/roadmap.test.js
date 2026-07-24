@@ -521,6 +521,26 @@ describe('next-candidates', () => {
     assert.deepEqual(json.candidates.map((c) => c.id), ['002']);
   });
 
+  test('depends_on_docs resolves direct parents\' decision docs, dropping none', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'decided prereq', status: 'done', depends_on: [], touches: [], doc: 'docs/foreman/001.md' },
+      { id: '002', title: 'undocumented prereq', status: 'done', depends_on: [], touches: [], doc: 'none' },
+      { id: '003', title: 'builds on both', status: 'planned', depends_on: ['001', '002'], touches: [] },
+    ]);
+    const { json } = run(['next-candidates']);
+    const c = json.candidates.find((x) => x.id === '003');
+    assert.deepEqual(c.depends_on_docs, ['docs/foreman/001.md']);
+  });
+
+  test('depends_on_docs is empty when no direct parent carries a doc', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'plain prereq', status: 'done', depends_on: [], touches: [] },
+      { id: '002', title: 'builds on it', status: 'planned', depends_on: ['001'], touches: [] },
+    ]);
+    const { json } = run(['next-candidates']);
+    assert.deepEqual(json.candidates.find((c) => c.id === '002').depends_on_docs, []);
+  });
+
   test('ranks by unblocks-count (most depended-on first)', () => {
     writeRoadmap(project, [
       { id: '001', title: 'unblocks nothing', status: 'planned', depends_on: [], touches: [], created_at: '2026-07-01' },
