@@ -8,22 +8,30 @@
 // code — the 0.16.2 prose rule ("close the entry, then complete the task")
 // can be ignored; this makes it harder to.
 //
-// Probed 2026-07-14 (headless CLI 2.1.210, brief §2.1/§4 M1): TaskCompleted
-// accepts the same top-level {"decision":"block","reason":"..."} shape as
-// Stop/SubagentStop — a real block (the TaskUpdate call itself returns
-// success:false, updatedFields:[], with the reason as its error text, not a
-// system-reminder). hookSpecificOutput.additionalContext is NOT delivered
-// on this event (confirmed: an emitting run left zero trace anywhere in the
-// transcript) — so nudge mode uses the universal `systemMessage` field
-// instead. No harness-side retry after a block was observed (one firing per
-// task_id across all probe runs); a haiku driver that saw a genuine block
-// still described the completion as successful in its own prose despite
-// quoting the reason verbatim, so the reason text below is written as an
-// imperative instruction sequence rather than a description.
+// Probed 2026-07-14 (headless CLI 2.1.210, brief §2.1/§4 M1) and re-probed
+// 2026-07-23 (CLI 2.1.216): TaskCompleted accepts the same top-level
+// {"decision":"block","reason":"..."} shape as Stop/SubagentStop — a real
+// block (the TaskUpdate call itself returns success:false, updatedFields:[],
+// with the reason as its own tool_result text, not a system-reminder). No
+// harness-side retry after a block was observed (one firing per task_id
+// across all probe runs); a haiku driver that saw a genuine block still
+// described the completion as successful in its own prose despite quoting
+// the reason verbatim, so the reason text below is written as an imperative
+// instruction sequence rather than a description.
+//
+// That block is the ONLY output channel this event has. The 2026-07-23
+// re-probe emitted, on TaskCompleted, `systemMessage`,
+// `hookSpecificOutput.additionalContext`, plain stdout and stderr: every one
+// left zero trace — no transcript attachment of any kind, no tool-result
+// text, no model mention — while the same hook on SessionStart,
+// UserPromptSubmit, PostToolUse and Stop produced hook_system_message and
+// hook_additional_context attachments for the first two fields. Both gates
+// below therefore offer `off` and `block` only: an advisory mode on this
+// event cannot reach anyone, so it is not offered rather than shipped
+// silent. Do not add another output field here expecting it to arrive.
 //
 // This hook never writes to ROADMAP.jsonl — task-created.js stays the only
-// writing hook. It only reads (readEntries) and, at most, emits a nudge or
-// a block.
+// writing hook. It only reads (readEntries) and, at most, emits a block.
 
 const fs = require("fs");
 const os = require("os");
@@ -36,7 +44,7 @@ const { readDecisionLog } = require("../scripts/decision-log-config");
 const { ENTRY_MARKER_RE, entryIdFromDescription } = require("./task-created");
 
 const OPEN_STATUSES = new Set(["planned", "in_progress"]);
-const GATE_MODES = new Set(["off", "nudge", "block"]);
+const GATE_MODES = new Set(["off", "block"]);
 
 const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
   ? path.resolve(process.env.CLAUDE_PLUGIN_ROOT)
@@ -66,9 +74,9 @@ function readConfig(root) {
   try {
     const parsed = JSON.parse(fs.readFileSync(p, "utf-8"));
     const v = parsed?.taskCloseGate;
-    return GATE_MODES.has(v) ? v : "nudge";
+    return GATE_MODES.has(v) ? v : "off";
   } catch {
-    return "nudge"; // absent config, or corrupt -- same safe default
+    return "off"; // absent config, or corrupt -- same safe default
   }
 }
 
@@ -107,12 +115,6 @@ function closeCommand(id) {
   return (
     `echo '{"id":"${id}","status":"done","commit":"<sha>"}' | node ${SCRIPT_PATH} update-status ` +
     "(or `annotate` findings instead, for an investigation-only close with no commit)"
-  );
-}
-
-function nudgeMessage(id) {
-  return (
-    `[Foreman] ROADMAP.jsonl entry ${id} is still open. Close it before finishing: ${closeCommand(id)}.`
   );
 }
 
@@ -197,8 +199,8 @@ function trailerShasFor(root, id) {
 
 // The imperative core of a decision-log violation, or null when the entry
 // is compliant (doc "none", a doc file plus an anchored commit, or an
-// investigation-only close with no commits to audit). Callers wrap this
-// core in either the nudge or the block framing.
+// investigation-only close with no commits to audit). The caller wraps this
+// core in the block framing.
 function decisionLogCore(root, entry, dir) {
   const id = entry.id;
   const doc = entry.doc;
@@ -243,10 +245,6 @@ function decisionLogCore(root, entry, dir) {
     `anchor comment for it. Add a \`[Foreman: ${id}]\` comment at the code the decision governs, ` +
     `amend the commit to include it, then re-close entry ${id} with that commit's sha.`
   );
-}
-
-function dlNudgeMessage(core) {
-  return `[Foreman] ${core}`;
 }
 
 // Same probe-derived framing as blockReason above: the provenance opener
@@ -294,14 +292,9 @@ function main() {
   // handled here; the decision-log check below is only reached for a closed
   // entry, so the two never both fire in one run.
   if (OPEN_STATUSES.has(entry.status)) {
-    const mode = readConfig(root);
-    if (mode === "off") return;
+    if (readConfig(root) !== "block") return;
     if (baseLatch && !shouldGate(root, baseLatch)) return; // already gated once for this session's task_id
-    if (mode === "block") {
-      write({ decision: "block", reason: blockReason(id) });
-    } else {
-      write({ systemMessage: nudgeMessage(id) });
-    }
+    write({ decision: "block", reason: blockReason(id) });
     return;
   }
 
@@ -310,7 +303,7 @@ function main() {
   if (entry.status !== "done") return;
 
   const dl = readDecisionLog(root);
-  if (!dl.enabled || dl.gate === "off") return; // opt-in; disabled/off -> silent
+  if (!dl.enabled || dl.gate !== "block") return; // opt-in; disabled/off -> silent
 
   const core = decisionLogCore(root, entry, dl.dir);
   if (!core) return; // compliant close
@@ -320,11 +313,7 @@ function main() {
   const dlLatch = baseLatch ? `${baseLatch}:dl` : "";
   if (dlLatch && !shouldGate(root, dlLatch)) return;
 
-  if (dl.gate === "block") {
-    write({ decision: "block", reason: dlBlockReason(core) });
-  } else {
-    write({ systemMessage: dlNudgeMessage(core) });
-  }
+  write({ decision: "block", reason: dlBlockReason(core) });
 }
 
 if (require.main === module) {
@@ -342,10 +331,8 @@ module.exports = {
   readConfig,
   shouldGate,
   latchStatePath,
-  nudgeMessage,
   blockReason,
   decisionLogCore,
-  dlNudgeMessage,
   dlBlockReason,
   trailerShasFor,
   SCRIPT_PATH,

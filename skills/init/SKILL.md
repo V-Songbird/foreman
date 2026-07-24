@@ -99,8 +99,6 @@ Options:
 open, what should Foreman do?"
 Options:
 - `Nothing` — becomes `"taskCloseGate": "off"`.
-- `Remind me to close it` — the task completes normally, with a reminder
-  surfaced alongside it. Becomes `"taskCloseGate": "nudge"`.
 - `Block completion until I close it` — the task stays incomplete until
   the roadmap entry is closed. Becomes `"taskCloseGate": "block"`.
 
@@ -175,7 +173,7 @@ the updated draft, ask again. Repeat until approved.
    order, and `add` rejects an id that doesn't exist yet. If any call
    returns `warnings`, mention them once at the end rather than per entry.
 3. Write `.foreman/config.json` —
-   `{"discoverySuggestions": <bool>, "usePersona": <bool>, "omitSections": [...], "requireVerification": <bool>, "taskCloseGate": "<off|nudge|block>", "fableEnabled": <bool>}`
+   `{"discoverySuggestions": <bool>, "usePersona": <bool>, "omitSections": [...], "requireVerification": <bool>, "taskCloseGate": "<off|block>", "fableEnabled": <bool>}`
    from the Call 2/Call 2b answers (skip this file write if the pre-check
    "keep, add to it" branch found an existing config already).
    **If the file already exists, `Read` it first and set those six keys on

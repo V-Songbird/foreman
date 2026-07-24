@@ -10,7 +10,8 @@
 //   - full decisionLog group read
 //   - partial group (only some keys set) falls back per-key
 //   - corrupt config.json -> defaults, one warning
-//   - invalid gate value -> default "nudge", warning names the value
+//   - invalid gate value, including the retired "nudge", -> default "off",
+//     warning names the value
 //   - invalid dir value (leading slash, "..") -> default dir, warning
 //   - FOREMAN_DECISION_LOG "1"/"true"/"0"/"false" override enabled,
 //     including precedence over config, and other values are ignored
@@ -78,13 +79,20 @@ describe('decision-log-config', () => {
     assert.match(result.warning, /every decisionLog setting fell back to its default/);
   });
 
-  test('invalid gate value -> defaults to "nudge", warning names the value', () => {
+  test('invalid gate value -> defaults to "off", warning names the value', () => {
     writeConfig(project, { decisionLog: { gate: 'yolo' } });
     const result = readDecisionLog(project);
-    assert.equal(result.gate, 'nudge');
+    assert.equal(result.gate, 'off');
     assert.ok(VALID_GATES.has(result.gate));
     assert.match(result.warning, /"yolo"/);
-    assert.match(result.warning, /defaulted to "nudge"/);
+    assert.match(result.warning, /defaulted to "off"/);
+  });
+
+  test('the retired "nudge" gate is no longer valid -> "off" with a warning', () => {
+    writeConfig(project, { decisionLog: { gate: 'nudge' } });
+    const result = readDecisionLog(project);
+    assert.equal(result.gate, 'off');
+    assert.match(result.warning, /"nudge"/);
   });
 
   test('invalid dir value (leading slash) -> default dir, warning', () => {

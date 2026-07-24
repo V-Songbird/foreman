@@ -196,7 +196,7 @@ describe('task-completed.js decision-log audit resolves trailer commits', () => 
 
   function dlSetup(doc) {
     initGitRepo(project);
-    writeConfig(project, { decisionLog: { enabled: true, gate: 'nudge' } });
+    writeConfig(project, { decisionLog: { enabled: true, gate: 'block' } });
     writeFile('docs/foreman/001.md', '# decision\n');
     writeRoadmap(project, [entry('001', 'done', { doc })]);
   }

@@ -240,10 +240,9 @@ All access — from any caller — goes through `scripts/roadmap.js`, and
   side. It never writes to this file — `task-created.js` remains the only
   writing hook. Fires when a task carrying the handoff paragraph's entry
   marker completes while that entry is still `planned` or `in_progress`,
-  and, depending on the `taskCloseGate` setting, reminds you or holds the
-  completion until the entry is closed through `roadmap.js` in the usual
-  way. With `decisionLog` enabled, it also audits a `done` close: the
+  and, when `taskCloseGate` is `block`, holds the completion until the
+  entry is closed through `roadmap.js` in the usual way. With
+  `decisionLog.gate` set to `block`, it also audits a `done` close: the
   entry must record its `doc` (a path or `"none"`), and a named doc must
-  exist with an anchor comment in one of the entry's commits — enforced
-  per `decisionLog.gate`. Any other state, id, or description: silent
+  exist with an anchor comment in one of the entry's commits. Any other state, id, or description: silent
   no-op.

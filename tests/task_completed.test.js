@@ -53,15 +53,19 @@ function entry(id, status) {
 const MARKER = 'This task is ROADMAP.jsonl entry `001`. Mark it in_progress before doing anything else.';
 const MARKER_NO_TICKS = 'This task is ROADMAP.jsonl entry 001. Mark it in_progress before doing anything else.';
 
+// `block` is the only mode that produces output -- the gate defaults to
+// `off`, so every test that expects the gate to fire opts in explicitly.
 describe('task-completed marker extraction (shared regex)', () => {
   test('backticked id matches and gates a planned entry', () => {
     writeRoadmap(project, [entry('001', 'planned')]);
+    writeConfig(project, { taskCloseGate: 'block' });
     const out = run(payload(MARKER));
     assert.notEqual(out, '');
   });
 
   test('non-backticked id matches and gates a planned entry', () => {
     writeRoadmap(project, [entry('001', 'planned')]);
+    writeConfig(project, { taskCloseGate: 'block' });
     const out = run(payload(MARKER_NO_TICKS));
     assert.notEqual(out, '');
   });
@@ -70,20 +74,19 @@ describe('task-completed marker extraction (shared regex)', () => {
 describe('task-completed status matrix', () => {
   test('planned entry is gated', () => {
     writeRoadmap(project, [entry('001', 'planned')]);
+    writeConfig(project, { taskCloseGate: 'block' });
     assert.notEqual(run(payload(MARKER)), '');
   });
 
   test('in_progress entry is gated', () => {
     writeRoadmap(project, [entry('001', 'in_progress')]);
+    writeConfig(project, { taskCloseGate: 'block' });
     assert.notEqual(run(payload(MARKER)), '');
   });
 
   for (const status of ['done', 'dropped', 'rejected', 'deferred']) {
     test(`${status} entry is silent`, () => {
       writeRoadmap(project, [entry('001', status)]);
-      // Isolate the open-entry gate from the decision-log backstop, which is
-      // now on by default and would nudge a doc-less `done` close.
-      writeConfig(project, { decisionLog: { enabled: false } });
       assert.equal(run(payload(MARKER)), '');
     });
   }
@@ -122,15 +125,6 @@ describe('task-completed gate-mode config resolution', () => {
     assert.equal(run(payload(MARKER)), '');
   });
 
-  test('nudge: emits systemMessage, no decision field', () => {
-    writeRoadmap(project, [entry('001', 'planned')]);
-    writeConfig(project, { taskCloseGate: 'nudge' });
-    const out = JSON.parse(run(payload(MARKER)));
-    assert.equal(typeof out.systemMessage, 'string');
-    assert.ok(out.systemMessage.includes('001'));
-    assert.equal(out.decision, undefined);
-  });
-
   test('block: emits decision block with a reason', () => {
     writeRoadmap(project, [entry('001', 'planned')]);
     writeConfig(project, { taskCloseGate: 'block' });
@@ -139,19 +133,21 @@ describe('task-completed gate-mode config resolution', () => {
     assert.equal(typeof out.reason, 'string');
   });
 
-  test('absent config defaults to nudge', () => {
+  test('absent config defaults to off', () => {
     writeRoadmap(project, [entry('001', 'planned')]);
-    const out = JSON.parse(run(payload(MARKER)));
-    assert.equal(typeof out.systemMessage, 'string');
-    assert.equal(out.decision, undefined);
+    assert.equal(run(payload(MARKER)), '');
   });
 
-  test('invalid config value defaults to nudge', () => {
+  test('the retired "nudge" value is invalid and falls back to off', () => {
+    writeRoadmap(project, [entry('001', 'planned')]);
+    writeConfig(project, { taskCloseGate: 'nudge' });
+    assert.equal(run(payload(MARKER)), '');
+  });
+
+  test('invalid config value defaults to off', () => {
     writeRoadmap(project, [entry('001', 'planned')]);
     writeConfig(project, { taskCloseGate: 'nonsense' });
-    const out = JSON.parse(run(payload(MARKER)));
-    assert.equal(typeof out.systemMessage, 'string');
-    assert.equal(out.decision, undefined);
+    assert.equal(run(payload(MARKER)), '');
   });
 });
 
@@ -217,12 +213,9 @@ function dlConfig(gate, extra) {
 }
 
 describe('decision-log backstop: enablement', () => {
-  test('enabled by default: a done entry with no doc nudges', () => {
+  test('enabled by default but gate defaults to off: silent', () => {
     writeRoadmap(project, [doneEntry('001')]);
-    const out = JSON.parse(run(payload(MARKER)));
-    assert.equal(typeof out.systemMessage, 'string');
-    assert.ok(out.systemMessage.includes('001'));
-    assert.equal(out.decision, undefined);
+    assert.equal(run(payload(MARKER)), '');
   });
 
   test('explicitly disabled: still silent', () => {
@@ -239,17 +232,6 @@ describe('decision-log backstop: enablement', () => {
 });
 
 describe('decision-log backstop: missing doc', () => {
-  test('nudge mode emits systemMessage naming the close command, no decision', () => {
-    writeRoadmap(project, [doneEntry('001')]);
-    writeConfig(project, dlConfig('nudge'));
-    const out = JSON.parse(run(payload(MARKER)));
-    assert.equal(typeof out.systemMessage, 'string');
-    assert.ok(out.systemMessage.includes('001'));
-    assert.match(out.systemMessage, /update-status/);
-    assert.match(out.systemMessage, /"doc"/);
-    assert.equal(out.decision, undefined);
-  });
-
   test('block mode emits a decision block reusing the checkpoint framing', () => {
     writeRoadmap(project, [doneEntry('001')]);
     writeConfig(project, dlConfig('block'));
@@ -259,6 +241,14 @@ describe('decision-log backstop: missing doc', () => {
     assert.match(out.reason, /not you declining/i);
     assert.ok(out.reason.includes('001'));
     assert.match(out.reason, /no decision doc/i);
+    assert.match(out.reason, /update-status/);
+    assert.match(out.reason, /"doc"/);
+  });
+
+  test('the retired "nudge" gate is invalid and falls back to off', () => {
+    writeRoadmap(project, [doneEntry('001')]);
+    writeConfig(project, dlConfig('nudge'));
+    assert.equal(run(payload(MARKER)), '');
   });
 });
 
@@ -337,14 +327,14 @@ describe('decision-log backstop: commitless (investigation-only) close', () => {
 
 describe('decision-log backstop: precedence and latch independence', () => {
   test('an open entry uses the open-entry gate, never the decision-log check', () => {
-    // Open entry + decisionLog enabled: the open gate (taskCloseGate:nudge)
-    // owns the turn; the decision-log block must not also fire.
+    // Open entry + decisionLog enabled: the open gate owns the turn, and the
+    // decision-log block must not also fire.
     writeRoadmap(project, [entry('001', 'planned')]);
-    writeConfig(project, { taskCloseGate: 'nudge', decisionLog: { enabled: true, gate: 'block' } });
+    writeConfig(project, { taskCloseGate: 'block', decisionLog: { enabled: true, gate: 'block' } });
     const out = JSON.parse(run(payload(MARKER)));
-    assert.equal(typeof out.systemMessage, 'string');
-    assert.match(out.systemMessage, /still open/);
-    assert.equal(out.decision, undefined);
+    assert.equal(out.decision, 'block');
+    assert.match(out.reason, /still open/);
+    assert.doesNotMatch(out.reason, /decision doc/i);
   });
 
   test('the decision-log check fires after the open gate consumed the base latch, once per task', () => {

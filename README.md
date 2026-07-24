@@ -109,8 +109,8 @@ Most people never touch these — `/foreman:init` asks the questions and writes 
 | `omitSections` | Prompt sections to leave out entirely (`tone`, `example`, `background`, `output_format`). Default none. |
 | `customSections` | Extra sections to add to crafted prompts, each `{tag, content}` rendered as an inline `<tag>` block. Tags reserved by the template are rejected. Default none. |
 | `requireVerification` | Hold off marking a task done after a commit until you confirm it's verified. Default `false`. |
-| `taskCloseGate` | When a tracked task finishes with its roadmap entry still open: `off` says nothing, `nudge` (default) reminds you to close it, `block` holds the completion until you do. |
-| `decisionLog` | The why-notes above: `{enabled, dir, gate}`. `dir` is where they're written (default `docs/foreman`), `gate` sets how strictly a missing note is enforced — `off`, `nudge`, or `block`. On by default. |
+| `taskCloseGate` | When a tracked task finishes with its roadmap entry still open: `off` (default) says nothing, `block` holds the completion until you close the entry. |
+| `decisionLog` | The why-notes above: `{enabled, dir, gate}`. `dir` is where they're written (default `docs/foreman`), `gate` is `off` (default) or `block`, which holds a close that records no note. |
 | `checkpoints` | How task-split runs save their work. Optional keys set the base branch, whether to use a `foreman/<slug>` branch, whether to push each commit, and what to do at the end — `squash`, `merge`, `pr`, or `keep`. Default: ask you. |
 | `targetModel` | How much detail a prompt spells out, tuned to the model that runs it — smaller models get more scaffolding, bigger ones less. Default `inherit` keeps a standard level and suggests a model per task; set a concrete value to pin one. |
 | `fableEnabled` | Whether this project can run Fable 5 (Max plan or API only). Asked once during `/foreman:init`; `true` makes `Fable` a selectable model alongside Haiku/Sonnet/Opus. Default `false`. |

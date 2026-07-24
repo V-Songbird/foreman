@@ -14,10 +14,13 @@ const path = require('path');
 const DECISION_LOG_DEFAULTS = Object.freeze({
   enabled: true,
   dir: 'docs/foreman',
-  gate: 'nudge',
+  gate: 'off',
 });
 
-const VALID_GATES = new Set(['off', 'nudge', 'block']);
+// `nudge` is deliberately absent: TaskCompleted, the only event that reads
+// this gate, delivers no advisory channel at all (see hooks/task-completed.js
+// header) -- so an advisory mode here could only ever be silent.
+const VALID_GATES = new Set(['off', 'block']);
 
 function configPath(root) {
   return path.join(root, '.foreman', 'config.json');
