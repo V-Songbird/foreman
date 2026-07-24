@@ -8,6 +8,16 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.44.0-alpha] — 2026-07-23
+
+### Changed
+
+- Why-notes write nothing unless a project turns them on. `decisionLog.enabled` defaults to `false`, so no decision docs are added to a repo and no anchor comments are added to its source until it's set `true`.
+
+### Added
+
+- `decision-log.md` documents why-notes in full: what a note and an anchor look like, where the `Foreman: <id>` line on your commits comes from, every config key, and both environment overrides.
+
 ## [0.43.0-alpha] — 2026-07-23
 
 ### Removed
