@@ -120,11 +120,11 @@ Running with razor and hush? The recommended shape is:
 ```json
 {
   "usePersona": false,
-  "omitSections": ["tone"]
+  "omitSections": ["tone", "output_format"]
 }
 ```
 
-razor already gives the session its persona and hush already owns the voice, so Foreman's prompts stay out of both lanes. Add `"output_format"` to the list if hush should own the reply's shape too. Prompts handed to a background agent keep Foreman's minimal default tone even when `tone` is omitted — output styles don't reach those sessions, so nothing else would own the voice there.
+razor already gives the session its persona and hush already owns the voice, so Foreman's prompts stay out of both lanes. Prompts handed to a background agent keep Foreman's minimal default tone even when `tone` is omitted — output styles don't reach those sessions, so nothing else would own the voice there.
 
 > [!NOTE]
 > Foreman never detects which plugins you run — this file is you declaring the shape you want, and it works the same for any third-party style plugin.
