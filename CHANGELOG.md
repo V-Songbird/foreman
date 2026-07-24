@@ -8,6 +8,13 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [0.45.0-alpha] — 2026-07-24
+
+### Added
+
+- `/foreman:init` now asks whether to enable the decision log and writes the choice into the project config, instead of leaving it as a setting you'd only find by reading the table.
+- Picking a task surfaces the decision docs recorded by the tasks it depends on, so work that builds on an earlier decision reads it instead of re-deciding it.
+
 ## [0.44.0-alpha] — 2026-07-23
 
 ### Changed
