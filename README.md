@@ -17,20 +17,20 @@
     <a href="https://docs.anthropic.com/en/docs/claude-code"><img src="https://img.shields.io/badge/Claude_Code-E5582B" alt="Claude Code"/></a>
 </p>
 
-> **TL;DR** — Every Claude Code session starts with amnesia. Foreman keeps the plan in your repo, committed like code: ask "what's next?" and you get the best task with a ready-to-run prompt, checked against the actual codebase — about a quarter cheaper per session than a bare one-line ask.
+> **TL;DR** — Every Claude Code session starts with amnesia. Foreman keeps your plan in your repo, committed like code. Ask "what's next?" and you get the best task with a ready-to-run prompt, checked against the actual codebase — about a quarter cheaper per session than a bare one-line ask.
 
 ---
 
 ## What is this?
 
-Close the laptop and every plan that only lived in your head closes with it. Open Claude Code tomorrow and it starts from zero — no memory of what you were building, what you already ruled out, or that the file it's about to edit got renamed yesterday.
+Close the laptop, and every plan that only lived in your head closes with it. Open Claude Code tomorrow and it starts from zero — no memory of what you were building, what you already ruled out, or that the file it's about to edit got renamed yesterday.
 
-Foreman keeps the plan where the code lives: a plain-language roadmap, committed like any other file. Ask "what's next?" and it hands back the best task and a ready-to-run prompt, built from what's actually true about your project right now. It earns its keep on real engineering work — the kind that outlives a single chat window.
+Foreman keeps the plan where the code lives: a plain-language roadmap, committed like any other file. Ask "what's next?" and Foreman hands back the best task and a ready-to-run prompt, built from what's actually true about your project right now. It earns its keep on real engineering work — the kind that outlives a single chat window.
 
 ## Why you'd want it
 
-- **Your plan survives you forgetting it.** The roadmap lives in your repo, committed like code — the next session picks up exactly where you left off, not from a shrug.
-- **You don't have to be good at prompting.** Every handoff prompt comes from the same template, guardrails built in — say what you want in plain language, Foreman does the rest.
+- **Your plan survives you forgetting it.** The roadmap lives in your repo, committed like code. The next session picks up exactly where you left off, not from a shrug.
+- **You don't have to be good at prompting.** Every handoff prompt comes from the same template, guardrails built in. Say what you want in plain language, and Foreman does the rest.
 - **It updates itself.** After each commit, Foreman checks what got finished and marks it. Opt in, and it also flags new work the commit uncovered.
 - **Nothing moves without you.** No task gets added, changed, or checked off behind your back, and a project you haven't set up stays untouched.
 
@@ -43,7 +43,7 @@ Foreman keeps the plan where the code lives: a plain-language roadmap, committed
 | You commit | Finished tasks get checked off; opt in and new work the commit uncovered gets flagged too |
 | You suspect the plan has drifted | The top tasks get double-checked against the actual code, and the roadmap corrected |
 
-Hand a task off as tracked work and every finished piece lands as its own commit on a `foreman/<slug>` branch. Done work stays done. At the end you pick what happens to it: squash, merge, PR, or keep.
+Hand a task off as tracked work, and every finished piece lands as its own commit on a `foreman/<slug>` branch. Done work stays done. At the end, you pick what happens to it: squash, merge, PR, or keep.
 
 ## Install
 
@@ -54,13 +54,13 @@ Inside Claude Code, run:
 /plugin install foreman@foundry
 ```
 
-Then, in each project you want a roadmap for, run `/foreman:init` once — it asks a few questions and builds the roadmap for you. That's the whole setup.
+Then, in each project you want a roadmap for, run `/foreman:init` once. It asks a few questions and builds the roadmap for you. That's the whole setup.
 
 Running [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush) too? Good instinct — razor keeps the code lean, hush keeps it quiet, Foreman writes the prompts.
 
 ## What you can do
 
-You talk to Foreman in plain language. Touching the roadmap file by hand defeats the point, so don't.
+You talk to Foreman in plain language. Editing the roadmap file by hand defeats the point, so don't.
 
 | You want to… | Command |
 | --- | --- |
@@ -71,9 +71,9 @@ You talk to Foreman in plain language. Touching the roadmap file by hand defeats
 
 ## Why-notes that find you later
 
-Git remembers every diff. Nobody remembers *why*. Turn this on and any task that makes a real call writes a short note — the choice, the options that lost, what it commits you to — tagged into the code it governs. Open that code six months later and Foreman hands you the note before you undo a decision you didn't know was there. It's off until you ask for it, since it writes files into your repo and comments into your source. The whole feature fits on one page: [`decision-log.md`](decision-log.md).
+Git remembers every diff. Nobody remembers *why*. Turn this on, and any task that makes a real call writes a short note: the choice, the options that lost, and what it commits you to — tagged right into the code it governs. Open that code six months later, and Foreman hands you the note before you undo a decision you didn't know was there. It's off until you ask for it, because it writes files into your repo and comments into your source. The whole feature fits on one page: [`decision-log.md`](decision-log.md).
 
-Seeing `Foreman: 019` at the bottom of your commits? Different thing, always on. A finished task closes in the same commit as the code it changed, so the commit names the task instead of the roadmap chasing a SHA that doesn't exist yet — one commit, no second "update the roadmap" commit cluttering your history. Same page covers it.
+Seeing `Foreman: 019` at the bottom of your commits? That's a different thing, and it's always on. A finished task closes in the same commit as the code it changed, so the commit names the task instead of the roadmap chasing a commit that doesn't exist yet. One commit, no second "update the roadmap" commit cluttering your history. Same page covers it.
 
 ## Benchmarks
 
@@ -81,15 +81,15 @@ We measured what a good handoff is actually worth: the same real coding jobs, ru
 
 <p align="center"><img src="assets/bench-rescue.svg" alt="The brief pointed at a file that had been renamed: the one-line ask shipped broken work every time, the Foreman handoff never did — it checked the brief against the code first" width="700"></p>
 
-**When the brief goes stale, the one-line ask ships broken work.** Every living repo accumulates stale detail — a file gets renamed, a note outlives the code it described. We planted exactly that trap. On the smaller model the one-line ask patched the wrong file every single time; the Foreman handoff checks the brief against the code first, found the real file, and finished the job — every single time.
+**When the brief goes stale, the one-line ask ships broken work.** Every living repo collects stale detail — a file gets renamed, a note outlives the code it described. We planted exactly that trap. On the smaller model, the one-line ask patched the wrong file every single time. The Foreman handoff checks the brief against the code first, found the real file, and finished the job — every single time.
 
 <p align="center"><img src="assets/bench-cost.svg" alt="The same jobs asked two ways on the bigger model: the one-line ask cost $0.21 per session, the Foreman handoff $0.16 — about a quarter less" width="700"></p>
 
-**Skipping the brief doesn't skip the cost.** Every fact you leave out of the ask, the session buys back by exploring your codebase at your expense. On the bigger model the one-line ask cost about a third more than the Foreman handoff for the same jobs — the shortest prompt was the most expensive session.
+**Skipping the brief doesn't skip the cost.** Every fact you leave out of the ask, the session buys back by exploring your codebase — on your dime. On the bigger model, the one-line ask cost about a third more than the Foreman handoff for the same jobs. The shortest prompt was the most expensive session.
 
 <p align="center"><img src="assets/bench-picks.svg" alt="Cost per what-should-I-work-on-next as the backlog grows: a to-do file costs $0.12 at 10 tasks, $0.14 at 50, $0.21 at 150 — Foreman's roadmap answers free at any size, with the same answer every time" width="700"></p>
 
-**"What's next?" is free, every time you ask.** Keep your backlog in a plain to-do file and Claude re-reads the whole thing on every ask — the bill grows with the list, and the pick can change with the model's mood. Foreman reads the roadmap mechanically: instant, free at any size, same answer every time.
+**"What's next?" is free, every time you ask.** Keep your backlog in a plain to-do file, and Claude re-reads the whole thing on every ask — the bill grows with the list, and the pick can change with the model's mood. Foreman reads the roadmap mechanically: instant, free at any size, same answer every time.
 
 > [!NOTE]
 > A carefully hand-written brief performs like a Foreman handoff — the difference is you don't have to write it, and the guardrails come along for free. On a strong model with a fresh, accurate brief, the rescue above simply isn't needed: stale and thin briefs are where it pays.
@@ -98,11 +98,11 @@ We measured what a good handoff is actually worth: the same real coding jobs, ru
 
 ## Under the hood
 
-The roadmap is a plain file in your repo (field-by-field details in [`roadmap-schema.md`](roadmap-schema.md)), and every prompt Foreman assembles is script-checked before it ships — a malformed handoff never reaches a session. Pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush): razor cuts the code, hush cuts the noise, Foreman writes the prompts — and measured together, the three add no overhead to each other.
+The roadmap is a plain file in your repo (field-by-field details in [`roadmap-schema.md`](roadmap-schema.md)), and every prompt Foreman assembles is script-checked before it ships — a malformed handoff never reaches a session. Foreman pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush): razor cuts the code, hush cuts the noise, Foreman writes the prompts. Measured together, the three add no overhead to each other.
 
 ## Settings
 
-Most people never touch these — `/foreman:init` asks about the common ones and writes `.foreman/config.json` for you. The full set, if you ever want them by hand:
+Most people never touch these — `/foreman:init` asks about the common ones and writes `.foreman/config.json` for you. Here's the full set, if you ever want to set them by hand:
 
 | Setting | What it does |
 | --- | --- |
