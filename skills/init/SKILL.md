@@ -104,7 +104,7 @@ Options:
 
 ---
 
-## Call 2b — Fable access (batch 1)
+## Call 2b — Fable access and decision notes (batch 2)
 
 **Q1** — "Can this project run Fable 5? (Max plan or API — other plans
 can't)"
@@ -115,6 +115,20 @@ field verbatim (`Yes` → `true`, `No` → `false`, the default). When `true`,
 `Fable` becomes a selectable option alongside Haiku/Sonnet/Opus in
 `craft-prompt` and `foreman:roadmap`'s executing-model question; when
 `false`, that question offers only the three models everyone can run.
+
+**Q2** — "When a task settles a real choice, should Foreman keep a short
+'why we picked this' note and show it to later tasks that build on it?"
+Options:
+- `No — don't keep decision notes` — (default) Foreman never asks for or
+  surfaces these. Becomes `"decisionLog": {"enabled": false}`.
+- `Yes — keep them` — when a task decides between real alternatives, the
+  handoff writes a short note (what was chosen and why) under
+  `docs/foreman/`, and future tasks that depend on it get pointed at that
+  note before they start. Becomes `"decisionLog": {"enabled": true}`.
+
+Default is No — a project that never wants written decision records can
+decline without knowing what an ADR is. Record the answer as
+`.foreman/config.json`'s `decisionLog` field.
 
 ---
 
@@ -173,16 +187,16 @@ the updated draft, ask again. Repeat until approved.
    order, and `add` rejects an id that doesn't exist yet. If any call
    returns `warnings`, mention them once at the end rather than per entry.
 3. Write `.foreman/config.json` —
-   `{"discoverySuggestions": <bool>, "usePersona": <bool>, "omitSections": [...], "requireVerification": <bool>, "taskCloseGate": "<off|block>", "fableEnabled": <bool>}`
+   `{"discoverySuggestions": <bool>, "usePersona": <bool>, "omitSections": [...], "requireVerification": <bool>, "taskCloseGate": "<off|block>", "fableEnabled": <bool>, "decisionLog": {"enabled": <bool>}}`
    from the Call 2/Call 2b answers (skip this file write if the pre-check
    "keep, add to it" branch found an existing config already).
-   **If the file already exists, `Read` it first and set those six keys on
+   **If the file already exists, `Read` it first and set those seven keys on
    the parsed object — any other key present must survive untouched.** This
    applies whenever the file exists, not only on the Overwrite branch: the
    pre-check only fires when `ROADMAP.jsonl` exists, so a project with a
    config but no roadmap is never asked anything and would otherwise have
    its config replaced silently. Today the keys at risk are `customSections`,
-   `targetModel`, `checkpoints`, and `decisionLog` — init writes none of
+   `targetModel`, and `checkpoints` — init writes none of
    them — but the rule is "everything else
    survives", not a list, so the next key is covered without another edit.
    If the file exists but won't parse, write the six keys alone and say so
