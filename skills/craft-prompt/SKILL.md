@@ -129,7 +129,7 @@ delivered, not the other way around.
 
 **Q1** — "How do you want to run this?"
 Options:
-- `Execute here` — run it in this session
+- `Execute here (Recommended)` — run it in this session
 - `Execute with a background Agent` — offload it, get notified on completion — best for orchestration, where this session owns the commits
 - `Copy prompt to clipboard` — just get the text, no execution
 

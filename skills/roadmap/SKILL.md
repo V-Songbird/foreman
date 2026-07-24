@@ -159,12 +159,11 @@ original design.
 exists, not after. There is nothing to preview yet; the destination decides
 how the prompt gets built and delivered, not the other way around.
 Options, in this order:
-- `Copy prompt to clipboard (Recommended)` — just get the text, no
-  execution. Leads because nothing starts and the entry stays `planned`
-  until someone actually runs the prompt (see step 4 below) — picking a
-  task is not the same as starting it.
-- `Execute here` — run it in this session
+- `Execute here (Recommended)` — run it in this session. Leads because
+  it's the common case: pick a task, work it, done — no extra hop through
+  a clipboard or a second agent.
 - `Execute with a background Agent` — offload it, get notified on completion — best for orchestration, where this session owns the commits
+- `Copy prompt to clipboard` — just get the text, no execution
 
 The `spawn_task` ban applies here — see `prompt-template.md`'s "Delivery
 mechanics" section.
