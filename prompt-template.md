@@ -114,6 +114,25 @@ an instruction for the spawned session to act on later):**
    - `warnings` — surface briefly to the user (skipped entries from a
      malformed config); never blocks assembly.
 
+0b. **Resolve the touched files into a symbol map.** In the same craft-time
+   slot, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-symbols.js
+   --touches <comma-separated paths>` (or pipe `{"touches":[...],"what":
+   "..."}` on stdin, which also fills `unresolved`). One JSON object:
+   `{"ok": true, "files": [{"path", "missing"?, "directory"?, "unsupported"?,
+   "symbols": [{"name", "line"}]}], "unresolved": [...], "warnings": [...]}`.
+   Skip the call only when no file paths are known yet.
+   - `files[].symbols` — feed these into `relevant_files` below: cite the
+     symbol names that live in each file, so the handed-off session doesn't
+     re-derive them. Extraction is a column-0 regex, not a parser, so it
+     narrows the search and never replaces `truth_grounding`.
+   - `missing` — the path no longer exists. Fix or drop it before
+     delivering; a stale path caught here is one the destination would
+     otherwise chase.
+   - `unresolved` — identifier-shaped names in the task's own description
+     that match no symbol in any touched file. Treat each as either an
+     invented API or an un-caught rename, and resolve it before assembly.
+   - `warnings` — surface alongside `render-sections.js`'s own.
+
 ```xml
 <task_context>
 [If step 0's `usePersona` is `true`: "You are [specific role — e.g. "a
@@ -206,8 +225,11 @@ unconditionally. Otherwise, step 0's `targetModel` sets how much
 elaboration `relevant_files` and `context` below carry — see its bullet.]
 <background>
 <relevant_files>
-[Exact file paths with line ranges for every file the task touches.
-Example: src/auth/middleware.ts:42-80 — token refresh logic
+[Exact file paths for every file the task touches, each with the symbols
+that matter — take them from step 0b's `files[].symbols` rather than
+describing the file in prose, and fall back to a line range only where no
+symbol covers the spot.
+Example: src/auth/middleware.ts — refreshToken (42), verifySession (77)
 Include every file. No vague references like "the auth module".
 When an analogous implementation exists, add one reference line —
 Pattern: src/webhooks/github.ts — build the new code the same way
@@ -327,7 +349,11 @@ using them:
       overridden by a concrete executing-model answer when the crafting
       flow gathered one — drove how much elaboration went into
       `relevant_files`/`context`/`task_rules` below
-- [ ] `relevant_files` lists every file path with line ranges — no vague
+- [ ] `resolve-symbols.js` ran in the same craft-time slot when any file
+      paths were known, its `files[].symbols` fed `relevant_files`, and
+      every `missing` path and `unresolved` name was resolved before
+      delivery — never left for the destination to discover
+- [ ] `relevant_files` lists every file path with symbols or line ranges — no vague
       references (`craft-prompt`: from the user directly; `foreman:roadmap`:
       the entry's `touches` passed through as-is, never upgraded by
       exploring the codebase — `truth_grounding` covers that gap at

@@ -119,6 +119,12 @@ the prompt's elaboration scoping and its `<decision_log>` block, Deliver's
 clipboard recommendation) reads this same result. Nothing past this point
 calls it again.
 
+Once the file paths are known, run
+`node ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-symbols.js` in the same slot —
+the template's step 0b has its arguments and output shape. Its
+`files[].symbols` are what `relevant_files` cites; a `missing` path or an
+`unresolved` name is fixed here, before assembly, not handed on.
+
 ---
 
 ## Call 5 — destination

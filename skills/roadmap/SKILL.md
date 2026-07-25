@@ -188,9 +188,16 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      survey verdict, a defer trigger, a previous session's evidence) — the
      candidate already carries them, so this costs nothing and stops the
      destination re-deriving what someone already wrote down
-   - `relevant_files` seed ← `touches`, passed through as-is (area-level
-     hints, not confirmed file:line ranges — that's fine, don't upgrade
-     them yourself)
+   - `relevant_files` seed ← `touches`, run once through
+     `node ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-symbols.js` (the
+     template's step 0b) — the candidate's paths and its `what` go in, a
+     symbol map comes out. This is a mechanical call, not investigation:
+     it reads no file you choose and forms no judgment, so the
+     no-investigation rule at the top of this branch still holds. Cite the
+     returned `files[].symbols` in `relevant_files`; a `missing` path and
+     an `unresolved` name each go into the handoff as a stated
+     discrepancy, since the entry's own fields are all this branch has to
+     correct them with. Don't upgrade the paths any other way.
    - `depends_on_docs` — when the candidate carries a non-empty one (the
      resolved decision-doc paths of its dependencies), list those paths in
      the handoff (in `background`/`context`) so the destination reads those
