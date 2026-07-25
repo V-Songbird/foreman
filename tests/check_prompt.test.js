@@ -46,6 +46,7 @@ function goodPrompt(overrides = {}) {
     entry_paragraph: '',
     tone: '<tone>\nMinimal, professional conversation — silent by default. If an output style already governs this session\'s voice, defer to it.\n</tone>',
     background: '<background>\n<relevant_files>\nsrc/auth/middleware.ts:42-80 — token refresh logic\n</relevant_files>\n<context>\nUses JWT tokens in httpOnly cookies. No third-party auth libs.\n</context>\n</background>',
+    invariants: '',
     task_rules: '<task_rules>\n- Explore relevant_files first (see truth_grounding above).\n- Check the refresh path against the failing test.\n- Fix the bug.\n\nConstraints:\n- Do not modify the public API.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\nDo NOT claim success without running this. If it fails, iterate until it passes.\n</task_rules>',
     custom_sections: '',
     request: 'Fix the token refresh bug in the auth middleware.',
@@ -340,5 +341,55 @@ describe('drift pins', () => {
     assert.ok(skill.includes('Mark it `in_progress`'));
     assert.ok(skill.includes('already marked `in_progress`'));
     assert.ok(skill.includes('ROADMAP.jsonl entry `<id>`'));
+  });
+
+  test('the template still defines the three optional per-task fields', () => {
+    const raw = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
+    assert.ok(raw.includes('<invariants>'));
+    assert.ok(raw.includes('Expected file surface:'));
+    assert.ok(raw.includes('confirm the test goes red'));
+  });
+
+  test('both skills still gather the three optional per-task fields', () => {
+    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'SKILL.md']]) {
+      const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8');
+      assert.ok(skill.includes('`invariants`'), `${rel.join('/')} lost the invariants mapping`);
+      assert.ok(skill.includes('Expected file surface:'), `${rel.join('/')} lost the file-surface mapping`);
+      assert.ok(skill.includes('test-first ordering'), `${rel.join('/')} lost the test-first mapping`);
+    }
+  });
+});
+
+describe('optional per-task fields', () => {
+  const INVARIANTS = '<invariants>\nRebuilding twice yields the same ids.\nAn unknown flag exits non-zero.\n</invariants>';
+  const RULES_WITH_FIELDS =
+    '<task_rules>\n- Explore relevant_files first (see truth_grounding above).\n- Check the refresh path against the failing test.\n- Fix the bug.\n\n' +
+    'Constraints:\n- Do not modify the public API.\n- Expected file surface: src/auth/middleware.ts. Anything beyond this list gets flagged to the user before it is written, not after.\n\n' +
+    'Verification (REQUIRED):\nWrite the invariant test first, confirm it passes against the unmodified code, deliberately break the invariant and confirm the test goes red, then implement.\n' +
+    'Run: npm test\nExpected: all tests pass\nDo NOT claim success without running this. If it fails, iterate until it passes.\n</task_rules>';
+
+  test('a prompt carrying all three passes clean', () => {
+    const project = makeTmpProject();
+    const prompt = goodPrompt({ invariants: INVARIANTS, task_rules: RULES_WITH_FIELDS });
+    const { status, json } = check(project, prompt, ['--destination', 'task']);
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.equal(json.ok, true);
+    assert.deepEqual(json.warnings, []);
+  });
+
+  test('a prompt carrying none of them passes clean too — all three are optional', () => {
+    const project = makeTmpProject();
+    const { status, json } = check(project, goodPrompt(), ['--destination', 'task']);
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.equal(json.ok, true);
+    assert.deepEqual(json.warnings, []);
+  });
+
+  test('an unfilled invariants placeholder is an error', () => {
+    const project = makeTmpProject();
+    const prompt = goodPrompt({ invariants: '<invariants>\n[One observable assertion per line.]\n</invariants>' });
+    const { json } = check(project, prompt, ['--destination', 'task']);
+    assert.equal(json.ok, false);
+    assert.ok(json.errors.some((e) => e.includes('One observable assertion')), JSON.stringify(json.errors));
   });
 });

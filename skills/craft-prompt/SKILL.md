@@ -76,6 +76,23 @@ The answer lands in `<context>` under an `Observed failure:` line, exactly
 as pasted — the artifact, not a paraphrase (the spawned session can't ask
 what the error actually said).
 
+**Q4** — "What must stay true after this change? One observable assertion
+per line — something a command could check, not the name of a contract."
+Options: `Nothing in particular`
+The answers fill the template's optional `<invariants>` block. Rephrase a
+contract name into the assertion behind it before it goes in ("preserve
+the identity-per-rebuild contract" → "rebuilding twice yields the same
+ids"); if the user can't name the assertion, say that in the line rather
+than passing the name through. `Nothing in particular` omits the block —
+that is a normal answer, not a gap to push back on.
+
+**Don't ask about the file surface or the test-first ordering** — both are
+inferable and a second interview is the thing to avoid. The
+`Expected file surface:` constraint line comes from Call 2 Q3's paths as
+given. The test-first ordering goes into the verification block only when
+this task's breakage would pass the checks Q1 just named — a silent
+failure; a loud one leaves it out.
+
 ---
 
 ## Call 4-N — optional section details
@@ -219,6 +236,12 @@ gathered fields onto the template's placeholders:
   into `<context>` under an `Observed failure:` line, verbatim
 - `task_rules`: steps ← Call 2 Q4; Constraints ← Call 4's Constraints
   answers, if selected; Verification ← Call 3, if gathered
+- `invariants` ← Call 3 Q4, when gathered and not `Nothing in particular`;
+  omit the block entirely otherwise
+- `Expected file surface:` constraint line ← Call 2 Q3's paths, as given;
+  omit the line when no paths were named
+- test-first ordering in the verification block ← only for a silent
+  failure (see Call 3 Q4's note); omit it for a loud one
 - review-flavored tasks (the `Security audit` task type, or the
   `Code reviewer` role): add one constraint bullet to `task_rules` —
   "Flag only gaps that affect correctness or security — reporting that

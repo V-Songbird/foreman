@@ -244,6 +244,20 @@ For a bug fix, include the observed failing output verbatim under an
 </context>
 </background>
 
+[OPTIONAL — include only when the task has something that must stay true
+across the change. Every line is an observable assertion, phrased so it
+could be checked by running something: "rebuilding twice yields the same
+ids", "an unknown flag exits non-zero". Never a contract name —
+"preserve the identity-per-rebuild contract" makes the session infer what
+the contract is, and that inference is where invented behavior comes
+from. An invariant that cannot be written as an assertion is information,
+not an obstacle: say so in the line rather than dropping to a name. A
+task with nothing to assert omits this whole block — its absence is
+normal and the gate says nothing about it.]
+<invariants>
+[One observable assertion per line.]
+</invariants>
+
 [Step 0's `targetModel` also sets how much elaboration these bullets and
 the verification block carry — see its bullet.]
 <task_rules>
@@ -258,6 +272,12 @@ tasks keep the bullets.]
 Constraints:
 - [Hard limits — files NOT to modify, interfaces NOT to break]
 - [Style or pattern to follow — point to an example file if one exists]
+- [OPTIONAL, one line — "Expected file surface: <paths>", the files this
+  task is expected to touch, followed by: anything beyond this list gets
+  flagged to the user before it is written, not after. This is the
+  pre-committed scope baseline `touches` cannot be, since `touches`
+  derives from the commit after the fact. Omit the line when the surface
+  genuinely isn't known yet.]
 
 Verification (REQUIRED):
 Run: [exact command — e.g. "npm test -- --testPathPattern=auth"]
@@ -265,6 +285,13 @@ Expected: [pass/fail signal — e.g. "all tests pass", "exit code 0"]
 [Repeat the Run:/Expected: pair, in running order, for every check the
 task actually has. An `Execute here` task split cuts on these boundaries —
 see the splitting section below.]
+[OPTIONAL, for a silent-failure task — one whose breakage passes the
+existing tests. State this ordering explicitly, before the Run: pairs:
+write the invariant test first, confirm it passes against the unmodified
+code, deliberately break the invariant and confirm the test goes red,
+then implement. A test written after the change encodes the
+implementation instead of the contract and will pass a broken change.
+Omit the ordering for a task whose failure is loud.]
 Do NOT claim success without running this. If it fails, iterate until it passes.
 </task_rules>
 
@@ -364,6 +391,11 @@ using them:
       a `sonnet`-, `opus`-, or `fable`-target handoff carries the
       implement step without the read/run micro-steps; the gate's
       `--research` flag waives the verification pair)
+- [ ] `<invariants>`, the `Expected file surface:` constraint line, and the
+      test-first ordering are each present when the task has one, and each
+      absent otherwise — all three are optional and nothing flags their
+      absence; when `<invariants>` is present, every line reads as an
+      assertion that could be checked, never as a contract name
 - [ ] custom sections were rendered by `render-sections.js` and inlined
       verbatim after `task_rules` — never hand-written — and its
       `warnings` were surfaced to the user

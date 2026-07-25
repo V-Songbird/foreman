@@ -198,6 +198,22 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      an `unresolved` name each go into the handoff as a stated
      discrepancy, since the entry's own fields are all this branch has to
      correct them with. Don't upgrade the paths any other way.
+   - `invariants`, `Expected file surface:`, and test-first ordering — the
+     template's three optional per-task fields, all derived from the
+     candidate's own recorded fields, no extra question:
+     - `invariants` ← the assertions already stated in `why`/`what`/`notes`,
+       rewritten as observable assertions. A contract named in those fields
+       goes in as the assertion behind it, never as the name — and when the
+       entry names a contract without saying what it asserts, say exactly
+       that in the line, so the destination knows to establish it rather
+       than infer it. Nothing assertable means the block is omitted; that
+       is normal.
+     - `Expected file surface:` ← the candidate's `touches` as given,
+       followed by the flag-before-writing sentence the template supplies.
+       `touches` is unverified area-level hints, which is precisely why it
+       belongs here as a baseline to flag against rather than as a fact.
+     - test-first ordering ← only when the entry describes a failure that
+       would pass the existing checks. Omit it otherwise.
    - `depends_on_docs` — when the candidate carries a non-empty one (the
      resolved decision-doc paths of its dependencies), list those paths in
      the handoff (in `background`/`context`) so the destination reads those

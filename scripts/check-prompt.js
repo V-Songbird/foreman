@@ -17,6 +17,7 @@ const TEMPLATE_PATH = path.join(__dirname, "..", "prompt-template.md");
 // means a placeholder was left unfilled or an instruction line was copied
 // instead of acted on. tests pin this list against the template: every
 // bracket-opening line there must be covered here.
+// [Foreman: 106]
 const PLACEHOLDER_FRAGMENTS = [
   "[If step 0's",
   "[specific role",
@@ -33,6 +34,7 @@ const PLACEHOLDER_FRAGMENTS = [
   "[What to read",
   "[What to analyze",
   "[What to implement",
+  "[One observable assertion",
   "[Hard limits",
   "[Style or pattern",
   "[exact command",
