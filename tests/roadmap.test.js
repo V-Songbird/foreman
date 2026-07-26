@@ -251,6 +251,78 @@ describe('update-status auto-derives touches from the commit', () => {
   });
 });
 
+// Scope drift: the touches recorded before a close is the entry's prediction,
+// and the close compares it against what the commit actually changed. Recorded
+// as a note line, never a gate.
+describe('update-status records scope drift', () => {
+  function seed(touches) {
+    writeRoadmap(project, [
+      { id: '001', title: 'a', why: 'a', what: 'a', status: 'in_progress', source: 'user', depends_on: [], touches, commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '' },
+    ]);
+    initGitRepo(project);
+  }
+
+  test('drift in both directions is recorded on the entry and returned', () => {
+    seed(['src/predicted.ts', 'docs/never.md']);
+    const sha = commitFile(project, 'src/surprise.ts', 'export const x = 1;\n');
+
+    const { status, json } = run(['update-status'], { id: '001', status: 'done', commit: sha });
+
+    assert.equal(status, 0, 'drift is recorded information, never a gate');
+    assert.deepEqual(json.scope_drift.untouched, ['src/predicted.ts', 'docs/never.md']);
+    assert.deepEqual(json.scope_drift.unpredicted, ['src/surprise.ts']);
+    assert.match(json.entry.notes, /scope drift — predicted but untouched: src\/predicted\.ts, docs\/never\.md; touched but unpredicted: src\/surprise\.ts/);
+  });
+
+  test('a prediction that matches exactly records nothing', () => {
+    seed(['src/foo.ts']);
+    const sha = commitFile(project, 'src/foo.ts', 'export const x = 1;\n');
+
+    const { json } = run(['update-status'], { id: '001', status: 'done', commit: sha });
+
+    assert.equal(json.scope_drift, undefined);
+    assert.equal(json.entry.notes.includes('scope drift'), false);
+  });
+
+  test('an area-level prediction covers every file beneath it', () => {
+    seed(['src']);
+    const sha = commitFile(project, 'src/nested/deep.ts', 'export const x = 1;\n');
+
+    const { json } = run(['update-status'], { id: '001', status: 'done', commit: sha });
+
+    assert.equal(json.scope_drift, undefined, 'a directory hint is not drift');
+  });
+
+  test('an entry that predicted nothing records nothing', () => {
+    seed([]);
+    const sha = commitFile(project, 'src/foo.ts', 'export const x = 1;\n');
+
+    const { json } = run(['update-status'], { id: '001', status: 'done', commit: sha });
+
+    assert.equal(json.scope_drift, undefined);
+    assert.equal(json.entry.notes.includes('scope drift'), false);
+  });
+
+  test('a close with no commit behind it records nothing', () => {
+    seed(['src/predicted.ts']);
+
+    const { json } = run(['update-status'], { id: '001', status: 'done' });
+
+    assert.equal(json.scope_drift, undefined);
+    assert.equal(json.entry.notes.includes('scope drift'), false);
+  });
+
+  test('re-running the same close does not append the line twice', () => {
+    seed(['src/predicted.ts']);
+    const sha = commitFile(project, 'src/surprise.ts', 'export const x = 1;\n');
+
+    run(['update-status'], { id: '001', status: 'done', commit: sha });
+    const { json } = run(['update-status'], { id: '001', status: 'done', commit: sha });
+
+    assert.equal(json.entry.notes.match(/scope drift/g).length, 1);
+  });
+});
+
 describe('annotate', () => {
   beforeEach(() => {
     writeRoadmap(project, [

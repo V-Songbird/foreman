@@ -329,6 +329,36 @@ function filesStagedIn(root) {
   }
 }
 
+// [Foreman: 110]
+// The entry's `touches` as it stands BEFORE a close folds anything in is the
+// prediction: it is the creation-time guess, and the fold below overwrites it
+// with what actually shipped. So the drift has to be measured against a
+// snapshot taken first, not against the stored field afterwards.
+//
+// Matching is prefix-aware on purpose. `touches` is an area-level hint --
+// "foreman/tests" predicts every file beneath it -- so a plain set subtraction
+// would report drift that never happened.
+function coversPath(predicted, actual) {
+  const base = predicted.replace(/\/+$/, "");
+  return actual === base || actual.startsWith(`${base}/`);
+}
+
+function scopeDrift(predicted, actual) {
+  return {
+    untouched: predicted.filter((p) => !actual.some((a) => coversPath(p, a))),
+    unpredicted: actual.filter((a) => !predicted.some((p) => coversPath(p, a))),
+  };
+}
+
+// Subtraction, not judgment: a wide diff says something about how the entry
+// was framed, so it is recorded as one note line and never gates the close.
+function driftNote(drift) {
+  const parts = [];
+  if (drift.untouched.length) parts.push(`predicted but untouched: ${drift.untouched.join(", ")}`);
+  if (drift.unpredicted.length) parts.push(`touched but unpredicted: ${drift.unpredicted.join(", ")}`);
+  return parts.length ? `scope drift — ${parts.join("; ")}` : null;
+}
+
 // Best-effort `git add ROADMAP.jsonl` so a staged close needs no extra
 // caller step to fold the roadmap change into the pending commit. False
 // (git absent / not a repo) never fails the close — the caller just
@@ -393,6 +423,8 @@ function cmdUpdateStatus(root, payload) {
     : staged
       ? filesStagedIn(root)
       : [];
+  // [Foreman: 110] Snapshot the prediction before the fold destroys it.
+  const predictedTouches = Array.isArray(entry.touches) ? [...entry.touches] : [];
   const newTouches = [...(add_touches || []), ...derivedTouches];
   if (newTouches.length) {
     entry.touches = Array.isArray(entry.touches) ? entry.touches : [];
@@ -400,11 +432,23 @@ function cmdUpdateStatus(root, payload) {
       if (typeof t === "string" && t && !entry.touches.includes(t)) entry.touches.push(t);
     }
   }
+  // [Foreman: 110] An entry that predicted nothing has nothing to drift from,
+  // and a close with no commit or index behind it has no actual list to
+  // compare against — both stay silent rather than reporting every file as a
+  // surprise. Re-running the same close would recompute the same line, so an
+  // already-recorded one is never appended twice.
+  const drift =
+    predictedTouches.length && derivedTouches.length ? scopeDrift(predictedTouches, derivedTouches) : null;
+  const note = drift && driftNote(drift);
+  if (note && !String(entry.notes || "").includes(note)) {
+    entry.notes = appendNote(entry.notes, note);
+  }
   entry.updated_at = today();
   writeEntries(root, entries);
   const warnings = notes ? fieldWarnings([["notes", notes, NOTES_APPEND_WARN_CHARS, NOTES_WARN_HINT]]) : [];
   const result = { entry };
   if (derivedTouches.length) result.derived_touches = derivedTouches;
+  if (drift && (drift.untouched.length || drift.unpredicted.length)) result.scope_drift = drift;
   // A staged close hands back the exact trailer line the commit message
   // must carry — the entry↔commit link the recorded sha used to be.
   if (staged) {
@@ -865,6 +909,9 @@ module.exports = {
   cmdCheckDuplicate,
   filesTouchedByCommit,
   filesStagedIn,
+  coversPath,
+  scopeDrift,
+  driftNote,
   stageRoadmapFile,
   reaches,
   normalizeWords,

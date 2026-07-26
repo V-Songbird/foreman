@@ -15,6 +15,7 @@ field by convention).
 - Crafting a prompt now checks whether the verification command can actually run in this project, and says so before the prompt is handed off.
 - A file that already imports the same helper is offered as a pattern to imitate, so the prompt cites a real example instead of general advice.
 - Each file a task touches now carries the date it last changed, making it clear which of the task's claims may have aged.
+- Closing a task now notes how far the files it predicted differ from the files it actually changed.
 
 ## [0.46.0-alpha] — 2026-07-24
 
