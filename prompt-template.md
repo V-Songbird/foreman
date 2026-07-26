@@ -131,15 +131,24 @@ an instruction for the spawned session to act on later):**
      <!-- [Foreman: 111] -->
      **Raise the session** — on the `Execute here` destination only, both
      halves above are stated together and followed by one question, asked
-     once per handoff and before the first task row exists: whether to
-     raise the session to them or proceed as-is. That destination has no
-     dispatch value to carry either half, so a line alone is the one thing
-     a reader skims past. Foreman never makes the comparison itself and
-     must not try — hook input carries no model at all, and effort is
-     readable only inside a hook, never by a skill — so the operator's
-     answer IS the comparison and the switch is theirs. It never sets a
-     model, never blocks, and never records anything. The other two
-     destinations keep asking exactly what they ask today.
+     once per handoff and before the first task row exists: proceed as-is,
+     or take the prompt to a fresh session already set to the
+     recommendation. That destination has no dispatch value to carry
+     either half, so a line alone is the one thing a reader skims past.
+     Foreman never makes the comparison itself and must not try —
+     hook input carries no model at all, and effort is readable only
+     inside a hook, never by a skill — so the operator's answer IS the
+     comparison and the switch is theirs. It never sets a model, never
+     blocks, and never records anything. The other two destinations keep
+     asking exactly what they ask today.
+
+     Switching this session's model or effort in place is deliberately
+     **not** an option. Either change invalidates the prompt cache, so
+     every remaining turn re-reads the whole conversation from scratch;
+     a fresh session pays that cost once, at the shortest history it will
+     ever have. A background `Agent` is not the substitute either — that
+     call takes a `model` but no effort argument, so it can only ever
+     close half the gap.
    - `fableEnabled` — boolean declaration (default `false`) that the
      operator can run Fable 5 at all (Max plan or API — other plans
      can't). Asked once by `foreman:init`'s Call 2b, or hand-edited later

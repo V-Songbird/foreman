@@ -422,6 +422,40 @@ describe('drift pins', () => {
       );
     }
   });
+
+  test('the raise-the-session ask sends the work to a fresh session, never a mid-session switch', () => {
+    const files = [
+      TEMPLATE_PATH,
+      path.join(__dirname, '..', 'skills', 'craft-prompt', 'SKILL.md'),
+      path.join(__dirname, '..', 'skills', 'roadmap', 'SKILL.md'),
+    ];
+    for (const file of files) {
+      const raw = fs.readFileSync(file, 'utf-8').replace(/\s+/g, ' ');
+      assert.ok(
+        /invalidates the prompt cache/.test(raw),
+        `${path.basename(file)} lost the reason a mid-session switch is not offered`
+      );
+      assert.ok(
+        /takes a `model` but no effort argument/.test(raw),
+        `${path.basename(file)} lost the reason a background Agent only half-closes the gap`
+      );
+      assert.ok(
+        !/I'll switch first/.test(raw),
+        `${path.basename(file)} still offers the mid-session switch option`
+      );
+    }
+    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'SKILL.md']]) {
+      const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8').replace(/\s+/g, ' ');
+      assert.ok(
+        skill.includes('Start it in a fresh session'),
+        `${rel.join('/')} lost the fresh-session option`
+      );
+      assert.ok(
+        /delivered exactly as the `Copy prompt to clipboard` destination does|deliver exactly as the `Copy prompt to clipboard` destination does/.test(skill),
+        `${rel.join('/')} lost the clipboard delivery rule for the fresh-session option`
+      );
+    }
+  });
 });
 
 describe('symbols-first relevant_files', () => {

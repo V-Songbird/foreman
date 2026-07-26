@@ -205,8 +205,18 @@ This is the only place the model half is ever said on this destination.
 **Q1** — "This task suggests <model> at <effort>. Raise the session to it?"
 Options:
 - `Proceed as-is (Recommended)` — run at whatever this session already has
-- `I'll switch first` — you change the session's model or effort, then the
-  work starts
+- `Start it in a fresh session` — the prompt goes to the clipboard, you open
+  a session already set to <model> at <effort> and paste it there
+
+Changing this session's model or effort in place is deliberately not on the
+list: either change invalidates the prompt cache, so every remaining turn
+re-reads the whole conversation. A fresh session pays that once, at the
+shortest history it will ever have. A background `Agent` is not the
+substitute either — that call takes a `model` but no effort argument.
+
+When the user picks `Start it in a fresh session`, deliver exactly as the
+`Copy prompt to clipboard` destination does and stop there; nothing runs in
+this session and no task row is created.
 
 Foreman cannot compare the two itself and must not try: hook input carries
 no model at all, and reasoning effort is readable only inside a hook, never
