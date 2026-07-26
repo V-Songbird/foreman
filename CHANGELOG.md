@@ -18,6 +18,10 @@ field by convention).
 - Closing a task now notes how far the files it predicted differ from the files it actually changed.
 - New `modelSuggestions` setting, off by default: turn it on and each handoff says which model and reasoning effort the task deserves. Running a task in your own session then offers to hand the prompt to a fresh session already set to them. With it off, Foreman recommends nothing and only asks which model to dispatch on when a dispatch needs one. `/foreman:init` asks about it.
 
+### Removed
+
+- The `checkpoints.push` setting is gone. Checkpoint commits always stay local now — the default ending squashes and deletes the checkpoint branch, so pushing each commit published work that was about to be rewritten.
+
 ### Fixed
 
 - Closing a task with a commit that lives in a submodule now records the files that commit changed, instead of recording nothing.

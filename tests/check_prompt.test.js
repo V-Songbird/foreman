@@ -318,7 +318,20 @@ describe('drift pins', () => {
     assert.ok(raw.includes('Squash merge (Recommended)'));
     assert.ok(raw.includes('the `checkpoints`\n  block of `.foreman/config.json`'));
     assert.ok(raw.includes('`onFinish` `"ask"`'));
-    assert.ok(raw.includes('With `push` `true` and a remote'));
+    assert.ok(raw.includes('Checkpoints always stay local'));
+  });
+
+  // [Foreman: 119] checkpoints.push was removed, not renamed: pushing a
+  // checkpoint publishes history the default squash ending rewrites, and
+  // with `branch` false it pushed WIP straight to the session's own branch.
+  test('the template offers no way to push a checkpoint commit', () => {
+    const raw = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
+    assert.ok(!/`push` `(true|false)`/.test(raw), 'the template resurrected a checkpoints.push key');
+    assert.ok(!/baked `push`/.test(raw), 'the clipboard embed still bakes in a push value');
+    assert.ok(
+      raw.includes('There is no `push` key and none should be added'),
+      'the template lost the never-add-push rule'
+    );
   });
 
   test('the template still carries the clipboard checkpoint embed rules', () => {

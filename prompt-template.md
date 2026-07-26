@@ -672,7 +672,8 @@ instructing the pasted session to:
   branch, otherwise checkpoint in place (with `branch` `false`, always
   in place);
 - after each task's check passes, `git add -A` and commit
-  `task <n>/<total>: <task subject>`; push per the baked `push` value;
+  `task <n>/<total>: <task subject>`, and leave it local — checkpoints
+  are never pushed;
 - after the last task, apply the baked `onFinish` — `"ask"` asks the
   user squash/merge/PR/keep, a concrete value acts directly — only when
   the run created the branch;
@@ -729,11 +730,13 @@ other destinations skip this section entirely — except the clipboard
 checkpoint embed above, which reuses the config-resolution step below at
 craft time.
 
+<!-- [Foreman: 119] -->
 - **Read the config first.** Before anything else, read the `checkpoints`
   block of `.foreman/config.json` at the project root. A missing file,
-  block, or key means that key's default: `branch` `true`, `push` `false`,
-  `onFinish` `"ask"`, `baseBranch` unset (auto-detect). These four keys
-  drive the steps below.
+  block, or key means that key's default: `branch` `true`,
+  `onFinish` `"ask"`, `baseBranch` unset (auto-detect). These three keys
+  drive the steps below. There is no `push` key and none should be added —
+  see `docs/foreman/119.md`.
 - **Settle the branch before the first task.** When `baseBranch` is set,
   that IS the base branch — skip detection. Otherwise resolve it with
   `git symbolic-ref --short refs/remotes/origin/HEAD` and take the name
@@ -747,10 +750,9 @@ craft time.
   checkpoints, then proceed.
 - **One commit per finished task.** After a task's verification passes and
   the task is marked completed: `git add -A`, then commit with the message
-  `task <n>/<total>: <task subject>`. With `push` `true` and a remote
-  present, push after each commit — the first push sets the upstream. With
-  `push` `false` (the default) or no remote, the commit stays local, no
-  comment.
+  `task <n>/<total>: <task subject>`. Checkpoints always stay local, no
+  comment — never push them. `onFinish` is the only step that reaches a
+  remote, and only through its `Open a PR` option.
 - **A roadmap-entry close lands inside the last checkpoint commit** (when
   the handoff carries one): stage everything, close the entry with
   `staged:true` (touches derive from the index, and the script stages
