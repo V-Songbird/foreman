@@ -348,6 +348,15 @@ describe('render-sections — reserved custom section tags', () => {
     assert.deepEqual(json.sections, []);
     assert.match(json.warnings[0], /reserved/);
   });
+
+  test('"plan" and "invariants" are reserved too — both are template-owned tags', () => {
+    for (const tag of ['plan', 'invariants']) {
+      writeConfig(project, { customSections: [{ tag, content: 'x' }] });
+      const { json } = run();
+      assert.deepEqual(json.sections, [], `<${tag}> was allowed to shadow the template block`);
+      assert.match(json.warnings[0], /reserved/);
+    }
+  });
 });
 
 describe('render-sections — decisionLog', () => {

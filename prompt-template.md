@@ -299,8 +299,8 @@ the verification block carry — see its bullet.]
 [Pure-investigation handoff: replace the three step bullets below with the
 question under investigation plus any exact commands worth running — hand
 over the question, not a prescribed exploration sequence. Implementation
-tasks keep the bullets.]
-- [What to read or explore first]
+tasks keep the bullets. There is no read-first bullet here: the plan block
+at the end says that step once, for every task.]
 - [What to analyze or check next]
 - [What to implement, fix, or produce]
 
@@ -343,6 +343,14 @@ if Call 1 selected it.]
 [The immediate, specific request in one sentence.]
 
 Reason through the approach and edge cases in your thinking before editing — not in prose between tool calls. The steps and commands above are a working plan, not a narration script: whatever output style governs this session decides what you say aloud, so don't announce step transitions or restate command results in chat. The same style governs the register of your final message. Full evidence and findings belong in their durable home — the roadmap entry, the commit message, or the artifact the task names — with the final message stating the outcome and pointing there.
+
+<plan>
+The order of work, stated once so you don't have to assemble it:
+1. Read every file `relevant_files` cites, before editing anything.
+2. Make the change `task_rules` describes, inside its constraints.
+3. Run each `Run:` command and check it against its own `Expected:` line.
+A ROADMAP.jsonl entry paragraph, when this prompt carries one, wraps that: its open step runs before step 1 and its close step after step 3. A task-split run puts that paragraph on its last task only, so a row without one starts at step 1 and stops at step 3.
+</plan>
 
 [BACKGROUND-AGENT DESTINATION — if the chosen destination is a background
 `Agent`, include the following paragraph verbatim right here. It is the
@@ -428,11 +436,13 @@ using them:
       the entry's `touches` passed through as-is, never upgraded by
       exploring the codebase — `truth_grounding` covers that gap at
       handoff time)
-- [ ] `task_rules` has read/analyze/implement steps AND a runnable
+- [ ] `<plan>` present, unmodified — every handoff carries it, and nothing
+      elsewhere in the prompt restates the order it already fixes
+- [ ] `task_rules` has analyze/implement steps AND a runnable
       verification command with expected output (a pure-investigation
       handoff carries the question plus exact commands instead of steps;
       a `sonnet`-, `opus`-, or `fable`-target handoff carries the
-      implement step without the read/run micro-steps; the gate's
+      implement step without the run micro-step; the gate's
       `--research` flag waives the verification pair)
 - [ ] `<invariants>`, the `Expected file surface:` constraint line, and the
       test-first ordering are each present when the task has one, and each
@@ -576,7 +586,7 @@ question asked for several tasks. Every other destination, and the
 single-task mode, skips this section entirely.
 
 - **Slice at verification boundaries** — one task per runnable check. Never
-  slice the read/analyze/implement bullets: a `sonnet`, `opus`, or `fable`
+  slice the analyze/implement bullets: a `sonnet`, `opus`, or `fable`
   target doesn't carry them at all, so there is nothing there to cut. Never
   slice by file either — `touches`-style groupings are unverified guesses,
   not a schedule. One check means one task; say so and move on rather than

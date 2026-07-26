@@ -16,6 +16,7 @@
 //   - assumed-context phrasing is a warning, not an error
 //   - Workflow-stage flavor: no tone, no output_format, fixed sentence
 //   - the no-invention line and the bounded fix loop are both required
+//   - <plan> is required and carried verbatim, and states the order once
 //   - drift pin: every bracketed placeholder line in prompt-template.md's
 //     xml fence is covered by the checker's fragment list
 //   - grammar pin: the skill prose still uses the phrases the checker expects
@@ -53,11 +54,12 @@ function goodPrompt(overrides = {}) {
     background: '<background>\n<relevant_files>\nsrc/auth/middleware.ts:42-80 — token refresh logic\n</relevant_files>\n<context>\nUses JWT tokens in httpOnly cookies. No third-party auth libs.\n</context>\n</background>',
     no_invention: NO_INVENTION_LINE,
     invariants: '',
-    task_rules: `<task_rules>\n- Explore relevant_files first (see truth_grounding above).\n- Check the refresh path against the failing test.\n- Fix the bug.\n\nConstraints:\n- Do not modify the public API.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\n${FIX_CEILING_LINE}\n</task_rules>`,
+    task_rules: `<task_rules>\n- Check the refresh path against the failing test.\n- Fix the bug.\n\nConstraints:\n- Do not modify the public API.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\n${FIX_CEILING_LINE}\n</task_rules>`,
     custom_sections: '',
     request: 'Fix the token refresh bug in the auth middleware.',
     autonomy: '',
     closing: canonical.closing,
+    plan: `<plan>${canonical.plan}</plan>`,
     output_format: '<output_format>\nGive a concise, human-readable summary: what changed, and the verification result. No XML tags in the visible response.\n</output_format>',
     ...overrides,
   };
@@ -387,6 +389,43 @@ describe('drift pins', () => {
   });
 });
 
+describe('the ordered plan block', () => {
+  test('a missing <plan> is an error', () => {
+    const project = makeTmpProject();
+    const { status, json } = check(project, goodPrompt({ plan: '' }), ['--destination', 'task']);
+    assert.equal(status, 1);
+    assert.equal(json.ok, false);
+    assert.ok(json.errors.some((e) => e.includes('missing <plan>')), JSON.stringify(json.errors));
+  });
+
+  test('an altered <plan> is an error — it is carried verbatim', () => {
+    const project = makeTmpProject();
+    const prompt = goodPrompt({ plan: '<plan>\n1. Do whatever seems best.\n</plan>' });
+    const { status, json } = check(project, prompt, ['--destination', 'task']);
+    assert.equal(status, 1);
+    assert.ok(json.errors.some((e) => e.includes('<plan> differs')), JSON.stringify(json.errors));
+  });
+
+  test('the plan states the three universal steps and the entry-paragraph rider', () => {
+    assert.match(canonical.plan, /1\. Read every file `relevant_files` cites/);
+    assert.match(canonical.plan, /2\. Make the change `task_rules` describes/);
+    assert.match(canonical.plan, /3\. Run each `Run:` command/);
+    assert.match(canonical.plan, /open step runs before step 1 and its close step after step 3/);
+    assert.match(canonical.plan, /last task only, so a row without one starts at step 1/);
+  });
+
+  test('the read-first bullet is gone from the template, the skill, and the fragment list', () => {
+    const template = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
+    assert.ok(!template.includes('[What to read or explore first]'), 'template still carries the read-first bullet');
+    assert.ok(!PLACEHOLDER_FRAGMENTS.includes('[What to read'), 'fragment list still registers the removed bullet');
+    const skill = fs.readFileSync(path.join(__dirname, '..', 'skills', 'roadmap', 'SKILL.md'), 'utf-8');
+    assert.ok(
+      /task_rules` carries no read-first bullet/.test(skill),
+      'skills/roadmap/SKILL.md still defaults task_rules to an explore-first bullet'
+    );
+  });
+});
+
 describe('durable handoff guardrails', () => {
   test('the precedence rule rides inside the canonical truth_grounding block', () => {
     assert.ok(
@@ -457,7 +496,7 @@ describe('durable handoff guardrails', () => {
 describe('optional per-task fields', () => {
   const INVARIANTS = '<invariants>\nRebuilding twice yields the same ids.\nAn unknown flag exits non-zero.\n</invariants>';
   const RULES_WITH_FIELDS =
-    '<task_rules>\n- Explore relevant_files first (see truth_grounding above).\n- Check the refresh path against the failing test.\n- Fix the bug.\n\n' +
+    '<task_rules>\n- Check the refresh path against the failing test.\n- Fix the bug.\n\n' +
     'Constraints:\n- Do not modify the public API.\n- Expected file surface: src/auth/middleware.ts. Anything beyond this list gets flagged to the user before it is written, not after.\n\n' +
     'Verification (REQUIRED):\nWrite the invariant test first, confirm it passes against the unmodified code, deliberately break the invariant and confirm the test goes red, then implement.\n' +
     `Run: npm test\nExpected: all tests pass\n${FIX_CEILING_LINE}\n</task_rules>`;

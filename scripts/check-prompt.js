@@ -31,7 +31,6 @@ const PLACEHOLDER_FRAGMENTS = [
   "[Exact file paths",
   "[Architectural decisions",
   "[Step 0's",
-  "[What to read",
   "[What to analyze",
   "[What to implement",
   "[One observable assertion",
@@ -95,13 +94,15 @@ function readCanonical() {
   const xml = fence[1];
   const truthGrounding = extractBlock(xml, "truth_grounding");
   const scopeDiscipline = extractBlock(xml, "scope_discipline");
+  // [Foreman: 104]
+  const plan = extractBlock(xml, "plan");
   const closing = xml
     .split("\n")
     .find((line) => line.startsWith("Reason through the approach"));
-  if (!truthGrounding || !scopeDiscipline || !closing) {
+  if (!truthGrounding || !scopeDiscipline || !plan || !closing) {
     throw new Error(`template at ${TEMPLATE_PATH} is missing a canonical block`);
   }
-  return { xml, truthGrounding, scopeDiscipline, closing };
+  return { xml, truthGrounding, scopeDiscipline, plan, closing };
 }
 
 // scope_discipline embeds ${CLAUDE_PLUGIN_ROOT} paths the assembler
@@ -140,6 +141,12 @@ function checkPrompt(prompt, opts) {
   }
   if (!segmentsInOrder(canonical.closing, prompt)) {
     errors.push("the fixed closing paragraph (\"Reason through the approach…\") is missing or altered");
+  }
+  // [Foreman: 104]
+  const plan = extractBlock(prompt, "plan");
+  if (!plan) errors.push("missing <plan> — every handoff carries it, unmodified");
+  else if (norm(plan) !== norm(canonical.plan)) {
+    errors.push("<plan> differs from the template — it must be carried verbatim");
   }
   // [Foreman: 103]
   if (!norm(prompt).includes(norm(NO_INVENTION_SENTENCE))) {

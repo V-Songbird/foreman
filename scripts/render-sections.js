@@ -112,6 +112,8 @@ const RESERVED_TAGS = new Set([
   "relevant_files",
   "context",
   "task_rules",
+  "invariants",
+  "plan",
   "example",
   "output_format",
   "decision_log",

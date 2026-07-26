@@ -219,11 +219,10 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      the handoff (in `background`/`context`) so the destination reads those
      decisions before starting, instead of silently re-deciding a settled
      question. Omit when empty.
-   - `task_rules`' first bullet defaults to: "Explore `relevant_files` first
-     (see `truth_grounding` above)." — short on purpose, `truth_grounding`
-     (fixed, right above it in the same prompt) already carries the full
-     verify-before-acting mandate, restating it here would just be the
-     same sentence twice. The remaining bullets, tone, and the verification
+   - `task_rules` carries no read-first bullet: the fixed `<plan>` block
+     states that step once for every handoff, and `truth_grounding` already
+     carries the verify-before-acting mandate — a third copy here would be
+     the same sentence three times. The bullets, tone, and the verification
      command — ask the same way `craft-prompt` does only if genuinely not
      inferable from the entry; don't turn this into a second interview.
      One exception: when Q3 picked `Tasks from the checks`, the
