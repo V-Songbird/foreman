@@ -110,7 +110,7 @@ Most people never touch these — `/foreman:init` asks about the common ones and
 | `usePersona` | Whether handoff prompts open with a "You are a…" role sentence (default `true`), or plain domain framing. |
 | `omitSections` | Prompt sections to leave out entirely (`tone`, `example`, `background`, `output_format`). Default none. |
 | `customSections` | Extra sections to add to crafted prompts, each `{tag, content}` rendered as an inline `<tag>` block. Tags reserved by the template are rejected. Default none. |
-| `requireVerification` | Hold off marking a task done after a commit until you confirm it's verified. Default `false`. |
+| `requireVerification` | Hold off marking a task done after a commit until you confirm it's verified. On by default; set `false` to close a task as soon as its commit lands. |
 | `taskCloseGate` | When a tracked task finishes with its roadmap entry still open: `off` (default) says nothing, `block` holds the completion until you close the entry. |
 | `decisionLog` | The why-notes above: `{enabled, dir, gate}`. `enabled` is `false` by default — nothing is written until you set it `true`. Full details in [`decision-log.md`](decision-log.md). |
 | `checkpoints` | How task-split runs save their work. Optional keys set the base branch, whether to use a `foreman/<slug>` branch, and what to do at the end — `squash`, `merge`, `pr`, or `keep`. Default: ask you. Checkpoint commits always stay local, and the ending only applies to a branch the run created itself. |

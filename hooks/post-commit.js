@@ -112,16 +112,20 @@ function filterUnnudged(root, ids, todayStr) {
   return new Set(unnudged);
 }
 
+// [Foreman: 118] requireVerification defaults ON: a commit that looks like
+// it finishes a task is not evidence the task holds up, so the unconfigured
+// project gets the safe reading. Opting out is an explicit `false`, and a
+// corrupt config falls to the same safe default rather than the loose one.
 function readConfig(root) {
   const p = path.join(root, ".foreman", "config.json");
   try {
     const parsed = JSON.parse(fs.readFileSync(p, "utf-8"));
     return {
       discoverySuggestions: parsed?.discoverySuggestions !== false,
-      requireVerification: parsed?.requireVerification === true,
+      requireVerification: parsed?.requireVerification !== false,
     };
   } catch {
-    return { discoverySuggestions: true, requireVerification: false };
+    return { discoverySuggestions: true, requireVerification: true };
   }
 }
 

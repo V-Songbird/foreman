@@ -87,13 +87,14 @@ plugins the project runs; the user states the shape they want here.
 
 **Q3** — "When a commit looks like it finishes a task, should Foreman
 close it out right away?"
-Options:
+Options, recommended one first:
+- `No — ask me to confirm it's verified first (Recommended)` — the commit
+  and its touched files are still recorded immediately, but the task stays
+  in progress until you confirm the work actually holds up. Becomes
+  `"requireVerification": true`, which is also the default when the key is
+  absent.
 - `Yes — mark it done as soon as the commit lands` — becomes
   `"requireVerification": false`.
-- `No — ask me to confirm it's verified first` — the commit and its
-  touched files are still recorded immediately, but the task stays in
-  progress until you confirm the work actually holds up. Becomes
-  `"requireVerification": true`.
 
 **Q4** — "When a tracked task completes but its roadmap entry is still
 open, what should Foreman do?"

@@ -156,8 +156,16 @@ describe('freshly-done follow-up fix', () => {
 });
 
 describe('requireVerification gate', () => {
-  test('default (off): nudges to mark done directly', () => {
+  test('default (on): records the commit but withholds done, with no config at all', () => {
     writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    const out = run(bashPayload('git commit -m "finish task"'));
+    assert.match(out, /may complete an in-progress/i);
+    assert.match(out, /requireVerification is on/);
+  });
+
+  test('off: an explicit false nudges to mark done directly', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    writeConfig(project, { requireVerification: false });
     const out = run(bashPayload('git commit -m "finish task"'));
     assert.match(out, /may complete an in-progress/i);
     assert.doesNotMatch(out, /requireVerification is on/);
@@ -185,14 +193,16 @@ describe('requireVerification gate', () => {
     assert.doesNotMatch(out, /requireVerification is on/);
   });
 
-  test('malformed config treated as requireVerification:false', () => {
+  // A config nobody can parse is not a project opting out — it falls to the
+  // same safe default an absent config gets.
+  test('malformed config treated as requireVerification:true', () => {
     writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
     const fs = require('fs');
     const path = require('path');
     fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
     fs.writeFileSync(path.join(project, '.foreman', 'config.json'), '{not json', 'utf-8');
     const out = run(bashPayload('git commit -m "finish task"'));
-    assert.doesNotMatch(out, /requireVerification is on/);
+    assert.match(out, /requireVerification is on/);
   });
 });
 
