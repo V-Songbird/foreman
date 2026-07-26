@@ -358,6 +358,27 @@ describe('drift pins', () => {
       assert.ok(skill.includes('test-first ordering'), `${rel.join('/')} lost the test-first mapping`);
     }
   });
+
+  test('the template still defines effort fit and its verification-cost rule', () => {
+    const raw = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
+    assert.ok(raw.includes('**Effort fit**'));
+    assert.ok(raw.includes('there is no\n     `targetEffort` key'));
+    assert.ok(raw.includes('the `Agent` tool takes no effort argument'));
+    for (const level of ['`low` or `medium`', '`high`', '`max`']) {
+      assert.ok(raw.includes(level), `the effort-fit note lost its ${level} branch`);
+    }
+  });
+
+  test('both skills recommend an effort alongside the model', () => {
+    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'SKILL.md']]) {
+      const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8');
+      assert.ok(skill.includes('"Effort fit" note'), `${rel.join('/')} lost the effort-fit reference`);
+      assert.ok(
+        /takes no\s+effort argument/.test(skill),
+        `${rel.join('/')} lost the never-dispatched rule`
+      );
+    }
+  });
 });
 
 describe('optional per-task fields', () => {

@@ -267,6 +267,15 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      prompt itself (the target model never sees a description of its own
      expected failure modes), never a block, never a status or schema
      change.
+   - Effort fit — the same recommendation's second half, per
+     `prompt-template.md`'s "Effort fit" note, decided once this task's
+     verification commands are known (they are the input to it). State it
+     in one line of the delivery message — the setting plus the
+     verification-cost reason behind it — on every destination, including
+     `Execute here`, where it applies to this session's own effort. Never
+     a question and never a dispatch value: the `Agent` tool takes no
+     effort argument, so the operator acting on the line is the whole
+     mechanism.
    - `decision_log` — when step 1's render-sections result carries
      `decisionLog.enabled` true, include the template's `<decision_log>`
      block, substituting its `dir` for `<dir>` and this entry's id for

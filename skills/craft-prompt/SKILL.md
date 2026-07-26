@@ -179,7 +179,8 @@ Ask this when Call 5 Q1's answer was "Execute with a background Agent"
 or "Copy prompt to clipboard" — its default depends on that answer, so
 it can't batch into Call 5's own question. Skip it for **`Execute here`**:
 that destination runs the task in this session, so no model choice
-exists (Call 5b runs instead).
+exists (Call 5b runs instead) — the effort line below is still said, since
+that one applies to every destination.
 
 **Q1** — background Agent: "Which model should the background Agent run
 on?" Clipboard: "Which model will run the pasted prompt?"
@@ -215,6 +216,17 @@ The user can always override the default. The answer does two jobs:
   `Agent` call's literal `model` value (`haiku`/`sonnet`/`opus`/`fable`);
   an `Other` answer that doesn't name a concrete model means leaving
   `model` out of the call.
+
+**Effort** — recommended, never asked and never dispatched. Judge it from
+`prompt-template.md`'s "Effort fit" note — the verification commands
+gathered above are the input, so this is decided after them, not before —
+and state it in one line of the delivery message: the setting and the
+verification-cost reason it follows from ("two runnable checks — medium,
+escalate if one fails"). No question, because there is nothing to wire the
+answer to: the `Agent` tool takes no effort argument, and effort is a
+per-call parameter rather than project config. Say it on every
+destination, `Execute here` included — this session's own effort is the
+one it applies to there.
 
 ---
 

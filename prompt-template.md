@@ -98,6 +98,35 @@ an instruction for the spawned session to act on later):**
          every prompt format tested — recommend Sonnet/Opus there whatever
          the scope. Never bake this into the assembled prompt: the target
          model never sees a description of its own expected failure modes.
+
+     <!-- [Foreman: 101] -->
+     **Effort fit** — the second half of the same recommendation, seeded
+     the same way and confirmed in the same breath. This prompt tells the
+     destination to think rather than narrate, which makes reasoning
+     budget the only deliberation channel it has left — so effort moves
+     the outcome at least as much as the model does. Judge it by what
+     happens when the work goes wrong, not by how hard the work looks on
+     average:
+       - a runnable check already sitting in `task_rules` makes a wrong
+         attempt cheap and visible — `low` or `medium`, and escalate on a
+         failure rather than pre-paying for one. One caveat on that
+         escalation: re-running the same prompt at the same setting mostly
+         re-buys the same failure (the samples are correlated), so a retry
+         only earns its place when something structural changes between
+         attempts — a corrected file path, a sharpened constraint, a
+         higher effort.
+       - a silent failure mode — breakage the existing checks would pass —
+         has no cheap signal to escalate on, so pay up front: `high`.
+       - no verification at all (a `--research` handoff, a judgment call
+         with nothing runnable behind it) leaves nothing to catch a bad
+         first pass: `max`.
+     Effort is a per-call parameter, never project config — there is no
+     `targetEffort` key and none should be added. It is also always
+     advisory: the `Agent` tool takes no effort argument, so a background
+     dispatch cannot set it even when the operator names one. Say the
+     recommendation out loud at craft time and let the operator act on
+     it — same rule as the model, and for the same reason. Never bake the
+     effort reasoning into the assembled prompt.
    - `fableEnabled` — boolean declaration (default `false`) that the
      operator can run Fable 5 at all (Max plan or API — other plans
      can't). Asked once by `foreman:init`'s Call 2b, or hand-edited later
@@ -376,6 +405,9 @@ using them:
       overridden by a concrete executing-model answer when the crafting
       flow gathered one — drove how much elaboration went into
       `relevant_files`/`context`/`task_rules` below
+- [ ] a reasoning effort was recommended alongside the model, judged by the
+      "Effort fit" note's verification-cost rule and said out loud to the
+      operator — never auto-applied, and never written into the prompt
 - [ ] `resolve-symbols.js` ran in the same craft-time slot when any file
       paths were known, its `files[].symbols` fed `relevant_files`, and
       every `missing` path and `unresolved` name was resolved before
