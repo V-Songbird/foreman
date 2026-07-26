@@ -284,7 +284,11 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      paired with it.
    - Add one more fixed paragraph right after `scope_discipline`, naming
      this entry's id, so the destination session — not Foreman — is the one
-     that flips it to `in_progress`:
+     that flips it to `in_progress`. Write `${CLAUDE_PLUGIN_ROOT}` into it
+     as that literal string — the copy of this skill you are reading has
+     the variable already resolved to a version-pinned cache path, and
+     baking that in breaks the prompt on the next version bump; the gate
+     errors on it:
      "This task is ROADMAP.jsonl entry `<id>`. Mark it `in_progress` before
      doing anything else — Foreman's picking flow deliberately leaves it
      `planned` until you do:

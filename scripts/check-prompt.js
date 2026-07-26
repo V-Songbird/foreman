@@ -77,6 +77,15 @@ const NO_INVENTION_SENTENCE =
 const FIX_CEILING_SENTENCE =
   "after two failed fix attempts, stop and report what is still failing instead of widening the change to make the check pass.";
 
+// [Foreman: 107]
+// A plugins-cache path carrying a version segment — what ${CLAUDE_PLUGIN_ROOT}
+// resolves to. A skill's markdown reaches the crafting session already
+// substituted, so the expanded path is what a crafter copies by default; baked
+// into a prompt it version-pins every bookkeeping command and the prompt stops
+// running at the next version bump.
+const PLUGIN_CACHE_PATH_RE =
+  /plugins[\\/]cache[\\/][\w.@-]+[\\/][\w.@-]+[\\/]\d+\.\d+\.\d+[\w.-]*/;
+
 function norm(text) {
   return String(text).replace(/\s+/g, " ").trim();
 }
@@ -147,6 +156,11 @@ function checkPrompt(prompt, opts) {
   if (!plan) errors.push("missing <plan> — every handoff carries it, unmodified");
   else if (norm(plan) !== norm(canonical.plan)) {
     errors.push("<plan> differs from the template — it must be carried verbatim");
+  }
+  // [Foreman: 107]
+  const pinned = prompt.match(PLUGIN_CACHE_PATH_RE);
+  if (pinned) {
+    errors.push(`resolved plugin path in the prompt body ("${pinned[0]}") — write \${CLAUDE_PLUGIN_ROOT} instead, or every bookkeeping command dies at the next version bump`);
   }
   // [Foreman: 103]
   if (!norm(prompt).includes(norm(NO_INVENTION_SENTENCE))) {
@@ -362,6 +376,7 @@ module.exports = {
   WORKFLOW_STAGE_SENTENCE,
   NO_INVENTION_SENTENCE,
   FIX_CEILING_SENTENCE,
+  PLUGIN_CACHE_PATH_RE,
   REASONING_ECHO_RE,
   TEMPLATE_PATH,
 };

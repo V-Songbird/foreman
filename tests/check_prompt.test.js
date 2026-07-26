@@ -430,6 +430,62 @@ describe('symbols-first relevant_files', () => {
   });
 });
 
+describe('unexpanded plugin root', () => {
+  const CACHE_PATH = 'C:/Users/x/.claude/plugins/cache/foundry/foreman/0.27.0-alpha/scripts/roadmap.js';
+
+  test('a version-pinned plugins-cache path is an error', () => {
+    const project = makeTmpProject();
+    const prompt = goodPrompt({
+      entry_paragraph: `This task is ROADMAP.jsonl entry \`107\`. Mark it \`in_progress\` before doing anything else:\n\`echo '{"id":"107","status":"in_progress"}' | node ${CACHE_PATH} update-status\``,
+    });
+    const { status, json } = check(project, prompt, ['--destination', 'task', '--entry', '107']);
+    assert.equal(status, 1);
+    assert.ok(json.errors.some((e) => e.includes('resolved plugin path')), JSON.stringify(json.errors));
+  });
+
+  test('a backslash cache path is caught too', () => {
+    const project = makeTmpProject();
+    const prompt = goodPrompt({
+      request: `Run node C:\\Users\\x\\.claude\\plugins\\cache\\foundry\\foreman\\1.2.3\\scripts\\roadmap.js add`,
+    });
+    const { json } = check(project, prompt, ['--destination', 'task']);
+    assert.ok(json.errors.some((e) => e.includes('resolved plugin path')), JSON.stringify(json.errors));
+  });
+
+  test('the unexpanded variable passes clean, error and warning both', () => {
+    const project = makeTmpProject();
+    const prompt = goodPrompt({
+      scope_discipline: `<scope_discipline>${canonical.scopeDiscipline}</scope_discipline>`,
+      entry_paragraph: 'This task is ROADMAP.jsonl entry `107`. Mark it `in_progress` before doing anything else:\n`echo \'{"id":"107","status":"in_progress"}\' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`',
+    });
+    const { status, json } = check(project, prompt, ['--destination', 'task', '--entry', '107']);
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.deepEqual(json.warnings, []);
+  });
+
+  test('an unversioned plugin path is left alone — only the version segment pins', () => {
+    const project = makeTmpProject();
+    const prompt = goodPrompt({ request: 'Run node /home/x/plugins/cache/foundry/foreman/scripts/roadmap.js add' });
+    const { status, json } = check(project, prompt, ['--destination', 'task']);
+    assert.equal(status, 0, JSON.stringify(json));
+  });
+
+  test('the template and both crafting skills say the variable travels unexpanded', () => {
+    const template = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
+    assert.match(template, /travels as the literal, unexpanded/);
+    assert.match(template, /every plugin path in the prompt body is the unexpanded/);
+    const skills = path.join(__dirname, '..', 'skills');
+    for (const name of ['roadmap', 'craft-prompt']) {
+      const skill = fs.readFileSync(path.join(skills, name, 'SKILL.md'), 'utf-8');
+      assert.match(
+        skill,
+        /the copy of this skill you are reading has\n?\s*the\s+variable already resolved to a version-pinned cache path/,
+        `${name}/SKILL.md lost the unexpanded-path instruction`
+      );
+    }
+  });
+});
+
 describe('the ordered plan block', () => {
   test('a missing <plan> is an error', () => {
     const project = makeTmpProject();

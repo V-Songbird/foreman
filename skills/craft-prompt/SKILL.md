@@ -240,8 +240,12 @@ again. Elaboration scoping uses the effective target model: Call 6's
 concrete answer when one was gathered, otherwise the result's
 `targetModel`. Never re-derive or duplicate the per-model elaboration
 guidance itself; if the template changes, this skill picks up the change
-automatically by reading it fresh each time. Map this skill's
-gathered fields onto the template's placeholders:
+automatically by reading it fresh each time. Every plugin path that lands
+in the assembled prompt goes in as the literal string
+`${CLAUDE_PLUGIN_ROOT}` — the copy of this skill you are reading has the
+variable already resolved to a version-pinned cache path, and baking that
+in breaks the prompt on the next version bump; the gate errors on it. Map
+this skill's gathered fields onto the template's placeholders:
 
 - `task_context`: role ← Call 2 Q1, goal ← Call 2 Q2
 - `relevant_files` ← Call 2 Q3 (including any `Pattern:` reference line)

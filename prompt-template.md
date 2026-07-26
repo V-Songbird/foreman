@@ -162,6 +162,19 @@ an instruction for the spawned session to act on later):**
      invented API or an un-caught rename, and resolve it before assembly.
    - `warnings` — surface alongside `render-sections.js`'s own.
 
+<!-- [Foreman: 107] -->
+**Paths in the assembled prompt.** Every plugin path the prompt carries —
+`scripts/roadmap.js` in `scope_discipline`, the entry paragraph's
+`update-status` calls, anything else — travels as the literal, unexpanded
+string `${CLAUDE_PLUGIN_ROOT}`. Resolving it at craft time bakes in the
+foreman version that happens to be installed today, and the prompt stops
+running the moment that version bumps, which kills replay of a closed
+entry. This holds **even though the crafting skill's own text shows the
+path already resolved**: a skill's markdown is loaded with the variable
+substituted by the harness, so what you read there is expanded and what
+you write must not be. Type the variable back. `check-prompt.js` errors on
+a versioned plugin-cache path in the prompt body.
+
 ```xml
 <task_context>
 [If step 0's `usePersona` is `true`: "You are [specific role — e.g. "a
@@ -463,6 +476,10 @@ using them:
       a conflicting per-prompt selection (exception: an omitted `tone`
       stays for a background-`Agent` destination — step 0's carve-out);
       guardrail/core blocks are never affected
+- [ ] every plugin path in the prompt body is the unexpanded
+      `${CLAUDE_PLUGIN_ROOT}` string, never a resolved plugins-cache path
+      with a version segment — even where the crafting skill's own text
+      showed it already resolved
 - [ ] no "as we discussed" / "from earlier" — zero assumed context
 - [ ] a verb-first imperative name (under 60 chars) and a 1–2 sentence
       plain-language summary are ready — `TaskCreate` and a background
@@ -500,7 +517,10 @@ never deliver a prompt the checker rejected. Surface its `warnings`
 alongside the delivery message. The checker validates structure (guardrail
 blocks verbatim, no unfilled placeholders, omit compliance, verification
 present); it can't judge content quality — the checklist above still
-applies to what the fields actually say.
+applies to what the fields actually say. One of its errors fires on a
+resolved plugins-cache path with a version segment — the fix is always to
+type `${CLAUDE_PLUGIN_ROOT}` back in place of it, never to strip the
+command.
 
 ## Delivery mechanics
 
