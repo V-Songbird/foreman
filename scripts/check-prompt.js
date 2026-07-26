@@ -200,6 +200,11 @@ function checkPrompt(prompt, opts) {
   } else if (!/[\w-]+[\\/.][\w./\\-]+/.test(relevantFiles)) {
     warnings.push("relevant_files has no path-like reference — vague references defeat truth_grounding's \"read the cited files\"");
   }
+  // [Foreman: 105] Deliberately no symbol-less warning here. The template asks
+  // for symbols, but foreman:roadmap seeds this block from an entry's `touches`,
+  // which is area-level and often a bare directory, and that branch is forbidden
+  // from exploring the codebase to upgrade it. A warning would therefore fire on
+  // every roadmap handoff for a condition the crafter is not allowed to fix.
 
   // --- tone (destination-scoped) ---
   const toneBlock = extractBlock(prompt, "tone");

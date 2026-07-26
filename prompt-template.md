@@ -260,9 +260,12 @@ elaboration `relevant_files` and `context` below carry — see its bullet.]
 <relevant_files>
 [Exact file paths for every file the task touches, each with the symbols
 that matter — take them from step 0b's `files[].symbols` rather than
-describing the file in prose, and fall back to a line range only where no
-symbol covers the spot.
+describing the file in prose. A symbol name is self-locating and survives
+edits above it; a line range is the first thing to go stale between craft
+time and run time, so fall back to one only where the spot has no name,
+and name its enclosing symbol even then.
 Example: src/auth/middleware.ts — refreshToken (42), verifySession (77)
+Unnamed spot: src/auth/middleware.ts — the retry block inside refreshToken
 Include every file. No vague references like "the auth module".
 When an analogous implementation exists, add one reference line —
 Pattern: src/webhooks/github.ts — build the new code the same way
@@ -431,7 +434,9 @@ using them:
       paths were known, its `files[].symbols` fed `relevant_files`, and
       every `missing` path and `unresolved` name was resolved before
       delivery — never left for the destination to discover
-- [ ] `relevant_files` lists every file path with symbols or line ranges — no vague
+- [ ] `relevant_files` lists every file path, each carrying the symbol names
+      that matter — a line range only where the spot has no name, and then
+      with its enclosing symbol named too — and no vague
       references (`craft-prompt`: from the user directly; `foreman:roadmap`:
       the entry's `touches` passed through as-is, never upgraded by
       exploring the codebase — `truth_grounding` covers that gap at

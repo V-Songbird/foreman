@@ -45,11 +45,12 @@ Options: `Senior engineer`, `Security engineer`, `TypeScript developer`, `Python
 coverage goal names the metric and threshold (e.g. 'p95 under 500ms')."
 Options: `Bug is fixed and all tests pass`, `Feature is implemented and tested`, `Findings are written to a file in the repo, cited`, `Refactor complete — no behavior change`
 
-**Q3** — "List the relevant files with line ranges where known. If an
-analogous implementation exists, name it too as a pattern to imitate."
-Options: `I'll list them` (nudge user to use Other and type paths like `src/auth/middleware.ts:42-80 — token refresh logic`, plus `Pattern: src/webhooks/github.ts — build the new code the same way` when one applies)
+**Q3** — "List the relevant files, naming the functions or classes that
+matter in each. If an analogous implementation exists, name it too as a
+pattern to imitate."
+Options: `I'll list them` (nudge user to use Other and type paths like `src/auth/middleware.ts — refreshToken, verifySession`, plus `Pattern: src/webhooks/github.ts — build the new code the same way` when one applies. A line number only when the spot has no name — `resolve-symbols.js` fills the rest in below.)
 
-**Q4** — "Describe the three steps: read/explore, then analyze/check, then implement/produce."
+**Q4** — "Describe the two steps: analyze/check, then implement/produce."
 Options: `I'll describe them`
 
 ---

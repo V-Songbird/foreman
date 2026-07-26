@@ -51,7 +51,7 @@ function goodPrompt(overrides = {}) {
     scope_discipline: `<scope_discipline>${scopeText}</scope_discipline>`,
     entry_paragraph: '',
     tone: '<tone>\nMinimal, professional conversation — silent by default. If an output style already governs this session\'s voice, defer to it.\n</tone>',
-    background: '<background>\n<relevant_files>\nsrc/auth/middleware.ts:42-80 — token refresh logic\n</relevant_files>\n<context>\nUses JWT tokens in httpOnly cookies. No third-party auth libs.\n</context>\n</background>',
+    background: '<background>\n<relevant_files>\nsrc/auth/middleware.ts — refreshToken (42), verifySession (77)\n</relevant_files>\n<context>\nUses JWT tokens in httpOnly cookies. No third-party auth libs.\n</context>\n</background>',
     no_invention: NO_INVENTION_LINE,
     invariants: '',
     task_rules: `<task_rules>\n- Check the refresh path against the failing test.\n- Fix the bug.\n\nConstraints:\n- Do not modify the public API.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\n${FIX_CEILING_LINE}\n</task_rules>`,
@@ -134,7 +134,7 @@ describe('placeholders and required blocks', () => {
   test('leftover template placeholder is an error', () => {
     const project = makeTmpProject();
     const prompt = goodPrompt({
-      background: '<background>\n<relevant_files>\n[Exact file paths with line ranges for every file the task touches.]\n</relevant_files>\n<context>\nSome context.\n</context>\n</background>',
+      background: '<background>\n<relevant_files>\n[Exact file paths for every file the task touches, each with the symbols that matter.]\n</relevant_files>\n<context>\nSome context.\n</context>\n</background>',
     });
     const { json } = check(project, prompt, ['--destination', 'clipboard']);
     assert.ok(json.errors.some((e) => e.includes('placeholder')));
@@ -386,6 +386,47 @@ describe('drift pins', () => {
         `${rel.join('/')} lost the never-dispatched rule`
       );
     }
+  });
+});
+
+describe('symbols-first relevant_files', () => {
+  test('a symbol-only citation passes clean — no line numbers required', () => {
+    const project = makeTmpProject();
+    const prompt = goodPrompt({
+      background: '<background>\n<relevant_files>\nsrc/auth/middleware.ts — refreshToken, verifySession\n</relevant_files>\n<context>\nSome context.\n</context>\n</background>',
+    });
+    const { status, json } = check(project, prompt, ['--destination', 'task']);
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.deepEqual(json.warnings, []);
+  });
+
+  test('a bare directory still passes clean — the roadmap touches pass-through depends on it', () => {
+    const project = makeTmpProject();
+    const prompt = goodPrompt({
+      background: '<background>\n<relevant_files>\nforeman/skills/\n</relevant_files>\n<context>\nSome context.\n</context>\n</background>',
+    });
+    const { status, json } = check(project, prompt, ['--destination', 'task']);
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.deepEqual(json.warnings, [], 'a symbol-less citation must not warn — see the [Foreman: 105] note in check-prompt.js');
+  });
+
+  test('a citation with no path at all still warns', () => {
+    const project = makeTmpProject();
+    const prompt = goodPrompt({
+      background: '<background>\n<relevant_files>\nthe auth module\n</relevant_files>\n<context>\nSome context.\n</context>\n</background>',
+    });
+    const { json } = check(project, prompt, ['--destination', 'task']);
+    assert.ok(json.warnings.some((w) => w.includes('no path-like reference')), JSON.stringify(json.warnings));
+  });
+
+  test('the template and craft-prompt both ask for symbols, not line ranges', () => {
+    const template = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
+    assert.match(template, /A symbol name is self-locating and survives\nedits above it/);
+    assert.match(template, /each carrying the symbol names/);
+    assert.ok(!/with symbols or line ranges/.test(template), 'checklist still offers line ranges as an equal option');
+    const skill = fs.readFileSync(path.join(__dirname, '..', 'skills', 'craft-prompt', 'SKILL.md'), 'utf-8');
+    assert.match(skill, /naming the functions or classes that\nmatter in each/);
+    assert.ok(!/List the relevant files with line ranges/.test(skill), 'craft-prompt Q3 still asks for line ranges');
   });
 });
 
