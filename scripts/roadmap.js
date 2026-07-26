@@ -934,6 +934,7 @@ module.exports = {
   cmdList,
   cmdNextCandidates,
   cmdCheckDuplicate,
+  submodulePaths,
   filesTouchedByCommit,
   filesStagedIn,
   coversPath,

@@ -302,4 +302,20 @@ describe('resolve-symbols preflight', () => {
 
     assert.match(json.files[0].lastChanged, /^\d{4}-\d{2}-\d{2}$/);
   });
+
+  // A submodule layout: the project root tracks `sub` as one gitlink, so
+  // `git log` at the root either finds nothing for a path inside it or
+  // (worse) reports the gitlink's own commit date instead of the file's.
+  test('a file inside a submodule reports the submodule\'s own last-changed date', () => {
+    initGitRepo(project);
+    fs.writeFileSync(path.join(project, '.gitmodules'), '[submodule "sub"]\n\tpath = sub\n\turl = ./sub\n', 'utf-8');
+    const sub = path.join(project, 'sub');
+    fs.mkdirSync(sub, { recursive: true });
+    initGitRepo(sub);
+    commitFile(sub, 'scripts/foo.js', SAMPLE_JS);
+
+    const { json } = run({ argv: ['--touches', 'sub/scripts/foo.js'] });
+
+    assert.match(json.files[0].lastChanged, /^\d{4}-\d{2}-\d{2}$/);
+  });
 });

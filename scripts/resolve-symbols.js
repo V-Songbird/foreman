@@ -25,6 +25,7 @@
 const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
+const { submodulePaths } = require("./roadmap.js");
 
 function projectDir() {
   return path.resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
@@ -306,9 +307,25 @@ function gitAvailable(root) {
   return result.status === 0 && String(result.stdout).trim() === "true";
 }
 
+// A submodule's files are invisible to `git log` at the project root — the
+// root repo tracks the submodule as one gitlink, so a path inside it either
+// finds nothing or (worse) resolves to the gitlink's own history, reporting
+// the parent commit's date instead of the file's. Route the lookup into the
+// submodule's own repo, same fallback `roadmap.js`'s gitFilesIn already uses.
+function gitScopeFor(root, relPath) {
+  for (const sub of submodulePaths(root)) {
+    const prefix = `${sub}/`;
+    if (relPath.startsWith(prefix)) {
+      return { cwd: path.join(root, sub), relPath: relPath.slice(prefix.length) };
+    }
+  }
+  return { cwd: root, relPath };
+}
+
 function lastChanged(root, relPath) {
-  const result = spawnSync("git", ["log", "-1", "--format=%ad", "--date=short", "--", relPath], {
-    cwd: root,
+  const { cwd, relPath: scoped } = gitScopeFor(root, relPath);
+  const result = spawnSync("git", ["log", "-1", "--format=%ad", "--date=short", "--", scoped], {
+    cwd,
     encoding: "utf-8",
   });
   return result.status === 0 ? String(result.stdout).trim() || null : null;
