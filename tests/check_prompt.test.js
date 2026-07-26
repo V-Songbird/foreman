@@ -387,6 +387,41 @@ describe('drift pins', () => {
       );
     }
   });
+
+  test('the template still defines the Execute-here raise-the-session ask', () => {
+    const raw = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
+    assert.ok(raw.includes('**Raise the session**'), 'the template lost the raise-the-session note');
+    assert.ok(
+      /once per handoff and before the first task row exists/.test(raw.replace(/\s+/g, ' ')),
+      'the template lost the once-per-handoff, before-the-first-row timing'
+    );
+    assert.ok(
+      /hook input carries no model at all/.test(raw),
+      'the template lost the reason foreman must not make the comparison itself'
+    );
+  });
+
+  test('both skills ask whether to raise the session on Execute here', () => {
+    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'SKILL.md']]) {
+      const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8').replace(/\s+/g, ' ');
+      assert.ok(
+        skill.includes('Raise the session to it?'),
+        `${rel.join('/')} lost the raise-the-session question`
+      );
+      assert.ok(
+        skill.includes('once per handoff'),
+        `${rel.join('/')} lost the once-per-handoff rule`
+      );
+      assert.ok(
+        skill.includes('before the first task row is created'),
+        `${rel.join('/')} lost the before-the-first-row timing`
+      );
+      assert.ok(
+        skill.includes('never blocks'),
+        `${rel.join('/')} lost the never-a-gate rule`
+      );
+    }
+  });
 });
 
 describe('symbols-first relevant_files', () => {

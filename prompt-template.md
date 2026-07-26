@@ -127,6 +127,19 @@ an instruction for the spawned session to act on later):**
      recommendation out loud at craft time and let the operator act on
      it — same rule as the model, and for the same reason. Never bake the
      effort reasoning into the assembled prompt.
+
+     <!-- [Foreman: 111] -->
+     **Raise the session** — on the `Execute here` destination only, both
+     halves above are stated together and followed by one question, asked
+     once per handoff and before the first task row exists: whether to
+     raise the session to them or proceed as-is. That destination has no
+     dispatch value to carry either half, so a line alone is the one thing
+     a reader skims past. Foreman never makes the comparison itself and
+     must not try — hook input carries no model at all, and effort is
+     readable only inside a hook, never by a skill — so the operator's
+     answer IS the comparison and the switch is theirs. It never sets a
+     model, never blocks, and never records anything. The other two
+     destinations keep asking exactly what they ask today.
    - `fableEnabled` — boolean declaration (default `false`) that the
      operator can run Fable 5 at all (Max plan or API — other plans
      can't). Asked once by `foreman:init`'s Call 2b, or hand-edited later

@@ -189,14 +189,41 @@ mechanics" section, verbatim.
 
 ---
 
+<!-- [Foreman: 111] -->
+## Call 5c — raise the session (conditional)
+
+Ask this only when Call 5 Q1's answer was `Execute here`, once per handoff
+and never once per task row, after Call 5b and **before the first task row
+is created**. The other two destinations skip it — there the model is a
+dispatch value Call 6 already asks for.
+
+State BOTH halves of the recommendation in the question's context, in one
+line each: the model per `prompt-template.md`'s "Model fit" note, and the
+effort per its "Effort fit" note, each with the reason it follows from.
+This is the only place the model half is ever said on this destination.
+
+**Q1** — "This task suggests <model> at <effort>. Raise the session to it?"
+Options:
+- `Proceed as-is (Recommended)` — run at whatever this session already has
+- `I'll switch first` — you change the session's model or effort, then the
+  work starts
+
+Foreman cannot compare the two itself and must not try: hook input carries
+no model at all, and reasoning effort is readable only inside a hook, never
+by a skill. The user's answer IS the comparison, and the switch is theirs
+to make — this never sets a model, never blocks, and never records
+anything. Neither recommendation is written into the assembled prompt.
+
+---
+
 ## Call 6 — executing model (conditional)
 
 Ask this when Call 5 Q1's answer was "Execute with a background Agent"
 or "Copy prompt to clipboard" — its default depends on that answer, so
 it can't batch into Call 5's own question. Skip it for **`Execute here`**:
-that destination runs the task in this session, so no model choice
-exists (Call 5b runs instead) — the effort line below is still said, since
-that one applies to every destination.
+that destination runs the task in this session, so there is no dispatch
+value to set (Call 5b and Call 5c run instead) — Call 5c is where both
+halves of the recommendation get said and acted on there.
 
 **Q1** — background Agent: "Which model should the background Agent run
 on?" Clipboard: "Which model will run the pasted prompt?"
@@ -242,7 +269,7 @@ escalate if one fails"). No question, because there is nothing to wire the
 answer to: the `Agent` tool takes no effort argument, and effort is a
 per-call parameter rather than project config. Say it on every
 destination, `Execute here` included — this session's own effort is the
-one it applies to there.
+one it applies to there, and Call 5c is where it gets said and answered.
 
 ---
 

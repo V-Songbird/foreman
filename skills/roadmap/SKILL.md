@@ -173,6 +173,25 @@ The other two destinations skip it entirely. "How should it run here?" —
 options and their free-text rule are `prompt-template.md`'s "Delivery
 mechanics" section, verbatim.
 
+<!-- [Foreman: 111] -->
+**Q4 — raise the session**, asked only when Q2's answer was `Execute
+here`, once per handoff and never once per task row, after Q3 and
+**before the first task row is created**. The other two destinations skip
+it — there the model is a dispatch value the Model fit bullet already
+confirms. State BOTH halves of the recommendation in the question's
+context, one line each with the reason behind it: the model per
+`prompt-template.md`'s "Model fit" note, the effort per its "Effort fit"
+note. This is the only place the model half is ever said on this
+destination.
+"This task suggests <model> at <effort>. Raise the session to it?" —
+`Proceed as-is (Recommended)` runs at whatever this session already has;
+`I'll switch first` means the user changes the session and the work starts
+after. Foreman cannot compare the two itself and must not try: hook input
+carries no model at all, and effort is readable only inside a hook, never
+by a skill. The user's answer IS the comparison, and the switch is theirs
+to make — this never sets a model, never blocks, never records anything,
+and neither recommendation is ever written into the assembled prompt.
+
 `Run now, no tracking` creates no task row, so neither `task-created.js`
 nor `task-completed.js` fires: the entry's opening and its close gate both
 fall back to the prompt's own embedded instructions, exactly as on the
@@ -259,7 +278,8 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      tunes the assembled prompt's elaboration, and a background `Agent`
      dispatch passes it as that
      call's literal `model` (`haiku`/`sonnet`/`opus`/`fable`, omitted for
-     inherit/varies). An `Execute here` run asks nothing — the work runs
+     inherit/varies). An `Execute here` run has no dispatch value to set,
+     so it states the recommendation in Q4 above instead — the work runs
      in this session, so no model choice exists and the resolved
      `targetModel` drives elaboration unchanged. The operator's answer is
      the decision — never an automatic switch, never inside the assembled
@@ -271,10 +291,11 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      verification commands are known (they are the input to it). State it
      in one line of the delivery message — the setting plus the
      verification-cost reason behind it — on every destination, including
-     `Execute here`, where it applies to this session's own effort. Never
-     a question and never a dispatch value: the `Agent` tool takes no
-     effort argument, so the operator acting on the line is the whole
-     mechanism.
+     `Execute here`, where it applies to this session's own effort and
+     rides Q4's context alongside the model half. Never a dispatch value:
+     the `Agent` tool takes no effort argument, so the operator acting on
+     it is the whole mechanism. Q4 asks whether to raise the session, never
+     which effort to use — the recommendation itself is not a question.
    - `decision_log` — when step 1's render-sections result carries
      `decisionLog.enabled` true, include the template's `<decision_log>`
      block, substituting its `dir` for `<dir>` and this entry's id for
