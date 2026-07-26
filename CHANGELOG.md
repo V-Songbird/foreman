@@ -16,7 +16,7 @@ field by convention).
 - A file that already imports the same helper is offered as a pattern to imitate, so the prompt cites a real example instead of general advice.
 - Each file a task touches now carries the date it last changed, making it clear which of the task's claims may have aged.
 - Closing a task now notes how far the files it predicted differ from the files it actually changed.
-- Running a task in your own session now tells you which model and reasoning effort it suits, and offers to hand the prompt to a fresh session already set to them.
+- New `modelSuggestions` setting, off by default: turn it on and each handoff says which model and reasoning effort the task deserves. Running a task in your own session then offers to hand the prompt to a fresh session already set to them. With it off, Foreman recommends nothing and only asks which model to dispatch on when a dispatch needs one. `/foreman:init` asks about it.
 
 ### Fixed
 

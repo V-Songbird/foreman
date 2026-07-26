@@ -114,7 +114,8 @@ Most people never touch these — `/foreman:init` asks about the common ones and
 | `taskCloseGate` | When a tracked task finishes with its roadmap entry still open: `off` (default) says nothing, `block` holds the completion until you close the entry. |
 | `decisionLog` | The why-notes above: `{enabled, dir, gate}`. `enabled` is `false` by default — nothing is written until you set it `true`. Full details in [`decision-log.md`](decision-log.md). |
 | `checkpoints` | How task-split runs save their work. Optional keys set the base branch, whether to use a `foreman/<slug>` branch, whether to push each commit, and what to do at the end — `squash`, `merge`, `pr`, or `keep`. Default: ask you. |
-| `targetModel` | How much detail a prompt spells out, tuned to the model that runs it — smaller models get more scaffolding, bigger ones less. Default `inherit` keeps a standard level and suggests a model per task; set a concrete value to pin one. |
+| `modelSuggestions` | Whether each handoff says which model and reasoning effort the task deserves, and offers to start it in a fresh session set to them. Off by default; set `true` to turn it on. |
+| `targetModel` | How much detail a prompt spells out, tuned to the model that runs it — smaller models get more scaffolding, bigger ones less. Default `inherit` keeps a standard level; set a concrete value to pin one. |
 | `fableEnabled` | Whether this project can run Fable 5 (Max plan or API only). Asked once during `/foreman:init`; `true` makes `Fable` a selectable model alongside Haiku/Sonnet/Opus. Default `false`. |
 
 Running with razor and hush? The recommended shape is:

@@ -26,8 +26,8 @@ an instruction for the spawned session to act on later):**
    fails soft to defaults when no `.foreman/config.json` exists). One JSON
    object: `{"usePersona": bool, "sections": [{"tag", "xml"}], "omit":
    [...], "targetModel": "haiku"|"sonnet"|"opus"|"fable"|"inherit",
-   "fableEnabled": bool, "decisionLog": {"enabled": bool, "dir": string},
-   "warnings": [...]}`.
+   "fableEnabled": bool, "modelSuggestions": bool,
+   "decisionLog": {"enabled": bool, "dir": string}, "warnings": [...]}`.
    All of it is project **declaration** — foreman never inspects
    which style plugins or model the operator runs.
    - `usePersona` — default `true` when missing/unparseable. Controls only
@@ -54,9 +54,12 @@ an instruction for the spawned session to act on later):**
      about what the target model will actually manage. The effective model
      is always the executing-model answer confirmed at craft time
      (`craft-prompt`'s Call 6, `foreman:roadmap`'s dispatch step). Foreman
-     seeds that answer's recommended default: a concrete `targetModel` pin
-     in config when the project set one, otherwise a per-task recommendation
-     judged from the task's own fit (see "Model fit" below). A confirmed
+     seeds that answer's recommended default only when `modelSuggestions`
+     is `true`: a concrete `targetModel` pin in config when the project set
+     one, otherwise a per-task recommendation judged from the task's own fit
+     (see "Model fit" below). With `modelSuggestions` `false` — the
+     default — the question is asked with no seeded default at all, and the
+     resolved `targetModel` alone drives elaboration. A confirmed
      concrete answer tunes elaboration to that model; an inherit/unknown
      answer keeps the full default shape:
      - `haiku` — elaborate fully: name the exact symbol or behavior at
@@ -82,10 +85,22 @@ an instruction for the spawned session to act on later):**
        all three trap fixtures: equal correctness and trap compliance,
        lower cost in every cell, turns never higher.
 
+     <!-- [Foreman: 116] -->
+     **All three notes below — Model fit, Effort fit, and Raise the
+     session — are gated on `modelSuggestions`, which defaults to
+     `false`.** When it is `false`, none of them produce anything: no model
+     is recommended, no effort line is said, and the `Execute here`
+     question is not asked. The executing-model question still runs on the
+     dispatching destinations, because a background `Agent` and a clipboard
+     paste both need a model named — it just offers the list with no
+     task-derived default. `targetModel` is a separate setting and is
+     unaffected either way: a concrete pin still drives elaboration, and
+     `inherit` still elaborates at the standard level.
+
      **Model fit** — how to seed the recommended default when `targetModel`
-     is `inherit`; a recommendation the operator confirms or overrides,
-     never an automatic switch. Judge from the task's own `what`/`touches`,
-     recorded fields only:
+     is `inherit` and `modelSuggestions` is `true`; a recommendation the
+     operator confirms or overrides, never an automatic switch. Judge from
+     the task's own `what`/`touches`, recorded fields only:
        - `haiku` for mechanical, well-scoped work — a single file or a
          bounded change with an unambiguous spec. Cheapest, and per the
          elaboration note above a fully-spelled-out Haiku prompt cut its
@@ -129,7 +144,8 @@ an instruction for the spawned session to act on later):**
      effort reasoning into the assembled prompt.
 
      <!-- [Foreman: 111] -->
-     **Raise the session** — on the `Execute here` destination only, both
+     **Raise the session** — asked only when `modelSuggestions` is `true`,
+     and on the `Execute here` destination only. Both
      halves above are stated together and followed by one question, asked
      once per handoff and before the first task row exists: proceed as-is,
      or take the prompt to a fresh session already set to the
@@ -149,6 +165,9 @@ an instruction for the spawned session to act on later):**
      ever have. A background `Agent` is not the substitute either — that
      call takes a `model` but no effort argument, so it can only ever
      close half the gap.
+   - `modelSuggestions` — boolean (default `false`) turning the per-task
+     model and effort recommendation on. See the gating note above the
+     "Model fit" bullet for exactly what stops when it is `false`.
    - `fableEnabled` — boolean declaration (default `false`) that the
      operator can run Fable 5 at all (Max plan or API — other plans
      can't). Asked once by `foreman:init`'s Call 2b, or hand-edited later
@@ -486,9 +505,11 @@ using them:
       overridden by a concrete executing-model answer when the crafting
       flow gathered one — drove how much elaboration went into
       `relevant_files`/`context`/`task_rules` below
-- [ ] a reasoning effort was recommended alongside the model, judged by the
-      "Effort fit" note's verification-cost rule and said out loud to the
-      operator — never auto-applied, and never written into the prompt
+- [ ] when `modelSuggestions` was `true`, a reasoning effort was recommended
+      alongside the model, judged by the "Effort fit" note's
+      verification-cost rule and said out loud to the operator — never
+      auto-applied, and never written into the prompt. When it was `false`,
+      neither half was stated at all
 - [ ] `resolve-symbols.js` ran in the same craft-time slot when any file
       paths were known, its `files[].symbols` fed `relevant_files`, and
       every `missing` path and `unresolved` name was resolved before

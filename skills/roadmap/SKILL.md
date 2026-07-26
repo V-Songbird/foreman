@@ -174,8 +174,11 @@ options and their free-text rule are `prompt-template.md`'s "Delivery
 mechanics" section, verbatim.
 
 <!-- [Foreman: 111] -->
-**Q4 — raise the session**, asked only when Q2's answer was `Execute
-here`, once per handoff and never once per task row, after Q3 and
+**Q4 — raise the session**, asked only when step 1's render-sections
+result has `modelSuggestions: true` — it defaults to `false`, and a project
+that leaves it off never sees this question or any model/effort line
+anywhere in this branch. Then, and only then, asked when Q2's answer was
+`Execute here`, once per handoff and never once per task row, after Q3 and
 **before the first task row is created**. The other two destinations skip
 it — there the model is a dispatch value the Model fit bullet already
 confirms. State BOTH halves of the recommendation in the question's
@@ -270,7 +273,13 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      `<decision_log>` block is present (below), the recorded choice lands
      there and the close carries the `doc` path rather than `"none"`. An
      entry with no `kind` key is an ordinary build — add nothing.
-   - Model fit — a DISPATCH-time recommendation, judged now from this
+   - Model fit — **only when step 1's render-sections result has
+     `modelSuggestions: true`**; it defaults to `false`, and when it is
+     `false` this bullet and the Effort fit bullet below both produce
+     nothing. Call 6's executing-model question still runs on the
+     dispatching destinations, since a dispatch needs a model named, but
+     with no recommended default and no `(Recommended)` label. A
+     DISPATCH-time recommendation, judged now from this
      candidate's own `touches`/`what` (recorded fields only, same
      no-investigation rule as the rest of this branch), never at pick time
      or when the entry was created. If `.foreman/config.json` pins a
@@ -296,7 +305,9 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      prompt itself (the target model never sees a description of its own
      expected failure modes), never a block, never a status or schema
      change.
-   - Effort fit — the same recommendation's second half, per
+   - Effort fit — gated on `modelSuggestions` exactly as Model fit above
+     is; say nothing about effort when it is `false`. The same
+     recommendation's second half, per
      `prompt-template.md`'s "Effort fit" note, decided once this task's
      verification commands are known (they are the input to it). State it
      in one line of the delivery message — the setting plus the

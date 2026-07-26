@@ -84,6 +84,24 @@ function readFableEnabled(config) {
   };
 }
 
+// Whether Foreman offers a per-task model and reasoning-effort
+// recommendation at all. Default false: a project that has already settled
+// its model policy shouldn't pay for the advice on every pick. When false,
+// prompt-template.md's Model fit and Effort fit notes state nothing, the
+// Execute-here raise-the-session question is skipped, and the executing-model
+// question still runs (a dispatch needs a model) but carries no task-derived
+// recommendation. `targetModel` is unaffected — a concrete pin still drives
+// elaboration whether or not recommendations are on.
+function readModelSuggestions(config) {
+  const value = config?.modelSuggestions;
+  if (value === undefined) return { value: false, warning: null };
+  if (typeof value === "boolean") return { value, warning: null };
+  return {
+    value: false,
+    warning: `modelSuggestions: ${JSON.stringify(value)} is not a boolean — defaulted to false`,
+  };
+}
+
 // Delegates the decision-log settings chain (env override ->
 // .foreman/config.json's `decisionLog` group -> defaults) to the module
 // that owns it for all three consumers, instead of restating the parse
@@ -198,6 +216,7 @@ function render(root) {
   const omitResult = renderOmit(config.omitSections);
   const targetModelResult = readTargetModel(config);
   const fableEnabledResult = readFableEnabled(config);
+  const modelSuggestionsResult = readModelSuggestions(config);
   const decisionLog = readDecisionLogSection(root);
   return {
     usePersona: readUsePersona(config),
@@ -205,6 +224,7 @@ function render(root) {
     omit: omitResult.omit,
     targetModel: targetModelResult.value,
     fableEnabled: fableEnabledResult.value,
+    modelSuggestions: modelSuggestionsResult.value,
     decisionLog: { enabled: decisionLog.enabled, dir: decisionLog.dir },
     warnings: [
       ...(configWarning ? [configWarning] : []),
@@ -212,6 +232,7 @@ function render(root) {
       ...omitResult.warnings,
       ...(targetModelResult.warning ? [targetModelResult.warning] : []),
       ...(fableEnabledResult.warning ? [fableEnabledResult.warning] : []),
+      ...(modelSuggestionsResult.warning ? [modelSuggestionsResult.warning] : []),
       ...(decisionLog.warning ? [decisionLog.warning] : []),
     ],
   };
@@ -233,6 +254,7 @@ module.exports = {
   readUsePersona,
   readTargetModel,
   readFableEnabled,
+  readModelSuggestions,
   readDecisionLogSection,
   escapeXml,
   renderSections,

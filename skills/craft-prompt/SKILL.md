@@ -192,6 +192,14 @@ mechanics" section, verbatim.
 <!-- [Foreman: 111] -->
 ## Call 5c — raise the session (conditional)
 
+<!-- [Foreman: 116] -->
+**Skip this call entirely unless the render-sections result's
+`modelSuggestions` is `true`.** It defaults to `false`, and when it is
+`false` no model or effort recommendation is made anywhere in this skill —
+Call 6 still asks which model to dispatch on, just with no recommended
+default and no `(Recommended)` label, and the Effort paragraph below states
+nothing.
+
 Ask this only when Call 5 Q1's answer was `Execute here`, once per handoff
 and never once per task row, after Call 5b and **before the first task row
 is created**. The other two destinations skip it — there the model is a
@@ -239,7 +247,15 @@ halves of the recommendation get said and acted on there.
 on?" Clipboard: "Which model will run the pasted prompt?"
 `Haiku`, `Sonnet`, `Opus` always; `Fable` too, but only when the
 render-sections result's `fableEnabled` is `true` — three options when
-it's `false` (the default), four when it's `true`. Reordered so the
+it's `false` (the default), four when it's `true`.
+
+When `modelSuggestions` is `false` — the default — the options are offered
+in their plain order with no `(Recommended)` label and no why-line: the
+question still has to be asked because a dispatch needs a model named, but
+Foreman is not in the business of suggesting one for this project.
+
+The rest of this call applies only when `modelSuggestions` is `true`.
+Reordered so the
 **recommended** model leads, with `(Recommended)` appended to its label —
 same convention `foreman:roadmap`'s Q1 uses for its top-ranked candidate.
 The recommendation is the resolved `targetModel` when the project pinned
@@ -270,7 +286,9 @@ The user can always override the default. The answer does two jobs:
   an `Other` answer that doesn't name a concrete model means leaving
   `model` out of the call.
 
-**Effort** — recommended, never asked and never dispatched. Judge it from
+**Effort** — stated only when `modelSuggestions` is `true`; say nothing
+about effort at all when it is `false`. Recommended, never asked and never
+dispatched. Judge it from
 `prompt-template.md`'s "Effort fit" note — the verification commands
 gathered above are the input, so this is decided after them, not before —
 and state it in one line of the delivery message: the setting and the

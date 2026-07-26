@@ -423,6 +423,33 @@ describe('drift pins', () => {
     }
   });
 
+  test('the model and effort recommendations are gated on modelSuggestions, default off', () => {
+    const raw = fs.readFileSync(TEMPLATE_PATH, 'utf-8').replace(/\s+/g, ' ');
+    assert.ok(
+      /gated on `modelSuggestions`, which defaults to `false`/.test(raw),
+      'the template lost the modelSuggestions gate on the model/effort notes'
+    );
+    assert.ok(
+      /`targetModel` is a separate setting and is unaffected/.test(raw),
+      'the template lost the targetModel independence rule'
+    );
+    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'SKILL.md']]) {
+      const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8').replace(/\s+/g, ' ');
+      assert.ok(
+        skill.includes('modelSuggestions'),
+        `${rel.join('/')} lost the modelSuggestions gate`
+      );
+      assert.ok(
+        /defaults to `false`|`modelSuggestions: true`/.test(skill),
+        `${rel.join('/')} lost the default-off statement`
+      );
+      assert.ok(
+        /a dispatch needs a model named/.test(skill),
+        `${rel.join('/')} lost the rule that the executing-model question still runs`
+      );
+    }
+  });
+
   test('the raise-the-session ask sends the work to a fresh session, never a mid-session switch', () => {
     const files = [
       TEMPLATE_PATH,

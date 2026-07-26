@@ -341,6 +341,45 @@ describe('render-sections — fableEnabled', () => {
   });
 });
 
+describe('render-sections — modelSuggestions', () => {
+  test('no config.json -> modelSuggestions defaults to false', () => {
+    const { json } = run();
+    assert.equal(json.modelSuggestions, false);
+    assert.deepEqual(json.warnings, []);
+  });
+
+  test('config.json without modelSuggestions -> defaults to false', () => {
+    writeConfig(project, { discoverySuggestions: true });
+    const { json } = run();
+    assert.equal(json.modelSuggestions, false);
+  });
+
+  for (const value of [true, false]) {
+    test(`modelSuggestions: ${value} passes through`, () => {
+      writeConfig(project, { modelSuggestions: value });
+      const { json } = run();
+      assert.equal(json.modelSuggestions, value);
+      assert.deepEqual(json.warnings, []);
+    });
+  }
+
+  test('a non-boolean modelSuggestions defaults to false with a warning, no throw', () => {
+    writeConfig(project, { modelSuggestions: 'yes' });
+    const { status, json } = run();
+    assert.equal(status, 0);
+    assert.equal(json.modelSuggestions, false);
+    assert.equal(json.warnings.length, 1);
+    assert.match(json.warnings[0], /modelSuggestions.*not a boolean/);
+  });
+
+  test('it is independent of targetModel — a concrete pin leaves it off', () => {
+    writeConfig(project, { targetModel: 'sonnet' });
+    const { json } = run();
+    assert.equal(json.targetModel, 'sonnet');
+    assert.equal(json.modelSuggestions, false);
+  });
+});
+
 describe('render-sections — reserved custom section tags', () => {
   test('a customSections tag named "decision_log" is reserved and skipped', () => {
     writeConfig(project, { customSections: [{ tag: 'decision_log', content: 'x' }] });

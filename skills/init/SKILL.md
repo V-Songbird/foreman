@@ -104,7 +104,7 @@ Options:
 
 ---
 
-## Call 2b — Fable access and decision notes (batch 2)
+## Call 2b — Fable access, decision notes, and model advice (batch 3)
 
 **Q1** — "Can this project run Fable 5? (Max plan or API — other plans
 can't)"
@@ -129,6 +129,24 @@ Options:
 Default is No — a project that never wants written decision records can
 decline without knowing what an ADR is. Record the answer as
 `.foreman/config.json`'s `decisionLog` field.
+
+**Q3** — "Should Foreman suggest which model and reasoning effort each task
+deserves?"
+Options:
+- `No — I'll pick the model myself` — (default) Foreman never recommends
+  one. It still asks which model to dispatch a background Agent or a copied
+  prompt on, because that has to be answered, but it offers the plain list
+  with nothing marked recommended. Becomes `"modelSuggestions": false`.
+- `Yes — recommend one per task` — each handoff says which model fits the
+  task and what reasoning effort its checks justify, and running a task in
+  this session asks whether to start it in a fresh session set to them.
+  Becomes `"modelSuggestions": true`.
+
+Default is No — the advice costs an extra question on the most common path,
+and a project that has already settled its model policy gains nothing from
+it. This is independent of `targetModel`: a concrete pin still tunes how
+much detail a prompt spells out either way. Record the answer as
+`.foreman/config.json`'s `modelSuggestions` field.
 
 ---
 
@@ -187,10 +205,10 @@ the updated draft, ask again. Repeat until approved.
    order, and `add` rejects an id that doesn't exist yet. If any call
    returns `warnings`, mention them once at the end rather than per entry.
 3. Write `.foreman/config.json` —
-   `{"discoverySuggestions": <bool>, "usePersona": <bool>, "omitSections": [...], "requireVerification": <bool>, "taskCloseGate": "<off|block>", "fableEnabled": <bool>, "decisionLog": {"enabled": <bool>}}`
+   `{"discoverySuggestions": <bool>, "usePersona": <bool>, "omitSections": [...], "requireVerification": <bool>, "taskCloseGate": "<off|block>", "fableEnabled": <bool>, "decisionLog": {"enabled": <bool>}, "modelSuggestions": <bool>}`
    from the Call 2/Call 2b answers (skip this file write if the pre-check
    "keep, add to it" branch found an existing config already).
-   **If the file already exists, `Read` it first and set those seven keys on
+   **If the file already exists, `Read` it first and set those eight keys on
    the parsed object — any other key present must survive untouched.** This
    applies whenever the file exists, not only on the Overwrite branch: the
    pre-check only fires when `ROADMAP.jsonl` exists, so a project with a
