@@ -29,6 +29,8 @@
 //     and survives list/next-candidates serialization
 //   - kind stores "decision" on add, omits itself for "build"/unset,
 //     rejects other values, and survives next-candidates serialization
+//   - model/effort record what actually ran on update-status only, reject
+//     unknown values, omit themselves when unset, and are never accepted by add
 //   - DECISION_ANCHOR_RE/anchorIdsIn/anchorHasId: single- and multi-id
 //     anchor comments, ids in ordinary prose not wrapped in the anchor
 //     never match
@@ -985,6 +987,60 @@ describe('kind field', () => {
       const { json } = run(['update-status'], { id: '001', status: 'in_progress' });
       assert.equal(json.entry.kind, 'decision');
     });
+  });
+});
+
+describe('model and effort fields', () => {
+  beforeEach(() => {
+    writeRoadmap(project, [
+      { id: '001', title: 'a', why: 'a', what: 'a', status: 'in_progress', source: 'user', depends_on: [], touches: [], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '' },
+    ]);
+  });
+
+  test('update-status records both on a close', () => {
+    const { status, json } = run(['update-status'], { id: '001', status: 'done', model: 'opus', effort: 'medium' });
+    assert.equal(status, 0);
+    assert.equal(json.entry.model, 'opus');
+    assert.equal(json.entry.effort, 'medium');
+  });
+
+  test('records one without the other', () => {
+    const { json } = run(['update-status'], { id: '001', status: 'done', effort: 'xhigh' });
+    assert.equal(json.entry.effort, 'xhigh');
+    assert.equal('model' in json.entry, false);
+  });
+
+  test('omits both entirely when neither is given', () => {
+    const { json } = run(['update-status'], { id: '001', status: 'done' });
+    assert.equal('model' in json.entry, false);
+    assert.equal('effort' in json.entry, false);
+  });
+
+  test('rejects an unknown model and does not write', () => {
+    const { status, json } = run(['update-status'], { id: '001', status: 'done', model: 'gpt4' });
+    assert.equal(status, 1);
+    assert.match(json.error, /model must be one of haiku\|sonnet\|opus\|fable/);
+    const after = run(['list', '--ids=001']);
+    assert.equal(after.json.entries[0].status, 'in_progress');
+  });
+
+  test('rejects an unknown effort and does not write', () => {
+    const { status, json } = run(['update-status'], { id: '001', status: 'done', effort: 'ultra' });
+    assert.equal(status, 1);
+    assert.match(json.error, /effort must be one of low\|medium\|high\|xhigh\|max/);
+  });
+
+  test('add never accepts them — an entry has not run yet', () => {
+    const { json } = run(['add'], { title: 'a', why: 'a', what: 'a', source: 'user', model: 'opus', effort: 'max' });
+    assert.equal('model' in json.entry, false);
+    assert.equal('effort' in json.entry, false);
+  });
+
+  test('a recorded value that differs from any recommendation is stored as-is', () => {
+    const { json } = run(['update-status'], { id: '001', status: 'done', model: 'haiku', effort: 'max' });
+    assert.equal(json.entry.model, 'haiku');
+    assert.equal(json.entry.effort, 'max');
+    assert.equal(json.warnings, undefined);
   });
 });
 

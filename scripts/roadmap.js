@@ -149,6 +149,15 @@ const CREATE_STATUSES = new Set(["planned", "rejected"]);
 // decision-shaped entries without it.
 const KINDS = new Set(["build", "decision"]);
 
+// [Foreman: 102]
+// What actually executed the entry, self-reported at close time. Neither is
+// observable: hook input carries no model, and the Agent tool takes no effort
+// argument, so effort is whatever the executing session was already set to.
+// Closed sets rather than free strings — the corpus is only comparable if the
+// labels are; extend the set when a new model or effort tier ships.
+const MODELS = new Set(["haiku", "sonnet", "opus", "fable"]);
+const EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
+
 // Soft caps, not hard limits — every entry gets re-read on every `list`,
 // so a wall-of-text why/notes multiplies cost across every future call.
 // Dense means specific (exact paths/symbols), not exhaustive prose.
@@ -212,6 +221,16 @@ function validateDoc(doc) {
 function validateKind(kind) {
   if (!KINDS.has(kind)) {
     throw new Error(`kind must be one of ${[...KINDS].join("|")}`);
+  }
+}
+
+// model/effort are forced choices like kind, but recorded only on
+// update-status: an entry being added hasn't run yet, so there is nothing to
+// report. Both stay unwritten unless passed -- an entry with no model key ran
+// on something nobody recorded, which is different from running on a default.
+function validateRan(name, value, allowed) {
+  if (!allowed.has(value)) {
+    throw new Error(`${name} must be one of ${[...allowed].join("|")}`);
   }
 }
 
@@ -327,7 +346,7 @@ function stageRoadmapFile(root) {
 }
 
 function cmdUpdateStatus(root, payload) {
-  const { id, status, commit, staged, notes, add_touches, doc, kind } = payload || {};
+  const { id, status, commit, staged, notes, add_touches, doc, kind, model, effort } = payload || {};
   if (!id || !status) throw new Error("update-status requires id, status");
   if (!STATUSES.has(status)) {
     throw new Error(`status must be one of ${[...STATUSES].join("|")}`);
@@ -342,11 +361,17 @@ function cmdUpdateStatus(root, payload) {
   }
   if (doc !== undefined) validateDoc(doc);
   if (kind !== undefined) validateKind(kind);
+  if (model !== undefined) validateRan("model", model, MODELS);
+  if (effort !== undefined) validateRan("effort", effort, EFFORTS);
   const entries = readEntries(root);
   const entry = entries.find((e) => e.id === id);
   if (!entry) throw new Error(`no entry with id ${id}`);
   entry.status = status;
   if (doc !== undefined) entry.doc = doc;
+  // What ran, not what was recommended -- the gap between the two is the
+  // signal, so nothing here compares them or complains when they differ.
+  if (model !== undefined) entry.model = model;
+  if (effort !== undefined) entry.effort = effort;
   // Reclassify: store only "decision"; setting it back to "build" (the
   // default) drops the key so the omit-when-default invariant holds.
   if (kind === "decision") entry.kind = "decision";
@@ -690,7 +715,7 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     kind: "build" (default, never stored) | "decision" (resolve
                     an open question, no code) -- only "decision" is stored;
                     the pick flow hands a decision entry a "decide, don't build" rule
-  update-status     stdin JSON: {id, status, commit?, staged?, notes?, add_touches?, doc?}
+  update-status     stdin JSON: {id, status, commit?, staged?, notes?, add_touches?, doc?, kind?, model?, effort?}
                     status: "planned" | "in_progress" | "deferred" | "done" | "dropped" | "rejected"
                     "deferred" = recorded but waiting on an external trigger;
                     excluded from next-candidates until moved back to "planned"
@@ -711,6 +736,11 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     doc: same "none" | relative .md path contract as add
                     kind: "build" | "decision" -- reclassify the entry;
                     "decision" is stored, "build" drops the key (the default)
+                    model: "haiku" | "sonnet" | "opus" | "fable" -- what
+                    ACTUALLY ran this entry, not what was recommended
+                    effort: "low" | "medium" | "high" | "xhigh" | "max" --
+                    likewise; both are self-reported (nothing can detect
+                    them) and omitted entirely when not given
   annotate          stdin JSON: {id, notes}
                     appends notes and bumps updated_at without touching
                     status -- use for a breadcrumb write so a stale status

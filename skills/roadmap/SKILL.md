@@ -311,8 +311,24 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      decided:
      `echo '{"id":"<id>","status":"<status>","staged":true,"notes":"<findings>","doc":"<path or none>"}' | node
      ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
+     Also add `model` and `effort` to that close call — what actually ran
+     this task, not what was recommended for it:
+     `echo '{"id":"<id>","status":"<status>","staged":true,"notes":"<findings>","model":"<haiku|sonnet|opus|fable>","effort":"<low|medium|high|xhigh|max>"}' | node
+     ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
+     Omit either one you genuinely don't know rather than guessing — an
+     absent field reads as unrecorded, a wrong one silently poisons the
+     corpus.
      The entry's `notes` is where the depth lives; your final chat message
      states the outcome and points at the entry."
+
+     **Baking in the model** — on a background-`Agent` dispatch the
+     confirmed executing-model answer IS the `Agent` call's `model` value,
+     so it's already known here: substitute it into that close call
+     literally, and the closing session reports only its effort. Every
+     other destination leaves both placeholders in place — an `Execute
+     here` run's model was never asked, and a pasted prompt's is whatever
+     the user pasted it into. Never bake in an effort: effort is not a
+     dispatch value, so craft time never learns it.
 
      **Resume variant** — when the chosen task came from `in_progress`
      (the finish-first check), the entry was already started by an earlier
