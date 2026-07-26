@@ -188,6 +188,10 @@ proceed from what you actually find — and treat the mismatch itself as part
 of the outcome: state it in one line of your final message (and in the
 roadmap entry's notes, if this task closes one). A minimal register trims
 narration, never a found discrepancy.
+One limit on that: the facts above are hypotheses, but the approach this
+prompt prescribes is a decision already taken. If what you find makes that
+approach unworkable, stop and report it — never silently substitute an
+approach of your own.
 </truth_grounding>
 
 <scope_discipline>
@@ -273,6 +277,8 @@ For a bug fix, include the observed failing output verbatim under an
 </context>
 </background>
 
+If a file, symbol, or fallback path this prompt names does not exist as described, that is a finding to report, not a gap to fill — never create it to make this prompt true.
+
 [OPTIONAL — include only when the task has something that must stay true
 across the change. Every line is an observable assertion, phrased so it
 could be checked by running something: "rebuilding twice yields the same
@@ -321,7 +327,7 @@ code, deliberately break the invariant and confirm the test goes red,
 then implement. A test written after the change encodes the
 implementation instead of the contract and will pass a broken change.
 Omit the ordering for a task whose failure is loud.]
-Do NOT claim success without running this. If it fails, iterate until it passes.
+Do NOT claim success without running this. If it fails, fix and re-run — but after two failed fix attempts, stop and report what is still failing instead of widening the change to make the check pass.
 </task_rules>
 
 [CUSTOM SECTIONS — inline each `sections[].xml` from `render-sections.js` here,
@@ -399,6 +405,11 @@ using them:
       `usePersona` was `false`) and a concrete one-sentence "done" state
 - [ ] `truth_grounding` present, unmodified — every handoff carries it
 - [ ] `scope_discipline` present, unmodified — every handoff carries it
+- [ ] the no-invention line ("a finding to report, not a gap to fill")
+      sits outside `<background>`, so it survives an `omit`ted background,
+      and the verification block's bounded fix loop ("after two failed fix
+      attempts") replaced the old open-ended "iterate until it passes" —
+      both are fixed text, never reworded per task
 - [ ] `render-sections.js` ran once at craft time (never deferred to the
       spawned session) and its `usePersona` field — not a fresh `Read` or
       flag check — drove `<task_context>`; its `targetModel` field —

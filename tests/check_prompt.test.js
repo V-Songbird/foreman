@@ -15,6 +15,7 @@
 //   - usePersona:false rejects a "You are a" opener
 //   - assumed-context phrasing is a warning, not an error
 //   - Workflow-stage flavor: no tone, no output_format, fixed sentence
+//   - the no-invention line and the bounded fix loop are both required
 //   - drift pin: every bracketed placeholder line in prompt-template.md's
 //     xml fence is covered by the checker's fragment list
 //   - grammar pin: the skill prose still uses the phrases the checker expects
@@ -29,6 +30,8 @@ const {
   readCanonical,
   PLACEHOLDER_FRAGMENTS,
   WORKFLOW_STAGE_SENTENCE,
+  NO_INVENTION_SENTENCE,
+  FIX_CEILING_SENTENCE,
   TEMPLATE_PATH,
 } = require(path.join(SCRIPTS_DIR, 'check-prompt.js'));
 
@@ -37,6 +40,8 @@ const canonical = readCanonical();
 const AUTONOMY = 'You are operating autonomously. The user is not watching in real time and cannot answer questions mid-task. End your turn only when the task is complete or you are blocked on input only the user can provide.';
 const PLUGIN_ROOT = '/plugins/foreman';
 const scopeText = canonical.scopeDiscipline.split('${CLAUDE_PLUGIN_ROOT}').join(PLUGIN_ROOT);
+const NO_INVENTION_LINE = `If a file, symbol, or fallback path this prompt names does not exist as described, ${NO_INVENTION_SENTENCE}`;
+const FIX_CEILING_LINE = `Do NOT claim success without running this. If it fails, fix and re-run — but ${FIX_CEILING_SENTENCE}`;
 
 function goodPrompt(overrides = {}) {
   const parts = {
@@ -46,8 +51,9 @@ function goodPrompt(overrides = {}) {
     entry_paragraph: '',
     tone: '<tone>\nMinimal, professional conversation — silent by default. If an output style already governs this session\'s voice, defer to it.\n</tone>',
     background: '<background>\n<relevant_files>\nsrc/auth/middleware.ts:42-80 — token refresh logic\n</relevant_files>\n<context>\nUses JWT tokens in httpOnly cookies. No third-party auth libs.\n</context>\n</background>',
+    no_invention: NO_INVENTION_LINE,
     invariants: '',
-    task_rules: '<task_rules>\n- Explore relevant_files first (see truth_grounding above).\n- Check the refresh path against the failing test.\n- Fix the bug.\n\nConstraints:\n- Do not modify the public API.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\nDo NOT claim success without running this. If it fails, iterate until it passes.\n</task_rules>',
+    task_rules: `<task_rules>\n- Explore relevant_files first (see truth_grounding above).\n- Check the refresh path against the failing test.\n- Fix the bug.\n\nConstraints:\n- Do not modify the public API.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\n${FIX_CEILING_LINE}\n</task_rules>`,
     custom_sections: '',
     request: 'Fix the token refresh bug in the auth middleware.',
     autonomy: '',
@@ -381,13 +387,80 @@ describe('drift pins', () => {
   });
 });
 
+describe('durable handoff guardrails', () => {
+  test('the precedence rule rides inside the canonical truth_grounding block', () => {
+    assert.ok(
+      /approach this\s+prompt prescribes is a decision already taken/.test(canonical.truthGrounding),
+      'truth_grounding lost the facts-vs-approach precedence rule'
+    );
+    assert.ok(
+      /stop and report it — never silently substitute/.test(canonical.truthGrounding),
+      'truth_grounding lost the stop-and-report instruction'
+    );
+    // No separate check needed: the verbatim block comparison already covers it.
+    const project = makeTmpProject();
+    const { status, json } = check(project, goodPrompt(), ['--destination', 'task']);
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.equal(json.ok, true);
+  });
+
+  test('a prompt without the no-invention line is an error', () => {
+    const project = makeTmpProject();
+    const { status, json } = check(project, goodPrompt({ no_invention: '' }), ['--destination', 'task']);
+    assert.equal(status, 1);
+    assert.equal(json.ok, false);
+    assert.ok(json.errors.some((e) => e.includes('no-invention line')), JSON.stringify(json.errors));
+  });
+
+  test('the no-invention line sits outside <background>, so an omitted background keeps it', () => {
+    const project = makeTmpProject();
+    writeConfig(project, { omitSections: ['background'] });
+    const { status, json } = check(project, goodPrompt({ background: '' }), ['--destination', 'task']);
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.equal(json.ok, true);
+    // ...and it is still the checker's business when dropped.
+    const dropped = check(project, goodPrompt({ background: '', no_invention: '' }), ['--destination', 'task']);
+    assert.equal(dropped.status, 1);
+    assert.ok(dropped.json.errors.some((e) => e.includes('no-invention line')));
+  });
+
+  test('the old unbounded "iterate until it passes" fix loop is an error', () => {
+    const project = makeTmpProject();
+    const rules =
+      '<task_rules>\n- Fix the bug.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\n' +
+      'Do NOT claim success without running this. If it fails, iterate until it passes.\n</task_rules>';
+    const { status, json } = check(project, goodPrompt({ task_rules: rules }), ['--destination', 'task']);
+    assert.equal(status, 1);
+    assert.equal(json.ok, false);
+    assert.ok(json.errors.some((e) => e.includes('fix loop is unbounded')), JSON.stringify(json.errors));
+  });
+
+  test('a --research prompt needs no fix ceiling — it has no verification block', () => {
+    const project = makeTmpProject();
+    const rules = '<task_rules>\nQuestion: does the retry path double-count?\nRun `npm test -- retry` to reproduce.\n</task_rules>';
+    const { status, json } = check(project, goodPrompt({ task_rules: rules }), ['--destination', 'task', '--research']);
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.equal(json.ok, true);
+  });
+
+  test('the template still carries all three rules', () => {
+    const template = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
+    assert.ok(template.includes(NO_INVENTION_SENTENCE), 'template lost the no-invention line');
+    assert.ok(template.includes(FIX_CEILING_SENTENCE), 'template lost the fix ceiling');
+    assert.ok(
+      !/If it fails, iterate until it passes\./.test(template),
+      'template still carries the old unbounded fix loop'
+    );
+  });
+});
+
 describe('optional per-task fields', () => {
   const INVARIANTS = '<invariants>\nRebuilding twice yields the same ids.\nAn unknown flag exits non-zero.\n</invariants>';
   const RULES_WITH_FIELDS =
     '<task_rules>\n- Explore relevant_files first (see truth_grounding above).\n- Check the refresh path against the failing test.\n- Fix the bug.\n\n' +
     'Constraints:\n- Do not modify the public API.\n- Expected file surface: src/auth/middleware.ts. Anything beyond this list gets flagged to the user before it is written, not after.\n\n' +
     'Verification (REQUIRED):\nWrite the invariant test first, confirm it passes against the unmodified code, deliberately break the invariant and confirm the test goes red, then implement.\n' +
-    'Run: npm test\nExpected: all tests pass\nDo NOT claim success without running this. If it fails, iterate until it passes.\n</task_rules>';
+    `Run: npm test\nExpected: all tests pass\n${FIX_CEILING_LINE}\n</task_rules>`;
 
   test('a prompt carrying all three passes clean', () => {
     const project = makeTmpProject();

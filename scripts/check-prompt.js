@@ -68,6 +68,16 @@ const WORKFLOW_STAGE_SENTENCE =
 // Agent destination must carry (the agent harness doesn't inject it).
 const AUTONOMY_SENTENCE = "You are operating autonomously.";
 
+// [Foreman: 103]
+// Two fixed guardrails that live outside <truth_grounding>, so the verbatim
+// block comparison above can't cover them. The no-invention line sits after
+// </background> deliberately — inside it, an omitted background would drop
+// the rule. The fix ceiling bounds the verification block's retry loop.
+const NO_INVENTION_SENTENCE =
+  "that is a finding to report, not a gap to fill — never create it to make this prompt true.";
+const FIX_CEILING_SENTENCE =
+  "after two failed fix attempts, stop and report what is still failing instead of widening the change to make the check pass.";
+
 function norm(text) {
   return String(text).replace(/\s+/g, " ").trim();
 }
@@ -131,6 +141,10 @@ function checkPrompt(prompt, opts) {
   if (!segmentsInOrder(canonical.closing, prompt)) {
     errors.push("the fixed closing paragraph (\"Reason through the approach…\") is missing or altered");
   }
+  // [Foreman: 103]
+  if (!norm(prompt).includes(norm(NO_INVENTION_SENTENCE))) {
+    errors.push("missing the no-invention line (\"a finding to report, not a gap to fill\") — it belongs outside <background>, so an omitted background can't drop it");
+  }
 
   // --- task_context ---
   const taskContext = extractBlock(prompt, "task_context");
@@ -160,6 +174,10 @@ function checkPrompt(prompt, opts) {
       /\bExpected:/.test(taskRules);
     if (!hasVerification) {
       errors.push("task_rules has no verification block (Run:/Expected:) — required unless the task is pure research (--research)");
+    }
+    // [Foreman: 103]
+    if (!norm(taskRules).includes(norm(FIX_CEILING_SENTENCE))) {
+      errors.push("the verification block's fix loop is unbounded — it must end with the fixed ceiling (\"after two failed fix attempts, stop and report…\"), not \"iterate until it passes\"");
     }
   }
 
@@ -330,6 +348,8 @@ module.exports = {
   norm,
   PLACEHOLDER_FRAGMENTS,
   WORKFLOW_STAGE_SENTENCE,
+  NO_INVENTION_SENTENCE,
+  FIX_CEILING_SENTENCE,
   REASONING_ECHO_RE,
   TEMPLATE_PATH,
 };
