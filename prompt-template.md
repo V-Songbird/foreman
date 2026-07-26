@@ -143,13 +143,19 @@ an instruction for the spawned session to act on later):**
    - `warnings` — surface briefly to the user (skipped entries from a
      malformed config); never blocks assembly.
 
-0b. **Resolve the touched files into a symbol map.** In the same craft-time
-   slot, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-symbols.js
-   --touches <comma-separated paths>` (or pipe `{"touches":[...],"what":
-   "..."}` on stdin, which also fills `unresolved`). One JSON object:
-   `{"ok": true, "files": [{"path", "missing"?, "directory"?, "unsupported"?,
-   "symbols": [{"name", "line"}]}], "unresolved": [...], "warnings": [...]}`.
-   Skip the call only when no file paths are known yet.
+0b. **Resolve the touched files into a symbol map and preflight the task.**
+   In the same craft-time slot, run `node
+   ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-symbols.js --touches
+   <comma-separated paths>` (or pipe `{"touches":[...],"what":"...",
+   "verify":"..."}` on stdin, which also fills `unresolved` and
+   `verification`). One JSON object: `{"ok": true, "files": [{"path",
+   "missing"?, "directory"?, "unsupported"?, "lastChanged"?, "symbols":
+   [{"name", "line"}]}], "unresolved": [...], "references": [{"helper",
+   "files": [...]}], "verification"?: {"command", "resolves", "via"},
+   "warnings": [...]}`. Skip the call only when no file paths are known yet.
+   Every field below is a fact replacing an inference the session would
+   otherwise make — none of it narrows `truth_grounding`, which still
+   governs at run time.
    - `files[].symbols` — feed these into `relevant_files` below: cite the
      symbol names that live in each file, so the handed-off session doesn't
      re-derive them. Extraction is a column-0 regex, not a parser, so it
@@ -160,6 +166,24 @@ an instruction for the spawned session to act on later):**
    - `unresolved` — identifier-shaped names in the task's own description
      that match no symbol in any touched file. Treat each as either an
      invented API or an un-caught rename, and resolve it before assembly.
+   <!-- [Foreman: 109] -->
+   - `verification` — present only when a `verify` command was passed;
+     pass the command gathered for the verification block, once it is
+     known. `resolves: false` means nothing here answers to that command
+     (no such `package.json` script, no `gradlew`, nothing by that name on
+     `PATH`), so fix the command before delivering — a prompt naming a
+     command that cannot run wastes the whole session. `via` names what it
+     resolved through, and a leading `cd <dir> &&` is honored, which is how
+     a submodule's suite gets named from the repo root.
+   - `references` — other files that already import a helper the touched
+     files import. Cite one as `relevant_files`' `Pattern:` line: a named
+     analogue in this codebase beats a bullet telling the session to follow
+     existing conventions. Empty is normal and means nothing to cite.
+   - `files[].lastChanged` — the file's last-changed date from git, absent
+     outside a repo. A touched file that moved since the entry was written
+     is where this prompt's claims are most likely to have aged, so weigh
+     it when deciding how much of the entry's `what` to restate as fact
+     versus hand over as a claim to check.
    - `warnings` — surface alongside `render-sections.js`'s own.
 
 <!-- [Foreman: 107] -->
@@ -447,6 +471,11 @@ using them:
       paths were known, its `files[].symbols` fed `relevant_files`, and
       every `missing` path and `unresolved` name was resolved before
       delivery — never left for the destination to discover
+- [ ] the same call's preflight fields were acted on, not just read: the
+      verification command was passed as `verify` and a `resolves: false`
+      was fixed before delivery, a `references` hit became the
+      `relevant_files` `Pattern:` line, and a stale `lastChanged` shifted
+      how much of the entry's `what` went in as claim rather than fact
 - [ ] `relevant_files` lists every file path, each carrying the symbol names
       that matter — a line range only where the spot has no name, and then
       with its enclosing symbol named too — and no vague

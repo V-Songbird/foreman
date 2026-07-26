@@ -18,7 +18,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
-const { runNodeScript, makeTmpProject, SCRIPTS_DIR } = require('./helpers');
+const { runNodeScript, makeTmpProject, initGitRepo, commitFile, SCRIPTS_DIR } = require('./helpers');
 
 const SCRIPT = path.join(SCRIPTS_DIR, 'resolve-symbols.js');
 
@@ -177,5 +177,129 @@ describe('resolve-symbols', () => {
     assert.equal(json.ok, true);
     assert.deepEqual(json.files, []);
     assert.ok(json.warnings.some((w) => w.includes('nothing to resolve')));
+  });
+});
+
+// Craft-time preflight: three further facts on the same call — whether the
+// named verification command resolves at all, which other files already
+// import the same helper, and when each touched file last changed.
+describe('resolve-symbols preflight', () => {
+  test('a package.json script the project declares resolves', () => {
+    writeFile('src/sample.js', SAMPLE_JS);
+    writeFile('package.json', JSON.stringify({ scripts: { test: 'node --test' } }));
+
+    const { json } = run({ stdin: JSON.stringify({ touches: ['src/sample.js'], verify: 'npm test' }) });
+
+    assert.equal(json.verification.resolves, true);
+    assert.equal(json.verification.via, 'package.json script');
+    assert.deepEqual(json.warnings, []);
+  });
+
+  test('a script the project never declares fails to resolve, with a warning', () => {
+    writeFile('src/sample.js', SAMPLE_JS);
+    writeFile('package.json', JSON.stringify({ scripts: { build: 'tsc' } }));
+
+    const { status, json } = run({
+      stdin: JSON.stringify({ touches: ['src/sample.js'], verify: 'npm run verify' }),
+    });
+
+    assert.equal(status, 0, 'an unresolvable command is a finding, never a failure');
+    assert.equal(json.verification.resolves, false);
+    assert.equal(json.verification.via, null);
+    assert.ok(
+      json.warnings.some((w) => w.includes('npm run verify') && w.includes('does not resolve')),
+      `expected an unresolvable-command warning, got ${JSON.stringify(json.warnings)}`
+    );
+  });
+
+  test('a leading cd into a subdirectory is honored', () => {
+    writeFile('src/sample.js', SAMPLE_JS);
+    writeFile('sub/package.json', JSON.stringify({ scripts: { test: 'node --test' } }));
+
+    const { json } = run({
+      stdin: JSON.stringify({ touches: ['src/sample.js'], verify: 'cd sub && npm test' }),
+    });
+
+    assert.equal(json.verification.resolves, true);
+    assert.equal(json.verification.via, 'package.json script');
+  });
+
+  test('a bare binary resolves off PATH', () => {
+    writeFile('src/sample.js', SAMPLE_JS);
+    const { json } = run({
+      stdin: JSON.stringify({ touches: ['src/sample.js'], verify: 'node --test tests/*.test.js' }),
+    });
+
+    assert.equal(json.verification.resolves, true);
+    assert.equal(json.verification.via, 'PATH');
+  });
+
+  test('a binary that exists nowhere fails to resolve', () => {
+    writeFile('src/sample.js', SAMPLE_JS);
+    const { json } = run({
+      stdin: JSON.stringify({ touches: ['src/sample.js'], verify: 'definitelynotarealbinary --run' }),
+    });
+
+    assert.equal(json.verification.resolves, false);
+    assert.equal(json.verification.via, null);
+  });
+
+  test('no verify given means no verification field at all', () => {
+    writeFile('src/sample.js', SAMPLE_JS);
+    const { json } = run({ argv: ['--touches', 'src/sample.js'] });
+
+    assert.equal('verification' in json, false);
+    assert.deepEqual(json.warnings, []);
+  });
+
+  test('another file importing the same helper is offered as a reference', () => {
+    writeFile('src/helper.js', 'module.exports = { help: () => 1 };\n');
+    writeFile('src/sample.js', `const { help } = require('./helper');\n${SAMPLE_JS}`);
+    writeFile('src/sibling.js', "const { help } = require('./helper');\n");
+    writeFile('src/unrelated.js', "const os = require('os');\n");
+
+    const { json } = run({ argv: ['--touches', 'src/sample.js'] });
+
+    const ref = json.references.find((r) => r.helper === 'src/helper');
+    assert.ok(ref, `expected src/helper among ${JSON.stringify(json.references)}`);
+    assert.deepEqual(ref.files, ['src/sibling.js']);
+    assert.ok(!ref.files.includes('src/sample.js'), 'the touched file is not its own reference');
+    assert.ok(!ref.files.includes('src/unrelated.js'), 'a file importing something else is not a reference');
+  });
+
+  test('a helper nobody else imports yields no reference', () => {
+    writeFile('src/helper.js', 'module.exports = {};\n');
+    writeFile('src/sample.js', `const h = require('./helper');\n${SAMPLE_JS}`);
+
+    const { json } = run({ argv: ['--touches', 'src/sample.js'] });
+
+    assert.deepEqual(json.references, []);
+  });
+
+  test('package imports are not treated as references', () => {
+    writeFile('src/sample.js', SAMPLE_JS);
+    writeFile('src/sibling.js', "const fs = require('fs');\n");
+
+    const { json } = run({ argv: ['--touches', 'src/sample.js'] });
+
+    assert.deepEqual(json.references, []);
+  });
+
+  test('outside a git repository the last-changed date is simply absent', () => {
+    writeFile('src/sample.js', SAMPLE_JS);
+    const { status, json } = run({ argv: ['--touches', 'src/sample.js'] });
+
+    assert.equal(status, 0);
+    assert.equal(json.ok, true);
+    assert.equal('lastChanged' in json.files[0], false);
+  });
+
+  test('inside a git repository each touched file carries its last-changed date', () => {
+    initGitRepo(project);
+    commitFile(project, 'src/sample.js', SAMPLE_JS);
+
+    const { json } = run({ argv: ['--touches', 'src/sample.js'] });
+
+    assert.match(json.files[0].lastChanged, /^\d{4}-\d{2}-\d{2}$/);
   });
 });

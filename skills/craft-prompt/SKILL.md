@@ -143,6 +143,21 @@ the template's step 0b has its arguments and output shape. Its
 `files[].symbols` are what `relevant_files` cites; a `missing` path or an
 `unresolved` name is fixed here, before assembly, not handed on.
 
+<!-- [Foreman: 109] -->
+Call 3 has already gathered the verification commands by this point, so
+pass the first of them as `verify` in the same call and act on all three
+preflight fields here rather than assembling around them:
+- `verification.resolves: false` — nothing in this project answers to that
+  command. Fix it with the user before assembly; a prompt naming a command
+  that cannot run wastes the whole session.
+- `references` — a file already importing the same helper is the
+  `Pattern:` line `relevant_files` asks for in Call 2's Q3. Cite it instead
+  of leaving the pattern slot empty.
+- `files[].lastChanged` — a touched file that changed recently is where
+  this entry's claims are most likely stale. Hand those facts over as
+  claims for the destination to check rather than restating them as
+  settled.
+
 ---
 
 ## Call 5 — destination

@@ -6,6 +6,12 @@
 // definitions so an assembled prompt can cite symbols instead of making the
 // handed-off session rediscover what lives in each file.
 //
+// Three further craft-time facts ride the same call, on the same principle:
+// replace agent inference with a fact, never delete it. Each touched file
+// carries the date it last changed; `references` names other files already
+// importing the same helper; and a `verify` command is checked for whether
+// it resolves at all here.
+//
 // Honest limit, and the reason this never replaces truth_grounding: the
 // extraction is a per-language regex anchored at column 0, not a parser.
 // Overloads, generated code, and macros will slip. The output narrows the
@@ -18,6 +24,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { spawnSync } = require("child_process");
 
 function projectDir() {
   return path.resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
@@ -137,7 +144,177 @@ function unresolvedIdentifiers(what, files) {
     .filter((name) => !String(what).includes(`${name}.`) && !String(what).includes(`/${name}`));
 }
 
-function resolve(root, touches, what) {
+// [Foreman: 109]
+// A verification command the project cannot actually run wastes a whole
+// handoff, so craft time answers "does this entry point exist here" — never
+// "does it pass", which is the handed-off session's job. A leading
+// `cd <dir> &&` is honored because that is how a submodule's suite is named
+// from the repo root.
+const CD_PREFIX = /^cd\s+("[^"]+"|'[^']+'|\S+)\s*&&\s*/;
+const PACKAGE_RUNNERS = new Set(["npm", "pnpm", "yarn", "bun"]);
+
+function commandRoot(root, command) {
+  const match = CD_PREFIX.exec(command);
+  if (!match) return { dir: root, rest: command };
+  return {
+    dir: path.resolve(root, match[1].replace(/^["']|["']$/g, "")),
+    rest: command.slice(match[0].length),
+  };
+}
+
+function scriptNames(dir) {
+  try {
+    return new Set(Object.keys(JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf-8")).scripts || {}));
+  } catch {
+    return new Set();
+  }
+}
+
+function onPath(binary) {
+  const exts =
+    process.platform === "win32"
+      ? (process.env.PATHEXT || ".EXE;.CMD;.BAT").split(";").filter(Boolean)
+      : [""];
+  return (process.env.PATH || "")
+    .split(path.delimiter)
+    .filter(Boolean)
+    .some((dir) =>
+      exts.some((ext) => {
+        try {
+          return fs.statSync(path.join(dir, binary + ext)).isFile();
+        } catch {
+          return false;
+        }
+      })
+    );
+}
+
+function resolveCommand(root, command) {
+  const text = String(command).trim();
+  if (!text) return null;
+  const { dir, rest } = commandRoot(root, text);
+  const tokens = rest.split(/\s+/).filter(Boolean);
+  const binary = tokens[0] || "";
+
+  if (PACKAGE_RUNNERS.has(binary)) {
+    const name = tokens[1] === "run" ? tokens[2] : tokens[1];
+    const ok = Boolean(name) && scriptNames(dir).has(name);
+    return { command: text, resolves: ok, via: ok ? "package.json script" : null };
+  }
+  if (/^\.?[/\\]?gradlew(\.bat)?$/.test(binary)) {
+    const ok = fs.existsSync(path.join(dir, "gradlew")) || fs.existsSync(path.join(dir, "gradlew.bat"));
+    return { command: text, resolves: ok, via: ok ? "gradlew" : null };
+  }
+  const ok = onPath(binary);
+  return { command: text, resolves: ok, via: ok ? "PATH" : null };
+}
+
+// [Foreman: 109]
+// Other files that already import a helper the touched files import. A named
+// analogue in the prompt beats a bullet telling the session to follow
+// existing conventions. Scoped to relative specifiers: a package import says
+// nothing about this codebase's own shape.
+const IMPORT_SPECIFIER = /(?:require\(\s*|from\s+)["']([^"']+)["']/g;
+const SKIP_DIRS = new Set(["node_modules", "dist", "build", "coverage", "vendor"]);
+const WALK_LIMIT = 2000;
+
+function normalizeTarget(target) {
+  return target.replace(/\.(js|mjs|cjs|jsx|ts|tsx|mts|cts|py|kt|kts)$/, "");
+}
+
+function localImports(root, relPath) {
+  const full = path.resolve(root, relPath);
+  const targets = new Set();
+  let source;
+  try {
+    source = fs.readFileSync(full, "utf-8");
+  } catch {
+    return targets;
+  }
+  IMPORT_SPECIFIER.lastIndex = 0;
+  let match;
+  while ((match = IMPORT_SPECIFIER.exec(source)) !== null) {
+    if (!match[1].startsWith(".")) continue;
+    targets.add(normalizeTarget(path.resolve(path.dirname(full), match[1])));
+  }
+  return targets;
+}
+
+// Bounded on purpose: the walk is craft-time overhead paid on every prompt,
+// so it stops at WALK_LIMIT and says so rather than growing with the repo.
+function walkCodeFiles(root) {
+  const files = [];
+  const stack = [root];
+  let truncated = false;
+  while (stack.length && !truncated) {
+    const dir = stack.pop();
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (!SKIP_DIRS.has(entry.name) && !entry.name.startsWith(".")) stack.push(full);
+      } else if (languageFor(entry.name)) {
+        if (files.length >= WALK_LIMIT) {
+          truncated = true;
+          break;
+        }
+        files.push(full);
+      }
+    }
+  }
+  return { files, truncated };
+}
+
+function toPosix(relPath) {
+  return relPath.split(path.sep).join("/");
+}
+
+function referenceImplementations(root, files) {
+  const wanted = new Map();
+  const touched = new Set(files.map((file) => path.resolve(root, file.path)));
+  for (const file of files) {
+    if (file.missing || file.directory || file.unsupported || file.unreadable) continue;
+    for (const target of localImports(root, file.path)) wanted.set(target, new Set());
+  }
+  if (!wanted.size) return { references: [], truncated: false };
+
+  const { files: candidates, truncated } = walkCodeFiles(root);
+  for (const candidate of candidates) {
+    if (touched.has(candidate)) continue;
+    for (const target of localImports(root, candidate)) {
+      if (wanted.has(target)) wanted.get(target).add(toPosix(path.relative(root, candidate)));
+    }
+  }
+
+  const references = [...wanted.entries()]
+    .filter(([, citing]) => citing.size)
+    .map(([target, citing]) => ({ helper: toPosix(path.relative(root, target)), files: [...citing].sort() }));
+  return { references, truncated };
+}
+
+// [Foreman: 109]
+// How long ago each touched file changed is the cheapest signal for how much
+// of an entry's claims have aged since it was written. Outside a repo the
+// field is simply absent — an unknown date is one fewer fact, not a failure.
+function gitAvailable(root) {
+  const result = spawnSync("git", ["rev-parse", "--is-inside-work-tree"], { cwd: root, encoding: "utf-8" });
+  return result.status === 0 && String(result.stdout).trim() === "true";
+}
+
+function lastChanged(root, relPath) {
+  const result = spawnSync("git", ["log", "-1", "--format=%ad", "--date=short", "--", relPath], {
+    cwd: root,
+    encoding: "utf-8",
+  });
+  return result.status === 0 ? String(result.stdout).trim() || null : null;
+}
+
+function resolve(root, touches, what, verify) {
   const warnings = [];
   const list = Array.isArray(touches) ? touches.filter((p) => typeof p === "string" && p.trim()) : [];
   if (!list.length) warnings.push("no touches paths given — nothing to resolve");
@@ -149,7 +326,33 @@ function resolve(root, touches, what) {
     if (file.unreadable) warnings.push(`${file.path}: could not be read — skipped`);
   }
 
-  return { files, unresolved: unresolvedIdentifiers(what, files), warnings };
+  if (gitAvailable(root)) {
+    for (const file of files) {
+      if (file.missing) continue;
+      const date = lastChanged(root, file.path);
+      if (date) file.lastChanged = date;
+    }
+  }
+
+  const { references, truncated } = referenceImplementations(root, files);
+  if (truncated) {
+    warnings.push(`reference scan stopped at ${WALK_LIMIT} files — the reference list may be incomplete`);
+  }
+
+  const verification = verify ? resolveCommand(root, verify) : null;
+  if (verification && !verification.resolves) {
+    warnings.push(
+      `verification command "${verification.command}" does not resolve here — fix it before handing off, a prompt naming a command that cannot run wastes the whole session`
+    );
+  }
+
+  return {
+    files,
+    unresolved: unresolvedIdentifiers(what, files),
+    references,
+    ...(verification ? { verification } : {}),
+    warnings,
+  };
 }
 
 function readStdin() {
@@ -166,6 +369,7 @@ function parseArgv(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === "--touches" && argv[i + 1] !== undefined) out.touches = argv[i + 1].split(",");
     if (argv[i] === "--what" && argv[i + 1] !== undefined) out.what = argv[i + 1];
+    if (argv[i] === "--verify" && argv[i + 1] !== undefined) out.verify = argv[i + 1];
   }
   return out;
 }
@@ -175,7 +379,8 @@ function main() {
   const stdin = flags.touches ? {} : readStdin();
   const touches = flags.touches || stdin.touches;
   const what = flags.what !== undefined ? flags.what : stdin.what;
-  process.stdout.write(JSON.stringify({ ok: true, ...resolve(projectDir(), touches, what) }));
+  const verify = flags.verify !== undefined ? flags.verify : stdin.verify;
+  process.stdout.write(JSON.stringify({ ok: true, ...resolve(projectDir(), touches, what, verify) }));
 }
 
 if (require.main === module) {
@@ -189,6 +394,13 @@ module.exports = {
   resolveFile,
   candidateIdentifiers,
   unresolvedIdentifiers,
+  resolveCommand,
+  localImports,
+  walkCodeFiles,
+  referenceImplementations,
+  gitAvailable,
+  lastChanged,
   resolve,
   LANGUAGES,
+  WALK_LIMIT,
 };
