@@ -104,7 +104,7 @@ Options:
 
 ---
 
-## Call 2b — Fable access, decision notes, and suggestion capture (batch 3)
+## Call 2b — Fable access and decision notes (batch 2)
 
 **Q1** — "Can this project run Fable 5? (Max plan or API — other plans
 can't)"
@@ -129,22 +129,6 @@ Options:
 Default is No — a project that never wants written decision records can
 decline without knowing what an ADR is. Record the answer as
 `.foreman/config.json`'s `decisionLog` field.
-
-**Q3** — "When you mention an idea or a gripe in conversation, should
-Foreman offer to put it on the roadmap?"
-Options:
-- `No — I'll add tasks myself` — (default) what you say in chat gets acted
-  on and nothing else happens. Becomes `"userSuggestions": false`.
-- `Yes — offer to log it` — when a message reads as a suggestion rather
-  than a request, Foreman checks whether it's already tracked and then asks
-  whether to add it, work it now, or reject it. Becomes
-  `"userSuggestions": true`.
-
-This is the mirror of Q1 in Call 2: that one captures what Claude spots in
-committed work, this one captures what you say out loud. Default is No —
-it adds a short instruction to every one of your turns, so a project should
-opt in rather than pay for it unasked. Record the answer as
-`.foreman/config.json`'s `userSuggestions` field.
 
 ---
 
@@ -203,10 +187,10 @@ the updated draft, ask again. Repeat until approved.
    order, and `add` rejects an id that doesn't exist yet. If any call
    returns `warnings`, mention them once at the end rather than per entry.
 3. Write `.foreman/config.json` —
-   `{"discoverySuggestions": <bool>, "usePersona": <bool>, "omitSections": [...], "requireVerification": <bool>, "taskCloseGate": "<off|block>", "fableEnabled": <bool>, "decisionLog": {"enabled": <bool>}, "userSuggestions": <bool>}`
+   `{"discoverySuggestions": <bool>, "usePersona": <bool>, "omitSections": [...], "requireVerification": <bool>, "taskCloseGate": "<off|block>", "fableEnabled": <bool>, "decisionLog": {"enabled": <bool>}}`
    from the Call 2/Call 2b answers (skip this file write if the pre-check
    "keep, add to it" branch found an existing config already).
-   **If the file already exists, `Read` it first and set those eight keys on
+   **If the file already exists, `Read` it first and set those seven keys on
    the parsed object — any other key present must survive untouched.** This
    applies whenever the file exists, not only on the Overwrite branch: the
    pre-check only fires when `ROADMAP.jsonl` exists, so a project with a

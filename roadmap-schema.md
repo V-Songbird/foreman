@@ -187,12 +187,9 @@ for — exact paths and line ranges instead of a vague "the fetch wrapper."
 Sibling runtime file, also at the project root, also committed. Plain JSON,
 no CLI wraps it (unlike `ROADMAP.jsonl`) — edited directly with `Read`/
 `Write` when a flag needs to change. Full field reference is in
-[`README.md`](README.md#settings); the ones relevant to this file's own
-consumers are `discoverySuggestions` (`post-commit.js`) — missing or
-unparseable → treated as `true` (on by default); set it `false` to silence
-it — and `userSuggestions` (`user-suggestion.js`), the mirror for what the
-user says in conversation, where anything but an explicit `true` leaves the
-hook silent, so missing and unparseable both mean off.
+[`README.md`](README.md#settings); the one relevant to this file's
+own consumer (`post-commit.js`) is `discoverySuggestions` — missing or
+unparseable → treated as `true` (on by default); set it `false` to silence it.
 
 ---
 

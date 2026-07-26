@@ -13,18 +13,6 @@
         ]
       }
     ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/user-suggestion.js\"",
-            "commandWindows": "node \"$env:CLAUDE_PLUGIN_ROOT\\hooks\\user-suggestion.js\"",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
     "TaskCreated": [
       {
         "hooks": [
