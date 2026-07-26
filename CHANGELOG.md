@@ -17,6 +17,10 @@ field by convention).
 - Each file a task touches now carries the date it last changed, making it clear which of the task's claims may have aged.
 - Closing a task now notes how far the files it predicted differ from the files it actually changed.
 
+### Fixed
+
+- Closing a task with a commit that lives in a submodule now records the files that commit changed, instead of recording nothing.
+
 ## [0.46.0-alpha] — 2026-07-24
 
 ### Changed

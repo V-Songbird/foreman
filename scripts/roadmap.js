@@ -293,20 +293,55 @@ function cmdAdd(root, payload) {
 // auto-derived paths for this call, same fail-soft spirit as commitFailed().
 // --relative scopes paths to `root`, matching how `touches` is interpreted
 // elsewhere (project-root-relative, not repo-root-relative in a subfolder checkout).
-function filesTouchedByCommit(root, sha) {
+// [Foreman: 110]
+// ROADMAP.jsonl lives at the project root, but in a submodule layout the
+// commit being closed lives inside a submodule, invisible to the root repo.
+// Without this fallback a close from a submodule derives nothing at all:
+// `touches` never grows and scope drift never computes. Read from .gitmodules
+// so no submodule has to be initialized for the lookup to work.
+function submodulePaths(root) {
   try {
     const out = execFileSync(
       "git",
-      ["show", "--pretty=format:", "--name-only", "--relative", sha],
+      ["config", "--file", ".gitmodules", "--get-regexp", "^submodule\\..*\\.path$"],
       { cwd: root, encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] }
     );
     return out
       .split("\n")
-      .map((line) => line.trim())
+      .map((line) => line.trim().split(/\s+/)[1])
       .filter(Boolean);
   } catch {
     return [];
   }
+}
+
+// Runs one git file-listing command at the root, then in each submodule until
+// one yields files, prefixing a submodule's paths so they read exactly the way
+// `touches` does. Fail-soft throughout: a missing git binary, a non-git
+// project, or an unknown sha all just mean no derived paths.
+function gitFilesIn(root, args, keep) {
+  const runIn = (cwd) => {
+    try {
+      return execFileSync("git", args, { cwd, encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] })
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(keep);
+    } catch {
+      return [];
+    }
+  };
+
+  const atRoot = runIn(root);
+  if (atRoot.length) return atRoot;
+  for (const sub of submodulePaths(root)) {
+    const files = runIn(path.join(root, sub));
+    if (files.length) return files.map((file) => `${sub}/${file}`);
+  }
+  return [];
+}
+
+function filesTouchedByCommit(root, sha) {
+  return gitFilesIn(root, ["show", "--pretty=format:", "--name-only", "--relative", sha], Boolean);
 }
 
 // The staged-close twin of filesTouchedByCommit: the index instead of a
@@ -314,19 +349,11 @@ function filesTouchedByCommit(root, sha) {
 // and ride inside it. Same fail-soft contract. ROADMAP.jsonl itself is
 // dropped — the close is about to stage it, and it isn't task footprint.
 function filesStagedIn(root) {
-  try {
-    const out = execFileSync(
-      "git",
-      ["diff", "--cached", "--name-only", "--relative"],
-      { cwd: root, encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] }
-    );
-    return out
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((f) => f && f !== "ROADMAP.jsonl");
-  } catch {
-    return [];
-  }
+  return gitFilesIn(
+    root,
+    ["diff", "--cached", "--name-only", "--relative"],
+    (f) => f && f !== "ROADMAP.jsonl"
+  );
 }
 
 // [Foreman: 110]

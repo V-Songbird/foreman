@@ -251,6 +251,53 @@ describe('update-status auto-derives touches from the commit', () => {
   });
 });
 
+// A submodule layout: ROADMAP.jsonl sits at the project root, but the commit
+// being closed lives inside a submodule the root repo cannot see.
+describe('update-status derives touches from a commit inside a submodule', () => {
+  function seedSubmodule(touches) {
+    writeRoadmap(project, [
+      { id: '001', title: 'a', why: 'a', what: 'a', status: 'in_progress', source: 'user', depends_on: [], touches, commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '' },
+    ]);
+    initGitRepo(project);
+    fs.writeFileSync(path.join(project, '.gitmodules'), '[submodule "sub"]\n\tpath = sub\n\turl = ./sub\n', 'utf-8');
+    const sub = path.join(project, 'sub');
+    fs.mkdirSync(sub, { recursive: true });
+    initGitRepo(sub);
+    return sub;
+  }
+
+  test('paths come back prefixed with the submodule path', () => {
+    const sub = seedSubmodule([]);
+    const sha = commitFile(sub, 'scripts/foo.js', 'module.exports = 1;\n');
+
+    const { status, json } = run(['update-status'], { id: '001', status: 'done', commit: sha });
+
+    assert.equal(status, 0);
+    assert.deepEqual(json.derived_touches, ['sub/scripts/foo.js']);
+    assert.deepEqual(json.entry.touches, ['sub/scripts/foo.js']);
+  });
+
+  test('a submodule commit still scores drift against the prediction', () => {
+    const sub = seedSubmodule(['sub/scripts/predicted.js']);
+    const sha = commitFile(sub, 'scripts/foo.js', 'module.exports = 1;\n');
+
+    const { json } = run(['update-status'], { id: '001', status: 'done', commit: sha });
+
+    assert.deepEqual(json.scope_drift.untouched, ['sub/scripts/predicted.js']);
+    assert.deepEqual(json.scope_drift.unpredicted, ['sub/scripts/foo.js']);
+  });
+
+  test('a commit the root repo can see is never looked for in a submodule', () => {
+    const sub = seedSubmodule([]);
+    commitFile(sub, 'scripts/foo.js', 'module.exports = 1;\n');
+    const rootSha = commitFile(project, 'root.js', 'module.exports = 2;\n');
+
+    const { json } = run(['update-status'], { id: '001', status: 'done', commit: rootSha });
+
+    assert.deepEqual(json.derived_touches, ['root.js']);
+  });
+});
+
 // Scope drift: the touches recorded before a close is the entry's prediction,
 // and the close compares it against what the commit actually changed. Recorded
 // as a note line, never a gate.
