@@ -144,8 +144,8 @@ an instruction for the spawned session to act on later):**
      effort reasoning into the assembled prompt.
 
      <!-- [Foreman: 111] -->
-     **Raise the session** — asked only when `modelSuggestions` is `true`,
-     and on the `Execute here` destination only. Both
+     **Match the recommendation** — asked only when `modelSuggestions` is
+     `true`, and on the `Execute here` destination only. Both
      halves above are stated together and followed by one question, asked
      once per handoff and before the first task row exists: proceed as-is,
      or take the prompt to a fresh session already set to the
@@ -157,6 +157,14 @@ an instruction for the spawned session to act on later):**
      comparison and the switch is theirs. It never sets a model, never
      blocks, and never records anything. The other two destinations keep
      asking exactly what they ask today.
+
+     **The wording must not assume a direction.** Foreman cannot see what
+     the session is running, so it cannot know whether the recommendation
+     is a step up, a step down, or already matched — a session on Opus told
+     a task suits Sonnet is being asked to go down. Never "raise", "upgrade",
+     "bump", or any other word that names a direction; word it as running
+     the task where the recommendation points, and let the operator supply
+     the comparison.
 
      Switching this session's model or effort in place is deliberately
      **not** an option. Either change invalidates the prompt cache, so

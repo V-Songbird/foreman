@@ -174,7 +174,7 @@ options and their free-text rule are `prompt-template.md`'s "Delivery
 mechanics" section, verbatim.
 
 <!-- [Foreman: 111] -->
-**Q4 — raise the session**, asked only when step 1's render-sections
+**Q4 — match the recommendation**, asked only when step 1's render-sections
 result has `modelSuggestions: true` — it defaults to `false`, and a project
 that leaves it off never sees this question or any model/effort line
 anywhere in this branch. Then, and only then, asked when Q2's answer was
@@ -186,7 +186,13 @@ context, one line each with the reason behind it: the model per
 `prompt-template.md`'s "Model fit" note, the effort per its "Effort fit"
 note. This is the only place the model half is ever said on this
 destination.
-"This task suggests <model> at <effort>. Raise the session to it?" —
+"This task suggests <model> at <effort>. Run it there instead?" — never
+worded as raising, upgrading, or bumping the session. Foreman cannot see
+what this session is running, so it cannot know whether the recommendation
+is a step up, a step down, or already matched — a session on Opus told a
+task suits Sonnet is being asked to go *down*. The question names where the
+task fits and nothing about the distance to it.
+
 `Proceed as-is (Recommended)` runs at whatever this session already has;
 `Start it in a fresh session` puts the prompt on the clipboard for a session
 already set to <model> at <effort>, delivered exactly as the `Copy prompt to
@@ -315,8 +321,9 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      `Execute here`, where it applies to this session's own effort and
      rides Q4's context alongside the model half. Never a dispatch value:
      the `Agent` tool takes no effort argument, so the operator acting on
-     it is the whole mechanism. Q4 asks whether to raise the session, never
-     which effort to use — the recommendation itself is not a question.
+     it is the whole mechanism. Q4 asks whether to run the task where the
+     recommendation points, never which effort to use — the recommendation
+     itself is not a question.
    - `decision_log` — when step 1's render-sections result carries
      `decisionLog.enabled` true, include the template's `<decision_log>`
      block, substituting its `dir` for `<dir>` and this entry's id for

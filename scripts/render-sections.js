@@ -88,7 +88,7 @@ function readFableEnabled(config) {
 // recommendation at all. Default false: a project that has already settled
 // its model policy shouldn't pay for the advice on every pick. When false,
 // prompt-template.md's Model fit and Effort fit notes state nothing, the
-// Execute-here raise-the-session question is skipped, and the executing-model
+// Execute-here match-the-recommendation question is skipped, and the executing-model
 // question still runs (a dispatch needs a model) but carries no task-derived
 // recommendation. `targetModel` is unaffected — a concrete pin still drives
 // elaboration whether or not recommendations are on.

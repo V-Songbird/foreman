@@ -388,9 +388,12 @@ describe('drift pins', () => {
     }
   });
 
-  test('the template still defines the Execute-here raise-the-session ask', () => {
+  test('the template still defines the Execute-here match-the-recommendation ask', () => {
     const raw = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
-    assert.ok(raw.includes('**Raise the session**'), 'the template lost the raise-the-session note');
+    assert.ok(
+      raw.includes('**Match the recommendation**'),
+      'the template lost the match-the-recommendation note'
+    );
     assert.ok(
       /once per handoff and before the first task row exists/.test(raw.replace(/\s+/g, ' ')),
       'the template lost the once-per-handoff, before-the-first-row timing'
@@ -401,12 +404,34 @@ describe('drift pins', () => {
     );
   });
 
-  test('both skills ask whether to raise the session on Execute here', () => {
+  test('both skills ask where the task fits on Execute here, with no direction implied', () => {
+    const files = [
+      TEMPLATE_PATH,
+      path.join(__dirname, '..', 'skills', 'craft-prompt', 'SKILL.md'),
+      path.join(__dirname, '..', 'skills', 'roadmap', 'SKILL.md'),
+    ];
+    // The recommendation points down as often as up — a session on Opus told
+    // a task suits Sonnet is being asked to lower, not raise.
+    for (const file of files) {
+      const raw = fs.readFileSync(file, 'utf-8');
+      assert.ok(
+        !/[Rr]aise the session to it\?/.test(raw),
+        `${path.basename(file)} still words the ask as raising the session`
+      );
+    }
     for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'SKILL.md']]) {
       const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8').replace(/\s+/g, ' ');
       assert.ok(
-        skill.includes('Raise the session to it?'),
-        `${rel.join('/')} lost the raise-the-session question`
+        skill.includes('Run it there instead?'),
+        `${rel.join('/')} lost the direction-neutral question`
+      );
+      assert.ok(
+        /never worded as raising, upgrading, or bumping|Never word this as raising, upgrading, or bumping/.test(skill),
+        `${rel.join('/')} lost the no-direction rule`
+      );
+      assert.ok(
+        /a step up, a step down, or already matched/.test(skill),
+        `${rel.join('/')} lost the reason the direction is unknowable`
       );
       assert.ok(
         skill.includes('once per handoff'),
@@ -450,7 +475,7 @@ describe('drift pins', () => {
     }
   });
 
-  test('the raise-the-session ask sends the work to a fresh session, never a mid-session switch', () => {
+  test('the match-the-recommendation ask sends the work to a fresh session, never a mid-session switch', () => {
     const files = [
       TEMPLATE_PATH,
       path.join(__dirname, '..', 'skills', 'craft-prompt', 'SKILL.md'),

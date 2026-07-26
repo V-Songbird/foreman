@@ -190,7 +190,7 @@ mechanics" section, verbatim.
 ---
 
 <!-- [Foreman: 111] -->
-## Call 5c — raise the session (conditional)
+## Call 5c — match the recommendation (conditional)
 
 <!-- [Foreman: 116] -->
 **Skip this call entirely unless the render-sections result's
@@ -210,7 +210,14 @@ line each: the model per `prompt-template.md`'s "Model fit" note, and the
 effort per its "Effort fit" note, each with the reason it follows from.
 This is the only place the model half is ever said on this destination.
 
-**Q1** — "This task suggests <model> at <effort>. Raise the session to it?"
+**Q1** — "This task suggests <model> at <effort>. Run it there instead?"
+
+Never word this as raising, upgrading, or bumping the session. Foreman
+cannot see what this session is running, so it cannot know whether the
+recommendation is a step up, a step down, or already matched — a session
+on Opus told a task suits Sonnet is being asked to go *down*. The question
+names where the task fits and nothing about the distance to it.
+
 Options:
 - `Proceed as-is (Recommended)` — run at whatever this session already has
 - `Start it in a fresh session` — the prompt goes to the clipboard, you open
@@ -241,7 +248,8 @@ or "Copy prompt to clipboard" — its default depends on that answer, so
 it can't batch into Call 5's own question. Skip it for **`Execute here`**:
 that destination runs the task in this session, so there is no dispatch
 value to set (Call 5b and Call 5c run instead) — Call 5c is where both
-halves of the recommendation get said and acted on there.
+halves of the recommendation get said and acted on there, when
+`modelSuggestions` is `true`.
 
 **Q1** — background Agent: "Which model should the background Agent run
 on?" Clipboard: "Which model will run the pasted prompt?"
