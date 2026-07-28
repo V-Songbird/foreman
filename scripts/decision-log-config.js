@@ -119,4 +119,4 @@ function readDecisionLog(root) {
   return { enabled, dir, gate, warning: warnings.length ? warnings.join(' ') : null };
 }
 
-module.exports = { readDecisionLog, DECISION_LOG_DEFAULTS, VALID_GATES };
+module.exports = { readDecisionLog, isValidDir, DECISION_LOG_DEFAULTS, VALID_GATES };

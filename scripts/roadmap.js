@@ -5,6 +5,12 @@ const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
 const { withRoadmapLock } = require("./roadmap-lock");
+const {
+  validateEntries,
+  validateConfig,
+  applyRepairs,
+  summarize,
+} = require("./roadmap-doctor");
 
 function projectDir() {
   return path.resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
@@ -33,10 +39,51 @@ function readEntries(root) {
   return entries;
 }
 
+// A finding's identity, so a write can tell "this violation was already in
+// the file" from "this mutation just created it".
+function findingKey(item) {
+  return `${item.code}|${item.field || ""}|${item.ids.join(",")}`;
+}
+
+// The structural errors already sitting in the file on disk. A mutation is
+// refused for what it would break, never for damage it inherited: an entry
+// that predates a rule, or that a hand-edit through the Bash escape hatch
+// corrupted, must still be closable — and some of that damage has no
+// mechanical repair, so treating it as a write barrier would strand the
+// entire roadmap instead of the one bad line. `doctor` is what reports it.
+// Read under the caller's mutation lock, before the rename, so this is the
+// same pre-image the mutation was computed from.
+function existingErrorKeys(root) {
+  try {
+    return validateEntries(readEntries(root), { similarity: false })
+      .filter((item) => item.severity === "error")
+      .map(findingKey);
+  } catch {
+    return [];
+  }
+}
+
 // parse-before-write + parse-after-write invariants, enforced here instead of by prose.
 // Temp-file-then-rename so a crash mid-write leaves the old file intact —
 // same directory, so the rename can't cross filesystems.
+//
+// Every mutation lands here, so this is where the full structural contract
+// (not merely "each line is valid JSON") is enforced: a write that would
+// introduce a structural error is refused before the temp file is created.
+// Per-field validation in the commands above cannot cover this — it sees one
+// argument, never the resulting whole-file graph.
 function writeEntries(root, entries) {
+  const allowed = new Set(existingErrorKeys(root));
+  const blocking = validateEntries(entries, { similarity: false })
+    .filter((item) => item.severity === "error" && !allowed.has(findingKey(item)));
+  if (blocking.length) {
+    const detail = blocking.slice(0, 3).map((item) => `${item.code}: ${item.message}`).join("; ");
+    throw new Error(
+      `refusing to write ROADMAP.jsonl — the result would violate the roadmap contract `
+        + `(${blocking.length} error${blocking.length === 1 ? "" : "s"}): ${detail}`
+        + `. Run "roadmap.js doctor" for the full report`
+    );
+  }
   const p = roadmapPath(root);
   const text = entries.map((e) => JSON.stringify(e)).join("\n") + (entries.length ? "\n" : "");
   const tmp = `${p}.${process.pid}.tmp`;
@@ -136,6 +183,9 @@ function trailerIdsIn(text) {
 
 const STATUSES = new Set(["planned", "in_progress", "deferred", "done", "dropped", "rejected"]);
 const SOURCES = new Set(["user", "claude-suggested"]);
+// Statuses nothing is waiting on any more: the entry will not move again, so
+// a dependent of a dropped/rejected one is stranded rather than blocked.
+const TERMINAL_STATUSES = new Set(["done", "dropped", "rejected"]);
 // A newly created entry only ever starts as planned or rejected — nothing
 // gets created already in_progress/deferred/done/dropped, those are
 // transitions applied later via update-status.
@@ -450,11 +500,11 @@ function graphState(entries) {
   );
   const stranded = new Set(
     entries
-      .filter((entry) => !["done", "dropped", "rejected"].includes(entry.status))
+      .filter((entry) => !TERMINAL_STATUSES.has(entry.status))
       .filter((entry) =>
         (entry.depends_on || []).some((dependency) => {
           const parent = byId.get(dependency);
-          return !parent || ["dropped", "rejected"].includes(parent.status);
+          return !parent || (TERMINAL_STATUSES.has(parent.status) && parent.status !== "done");
         })
       )
       .map((entry) => entry.id)
@@ -963,6 +1013,32 @@ function cmdCheckDuplicate(root, payload) {
   return { duplicate: matches.length > 0, matches };
 }
 
+// Whole-file health check: the same structural contract every write is held
+// to, plus the settings file, reported instead of thrown. Read-only unless
+// --fix is passed. `ok` here answers "is the roadmap healthy" — the one
+// subcommand where it is not just "did the call succeed"; a failed call
+// still exits 1 with an `error` field, as everywhere else.
+function cmdDoctor(root, flags) {
+  if (!flags || !flags.fix) {
+    return summarize([...validateEntries(readEntries(root)), ...validateConfig(root)]);
+  }
+  return withRoadmapLock(root, () => {
+    // Re-read inside the lock: the read that produced a finding must be the
+    // read the repair is applied to.
+    const entries = readEntries(root);
+    const fixed = applyRepairs(entries, validateEntries(entries));
+    // The write gate tolerates what the file already had, so a partial
+    // repair is never blocked by the damage it cannot fix.
+    if (fixed.length) writeEntries(root, entries);
+    // Re-validate from disk, not from memory — the report describes the file
+    // that now exists.
+    return {
+      ...summarize([...validateEntries(readEntries(root)), ...validateConfig(root)]),
+      fixed,
+    };
+  });
+}
+
 function readStdinJSON() {
   let raw;
   try {
@@ -1059,6 +1135,31 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     word-overlap match against ALL entries regardless of
                     status; each match includes its status so callers can
                     tell "already declined" from "already on the roadmap"
+  doctor            flag: --fix   (optional; read-only without it)
+                    checks the whole roadmap and .foreman/config.json against
+                    the structural contract every mutation is held to, and
+                    prints {ok, findings, summary:{errors,warnings}} -- here
+                    ok means "no error-severity finding", not "the call
+                    worked" (a failed call still exits 1 with error)
+                    each finding: code, severity ("error"|"warning"), the
+                    entry ids it concerns, a one-line message, and
+                    repairable:true only where the fix is mechanical
+                    codes: missing_field, invalid_type, invalid_id,
+                    duplicate_id, unknown_status, unknown_source,
+                    unknown_kind, unknown_model, unknown_effort,
+                    invalid_date, invalid_path, invalid_doc,
+                    missing_dependency, self_dependency,
+                    duplicate_dependency, dependency_cycle,
+                    stranded_dependency, similar_titles,
+                    terminal_without_evidence, unsupported_schema_version,
+                    unknown_config_key, invalid_config_value,
+                    unreadable_config
+                    --fix applies ONLY the repairable ones (absent
+                    depends_on/touches/commits/notes, a self-dependency
+                    edge, a repeated dependency id) under the mutation lock,
+                    then re-validates and returns what it changed as
+                    "fixed". Ambiguous findings are never auto-fixed --
+                    they are reported for a human to decide.
 
 Examples:
   echo '{"title":"Add JWT refresh middleware","why":"...","what":"...","source":"user"}' \\
@@ -1072,6 +1173,8 @@ Examples:
   echo '{"id":"004","add_depends_on":["002"]}' \\
     | node roadmap.js update-deps
   node roadmap.js next-candidates --limit 5
+  node roadmap.js doctor
+  node roadmap.js doctor --fix
 `;
 
 function parseFlags(argv) {
@@ -1122,23 +1225,20 @@ function main() {
     case "check-duplicate":
       result = cmdCheckDuplicate(root, readStdinJSON());
       break;
+    case "doctor":
+      result = cmdDoctor(root, parseFlags(rest));
+      break;
     default:
       throw new Error(
-        `unknown subcommand: ${sub}. Use add|update-status|annotate|update-deps|list|next-candidates|check-duplicate`
+        `unknown subcommand: ${sub}. Use add|update-status|annotate|update-deps|list|next-candidates|check-duplicate|doctor`
       );
   }
   process.stdout.write(JSON.stringify({ ok: true, ...result }));
 }
 
-if (require.main === module) {
-  try {
-    main();
-  } catch (err) {
-    process.stdout.write(JSON.stringify({ ok: false, error: err.message }));
-    process.exit(1);
-  }
-}
-
+// Exported before main() runs, not after: roadmap-doctor.js resolves this
+// module lazily to break the require cycle, and a CLI invocation would
+// otherwise reach the doctor while these exports were still undefined.
 module.exports = {
   projectDir,
   roadmapPath,
@@ -1153,6 +1253,8 @@ module.exports = {
   cmdList,
   cmdNextCandidates,
   cmdCheckDuplicate,
+  cmdDoctor,
+  findingKey,
   submodulePaths,
   filesTouchedByCommit,
   filesStagedIn,
@@ -1163,6 +1265,20 @@ module.exports = {
   reaches,
   normalizeWords,
   jaccard,
+  // The validator vocabulary roadmap-doctor.js checks a whole file against —
+  // exported so the doctor uses these definitions rather than a second copy.
+  validateDoc,
+  validateKind,
+  validateRan,
+  STATUSES,
+  SOURCES,
+  CREATE_STATUSES,
+  TERMINAL_STATUSES,
+  KINDS,
+  MODELS,
+  EFFORTS,
+  DUPLICATE_THRESHOLD,
+  MAX_MATCHES,
   DECISION_ANCHOR_RE,
   anchorIdsIn,
   anchorHasId,
@@ -1171,3 +1287,12 @@ module.exports = {
   trailerIdsIn,
   USAGE,
 };
+
+if (require.main === module) {
+  try {
+    main();
+  } catch (err) {
+    process.stdout.write(JSON.stringify({ ok: false, error: err.message }));
+    process.exit(1);
+  }
+}
