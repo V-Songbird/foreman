@@ -79,6 +79,20 @@ nothing by itself. Survey only ever ranges over that predicted half —
 `observed_touches` is derived from commits that already landed, so there is
 nothing there to ground-truth and nothing `correct` could repair.
 
+One more mechanical fact, gathered once regardless of which path above set
+the scope: a **not-done digest** — `id`, `title`, `planned_touches` for
+every entry currently `planned`, `in_progress`, `awaiting_acceptance`, or
+`deferred` (the whole not-done backlog, not just the candidates being
+surveyed) — `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --status
+planned,in_progress,awaiting_acceptance,deferred --summary` (`--summary`
+rows already carry exactly this: `id`/`title`/`status`/`depends_on`/
+`planned_touches` — never the unfiltered `list`, which would also load the
+prose fields for entries nobody is investigating). Checks 3 and 4 in step 2
+compare each candidate against this digest, not against a fresh roadmap
+read — it exists precisely so an Explore agent never has to open
+`ROADMAP.jsonl` itself to answer "does this overlap something else
+unfinished".
+
 ---
 
 ## 2. Investigate each candidate in parallel
@@ -86,8 +100,8 @@ nothing there to ground-truth and nothing `correct` could repair.
 Dispatch one `Agent` (`subagent_type: Explore`) per candidate, in parallel
 (single message, multiple tool calls). Each gets a self-contained prompt —
 it has no memory of this conversation — built from the candidate's own
-fields plus the resolved-dependency and exists-map context gathered in
-step 1:
+fields plus the resolved-dependency, exists-map, and not-done-digest
+context gathered in step 1:
 
 - The candidate's `id`, `title`, `why`, `what`, `planned_touches`, `depends_on`.
 - For each path in `planned_touches`: the pre-computed `path_exists` flag from step
@@ -96,6 +110,10 @@ step 1:
 - For each id in `depends_on`: that entry's `title`, `status`, `commits`,
   and its `commit_evidence` from step 1 — the agent consumes this fact, it
   does not re-derive it.
+- The **not-done digest** from step 1 — `id`/`title`/`planned_touches` for
+  every other not-done entry — for checks 3 and 4 below. The agent judges
+  hidden dependencies and overlaps against this supplied digest; it does
+  not read `ROADMAP.jsonl` to get it.
 - Ask it to check, and report a verdict for each:
   1. **Touches still real?** A path step 1 flagged missing is
      `stale-touches` only if it can be shown to have *once existed and
@@ -118,14 +136,17 @@ step 1:
      (this half stays semantic — read the commit, judge the match)
   3. **Hidden dependency?** Reading the code the candidate's
      `planned_touches` point to, does it already reference/import/call
-     something that another *not-done* task's `planned_touches` claims to own,
-     which isn't in this candidate's `depends_on`? Then the same question in
-     reverse: does anything *outside* this candidate's `planned_touches` consume the code it
-     changes, in a way that makes another not-done entry depend on this
-     one? Only report either direction with a concrete file:line citation
-     — no hunches.
+     something that another entry in the **supplied not-done digest** claims
+     via its own `planned_touches`, which isn't in this candidate's
+     `depends_on`? Then the same question in reverse: does anything
+     *outside* this candidate's `planned_touches` consume the code it
+     changes, in a way that makes another entry in the digest depend on
+     this one? Check against the digest handed to you, not a fresh
+     `ROADMAP.jsonl` read. Only report either direction with a concrete
+     file:line citation — no hunches.
   4. **Already done, or duplicate?** Does the working tree already contain
-     what `what` describes, or does it closely overlap another entry?
+     what `what` describes, or does it closely overlap another entry's
+     `title` in the supplied not-done digest?
 
   Verdict per candidate: `valid` (nothing found) | `hidden-dependency` |
   `stale-description` | `stale-touches` | `already-done` | `duplicate`.

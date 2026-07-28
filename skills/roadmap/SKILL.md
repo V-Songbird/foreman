@@ -657,9 +657,9 @@ says what it currently claims.
 ## Branch: Review status
 
 Read-only. `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --summary`
-— id/title/status/depends_on per entry, which is everything the render
-below needs; the full entries' prose would multiply the payload for
-nothing on a large roadmap. Render a compact list grouped by `status`
+— compact rows (id, title, status, depends_on, planned_touches); the
+render below reads the first four, and the full entries' prose would
+multiply the payload for nothing on a large roadmap. Render a compact list grouped by `status`
 (`awaiting_acceptance` first — those are finished and waiting on the user,
 the only group that needs them to act — then `in_progress`, then `planned`
 — noting which are blocked and on what, derivable from `depends_on` plus

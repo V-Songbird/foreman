@@ -1279,15 +1279,19 @@ function cmdList(root, filters) {
   if (statusFilter) filtered = filtered.filter((e) => statusFilter.has(e.status));
   if (idsFilter) filtered = filtered.filter((e) => idsFilter.has(e.id));
   // --summary keeps the fields a whole-roadmap render actually needs (id,
-  // title, status, plus depends_on so blocked-ness stays derivable) and
-  // drops the prose — on a large roadmap the full entries are most of the
-  // payload, re-sent into context on every review.
+  // title, status, depends_on so blocked-ness stays derivable, and
+  // planned_touches — cheap array of path hints, not prose — so a caller
+  // building a not-done digest, e.g. foreman:survey step 1, doesn't have to
+  // fall back to a full-entry read) and drops the prose — on a large
+  // roadmap the full entries are most of the payload, re-sent into context
+  // on every review.
   if (filters.summary) {
     filtered = filtered.map((e) => ({
       id: e.id,
       title: e.title,
       status: e.status,
       depends_on: e.depends_on || [],
+      planned_touches: e.planned_touches || [],
     }));
   } else if (idsFilter) {
     // A targeted detail read is the post-menu preparation path. Carry only
@@ -2129,8 +2133,9 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     targeted full rows add depends_on_docs (direct
                     dependency document paths only)
                     flag: --summary   (optional: entries carry only
-                    id/title/status/depends_on -- use for whole-roadmap
-                    renders, then fetch the few needing prose via --ids)
+                    id/title/status/depends_on/planned_touches -- use for
+                    whole-roadmap renders and not-done digests, then fetch
+                    the few needing prose via --ids)
                     flag: --archived   (optional: read .foreman/archive.jsonl
                     instead of ROADMAP.jsonl -- same filter semantics;
                     without it every view is active-only)

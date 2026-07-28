@@ -138,6 +138,7 @@ describe('archive', () => {
       title: 'task 001',
       status: 'done',
       depends_on: [],
+      planned_touches: [],
     });
   });
 

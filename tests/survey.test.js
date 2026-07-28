@@ -64,4 +64,36 @@ describe("survey skill contract", () => {
     assert.match(skill, /\*\*`already-done` \/ `duplicate`\*\* → on confirm:[\s\S]*roadmap\.js update-status/);
     assert.match(skill, /never touch `ROADMAP\.jsonl`\s+directly/);
   });
+
+  test("step 1 collects a not-done digest on both scoping paths", () => {
+    assert.match(skill, /gathered once regardless of which path above set\s+the scope/);
+    assert.match(
+      skill,
+      /\*\*not-done digest\*\* — `id`, `title`, `planned_touches` for\s+every entry currently `planned`, `in_progress`, `awaiting_acceptance`, or\s+`deferred`/
+    );
+    assert.match(
+      skill,
+      /roadmap\.js list --status\s+planned,in_progress,awaiting_acceptance,deferred --summary/
+    );
+  });
+
+  test("step 2 context supplies the not-done digest instead of a self-serve roadmap read", () => {
+    assert.match(
+      skill,
+      /The \*\*not-done digest\*\* from step 1 — `id`\/`title`\/`planned_touches` for\s+every other not-done entry/
+    );
+    assert.match(skill, /it does\s+not read `ROADMAP\.jsonl` to get it/);
+  });
+
+  test("checks 3 and 4 reference the supplied digest, not a self-serve roadmap read", () => {
+    assert.match(
+      skill,
+      /something that another entry in the \*\*supplied not-done digest\*\* claims\s+via its own `planned_touches`/
+    );
+    assert.match(skill, /Check against the digest handed to you, not a fresh\s+`ROADMAP\.jsonl` read/);
+    assert.match(
+      skill,
+      /does it closely overlap another entry's\s+`title` in the supplied not-done digest/
+    );
+  });
 });

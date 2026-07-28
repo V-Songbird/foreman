@@ -793,12 +793,21 @@ describe('list', () => {
     assert.deepEqual(json.entries.map((e) => e.id), ['001']);
   });
 
-  test('--summary strips entries to id/title/status/depends_on', () => {
+  test('--summary strips entries to id/title/status/depends_on/planned_touches', () => {
     const { json } = run(['list', '--summary']);
     assert.equal(json.entries.length, 3);
     for (const e of json.entries) {
-      assert.deepEqual(Object.keys(e).sort(), ['depends_on', 'id', 'status', 'title']);
+      assert.deepEqual(Object.keys(e).sort(), ['depends_on', 'id', 'planned_touches', 'status', 'title']);
     }
+  });
+
+  test('--summary carries planned_touches, not the prose fields', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'a', status: 'planned', touches: ['src/a.ts'] },
+    ]);
+    const { json } = run(['list', '--summary']);
+    assert.deepEqual(json.entries[0].planned_touches, ['src/a.ts']);
+    assert.equal(json.entries[0].why, undefined);
   });
 
   test('--summary combines with --status', () => {
