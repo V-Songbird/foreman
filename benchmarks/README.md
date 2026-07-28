@@ -106,6 +106,30 @@ The replay is deterministic and free. It reports top-pick disagreements for
 human judgment; it does not silently turn critical depth into a new priority
 system.
 
+## Roadmap health
+
+A different question again: does a roadmap stay accurate over months? Mechanical
+tests can't answer that, so `health/` measures it directly.
+
+```bash
+node health/roadmap-health.js --roadmap /path/to/ROADMAP.jsonl --date 2026-07-28
+```
+
+Free, deterministic, read-only, and no default roadmap — you name the file.
+It reports stale entries, survey breadcrumbs, stranded dependencies, look-alike
+duplicates, archive growth, and duplicate-id repairs, reusing `roadmap.js` and
+the doctor's own checks so the numbers can't disagree with `roadmap.js doctor`.
+`--archive` is autodetected next to the roadmap; `--date` fixes the run date so
+a report is reproducible.
+
+Three of the nine metrics — whether you accept the recommendation, override it,
+or get what you meant from a hint — only exist if a session records the choice.
+[`health/TRIALS.md`](health/TRIALS.md) defines those as opt-in, local,
+count-only project trials: no titles, no paths, no ids, a log you can delete at
+any time, and nothing recording anything today. Pass `--trial-log <path>` and
+the tool computes the three rates; without one it reports them as `null` with a
+reason rather than as zero.
+
 ## What's measured
 
 Each run records, per session: cost, output tokens, context traffic (input + cache tokens across every API call), mid-turn narration words, turns, wall time — and the discipline signals: how many Read/Glob/Grep calls before the first edit, whether a test-intent command actually ran (`npm test`, `node --test`, or executing the test file directly all count), the constraint violations by name, and on the stale-brief task, whether the final message names the file mismatch it found.

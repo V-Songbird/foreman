@@ -2334,6 +2334,11 @@ module.exports = {
   projectDir,
   roadmapPath,
   readEntries,
+  // [Foreman: 142] The same parser behind readEntries/readArchive, for a
+  // reader pointed at a file neither of those names (benchmarks/health's
+  // explicit --archive). Read-only callers only; every writer goes through
+  // writeEntries/writeArchive.
+  readEntriesFrom,
   writeEntries,
   // [Foreman: 132] The archive half of the storage: same format, same
   // writer, a different path. readEntries stays active-only.
