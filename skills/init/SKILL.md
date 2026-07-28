@@ -149,9 +149,13 @@ the updated draft, ask again. Repeat until approved.
      untouched.
 
    Clear the file only after a snapshot that exited 0, a backup that
-   copied, or that explicit continue — `Bash`: `> ROADMAP.jsonl` (or
-   delete it). `roadmap.js add` always appends, so a fresh file means ids
-   start at `001` again.
+   copied, or that explicit continue — and before clearing, note the old
+   roadmap's highest id: `Foreman: <id>` commit trailers and
+   `[Foreman: <id>]` anchors from the old generation persist in git
+   history, so the new file must not reuse those ids. Then clear —
+   `Bash`: `> ROADMAP.jsonl` (or delete it) — and pass that highest id as
+   `"ids_after":"<old max>"` on the FIRST `add` call in step 2 below;
+   numbering continues past it and every later add follows on from there.
 2. For each drafted task, call `add` with its fields as JSON over stdin:
    ```
    echo '{"title":"...","why":"...","what":"...","source":"user","depends_on":[],"planned_touches":[]}' \

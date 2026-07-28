@@ -655,6 +655,7 @@ function cmdAddUnlocked(root, payload) {
     notes,
     doc,
     kind,
+    ids_after,
   } = payload || {};
   // [Foreman: 130] `planned_touches` is the field; `touches` is kept as an
   // INPUT alias because every skill, example and habit still types it. The
@@ -701,7 +702,18 @@ function cmdAddUnlocked(root, payload) {
   if (unknown.length) throw new Error(`unknown depends_on id(s): ${unknown.join(", ")}`);
   // Over BOTH files: reissuing an archived id would point every commit
   // trailer and `[Foreman: <id>]` anchor that names it at a different task.
-  const id = nextId(known);
+  let id = nextId(known);
+  // [Foreman: 188] An overwrite re-init discards the old file, but its
+  // trailers and anchors persist in git history. ids_after names the old
+  // generation's highest id so numbering continues past it instead of
+  // reissuing ids that history still points at.
+  if (ids_after !== undefined) {
+    if (!isValidId(ids_after)) {
+      throw new Error("ids_after must be a Foreman entry id (three or more digits, zero-padded to at least three)");
+    }
+    const floor = parseInt(ids_after, 10) + 1;
+    if (parseInt(id, 10) < floor) id = String(floor).padStart(3, "0");
+  }
   const date = today();
   const entry = {
     id,

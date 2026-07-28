@@ -88,6 +88,47 @@ describe('isValidId — the one shared id shape', () => {
   });
 });
 
+// [Foreman: 188] Overwrite re-init: the old file is discarded, but its
+// trailers and anchors persist in history, so the new generation's ids
+// must continue past the old one instead of reusing them.
+describe('ids_after floors a fresh generation', () => {
+  test('the first add continues past the discarded generation, later adds follow', () => {
+    const first = run(['add'], {
+      title: 'first of the new generation', why: 'w', what: 'x', source: 'user', ids_after: '042',
+    });
+    assert.equal(first.status, 0);
+    assert.equal(first.json.entry.id, '043');
+
+    const second = run(['add'], { title: 'second', why: 'w', what: 'x', source: 'user' });
+    assert.equal(second.json.entry.id, '044');
+  });
+
+  test('a floor below the natural next id changes nothing', () => {
+    writeRoadmap(project, [entry('100')]);
+    const { json } = run(['add'], {
+      title: 'still natural', why: 'w', what: 'x', source: 'user', ids_after: '005',
+    });
+    assert.equal(json.entry.id, '101');
+  });
+
+  test('crosses the 999 boundary numerically like everything else', () => {
+    const { json } = run(['add'], {
+      title: 'past the boundary', why: 'w', what: 'x', source: 'user', ids_after: '999',
+    });
+    assert.equal(json.entry.id, '1000');
+  });
+
+  test('a malformed ids_after is refused', () => {
+    for (const bad of ['42', 'abc', '01000']) {
+      const { status, json } = run(['add'], {
+        title: `bad ${bad}`, why: 'w', what: 'x', source: 'user', ids_after: bad,
+      });
+      assert.equal(status, 1, bad);
+      assert.match(json.error, /ids_after must be a Foreman entry id/);
+    }
+  });
+});
+
 describe('add past 999', () => {
   test('an add on a roadmap whose max id is 999 yields 1000', () => {
     writeRoadmap(project, [entry('001'), entry('999')]);

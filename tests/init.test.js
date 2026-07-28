@@ -103,4 +103,12 @@ describe("init writes safe defaults instead of asking", () => {
   test("a re-init must not discard an answer already recorded", () => {
     assert.match(skill, /answers to first-relevant asks that a\s+re-init must not throw away/);
   });
+
+  // [Foreman: 188] The old generation's ids live on in trailers and anchors;
+  // an overwrite must continue past them, never restart at 001.
+  test("the overwrite branch continues ids past the old roadmap", () => {
+    assert.match(skill, /"ids_after":"<old max>"/);
+    assert.match(skill, /must not reuse those ids/);
+    assert.doesNotMatch(skill, /ids\s+start at `001` again/);
+  });
 });
