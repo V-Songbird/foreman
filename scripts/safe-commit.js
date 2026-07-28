@@ -29,7 +29,9 @@ const {
   isSharedLedger,
   touchesOverlap,
 } = require("./sprint");
-const { commitTrailerFor, trailerIdsIn, isValidId } = require("./roadmap");
+const { commitTrailerFor, isValidId } = require("./roadmap");
+// [Foreman: 134] One reading of a commit's Foreman trailer, shared with sprint.
+const { trailerLinesIn, hasExactTrailer } = require("./commit-evidence");
 
 const ROADMAP_FILE = "ROADMAP.jsonl";
 
@@ -101,15 +103,11 @@ function attestCommit(root, options) {
   }
 
   const message = git(root, ["log", "-1", "--format=%B", commit]);
-  const trailerLines = message.split(/\r?\n/).filter((line) => /^foreman:/i.test(line));
-  const trailerIds = trailerIdsIn(message);
+  const trailerLines = trailerLinesIn(message);
   if (id) {
-    if (
-      trailerLines.length !== 1
-      || trailerLines[0] !== commitTrailerFor(id)
-      || trailerIds.length !== 1
-      || trailerIds[0] !== id
-    ) {
+    // [Foreman: 134] Same strict rule sprint's attestUnit applies, from the one
+    // definition — an attested unit commit names exactly one entry, its own.
+    if (!hasExactTrailer(message, id)) {
       reasons.push("exact_foreman_trailer_missing");
     }
   } else if (trailerLines.length) {

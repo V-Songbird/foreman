@@ -37,9 +37,17 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const crypto = require("crypto");
-const { spawnSync } = require("child_process");
 
-const { readEntries, anchorHasId, trailerIdsIn } = require("../scripts/roadmap");
+const { readEntries, anchorHasId } = require("../scripts/roadmap");
+// [Foreman: 134] Entry-to-commit facts come from the one interpreter, so this
+// gate resolves a commit in the same places every other status view does --
+// including a submodule, where a root-only lookup found nothing and the anchor
+// check silently passed.
+const {
+  recordedCommits,
+  showCommits,
+  trailerShasFor,
+} = require("../scripts/commit-evidence");
 const { readDecisionLog } = require("../scripts/decision-log-config");
 const { ENTRY_MARKER_RE, entryIdFromDescription } = require("./task-created");
 
@@ -163,51 +171,6 @@ function dlCloseCommand(id, dir) {
   );
 }
 
-// Combined patch text for the entry's commits, or null on any git failure
-// (missing repo, bad sha, git not installed, timeout). Null is the signal
-// to treat the anchor sub-check as passed -- infra never blocks completion.
-function gitShow(root, shas) {
-  let result;
-  try {
-    result = spawnSync("git", ["show", "--pretty=format:", ...shas], {
-      cwd: root,
-      encoding: "utf-8",
-      timeout: 30000,
-    });
-  } catch {
-    return null;
-  }
-  if (!result || result.error || result.status !== 0) return null;
-  return result.stdout || "";
-}
-
-// Commits linked to an entry by a `Foreman: <id>` message trailer — the
-// staged close's inverse pointer, where commits[] stays empty on purpose.
-// Candidates come from a loose --grep (fixed substring), then each
-// message is verified precisely with trailerIdsIn. Null on any git
-// failure, [] when no commit names the id — callers distinguish the two.
-function trailerShasFor(root, id) {
-  let result;
-  try {
-    result = spawnSync("git", ["log", "--grep=Foreman:", "--format=%h%x00%B%x1e"], {
-      cwd: root,
-      encoding: "utf-8",
-      timeout: 30000,
-    });
-  } catch {
-    return null;
-  }
-  if (!result || result.error || result.status !== 0) return null;
-  const shas = [];
-  for (const record of (result.stdout || "").split("\x1e")) {
-    const [sha, body] = record.split("\x00");
-    if (sha && sha.trim() && body && trailerIdsIn(body).includes(String(id))) {
-      shas.push(sha.trim());
-    }
-  }
-  return shas;
-}
-
 // The imperative core of a decision-log violation, or null when the entry
 // is compliant (doc "none", a doc file plus an anchored commit, or an
 // investigation-only close with no commits to audit). The caller wraps this
@@ -239,7 +202,7 @@ function decisionLogCore(root, entry, dir) {
   // array is either a staged close (the `Foreman: <id>` trailer links the
   // commit instead of a recorded sha) or an investigation-only close --
   // resolve the trailer first, and only skip when no commit names the id.
-  let commits = Array.isArray(entry.commits) ? entry.commits.filter(Boolean) : [];
+  let commits = recordedCommits(entry);
   if (commits.length === 0) {
     const linked = trailerShasFor(root, id);
     if (linked === null) return null; // git failure -- infra never blocks
@@ -247,7 +210,7 @@ function decisionLogCore(root, entry, dir) {
     commits = linked;
   }
 
-  const patch = gitShow(root, commits);
+  const patch = showCommits(root, commits);
   if (patch === null) return null; // git failure -- infra never blocks
   if (anchorHasId(patch, id)) return null;
 

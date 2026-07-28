@@ -128,6 +128,33 @@ out of sync with reality. `deferred` is different — it's a *stored*
 decision, not a derived one, precisely because its trigger condition can't
 be read off the roadmap graph.
 
+### Commit evidence
+
+`commits[]` and the `Foreman: <id>` message trailer are the two ways an entry
+is linked to git, and **`scripts/commit-evidence.js` is the only thing that
+interprets either** — the doctor, the close gate, `sprint`, `safe-commit` and
+the survey flow all read entry↔commit facts through it, so no two views can
+answer the same question differently. It resolves a sha in the project repo
+*and* in every submodule declared in `.gitmodules` (a Foreman commit routinely
+lives in one), normalizes a short sha to the full one, and never throws: no
+git, no repo, or an unknown sha leaves a fact unresolved rather than failing.
+
+`list --ids` adds a read-time `commit_evidence` object — never stored — to
+rows that have a claim to back (any entry with recorded commits, plus every
+`done`/`awaiting_acceptance` entry). Four fields:
+
+| field | meaning |
+| --- | --- |
+| `commit_count` | how many shas the entry records |
+| `resolved_count` | how many of those git found, here or in a submodule |
+| `unresolved` | the shas it did not find — **"not resolvable from here"** (rewritten history, an unfetched submodule, no git at all), a question rather than a verdict that the commit never existed |
+| `has_trailer_match` | whether some commit's message names this entry — the only evidence a `staged:true` close leaves, so `commit_count: 0` with a trailer match is recorded work, not an empty record |
+
+`doctor`'s `terminal_without_evidence`/`awaiting_without_evidence` warnings
+deliberately count *recorded* commits, not resolved ones: they run on every
+write and in projects with no git, so asking git is the job of the views that
+can afford it.
+
 ### Lifecycle
 
 ```text

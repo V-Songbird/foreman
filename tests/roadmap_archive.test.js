@@ -189,7 +189,10 @@ describe('restore', () => {
     assert.equal(json.active_count, 2);
     assert.equal(json.archived_count, 0);
     const restored = run(['list', '--ids', '001']).json.entries[0];
+    // Both are derived at read time, not stored — strip them before comparing
+    // against the entry as it was written. [Foreman: 134]
     delete restored.depends_on_docs;
+    delete restored.commit_evidence;
     assert.deepEqual(restored, done);
     // The roadmap holds the same entries it started with (plus the marker).
     assert.deepEqual(roadmapLines().slice(1).sort(), before.sort());

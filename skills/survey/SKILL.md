@@ -47,13 +47,16 @@ Collect the exact set of dependency ids referenced across all candidates'
 — never the unfiltered `list`, which loads the whole file just to answer a
 question about a handful of ids.
 
-**Mechanical pre-check, not an agent's job:** for each resolved dependency
-entry with `status:"done"`, verify each of its `commits` actually exists —
-`git cat-file -e <sha>` (Bash), exit code tells you, no reasoning involved.
-Build a small per-commit `exists: true/false` map from this before moving
-to step 2 — a dispatched agent re-deriving something a shell command
-already answered for free is pure waste, one `git cat-file` call is
-cheaper than N parallel agents each running their own `git log`.
+**Mechanical pre-check, not an agent's job:** that `list --ids` call already
+answered whether each entry's commits exist — every finished entry it
+returns carries `commit_evidence`
+(`commit_count`/`resolved_count`/`unresolved`/`has_trailer_match`). Read it;
+do not re-derive it with `git cat-file` (which only ever asks the project
+repo, so a commit living in a submodule comes back "missing" when it is
+right there) and do not spend agents on it. `unresolved` lists the shas git
+could not find; `has_trailer_match: true` means a commit message names the
+entry, which is the whole evidence a staged close leaves — an entry with
+`commit_count: 0` and a trailer match is recorded, not empty.
 
 Same reasoning applies to `touches`: collect every path named across the
 candidates being surveyed (dedup), and check existence directly —
@@ -81,8 +84,8 @@ step 1:
   1 — the agent consumes this fact, it does not re-check it with its own
   `Read`/`Glob` call.
 - For each id in `depends_on`: that entry's `title`, `status`, `commits`,
-  and the pre-computed `exists` flag for each of those commits — the agent
-  consumes this fact, it does not re-derive it.
+  and its `commit_evidence` from step 1 — the agent consumes this fact, it
+  does not re-derive it.
 - Ask it to check, and report a verdict for each:
   1. **Touches still real?** A path step 1 flagged missing is
      `stale-touches` only if it can be shown to have *once existed and
@@ -98,9 +101,9 @@ step 1:
      that is `stale-description`, and the agent returns a **rewritten
      `what`**: the same task re-described against the code as it now
      stands, ready to be stored verbatim — not a summary of the drift.
-  2. **Dependencies actually satisfied?** If step 1's `exists` map already
-     flags a `done` entry's commit as missing, that alone is a red flag —
-     no further check needed. Otherwise, for commits confirmed to exist,
+  2. **Dependencies actually satisfied?** If step 1's `commit_evidence`
+     already lists a `done` entry's commit as `unresolved`, that alone is a
+     red flag — no further check needed. Otherwise, for commits that resolved,
      do they plausibly implement what that entry's `title`/`what` claims?
      (this half stays semantic — read the commit, judge the match)
   3. **Hidden dependency?** Reading the code the candidate's `touches`

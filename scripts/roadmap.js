@@ -12,6 +12,9 @@ const {
   applyRepairs,
   summarize,
 } = require("./roadmap-doctor");
+// [Foreman: 134] One interpreter for entry-to-commit facts, shared with the
+// doctor, the close gate, sprint, safe-commit and the survey flow.
+const { filesFromGit, recordedCommits, evidenceSummary } = require("./commit-evidence");
 
 function projectDir() {
   return path.resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
@@ -594,29 +597,13 @@ function submodulePaths(root) {
   }
 }
 
-// Runs one git file-listing command at the root, then in each submodule until
-// one yields files, prefixing a submodule's paths so they read exactly the way
-// `touches` does. Fail-soft throughout: a missing git binary, a non-git
-// project, or an unknown sha all just mean no derived paths.
+// [Foreman: 134] The root-then-each-submodule walk this derivation always did
+// now lives in commit-evidence.js, so every other view that asks git about a
+// Foreman commit resolves it in the same places rather than assuming the root.
+// Fail-soft throughout: a missing git binary, a non-git project, or an unknown
+// sha all just mean no derived paths.
 function gitFilesIn(root, args, keep) {
-  const runIn = (cwd) => {
-    try {
-      return execFileSync("git", args, { cwd, encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] })
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(keep);
-    } catch {
-      return [];
-    }
-  };
-
-  const atRoot = runIn(root);
-  if (atRoot.length) return atRoot;
-  for (const sub of submodulePaths(root)) {
-    const files = runIn(path.join(root, sub));
-    if (files.length) return files.map((file) => `${sub}/${file}`);
-  }
-  return [];
+  return filesFromGit(root, args, keep);
 }
 
 function filesTouchedByCommit(root, sha) {
@@ -1158,9 +1145,21 @@ function cmdList(root, filters) {
     filtered = filtered.map((e) => ({
       ...e,
       depends_on_docs: dependencyDocs(e, byId),
+      ...(reportsEvidence(e) ? { commit_evidence: evidenceSummary(root, e) } : {}),
     }));
   }
   return { entries: filtered };
+}
+
+// [Foreman: 134] A targeted row reports commit evidence only where there is a
+// claim to back it: the entry recorded a sha, or its status asserts finished
+// work (which a staged close backs with a trailer and no sha at all). A
+// planned entry has nothing to report, so it neither says so nor pays for the
+// git reads -- the pick-a-task path fetches its entry through this same call.
+const EVIDENCE_STATUSES = new Set(["done", "awaiting_acceptance"]);
+
+function reportsEvidence(entry) {
+  return recordedCommits(entry).length > 0 || EVIDENCE_STATUSES.has(entry.status);
 }
 
 // Upstream decision docs the dispatch should read before starting, so a task

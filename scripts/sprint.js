@@ -7,7 +7,6 @@ const path = require("path");
 const { execFileSync } = require("child_process");
 const {
   cmdNextCandidates,
-  commitTrailerFor,
   trailerIdsIn,
   isValidId,
   // One collision rule for planning and for picking; re-exported below so
@@ -15,6 +14,9 @@ const {
   normalizedTouch,
   touchesOverlap,
 } = require("./roadmap");
+// [Foreman: 134] The strict per-commit trailer reading, shared with
+// safe-commit's post-commit attestation so one rule covers both.
+const { trailerLinesIn, hasExactTrailer } = require("./commit-evidence");
 
 const DEFAULT_LIMIT = 3;
 const MAX_LIMIT = 5;
@@ -145,12 +147,7 @@ function changedFiles(root, baseline, head) {
 
 function foremanTrailerIds(root, commit) {
   const message = git(root, ["log", "-1", "--format=%B", commit]);
-  return {
-    ids: trailerIdsIn(message),
-    lines: message
-      .split(/\r?\n/)
-      .filter((line) => /^foreman:/i.test(line)),
-  };
+  return { ids: trailerIdsIn(message), lines: trailerLinesIn(message), message };
 }
 
 function isSharedLedger(file) {
@@ -210,12 +207,10 @@ function attestUnit(root, options = {}) {
       const trailers = foremanTrailerIds(root, head);
       trailerIds = trailers.ids;
       trailerLines = trailers.lines;
-      if (
-        trailerLines.length !== 1
-        || trailerLines[0] !== commitTrailerFor(entryId)
-        || trailerIds.length !== 1
-        || trailerIds[0] !== entryId
-      ) {
+      // [Foreman: 134] The strict reading, named as such in commit-evidence.js:
+      // an attested unit carries exactly one trailer naming exactly this entry,
+      // deliberately narrower than the multi-id grammar trailerIdsIn parses.
+      if (!hasExactTrailer(trailers.message, entryId)) {
         reasons.push("exact_foreman_trailer_missing");
       }
     }

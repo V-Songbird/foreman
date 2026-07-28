@@ -23,6 +23,8 @@
 const fs = require("fs");
 const path = require("path");
 const { VALID_GATES, isValidDir } = require("./decision-log-config");
+// [Foreman: 134] The one reading of `commits[]`, shared with every status view.
+const { recordedCommits } = require("./commit-evidence");
 const {
   configPath,
   VALID_TARGET_MODELS,
@@ -243,8 +245,11 @@ function checkGraph(rows, out, resolve) {
   for (const entry of rows) {
     if (typeof entry.id !== "string") continue;
     if (entry.status !== "done" && entry.status !== "awaiting_acceptance") continue;
-    const commits = Array.isArray(entry.commits) ? entry.commits : [];
-    if (commits.length || String(entry.notes || "").trim()) continue;
+    // [Foreman: 134] Recorded commits, deliberately -- not resolved ones. The
+    // doctor runs on every write and in projects with no git at all, so
+    // "does this sha still exist" is a question for the views that can afford
+    // to ask git (list --ids, survey), never for the write gate.
+    if (recordedCommits(entry).length || String(entry.notes || "").trim()) continue;
     out.push(
       entry.status === "done"
         ? finding("terminal_without_evidence", "warning", [entry.id], `entry ${entry.id} is done with no commits and no notes — nothing records what happened`)
