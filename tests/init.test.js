@@ -49,3 +49,58 @@ describe("init skill contract", () => {
     assert.match(skill, /the rule is "everything else\s+survives", not a list/);
   });
 });
+
+// [Foreman: 136] Initialization is three strategy questions, not a policy
+// interview. Everything optional is a safe default here and gets asked the
+// first time it could matter — so these pin both halves: the questions that
+// remain, and the ones that must not come back.
+describe("init asks three strategy questions", () => {
+  test("project, goals, then draft approval — and nothing after", () => {
+    assert.match(skill, /## Call 1 — project and goals/);
+    assert.match(skill, /"What is this project\?"/);
+    assert.match(skill, /"What are the near-term goals for the roadmap\?"/);
+    assert.match(skill, /## Call 2 — approval/);
+    assert.match(skill, /"Draft roadmap ready above\. Proceed\?"/);
+    assert.doesNotMatch(skill, /## Call 2b/);
+    assert.doesNotMatch(skill, /## Call 3/);
+  });
+
+  test("the policy questions are gone from the interview", () => {
+    assert.doesNotMatch(skill, /Should the roadmap accept Claude-suggested entries/);
+    assert.doesNotMatch(skill, /Can this project run Fable 5\?/);
+    assert.doesNotMatch(skill, /should Foreman keep a short/);
+    assert.doesNotMatch(skill, /Should Foreman suggest which model and reasoning effort/);
+    assert.doesNotMatch(skill, /what should Foreman do\?/);
+    assert.doesNotMatch(skill, /Do other plugins already own the persona/);
+  });
+
+  test("the approval covers the config, not only the roadmap", () => {
+    assert.match(skill, /approving both files here, not just the roadmap/);
+  });
+});
+
+describe("init writes safe defaults instead of asking", () => {
+  test("the five written keys, at their safe values", () => {
+    assert.match(skill, /"usePersona": true/);
+    assert.match(skill, /"omitSections": \[\]/);
+    assert.match(skill, /"requireVerification": true/);
+    assert.match(skill, /"taskCloseGate": "off"/);
+    assert.match(skill, /"fableEnabled": false/);
+    assert.match(skill, /those five keys exactly, at those values/);
+  });
+
+  // Absent is not the same as false here: it is also the record that the
+  // user was never asked, which is what makes the later first-relevant ask
+  // fire exactly once. Writing the key at init would silence it forever.
+  test("leaves the three first-relevant keys unwritten", () => {
+    assert.match(skill, /`discoverySuggestions`, `decisionLog`, and `modelSuggestions` are\s+deliberately \*\*not written\*\*/);
+    assert.match(skill, /absence is also the record that the user was never\s+asked/);
+    assert.doesNotMatch(skill, /"discoverySuggestions": (true|false)/);
+    assert.doesNotMatch(skill, /"modelSuggestions": (true|false)/);
+    assert.doesNotMatch(skill, /"decisionLog": \{/);
+  });
+
+  test("a re-init must not discard an answer already recorded", () => {
+    assert.match(skill, /answers to first-relevant asks that a\s+re-init must not throw away/);
+  });
+});

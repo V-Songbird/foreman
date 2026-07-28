@@ -121,16 +121,22 @@ function filterUnnudged(root, ids, todayStr) {
 // discovery spends tokens on every commit of every project that never asked
 // for it, so it takes an explicit `true`. Unparseable config is not consent
 // either — it falls to off, same as absent.
+//
+// [Foreman: 136] A THIRD state matters now that init no longer asks about
+// discovery: an absent key is off AND unanswered, while an explicit `false`
+// is a decline. Only the first earns the one-time invitation below. An
+// unreadable config counts as unanswered too — it holds no answer either.
 function readConfig(root) {
   const p = path.join(root, ".foreman", "config.json");
   try {
     const parsed = JSON.parse(fs.readFileSync(p, "utf-8"));
     return {
       discoverySuggestions: parsed?.discoverySuggestions === true,
+      discoveryUnanswered: !(parsed && typeof parsed === "object" && "discoverySuggestions" in parsed),
       requireVerification: parsed?.requireVerification !== false,
     };
   } catch {
-    return { discoverySuggestions: false, requireVerification: true };
+    return { discoverySuggestions: false, discoveryUnanswered: true, requireVerification: true };
   }
 }
 
@@ -318,6 +324,26 @@ function discoveryBlock() {
   );
 }
 
+// [Foreman: 136] The first-relevant ask for discovery. A commit just landed,
+// which is the only moment the answer changes anything, so this is where the
+// question belongs — not in the init interview, where it was one of several
+// policy questions asked before the user had done any work.
+//
+// razor: rides along with a block already being emitted; it never makes the
+// hook speak on a commit it would otherwise stay silent on. Upgrade to a
+// standalone block (reusing filterUnnudged's once-per-day dedup, or the
+// invitation becomes an every-commit nag) if projects that never mark work
+// in_progress turn out to need the ask too.
+const DISCOVERY_INVITE =
+  "[Foreman] This project has never answered whether it wants commit-time roadmap " +
+  "discovery (no `discoverySuggestions` key in `.foreman/config.json`). Ask the user " +
+  "once, now (AskUserQuestion): should Foreman scan each commit for confirmed bugs and " +
+  "opportunities worth adding to the roadmap? It costs tokens on every commit, which is " +
+  "why it is off until asked for. Then write their answer into `.foreman/config.json` — " +
+  '`"discoverySuggestions": true` or `false`, either way, preserving every other key — ' +
+  "since recording it is what stops this from being raised again. If this session has no " +
+  "user to ask (a background agent), skip it silently and leave the config alone.";
+
 function main() {
   const data = readInput();
   if (!WATCHED_TOOLS.has(data.tool_name)) return;
@@ -364,6 +390,8 @@ function main() {
   }
   if (config.discoverySuggestions) {
     blocks.push(discoveryBlock());
+  } else if (config.discoveryUnanswered && blocks.length) {
+    blocks.push(DISCOVERY_INVITE);
   }
   if (!blocks.length) return;
 
@@ -401,5 +429,6 @@ module.exports = {
   touchesTag,
   headTrailerIds,
   discoveryBlock,
+  DISCOVERY_INVITE,
   SCRIPT_PATH,
 };

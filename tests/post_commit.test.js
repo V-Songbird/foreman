@@ -9,6 +9,9 @@
 //     done entry was updated earlier today (same-day follow-up fix commit)
 //   - discovery block appears only when .foreman/config.json has
 //     discoverySuggestions:true, and carries no roadmap titles when it does
+//   - an absent discoverySuggestions key (never asked, distinct from an
+//     explicit false) rides a one-time invitation to ask along with a block
+//     that was already being emitted
 //   - requireVerification:true withholds the done transition until the user
 //     confirms, without affecting the freshly-done follow-up branch
 //   - malformed/missing config is treated as discoverySuggestions:false and
@@ -331,6 +334,51 @@ describe('discovery block', () => {
     const out = run(bashPayload('git commit -m "wip"'));
     assert.match(out, /Roadmap discovery is enabled/);
     assert.match(out, /in-progress ROADMAP/i);
+  });
+});
+
+// [Foreman: 136] init stopped asking about discovery, so the key now carries
+// three states, not two: absent means "never asked" and earns a one-time
+// invitation to ask; an explicit false is a decline and stays silent; an
+// explicit true is the feature itself and needs no invitation.
+describe('discovery first-relevant invitation', () => {
+  test('missing key: invites the ask, without the suggestions block', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    const out = context(bashPayload('git commit -m "wip"'));
+    assert.match(out, /never answered whether it wants commit-time roadmap discovery/);
+    assert.match(out, /"discoverySuggestions": true` or `false`/);
+    assert.doesNotMatch(out, /Roadmap discovery is enabled/);
+  });
+
+  test('explicit false: neither the invitation nor the suggestions block', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    writeConfig(project, { discoverySuggestions: false });
+    const out = context(bashPayload('git commit -m "wip"'));
+    assert.doesNotMatch(out, /never answered whether it wants/);
+    assert.doesNotMatch(out, /Roadmap discovery is enabled/);
+  });
+
+  test('explicit true: the suggestions block, and no invitation', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    writeConfig(project, { discoverySuggestions: true });
+    const out = context(bashPayload('git commit -m "wip"'));
+    assert.match(out, /Roadmap discovery is enabled/);
+    assert.doesNotMatch(out, /never answered whether it wants/);
+  });
+
+  // A config the user has (from init, which writes five other keys) but that
+  // has never carried this one is the normal post-136 case.
+  test('a config carrying other keys but not this one still invites', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    writeConfig(project, { requireVerification: false, taskCloseGate: 'off' });
+    const out = context(bashPayload('git commit -m "wip"'));
+    assert.match(out, /never answered whether it wants commit-time roadmap discovery/);
+  });
+
+  test('rides along only — never makes the hook speak on a silent commit', () => {
+    writeRoadmap(project, [{ id: '001', status: 'planned' }]);
+    const out = run(bashPayload('git commit -m "wip"'));
+    assert.equal(out, '');
   });
 });
 

@@ -178,8 +178,8 @@ an instruction for the spawned session to act on later):**
      "Model fit" bullet for exactly what stops when it is `false`.
    - `fableEnabled` — boolean declaration (default `false`) that the
      operator can run Fable 5 at all (Max plan or API — other plans
-     can't). Asked once by `foreman:init`'s Call 2b, or hand-edited later
-     in `.foreman/config.json`. Gates whether `Fable` appears at all as a
+     can't). Written `false` by `foreman:init`, and set by hand in
+     `.foreman/config.json` by a project that can. Gates whether `Fable` appears at all as a
      selectable executing model in craft-time menus — it never changes
      elaboration by itself, and a `targetModel: "fable"` project pin
      still resolves and elaborates as `fable` regardless of this flag.

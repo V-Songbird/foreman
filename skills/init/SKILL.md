@@ -1,6 +1,6 @@
 ---
 name: init
-description: Bootstraps a project's ROADMAP.jsonl and .foreman/config.json. Asks what the project is and its near-term goals, asks whether the roadmap should accept Claude-suggested entries after commits, whether other plugins already own persona/tone, and whether finished work needs the user's confirmation before it's marked done, drafts an initial set of roadmap tasks, gets approval, then writes and commits both files.
+description: Bootstraps a project's ROADMAP.jsonl and .foreman/config.json. Asks three things — what the project is, its near-term goals, and whether the drafted roadmap looks right — then writes and commits both files using safe defaults for every optional behavior. Discovery, decision notes, model advice, and checkpoint policy are never asked here; each one is asked the first time it could actually matter.
 when_to_use: Trigger when the user wants to set up Foreman's roadmap for a project, says "init foreman", "set up the roadmap", "initialize foreman", "start a roadmap", or invokes /foreman:init. Usually a one-time-per-project action.
 argument-hint: "<brief project description — optional seed>"
 allowed-tools: AskUserQuestion, Read, Write, Bash
@@ -34,8 +34,7 @@ accumulated notes)`, `Keep it, just add to it`, `Cancel`
 - Overwrite → continue to Call 1, the draft phase replaces the file.
 - Keep, add to it → skip straight to the draft phase, append new entries
   instead of replacing, don't touch `.foreman/config.json` if it already
-  exists (ask the Call 2/Call 2b questions only if the config file is
-  missing).
+  exists (write the defaults below only if the config file is missing).
 - Cancel → stop here.
 
 ---
@@ -52,105 +51,31 @@ they want to get done soon)
 
 ---
 
-## Call 2 — the policy toggles (batch 4, these are the key decisions)
+## Defaults — written, never asked
 
-**Q1** — "Should the roadmap accept Claude-suggested entries after commits?"
-Options, recommended one first:
-- `No — the roadmap only grows from what I add myself (Recommended)` — the
-  commit hook stays completely silent about new work; nothing gets
-  suggested, ever, until re-run. Becomes `"discoverySuggestions": false`,
-  which is also the default when the key is absent.
-- `Yes — ask me about opportunities found after each commit` — after every
-  `git commit`, Foreman's hook will prompt Claude to scan for confirmed
-  bugs/opportunities/ideas from that work and ask what to do with each one.
-  Costs tokens on every commit. Becomes `"discoverySuggestions": true`.
+There is no policy interview. Everything except the project, its goals, and
+the draft approval is a safe default, written verbatim:
 
-Record the answer — it becomes `.foreman/config.json`'s `discoverySuggestions`
-field verbatim. No answer (question skipped) → `false`.
+| Key | Value | Why this is the safe reading |
+| --- | --- | --- |
+| `requireVerification` | `true` | a commit that looks like it finishes a task isn't evidence the task holds up — the entry lands in `awaiting_acceptance` and waits for the user |
+| `taskCloseGate` | `"off"` | nothing blocks on a roadmap entry being closed |
+| `usePersona` | `true` | the prompt template's own default |
+| `omitSections` | `[]` | the same |
+| `fableEnabled` | `false` | most plans can't run Fable 5 |
 
-**Q2** — "Do other plugins already own the persona or the voice in your
-sessions? (for example: razor owns persona, hush owns voice)"
-(multiSelect: true — a project may run one without the other)
-Options:
-- `A persona plugin (e.g. razor)` — crafted prompts open with domain
-  framing instead of a "You are a [role]" sentence. Selecting this sets
-  `"usePersona": false`.
-- `A voice plugin (e.g. hush)` — crafted prompts skip the tone block.
-  Selecting this adds `"tone"` to `omitSections`.
+`discoverySuggestions`, `decisionLog`, and `modelSuggestions` are
+deliberately **not written**. An absent key already reads as off
+everywhere, and its absence is also the record that the user was never
+asked — so each gets asked once, the first time it could matter, and the
+answer is written then: discovery by the post-commit hook after a commit
+that discovery would have run on, decision notes by `foreman:roadmap` when
+the first `kind: "decision"` entry is added, checkpoint policy at the first
+split run, and model advice whenever the user asks for it. Writing any of
+those three here would spend a question now *and* silence the later ask.
 
-Neither selected means the template's defaults apply unchanged:
-`"usePersona": true, "omitSections": []`. Both selected is the full trio
-shape: `"usePersona": false, "omitSections": ["tone"]`. Leave
-`output_format` alone either way — its default already defers to the
-session's style, and it is the guard against raw XML tags echoing into
-chat.
-
-This is a declaration, not detection — Foreman never inspects which
-plugins the project runs; the user states the shape they want here.
-
-**Q3** — "When a commit looks like it finishes a task, should Foreman
-close it out right away?"
-Options, recommended one first:
-- `No — ask me to confirm it's verified first (Recommended)` — the commit
-  and its touched files are still recorded immediately, but the task stays
-  in progress until you confirm the work actually holds up. Becomes
-  `"requireVerification": true`, which is also the default when the key is
-  absent.
-- `Yes — mark it done as soon as the commit lands` — becomes
-  `"requireVerification": false`.
-
-**Q4** — "When a tracked task completes but its roadmap entry is still
-open, what should Foreman do?"
-Options:
-- `Nothing` — becomes `"taskCloseGate": "off"`.
-- `Block completion until I close it` — the task stays incomplete until
-  the roadmap entry is closed. Becomes `"taskCloseGate": "block"`.
-
----
-
-## Call 2b — Fable access, decision notes, and model advice (batch 3)
-
-**Q1** — "Can this project run Fable 5? (Max plan or API — other plans
-can't)"
-Options: `Yes`, `No`
-
-Record the answer — it becomes `.foreman/config.json`'s `fableEnabled`
-field verbatim (`Yes` → `true`, `No` → `false`, the default). When `true`,
-`Fable` becomes a selectable option alongside Haiku/Sonnet/Opus in
-`craft-prompt` and `foreman:roadmap`'s executing-model question; when
-`false`, that question offers only the three models everyone can run.
-
-**Q2** — "When a task settles a real choice, should Foreman keep a short
-'why we picked this' note and show it to later tasks that build on it?"
-Options:
-- `No — don't keep decision notes` — (default) Foreman never asks for or
-  surfaces these. Becomes `"decisionLog": {"enabled": false}`.
-- `Yes — keep them` — when a task decides between real alternatives, the
-  handoff writes a short note (what was chosen and why) under
-  `docs/foreman/`, and future tasks that depend on it get pointed at that
-  note before they start. Becomes `"decisionLog": {"enabled": true}`.
-
-Default is No — a project that never wants written decision records can
-decline without knowing what an ADR is. Record the answer as
-`.foreman/config.json`'s `decisionLog` field.
-
-**Q3** — "Should Foreman suggest which model and reasoning effort each task
-deserves?"
-Options:
-- `No — I'll pick the model myself` — (default) Foreman never recommends
-  one. It still asks which model to dispatch a background Agent or a copied
-  prompt on, because that has to be answered, but it offers the plain list
-  with nothing marked recommended. Becomes `"modelSuggestions": false`.
-- `Yes — recommend one per task` — each handoff says which model fits the
-  task and what reasoning effort its checks justify, and running a task in
-  this session asks whether to start it in a fresh session set to them.
-  Becomes `"modelSuggestions": true`.
-
-Default is No — the advice costs an extra question on the most common path,
-and a project that has already settled its model policy gains nothing from
-it. This is independent of `targetModel`: a concrete pin still tunes how
-much detail a prompt spells out either way. Record the answer as
-`.foreman/config.json`'s `modelSuggestions` field.
+Any of the defaults above can be changed by hand later — see
+[`settings.md`](../../settings.md).
 
 ---
 
@@ -175,7 +100,11 @@ Present the draft as readable text, one task per line — `title` plus `why`
 
 ---
 
-## Call 3 — approval
+## Call 2 — approval
+
+Before asking, add one line saying what the config will be: verification
+confirmation on, every optional behavior off and asked about the first time
+it matters. The user is approving both files here, not just the roadmap.
 
 **Q1** — "Draft roadmap ready above. Proceed?"
 Options: `Looks good, write it`, `Let me adjust it first`
@@ -235,24 +164,27 @@ the updated draft, ask again. Repeat until approved.
    order, and `add` rejects an id that doesn't exist yet. If any call
    returns `warnings`, mention them once at the end rather than per entry.
 3. Write `.foreman/config.json` —
-   `{"discoverySuggestions": <bool>, "usePersona": <bool>, "omitSections": [...], "requireVerification": <bool>, "taskCloseGate": "<off|block>", "fableEnabled": <bool>, "decisionLog": {"enabled": <bool>}, "modelSuggestions": <bool>}`
-   from the Call 2/Call 2b answers (skip this file write if the pre-check
-   "keep, add to it" branch found an existing config already).
-   **If the file already exists, `Read` it first and set those eight keys on
+   `{"usePersona": true, "omitSections": [], "requireVerification": true, "taskCloseGate": "off", "fableEnabled": false}`
+   — those five keys exactly, at those values, from the defaults table
+   above (skip this file write if the pre-check "keep, add to it" branch
+   found an existing config already).
+   **If the file already exists, `Read` it first and set those five keys on
    the parsed object — any other key present must survive untouched.** This
    applies whenever the file exists, not only on the Overwrite branch: the
    pre-check only fires when `ROADMAP.jsonl` exists, so a project with a
    config but no roadmap is never asked anything and would otherwise have
-   its config replaced silently. Today the keys at risk are `customSections`,
-   `targetModel`, and `checkpoints` — init writes none of
-   them — but the rule is "everything else
+   its config replaced silently. Today the keys at risk are
+   `discoverySuggestions`, `decisionLog`, `modelSuggestions`,
+   `customSections`, `targetModel`, and `checkpoints` — init writes none of
+   them, and the first three are answers to first-relevant asks that a
+   re-init must not throw away — but the rule is "everything else
    survives", not a list, so the next key is covered without another edit.
-   If the file exists but won't parse, write the eight keys alone and say
+   If the file exists but won't parse, write the five keys alone and say
    so in the report-back.
 4. Stage and commit just these two files:
    `git add ROADMAP.jsonl .foreman/config.json && git commit -m "chore: init foreman roadmap"`
    (Only the files this skill wrote — never a broader `git add`.)
 
-Report back: task count, discovery-suggestions on/off, Fable access
-on/off, and point the user at `/foreman:roadmap` to pick up the first
-task.
+Report back: task count, one line that everything optional is off and gets
+asked about when it first matters, and point the user at
+`/foreman:roadmap` to pick up the first task.
