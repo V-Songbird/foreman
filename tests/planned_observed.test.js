@@ -474,6 +474,34 @@ describe('add and correct: the prediction is the editable half', () => {
     assert.equal(refused.status, 1);
     assert.match(refused.json.error, /observed_touches is not a correct input/);
   });
+
+  // [Foreman: 187] The trust boundary moves to the door: an absolute or
+  // escaping planned path is refused at add/correct instead of persisting
+  // behind the doctor's warning.
+  test('add and correct refuse absolute or escaping planned paths outright', () => {
+    for (const bad of [['../outside.ts'], ['/etc/passwd'], ['C:\\Windows\\hosts'], ['src/..\\..\\up.ts']]) {
+      const refused = run(['add'], { title: `bad ${bad[0]}`, why: 'w', what: 'x', source: 'user', planned_touches: bad });
+      assert.equal(refused.status, 1, bad[0]);
+      assert.match(refused.json.error, /refusing absolute or escaping path/);
+    }
+
+    const added = run(['add'], {
+      title: 'containable', why: 'w', what: 'x', source: 'user', planned_touches: ['src/ok.ts'],
+    }).json.entry;
+    const refused = run(['correct'], {
+      id: added.id,
+      expected_updated_at: added.updated_at,
+      planned_touches: ['../escape.ts'],
+    });
+    assert.equal(refused.status, 1);
+    assert.match(refused.json.error, /refusing absolute or escaping path/);
+  });
+
+  test('the touches alias goes through the same safety gate', () => {
+    const refused = run(['add'], { title: 'alias bad', why: 'w', what: 'x', source: 'user', touches: ['../x.ts'] });
+    assert.equal(refused.status, 1);
+    assert.match(refused.json.error, /refusing absolute or escaping path/);
+  });
 });
 
 describe('--hint scans both surfaces', () => {

@@ -93,6 +93,14 @@ function extractSymbols(source, language) {
 // time instead of mid-task.
 function resolveFile(root, relPath) {
   const full = path.resolve(root, relPath);
+  // [Foreman: 187] A roadmap that arrived via branch or merge is repository
+  // data, not trusted instruction: a planned path resolving outside the
+  // project is reported as a flag and never read, so outside file contents
+  // cannot ride into a generated handoff.
+  const contained = path.relative(path.resolve(root), full);
+  if (contained.startsWith("..") || path.isAbsolute(contained)) {
+    return { path: relPath, outside_project: true, symbols: [] };
+  }
   let stat;
   try {
     stat = fs.statSync(full);
@@ -281,7 +289,7 @@ function referenceImplementations(root, files) {
   const wanted = new Map();
   const touched = new Set(files.map((file) => path.resolve(root, file.path)));
   for (const file of files) {
-    if (file.missing || file.directory || file.unsupported || file.unreadable) continue;
+    if (file.missing || file.directory || file.unsupported || file.unreadable || file.outside_project) continue;
     for (const target of localImports(root, file.path)) wanted.set(target, new Set());
   }
   if (!wanted.size) return { references: [], truncated: false };
@@ -341,13 +349,14 @@ function resolve(root, touches, what, verify) {
   const files = list.map((relPath) => resolveFile(root, relPath.trim()));
   for (const file of files) {
     if (file.missing) warnings.push(`${file.path}: no longer exists — the entry's touches are stale`);
+    if (file.outside_project) warnings.push(`${file.path}: resolves outside the project — not read; fix or drop it`);
     if (file.unsupported) warnings.push(`${file.path}: no definition patterns for this file type — skipped`);
     if (file.unreadable) warnings.push(`${file.path}: could not be read — skipped`);
   }
 
   if (gitAvailable(root)) {
     for (const file of files) {
-      if (file.missing) continue;
+      if (file.missing || file.outside_project) continue;
       const date = lastChanged(root, file.path);
       if (date) file.lastChanged = date;
     }

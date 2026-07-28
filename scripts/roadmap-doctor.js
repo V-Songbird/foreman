@@ -79,12 +79,11 @@ function finding(code, severity, ids, message, extra = {}) {
 // Same trust boundary validateDoc guards on doc: a planned-surface hint that
 // is absolute or escapes the project is not a path any collision check should
 // be matching against.
+// [Foreman: 187] One definition, shared with the add/correct input gate in
+// roadmap.js — the two must agree or a path could pass the door and still be
+// flagged here (or the reverse). Deferred require, same as the id shape.
 function isUnsafePath(value) {
-  return (
-    path.win32.isAbsolute(value)
-    || path.posix.isAbsolute(value)
-    || value.split(/[\\/]/).includes("..")
-  );
+  return roadmap().isUnsafePath(value);
 }
 
 function checkEntry(entry, index, out) {

@@ -111,6 +111,31 @@ describe('resolve-symbols', () => {
     assert.equal(json.files.find((f) => f.path === 'src/sample.js').symbols.length, 4);
   });
 
+  // [Foreman: 187] Containment: a roadmap path is repository data, and one
+  // that resolves outside the project is flagged, never read.
+  test('a path escaping the project is flagged outside_project, its content never read', () => {
+    const secret = path.join(path.dirname(project), 'outside-secret.js');
+    fs.writeFileSync(secret, 'const leakedSecretToken = 1;\n', 'utf-8');
+
+    const { status, json } = run({ argv: ['--touches', '../outside-secret.js'] });
+
+    assert.equal(status, 0);
+    const flagged = json.files[0];
+    assert.equal(flagged.outside_project, true);
+    assert.deepEqual(flagged.symbols, []);
+    assert.equal(flagged.missing, undefined);
+    assert.ok(!JSON.stringify(json).includes('leakedSecretToken'), 'outside content must not leak into the payload');
+    assert.ok(
+      json.warnings.some((w) => w.includes('outside the project')),
+      `expected an outside-project warning, got ${JSON.stringify(json.warnings)}`
+    );
+  });
+
+  test('an absolute path outside the project is flagged the same way', () => {
+    const { json } = run({ argv: ['--touches', path.join(path.dirname(project), 'nope.js')] });
+    assert.equal(json.files[0].outside_project, true);
+  });
+
   test('an identifier in `what` that matches no symbol lands in unresolved', () => {
     writeFile('src/sample.js', SAMPLE_JS);
     const { json } = run({

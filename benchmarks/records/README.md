@@ -78,7 +78,7 @@ record has to say so rather than letting the two look alike.
 
 | Record | Kind | Claim |
 | --- | --- | --- |
-| [`R-002-prompt-overhead`](R-002-prompt-overhead.json) | static computation | The standard handoff profile carries 12% of the reinforced profile's fixed guardrail text — 499 words saved. Supersedes `R-001` after a template edit that left the numbers unchanged. |
+| [`R-003-prompt-overhead`](R-003-prompt-overhead.json) | static computation | The standard handoff profile carries 12% of the reinforced profile's fixed guardrail text — 499 words saved. Supersedes `R-002` (itself superseding `R-001`) after template edits that left the numbers unchanged. |
 
 **No model-run records exist yet.** The harness in [`../`](../README.md) drives
 real sessions and reads real costs out of the API, but its output lands in

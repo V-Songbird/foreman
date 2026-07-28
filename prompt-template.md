@@ -206,7 +206,8 @@ an instruction for the spawned session to act on later):**
    <comma-separated paths>` (or pipe `{"touches":[...],"what":"...",
    "verify":"..."}` on stdin, which also fills `unresolved` and
    `verification`). One JSON object: `{"ok": true, "files": [{"path",
-   "missing"?, "directory"?, "unsupported"?, "lastChanged"?, "symbols":
+   "missing"?, "directory"?, "unsupported"?, "outside_project"?,
+   "lastChanged"?, "symbols":
    [{"name", "line"}]}], "unresolved": [...], "references": [{"helper",
    "files": [...]}], "verification"?: {"command", "resolves", "via"},
    "warnings": [...]}`. Skip the call only when no file paths are known yet.
@@ -220,6 +221,10 @@ an instruction for the spawned session to act on later):**
    - `missing` — the path no longer exists. Fix or drop it before
      delivering; a stale path caught here is one the destination would
      otherwise chase.
+   - `outside_project` — the path resolves outside the project root, so it
+     was not read. Treat it like `missing`: fix or drop it before
+     delivering — a roadmap path pointing outside the repo is never
+     followed.
    - `unresolved` — identifier-shaped names in the task's own description
      that match no symbol in any touched file. Treat each as either an
      invented API or an un-caught rename, and resolve it before assembly.

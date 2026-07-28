@@ -65,6 +65,7 @@ field by convention).
 - Fixed an issue where starting a task turned off automated commits on a project that keeps its roadmap in git: marking the task in progress counted as a dirty tree. Foreman's own bookkeeping files no longer count, and they still stay out of a task's commit unless the close declares them.
 - Fixed an issue where a handed-off task closed itself straight to done even with `requireVerification` on: the handoff now tells the closing session to record the work as awaiting your acceptance, the same hold the after-commit check already applied.
 - Closing a task now refuses a recorded commit that is not actually a git sha, instead of storing any text as permanent evidence — and when staging the roadmap alongside a close fails, the handoff now says to stage it by hand so the close doesn't miss its own commit.
+- A task's planned files can no longer name paths outside the project: adding or correcting one refuses absolute or escaping paths, and the symbol preflight reports such a path instead of reading the file it points at — so a roadmap arriving from a branch or merge cannot pull outside file contents into a handoff.
 
 ## [0.46.0-alpha] — 2026-07-24
 

@@ -605,6 +605,18 @@ function validateRan(name, value, allowed) {
 // send the old key; when both are given the canonical one wins).
 // `observed_touches` is refused outright: it is derived from the closing
 // commit, so accepting a hand-written one would let a caller forge history.
+// [Foreman: 187] Same trust boundary the doctor warns on, enforced at the
+// door: a planned path that is absolute or escapes the project is refused at
+// write time instead of persisting behind a warning. The doctor's
+// invalid_path warning stays for entries that predate this gate.
+function isUnsafePath(value) {
+  return (
+    path.win32.isAbsolute(value)
+    || path.posix.isAbsolute(value)
+    || value.split(/[\\/]/).includes("..")
+  );
+}
+
 function plannedTouchesInput(payload, command) {
   const given = payload || {};
   if (given.observed_touches !== undefined) {
@@ -616,6 +628,14 @@ function plannedTouchesInput(payload, command) {
   const value = given.planned_touches !== undefined ? given.planned_touches : given.touches;
   if (value !== undefined && !Array.isArray(value)) {
     throw new Error("planned_touches must be an array of paths");
+  }
+  if (Array.isArray(value)) {
+    const unsafe = value.filter((item) => typeof item === "string" && item && isUnsafePath(item));
+    if (unsafe.length) {
+      throw new Error(
+        `planned_touches must stay inside the project — refusing absolute or escaping path(s): ${unsafe.join(", ")}`
+      );
+    }
   }
   return value;
 }
@@ -1197,8 +1217,9 @@ function cmdCorrectUnlocked(root, payload) {
     text[field] = value;
   }
   if (kind !== undefined) validateKind(kind);
-  // Shape is checked in plannedTouchesInput; per-path safety is the write
-  // gate's (invalid_path / non-string item), so it is not restated here.
+  // Shape and per-path safety are both checked in plannedTouchesInput; the
+  // write gate (invalid_path / non-string item) stays the backstop for
+  // entries that predate it.
   if (!Object.keys(text).length && kind === undefined && planned === undefined) {
     throw new Error(`correct requires at least one of ${CORRECTABLE_FIELDS.join(", ")}`);
   }
@@ -2384,6 +2405,7 @@ module.exports = {
   splitTouches,
   UPGRADE_STEPS,
   findingKey,
+  isUnsafePath,
   submodulePaths,
   filesTouchedByCommit,
   filesStagedIn,
