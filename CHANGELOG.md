@@ -29,6 +29,7 @@ field by convention).
 - The benchmarks now also report what Foreman costs in attention: how closely each finished task's predicted files matched the files it actually changed, how many files it swept up that nothing predicted, and how much shorter the short handoff is than the full-strength one — next to definitions for the setup time, questions, commit interruptions, and recovery success that only an opt-in, local, count-only trial could measure.
 - Every performance number Foreman publishes now has to point at a result record carrying the exact fixtures and prompts it was measured with, the model and its settings, how many times it ran, each run next to the aggregate, the date, the machine, and what the number doesn't say — with a free checker that fails if a fixture has been edited since the run, so a claim can't quietly drift away from its evidence. The README's earlier benchmark charts predated the rule and are removed until records back them.
 - New `modelSuggestions` setting, off by default: turn it on and each handoff says which model and reasoning effort the task deserves. Running a task in your own session then offers to hand the prompt to a fresh session already set to them. With it off, Foreman recommends nothing and only asks which model to dispatch on when a dispatch needs one. `/foreman:init` asks about it.
+- Foreman now offers at session start to archive finished roadmap entries once 20 or more sit in the active roadmap. Offer only — nothing moves without you.
 
 ### Changed
 

@@ -89,3 +89,43 @@ describe('session-start in_progress surfacing', () => {
     assert.doesNotMatch(out, /no activity since/);
   });
 });
+
+function terminalEntries(count) {
+  const statuses = ['done', 'dropped', 'rejected'];
+  return Array.from({ length: count }, (_, i) => ({
+    id: String(i + 1).padStart(3, '0'),
+    title: `finished ${i + 1}`,
+    status: statuses[i % statuses.length],
+  }));
+}
+
+describe('session-start archive offer', () => {
+  test('stays silent below the threshold', () => {
+    writeRoadmap(project, terminalEntries(19));
+    assert.equal(run({ source: 'startup' }), '');
+  });
+
+  test('offers to archive once the threshold is reached', () => {
+    writeRoadmap(project, terminalEntries(20));
+    const out = run({ source: 'startup' });
+    assert.match(out, /\[Foreman\]/);
+    assert.match(out, /20 finished entries/);
+    assert.match(out, /archive/);
+    assert.equal((out.match(/archive/g) || []).length, 1);
+  });
+
+  test('combines with the open-entries line when both apply', () => {
+    writeRoadmap(project, [
+      { id: '900', title: 'still going', status: 'in_progress', updated_at: localToday() },
+      ...terminalEntries(20),
+    ]);
+    const out = run({ source: 'startup' });
+    assert.match(out, /still going/);
+    assert.match(out, /20 finished entries/);
+  });
+
+  test('stays silent on this line for a corrupt roadmap', () => {
+    fs.writeFileSync(path.join(project, 'ROADMAP.jsonl'), '{not json\n', 'utf-8');
+    assert.equal(run({ source: 'startup' }), '');
+  });
+});

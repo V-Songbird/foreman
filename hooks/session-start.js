@@ -2,14 +2,16 @@
 "use strict";
 
 // SessionStart — surface open roadmap entries (in_progress, and work left
-// awaiting_acceptance).
+// awaiting_acceptance), plus an archive offer once terminal entries pile up.
 //
 // A destination session marks an entry in_progress and can die without
 // closing it (crash, abandoned clipboard paste, killed agent); nothing else
 // ever surfaces that, so the entry silently rots until someone happens to
 // run a review. An awaiting_acceptance entry rots the same way for the
 // opposite reason — it is finished and nobody has said yes. One
-// informational line at session start closes both loops.
+// informational line at session start closes both loops. A second, separate
+// line offers the archive flow once done/dropped/rejected entries pile up —
+// that flow exists but nothing else ever suggests using it.
 // Silent whenever there is nothing to say; never fires for subagents
 // (SessionStart is a main-session-only event) or on resume/compact (the
 // matcher gates to startup|clear — resumed context already knows).
@@ -17,7 +19,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const { readEntries, today } = require("../scripts/roadmap");
+const { readEntries, today, TERMINAL_STATUSES } = require("../scripts/roadmap");
 
 const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
   ? path.resolve(process.env.CLAUDE_PLUGIN_ROOT)
@@ -26,6 +28,9 @@ const SCRIPT_PATH = path.join(PLUGIN_ROOT, "scripts", "roadmap.js");
 
 // An entry untouched this long gets its last-activity date called out.
 const STALE_DAYS = 3;
+
+// razor: fixed ceiling, no config key — add one only once a user asks for it.
+const ARCHIVE_OFFER_THRESHOLD = 20;
 
 function readInput() {
   let raw;
@@ -73,6 +78,17 @@ function buildMessage(open, todayStr) {
   );
 }
 
+// [Foreman: 180] Terminal entries (done/dropped/rejected) never get archived
+// on their own — nothing else ever suggests it, so a mature roadmap just
+// keeps accumulating them. One offer line, gated on a fixed count, closes
+// that loop the same way the open-entries line does.
+function buildArchiveOffer(count) {
+  return (
+    `[Foreman] ${count} finished entries are still in the active roadmap — ` +
+    "ask Foreman to archive the done ones to keep reads lean."
+  );
+}
+
 function main() {
   const data = readInput();
   // The matcher already gates to startup|clear; keep a defensive check so a
@@ -91,11 +107,16 @@ function main() {
   const open = entries.filter(
     (e) => e.status === "in_progress" || e.status === "awaiting_acceptance"
   );
-  if (!open.length) return;
+  const terminalCount = entries.filter((e) => TERMINAL_STATUSES.has(e.status)).length;
+
+  const parts = [];
+  if (open.length) parts.push(buildMessage(open, today()));
+  if (terminalCount >= ARCHIVE_OFFER_THRESHOLD) parts.push(buildArchiveOffer(terminalCount));
+  if (!parts.length) return;
 
   // SessionStart accepts raw stdout as context — no JSON envelope needed.
   try {
-    process.stdout.write(buildMessage(open, today()));
+    process.stdout.write(parts.join("\n"));
   } catch {
     // ignore
   }
@@ -109,4 +130,11 @@ if (require.main === module) {
   }
 }
 
-module.exports = { main, buildMessage, daysBetween, STALE_DAYS };
+module.exports = {
+  main,
+  buildMessage,
+  buildArchiveOffer,
+  daysBetween,
+  STALE_DAYS,
+  ARCHIVE_OFFER_THRESHOLD,
+};
