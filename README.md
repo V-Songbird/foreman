@@ -5,10 +5,6 @@
   </picture>
   <h1>Foreman</h1>
   <p><strong>Every Claude Code session forgets everything when it ends. Foreman is what's waiting when the next one wakes up.</strong></p>
-
-  <img src="assets/bench-signoff.svg" alt="Every haiku run in the benchmark suite drawn as a stamp, grouped by task. The one-line-ask row is checked off green except for four red rejected stamps, all in the same group — every run shipped broken code the moment the target file had been renamed. The Foreman-handoff row is signed off green across all twelve runs, on every task including that one." width="700" />
-
-  <p><em>This is what passes inspection.</em></p>
 </div>
 
 <p align="center">
