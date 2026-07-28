@@ -187,13 +187,37 @@ the updated draft, ask again. Repeat until approved.
    `Bash`: `git commit -m "chore: snapshot roadmap before foreman re-init" -- ROADMAP.jsonl`.
    Use that pathspec form, never `git add` + commit: this branch runs in an
    established project where unrelated staged work is likely, and a broad
-   `git add` would sweep it into a commit titled "snapshot roadmap". A
-   non-zero exit is fine and expected (no repo, nothing to commit, a
-   rejecting pre-commit hook) — but **say which happened** in the
-   report-back, because it is the difference between "your old roadmap is
-   in git" and "it is gone". Then clear the file — `Bash`:
-   `> ROADMAP.jsonl` (or delete it). `roadmap.js add` always appends, so a
-   fresh file means ids start at `001` again.
+   `git add` would sweep it into a commit titled "snapshot roadmap".
+
+   **If the snapshot fails, stop before clearing anything.** A non-zero
+   exit is common (no repo, nothing to commit, a rejecting pre-commit
+   hook) and it is the difference between "your old roadmap is in git" and
+   "it is gone" — so it is the user's call, not a line in the report-back.
+   Ask one AskUserQuestion — "Snapshotting the existing roadmap failed:
+   <exit reason>. How do you want to proceed?" — with exactly these four
+   options:
+   - `Retry the snapshot` — the user fixes git (commits or stashes the
+     unrelated work, repairs the hook), then run the same command again.
+     Fails again → ask again.
+   - `Save a timestamped backup instead` — `Bash`:
+     `cp ROADMAP.jsonl "ROADMAP.jsonl.backup-$(date +%Y%m%d-%H%M%S)"`, and
+     if `.foreman/config.json` exists,
+     `cp .foreman/config.json ".foreman/config.json.backup-$(date +%Y%m%d-%H%M%S)"`.
+     Those exact destinations — never invent a folder or another name. The
+     backups stay untracked, since init stages only the two files it
+     writes; say where they landed and that they are temporary — the user
+     deletes them once satisfied with the new roadmap. If the copy itself
+     fails, ask again instead of clearing.
+   - `Continue without a snapshot — the old roadmap is lost` — proceed
+     only when the user picks this option explicitly. Never infer it from
+     an earlier answer or from the failure looking expected.
+   - `Cancel` — stop here, change nothing, and say the roadmap is
+     untouched.
+
+   Clear the file only after a snapshot that exited 0, a backup that
+   copied, or that explicit continue — `Bash`: `> ROADMAP.jsonl` (or
+   delete it). `roadmap.js add` always appends, so a fresh file means ids
+   start at `001` again.
 2. For each drafted task, call `add` with its fields as JSON over stdin:
    ```
    echo '{"title":"...","why":"...","what":"...","source":"user","depends_on":[],"touches":[]}' \
@@ -218,8 +242,8 @@ the updated draft, ask again. Repeat until approved.
    `targetModel`, and `checkpoints` — init writes none of
    them — but the rule is "everything else
    survives", not a list, so the next key is covered without another edit.
-   If the file exists but won't parse, write the six keys alone and say so
-   in the report-back.
+   If the file exists but won't parse, write the eight keys alone and say
+   so in the report-back.
 4. Stage and commit just these two files:
    `git add ROADMAP.jsonl .foreman/config.json && git commit -m "chore: init foreman roadmap"`
    (Only the files this skill wrote — never a broader `git add`.)
