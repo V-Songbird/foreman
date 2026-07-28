@@ -62,12 +62,27 @@ Running [razor](https://github.com/V-Songbird/razor) and [hush](https://github.c
 
 ## What you can do
 
-You talk to Foreman in plain language. Editing the roadmap file by hand defeats the point, so don't.
+Talk to Foreman. That's the whole interface — one entrance, plain language, no command names to memorize. Say what you want and it goes to the right place:
+
+| You say… | You get |
+| --- | --- |
+| "add this to the roadmap" | new work tracked, once you approve it |
+| "where are we" | where every task stands, and what's waiting on you |
+| "that entry's description is stale" | the entry corrected, current value against the new one |
+| "what's next" | the recommended task, why it's first, and a ready-to-run prompt |
+| "is the plan still right? then give me something" | the top tasks checked against your code, repairs you approve one by one, then the pick |
+| "work through the next few" | one small serial batch, one approval, one final acceptance (experimental) |
+
+Editing the roadmap file by hand defeats the point, so don't.
+
+### Advanced
+
+The specialized commands are still there when you'd rather skip the entrance and go straight in:
 
 | You want to… | Command |
 | --- | --- |
 | Set up a roadmap for a project (one-time) | `/foreman:init` |
-| See the recommended next task, add one, or check status | `/foreman:roadmap` |
+| See the recommended next task, add one, correct one, or check status | `/foreman:roadmap` |
 | Work through a few ready tasks with one approval (experimental) | `/foreman:sprint` |
 | Build a handoff prompt for a specific task | `/foreman:craft-prompt` |
 | Double-check the top tasks against your actual code | `/foreman:survey` |

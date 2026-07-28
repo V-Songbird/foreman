@@ -1,7 +1,7 @@
 ---
 name: sprint
-description: Work through a few ready Foreman roadmap tasks serially with one plan approval and one final acceptance.
-when_to_use: Trigger when the user asks Foreman to work through the next few roadmap tasks, batch the next tasks, run a small sprint, or invokes /foreman:sprint.
+description: Experimental advanced surface, normally reached through the `foreman` entrance's run-a-short-batch intent. Works through a few ready Foreman roadmap tasks serially with one plan approval and one final acceptance.
+when_to_use: Reached through the `foreman` entrance for a short batch; trigger directly when a power user asks Foreman to work through the next few roadmap tasks, batch the next tasks, run a small sprint, or invokes /foreman:sprint.
 argument-hint: "<optional — task count (maximum 5) and/or what kind of work to prefer>"
 allowed-tools: AskUserQuestion, Read, Write, Bash, PowerShell, TaskCreate, TaskUpdate, Workflow
 ---
