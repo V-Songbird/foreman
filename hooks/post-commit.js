@@ -344,6 +344,34 @@ const DISCOVERY_INVITE =
   "since recording it is what stops this from being raised again. If this session has no " +
   "user to ask (a background agent), skip it silently and leave the config alone.";
 
+// The emit path shared by every branch that talks — the corrupt-file branch
+// below now uses it too, instead of duplicating the JSON envelope.
+function emit(additionalContext) {
+  const payload = {
+    hookSpecificOutput: {
+      hookEventName: "PostToolUse",
+      additionalContext,
+    },
+  };
+  try {
+    process.stdout.write(Buffer.from(JSON.stringify(payload), "utf-8"));
+  } catch {
+    // ignore
+  }
+}
+
+// The corrupt-file branch below used to return with no output at all, on the
+// reasoning that reporting anything might nudge Claude into writing on top
+// of a file it can't safely parse. That rationale only ever covered write
+// nudges, and stays valid — but total silence also means the bookkeeping
+// this hook does disappears exactly when trust in the file is lowest.
+// `doctor` (no --fix) only reports, so pointing at it can't make a bad file
+// worse.
+const CORRUPT_ROADMAP_MESSAGE =
+  "[Foreman] ROADMAP.jsonl could not be parsed, so Foreman's commit " +
+  `bookkeeping is paused. Run \`node ${SCRIPT_PATH} doctor\` to see what's ` +
+  "wrong — it only reports, it never rewrites.";
+
 function main() {
   const data = readInput();
   if (!WATCHED_TOOLS.has(data.tool_name)) return;
@@ -359,7 +387,10 @@ function main() {
   try {
     entries = readEntries(root);
   } catch {
-    return; // corrupt file — stay silent rather than nudge Claude into writing on top of it
+    // corrupt file — say so read-only, rather than stay silent (see
+    // CORRUPT_ROADMAP_MESSAGE above)
+    emit(CORRUPT_ROADMAP_MESSAGE);
+    return;
   }
 
   const todayStr = today();
@@ -395,17 +426,7 @@ function main() {
   }
   if (!blocks.length) return;
 
-  const payload = {
-    hookSpecificOutput: {
-      hookEventName: "PostToolUse",
-      additionalContext: blocks.join("\n\n"),
-    },
-  };
-  try {
-    process.stdout.write(Buffer.from(JSON.stringify(payload), "utf-8"));
-  } catch {
-    // ignore
-  }
+  emit(blocks.join("\n\n"));
 }
 
 if (require.main === module) {
@@ -430,5 +451,6 @@ module.exports = {
   headTrailerIds,
   discoveryBlock,
   DISCOVERY_INVITE,
+  CORRUPT_ROADMAP_MESSAGE,
   SCRIPT_PATH,
 };

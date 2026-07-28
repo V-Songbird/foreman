@@ -60,6 +60,7 @@ field by convention).
 - Re-initializing a project can no longer discard an existing roadmap after a failed snapshot: Foreman stops before clearing anything and offers to retry the snapshot, save a timestamped backup beside the roadmap, continue without one after you say so explicitly, or cancel.
 - A roadmap can now pass 999 tasks safely: task ids of four or more digits are created, validated, ordered, committed, and closed the same way three-digit ones always were, instead of being silently unreadable to commit trailers, decision anchors, sprint checks, and hooks.
 - Closing a task with a commit that lives in a submodule now records the files that commit changed, instead of recording nothing.
+- Fixed an issue where a corrupt `ROADMAP.jsonl` silently paused Foreman's commit bookkeeping — the after-commit check now says so and points at the report-only `roadmap.js doctor`.
 - Picking the next task now warns about overlap with a folder that work is already underway in, instead of only when both tasks name the exact same path — a task planning `src/auth/` no longer looks safe while `src/auth/middleware.ts` is being changed. Recommendations and sprint planning now share one path-matching rule, so Windows separators, trailing slashes, and casing can't hide an overlap from either.
 
 ## [0.46.0-alpha] — 2026-07-24

@@ -82,6 +82,26 @@ describe('no ROADMAP.jsonl', () => {
   });
 });
 
+describe('corrupt ROADMAP.jsonl', () => {
+  test('nudges toward doctor (read-only) instead of staying silent', () => {
+    const fs = require('fs');
+    const path = require('path');
+    fs.writeFileSync(path.join(project, 'ROADMAP.jsonl'), 'not json at all\n', 'utf-8');
+    const out = run(bashPayload('git commit -m "wip"'));
+    assert.match(out, /could not be parsed/i);
+    assert.match(out, /roadmap\.js doctor/);
+    assert.match(out, /only reports, it never rewrites/);
+    assert.doesNotMatch(out, /update-status/);
+  });
+
+  test('a healthy file is unaffected', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    const out = run(bashPayload('git commit -m "finish task"'));
+    assert.doesNotMatch(out, /could not be parsed/);
+    assert.match(out, /may complete an in-progress/i);
+  });
+});
+
 describe('status-sync block', () => {
   test('fires when an in_progress entry exists, discovery off', () => {
     writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
