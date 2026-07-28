@@ -55,15 +55,18 @@ they want to get done soon)
 ## Call 2 — the policy toggles (batch 4, these are the key decisions)
 
 **Q1** — "Should the roadmap accept Claude-suggested entries after commits?"
-Options:
+Options, recommended one first:
+- `No — the roadmap only grows from what I add myself (Recommended)` — the
+  commit hook stays completely silent about new work; nothing gets
+  suggested, ever, until re-run. Becomes `"discoverySuggestions": false`,
+  which is also the default when the key is absent.
 - `Yes — ask me about opportunities found after each commit` — after every
   `git commit`, Foreman's hook will prompt Claude to scan for confirmed
   bugs/opportunities/ideas from that work and ask what to do with each one.
-- `No — the roadmap only grows from what I add myself` — the commit hook
-  stays completely silent; nothing gets suggested, ever, until re-run.
+  Costs tokens on every commit. Becomes `"discoverySuggestions": true`.
 
 Record the answer — it becomes `.foreman/config.json`'s `discoverySuggestions`
-field verbatim.
+field verbatim. No answer (question skipped) → `false`.
 
 **Q2** — "Do other plugins already own the persona or the voice in your
 sessions? (for example: razor owns persona, hush owns voice)"

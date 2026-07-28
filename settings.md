@@ -6,7 +6,7 @@ configuration is normally unnecessary.
 
 | Setting | What it does |
 | --- | --- |
-| `discoverySuggestions` | After each commit, offer new roadmap entries Claude spotted in the work. On by default; set `false` to silence it. |
+| `discoverySuggestions` | After each commit, offer new roadmap entries Claude spotted in the work. Off by default; set `true` to enable. The roadmap itself is never pasted into the commit's context — each candidate suggestion is checked against existing entries with one compact `check-duplicate` call instead. |
 | `usePersona` | Whether handoff prompts open with a "You are a…" role sentence (default `true`), or plain domain framing. |
 | `omitSections` | Prompt sections to leave out entirely (`tone`, `example`, `background`, `output_format`). Default none. |
 | `customSections` | Extra sections to add to crafted prompts, each `{tag, content}` rendered as an inline `<tag>` block. Tags reserved by the template are rejected. Default none. |

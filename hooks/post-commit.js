@@ -116,16 +116,21 @@ function filterUnnudged(root, ids, todayStr) {
 // it finishes a task is not evidence the task holds up, so the unconfigured
 // project gets the safe reading. Opting out is an explicit `false`, and a
 // corrupt config falls to the same safe default rather than the loose one.
+//
+// [Foreman: 127] discoverySuggestions defaults OFF, the opposite polarity:
+// discovery spends tokens on every commit of every project that never asked
+// for it, so it takes an explicit `true`. Unparseable config is not consent
+// either — it falls to off, same as absent.
 function readConfig(root) {
   const p = path.join(root, ".foreman", "config.json");
   try {
     const parsed = JSON.parse(fs.readFileSync(p, "utf-8"));
     return {
-      discoverySuggestions: parsed?.discoverySuggestions !== false,
+      discoverySuggestions: parsed?.discoverySuggestions === true,
       requireVerification: parsed?.requireVerification !== false,
     };
   } catch {
-    return { discoverySuggestions: true, requireVerification: true };
+    return { discoverySuggestions: false, requireVerification: true };
   }
 }
 
@@ -252,34 +257,24 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
   return "[Foreman] " + parts.join(" ");
 }
 
-// The planned titles ride along as a negative list. check-duplicate stays
-// the mechanical backstop, but its word-overlap score can't catch a
-// paraphrase of an entry that already covers the same ground — naming them
-// is the free half, since main() has already read every entry.
-// razor: the whole planned list is inlined; if a backlog ever makes this
-// block dominate the hook payload, cap it or drop back to check-duplicate.
-function alreadyCovered(entries) {
-  const planned = (entries || []).filter((e) => e.status === "planned");
-  if (!planned.length) return "";
-  const list = planned.map((e) => `${e.id} ("${e.title}")`).join(", ");
-  return (
-    `These are already on the roadmap as planned: ${list}. Do not propose ` +
-    "anything they already cover, even reworded. "
-  );
-}
-
-function discoveryBlock(entries) {
+// [Foreman: 127] The planned titles used to ride along here as a negative
+// list, so the block's size grew with the backlog — on every commit, for a
+// gain check-duplicate already covers. Dedup is now check-duplicate only:
+// one compact call per candidate, paid only when there IS a candidate,
+// instead of the whole backlog injected whether or not anything is found.
+function discoveryBlock() {
   return (
     "[Foreman] Roadmap discovery is enabled for this project. " +
-    alreadyCovered(entries) +
     "Scan this " +
     "commit's work for CONFIRMED opportunities, bugs, or ideas — not vague " +
     "hunches. If you add one to the roadmap, write it dense using only " +
     "what's already in this session's context (exact paths, line ranges, " +
     "symbol names, the specific behavior observed) — do NOT run extra " +
     "Read/Grep/Bash calls just to enrich the entry, that spends tokens now " +
-    "instead of saving them for whoever picks it up later. Before asking " +
-    "about it, check it isn't already on the roadmap in any form: " +
+    "instead of saving them for whoever picks it up later. Every candidate " +
+    "MUST go through the duplicate check before you offer it — the roadmap's " +
+    "existing entries are deliberately not in your context, so this call is " +
+    "the only thing between a suggestion and a duplicate: " +
     `echo '{"title":"...","why":"..."}' | node ${SCRIPT_PATH} check-duplicate ` +
     "— matches carry each entry's status. A rejected match means the user " +
     "already declined it: skip silently. Any other status (planned/" +
@@ -354,7 +349,7 @@ function main() {
     blocks.push(statusSyncBlock(inProgress, freshlyDone, config.requireVerification, committedFiles, trailerIds));
   }
   if (config.discoverySuggestions) {
-    blocks.push(discoveryBlock(entries));
+    blocks.push(discoveryBlock());
   }
   if (!blocks.length) return;
 

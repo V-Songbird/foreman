@@ -7,11 +7,12 @@
 //   - silent when ROADMAP.jsonl doesn't exist (zero-config: never ran /foreman:init)
 //   - status-sync block appears whenever an in_progress entry exists, or a
 //     done entry was updated earlier today (same-day follow-up fix commit)
-//   - discovery block appears only when .foreman/config.json has discoverySuggestions:true
+//   - discovery block appears only when .foreman/config.json has
+//     discoverySuggestions:true, and carries no roadmap titles when it does
 //   - requireVerification:true withholds the done transition until the user
 //     confirms, without affecting the freshly-done follow-up branch
 //   - malformed/missing config is treated as discoverySuggestions:false and
-//     requireVerification:false
+//     requireVerification:true — each key's safe reading, not one polarity
 //   - a failed commit (confirmed nonzero exit code) stays silent
 //   - a commit with no confirmed exit code fails open (still fires)
 
@@ -222,40 +223,58 @@ describe('discovery block', () => {
     assert.match(out, /Log it/);
   });
 
-  test('names the planned entries as already-covered ground', () => {
+  // [Foreman: 127] The planned titles used to be inlined as a negative list,
+  // so the block grew with the backlog. Dedup now rides entirely on the
+  // compact check-duplicate CLI — no roadmap content in the context at all.
+  test('injects no roadmap titles, and mandates the check-duplicate call instead', () => {
     writeRoadmap(project, [
-      { id: '001', title: 'Add JWT refresh', status: 'planned' },
-      { id: '002', title: 'Ship the parser', status: 'done' },
-      { id: '003', title: 'Abandoned idea', status: 'dropped' },
+      { id: '001', title: 'Zorptastic JWT refresh', status: 'planned' },
+      { id: '002', title: 'Quibbleframe the parser', status: 'planned' },
+      { id: '003', title: 'Ship the flumaxinator', status: 'done' },
+      { id: '004', title: 'Abandoned wugglesnort', status: 'dropped' },
     ]);
     writeConfig(project, { discoverySuggestions: true });
     const out = run(bashPayload('git commit -m "add feature"'));
-    assert.match(out, /already on the roadmap as planned: 001 \(\\"Add JWT refresh\\"\)/);
-    assert.doesNotMatch(out, /Ship the parser/);
-    assert.doesNotMatch(out, /Abandoned idea/);
+    assert.match(out, /Roadmap discovery is enabled/);
+    for (const title of [
+      'Zorptastic',
+      'Quibbleframe',
+      'flumaxinator',
+      'wugglesnort',
+      'already on the roadmap as planned',
+    ]) {
+      assert.doesNotMatch(out, new RegExp(title));
+    }
+    assert.match(out, /check-duplicate/);
+    assert.match(out, /Every candidate MUST go through the duplicate check/);
   });
 
-  test('says nothing about coverage when no entry is planned', () => {
-    writeRoadmap(project, [{ id: '001', title: 'Done thing', status: 'in_progress' }]);
-    writeConfig(project, { discoverySuggestions: true });
-    const out = run(bashPayload('git commit -m "add feature"'));
-    assert.doesNotMatch(out, /already on the roadmap as planned/);
-  });
-
-  test('fires by default when config is missing', () => {
+  test('does not fire by default when config is missing', () => {
     writeRoadmap(project, [{ id: '001', status: 'planned' }]);
     const out = run(bashPayload('git commit -m "add feature"'));
-    assert.match(out, /Roadmap discovery is enabled/);
+    assert.equal(out, '');
   });
 
-  test('fires by default when config is malformed JSON', () => {
+  // A config nobody can parse is not a project opting in.
+  test('does not fire when config is malformed JSON', () => {
     writeRoadmap(project, [{ id: '001', status: 'planned' }]);
     const fs = require('fs');
     const path = require('path');
     fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
     fs.writeFileSync(path.join(project, '.foreman', 'config.json'), '{not json', 'utf-8');
     const out = run(bashPayload('git commit -m "add feature"'));
-    assert.match(out, /Roadmap discovery is enabled/);
+    assert.equal(out, '');
+  });
+
+  // The default flip is discovery-only: the status-sync block still fires on
+  // an unconfigured project, and a malformed config still reads as
+  // requireVerification:true (see the requireVerification suite).
+  test('status-sync is unaffected by the discovery default flip', () => {
+    writeRoadmap(project, [{ id: '001', title: 'Wugglesnort the thing', status: 'in_progress' }]);
+    const out = run(bashPayload('git commit -m "finish task"'));
+    assert.match(out, /may complete an in-progress/i);
+    assert.match(out, /Wugglesnort the thing/);
+    assert.doesNotMatch(out, /Roadmap discovery is enabled/);
   });
 
   test('does not fire when discoverySuggestions is explicitly false', () => {
