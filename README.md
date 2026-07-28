@@ -17,7 +17,7 @@
     <a href="https://docs.anthropic.com/en/docs/claude-code"><img src="https://img.shields.io/badge/Claude_Code-E5582B" alt="Claude Code"/></a>
 </p>
 
-> **TL;DR** — Every Claude Code session starts with amnesia. Foreman keeps your plan in your repo, committed like code. Ask "what's next?" and you get Foreman's recommended task — with the reason it's the recommendation — and a ready-to-run prompt whose paths and symbols are preflighted, and which checks its own claims against the codebase before it edits anything. Cheaper per session than a bare one-line ask, in our own runs of the harness.
+> **TL;DR** — Every Claude Code session starts with amnesia. Foreman keeps your plan in your repo, committed like code. Ask "what's next?" and you get Foreman's recommended task — with the reason it's the recommendation — and a ready-to-run prompt whose paths and symbols are preflighted, and which checks its own claims against the codebase before it edits anything.
 
 ---
 
@@ -109,27 +109,6 @@ Same page covers it.
 
 ## Benchmarks
 
-We measured what a good handoff is actually worth: the same real coding jobs, run as full agent sessions, started four ways — from a bare one-line ask up to a Foreman handoff — with the real bill read straight from the API.
-
-<p align="center"><img src="assets/bench-rescue.svg" alt="The brief pointed at a file that had been renamed: the one-line ask shipped broken work every time, the Foreman handoff never did — it checked the brief against the code first" width="700"></p>
-
-**When the brief goes stale, the one-line ask ships broken work.** Every living repo collects stale detail — a file gets renamed, a note outlives the code it described. We planted exactly that trap. On the smaller model, the one-line ask patched the wrong file every single time. The Foreman handoff checks the brief against the code first, found the real file, and finished the job — every single time.
-
-<p align="center"><img src="assets/bench-cost.svg" alt="The same jobs asked two ways on the bigger model: the one-line ask cost $0.21 per session, the Foreman handoff $0.16 — about a quarter less" width="700"></p>
-
-**Skipping the brief doesn't skip the cost.** Every fact you leave out of the ask, the session buys back by exploring your codebase — on your dime. On the bigger model, the one-line ask cost more than the Foreman handoff for the same jobs. The shortest prompt was the most expensive session.
-
-<p align="center"><img src="assets/bench-picks.svg" alt="Cost per what-should-I-work-on-next as the backlog grows: a to-do file costs $0.12 at 10 tasks, $0.14 at 50, $0.21 at 150 — Foreman's roadmap answers free at any size, with the same answer every time" width="700"></p>
-
-**"What's next?" is free, every time you ask.** Keep your backlog in a plain to-do file, and Claude re-reads the whole thing on every ask — the bill grows with the list, and the pick can change with the model's mood. Foreman reads the roadmap mechanically: instant, free at any size, same answer every time.
-
-> [!NOTE]
-> A carefully hand-written brief performs like a Foreman handoff — the difference is you don't have to write it, and the guardrails come along for free. On a strong model with a fresh, accurate brief, the rescue above simply isn't needed: stale and thin briefs are where it pays.
-
-*How we tested: same jobs, four ways of asking, several runs each in fresh throwaway workspaces — a full multi-turn agent session every time, never a single generated reply — costs read from the API, not estimated. Numbers move a few percent between runs. Reproduce it yourself — see [benchmarks/](benchmarks/).*
-
-### Performance claims
-
 Every number Foreman publishes has to point at a result record in
 [`benchmarks/records/`](benchmarks/records/) — the exact fixtures and prompts
 it was measured with, the model and its settings, the repetition count, every
@@ -138,13 +117,16 @@ number doesn't say. A claim without a record doesn't ship, and
 `node benchmarks/records/validate-records.js` fails if a fixture has been
 edited out from under one.
 
-**The three charts above predate that rule and no record backs them yet.** They
-came from our own runs of the harness in [`benchmarks/`](benchmarks/), whose
-output lands in a local `results/` directory that isn't committed. Read them as
-what we saw on our machines and can hand you the harness to reproduce — not as
-figures Foreman stands behind. The one published record today,
-[`R-001-prompt-overhead`](benchmarks/records/R-001-prompt-overhead.json),
-covers a static computation over `prompt-template.md`, not a model run.
+One record is published today:
+[`R-001-prompt-overhead`](benchmarks/records/R-001-prompt-overhead.json).
+A routine handoff carries **68 fixed guardrail words** where the full-strength
+one carries **567** — a static count over
+[`prompt-template.md`](prompt-template.md), which says nothing about session
+cost or output quality on its own.
+
+The full agent-session harness — the same real coding jobs, several ways of
+asking, full multi-turn sessions, costs read from the API — ships in
+[`benchmarks/`](benchmarks/), ready to run on your own machine.
 
 ## Under the hood
 
