@@ -40,13 +40,14 @@ next task" with the hint in hand — that branch says what to do with it.
 
 **This branch does not investigate the codebase. At all.** No `Read`, no
 `Grep`, no exploring files to confirm or expand what an entry says. The
-picked entry's own fields are the only input to the prompt. Verifying
+selected entry's own fields are the only input to the prompt. Verifying
 those claims against reality is the handed-off session's job, at the start
 of *its* work — that's exactly what the `<truth_grounding>` block in
-`prompt-template.md` exists for. Picking a task should be fast: one
-mechanical call, one question, assemble, done.
+`prompt-template.md` exists for. Picking a task should be fast: one compact
+mechanical menu, one question, then one detailed read of the selected entry
+only.
 
-1. `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js next-candidates` —
+1. `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js next-candidates --menu` —
    already filtered (unblocked: `planned` with every `depends_on` done),
    ranked (most open work waiting behind it first — `unblocks_total`
    counts the whole dependency chain, not just direct dependents — then
@@ -54,15 +55,8 @@ mechanical call, one question, assemble, done.
    default, with a `collision` flag per candidate (its `touches` overlaps
    a currently-`in_progress` task's). Do not re-derive this by calling
    `list` and reasoning over the whole file yourself — that's exactly the
-   cost `next-candidates` exists to cut.
-
-   **In the same message**, also run
-   `node ${CLAUDE_PLUGIN_ROOT}/scripts/render-sections.js` — its output is
-   project-level, not task-level, and step 3 needs it no matter which
-   candidate wins, so batching the two mechanical calls saves a round
-   trip. This satisfies the template's craft-time step 0 — don't run it
-   again at assembly, reuse this call's output (and surface its `warnings`
-   then, if any).
+   cost `next-candidates` exists to cut. `--menu` returns only choice-time
+   fields; do not fetch or reconstruct the unselected entries' details.
 
    **If args carried a pick hint**, pass it to the script instead of
    filtering yourself: `--hint "<the hint's words>"`. Relevance ranking is
@@ -75,10 +69,9 @@ mechanical call, one question, assemble, done.
    non-`planned` entry (the script's filter already decided that).
 
    **Never paste or print this JSON output into your chat response.** It's
-   input to the next step, not something to show — the full `what`/
-   `touches`/`notes`/`unblocks` fields are context for *you* to weigh
-   candidates and craft the eventual handoff prompt, not content a human
-   needs dumped in front of them before they've even picked a task.
+   input to the next step, not something to show. It deliberately contains
+   only the short `why`, collision state, and ranking signals needed for
+   the choice.
 2. Go straight to Q1 below — no narrative recap of the candidates in prose
    first, the question *is* the presentation.
 
@@ -87,11 +80,9 @@ work already started somewhere — offer to finish it before starting
 something new. Those entries take the top option slot(s) in Q1 (at most 2;
 oldest `updated_at` first), labeled `Resume: <title> (<id>)`, with the
 first one carrying `(Recommended)`. Description: `why` plus
-"in progress since <updated_at>" — plus, when the entry's `notes` carry the
-background-agent marker (see step 5's delivery bullet below), "will try
-resuming the original agent first". Preview: same fields as the candidate
-preview below, plus a short excerpt of the entry's `notes` (prior
-findings) — the reason a resume is worth previewing at all. Planned
+"in progress since <updated_at>". Preview: `title`, compact `why`, and
+`updated_at`. The selected entry's full notes — including any
+background-agent marker — are fetched only after the choice. Planned
 candidates fill the remaining slots. This is a suggestion, never a gate —
 picking a planned candidate proceeds exactly as before.
 
@@ -119,14 +110,12 @@ finish-first check above):
   anyway (that's `foreman:survey`'s job); it only bloats the dialog. Add
   "(possible file overlap with in-progress work)" to the description if
   `collision:true` — still a caution, not a blocker.
-- Preview: plain text built from the entry's `title`, `why`, `what`,
-  `depends_on`, and `updated_at`, capped at ~10 lines. This is where the
-  detail the description bullet deliberately excludes goes instead —
-  visible only when the user focuses the option, never printed into chat.
-  It supplements the description rule above, never replaces it. Resume
-  options get the same fields plus the `notes` excerpt noted in the
-  finish-first check above. A harness whose `AskUserQuestion` doesn't
-  support `preview` simply ignores the field — no fallback logic needed.
+- Preview: plain text built only from the menu row's `title`, compact
+  `why`, collision caution, and ranking signals, capped at ~6 lines. It
+  supplements the description rule above, never replaces it. Resume rows
+  use `title`, compact `why`, and `updated_at`. A harness whose
+  `AskUserQuestion` doesn't support `preview` simply ignores the field —
+  no fallback logic needed.
 
 Plus the standard escape to describe something else not on the list.
 
@@ -135,12 +124,23 @@ X" — rather than just picking a different one — offer to mark it
 `deferred` so it stops resurfacing as a recommendation:
 `echo '{"id":"<id>","status":"deferred","notes":"deferred: <trigger>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
 (capture the trigger they named in `notes`). Then re-run
-`next-candidates` and re-ask Q1. Don't defer on your own judgment — only
-when the user signals it; a task that's merely lower-priority stays
+`next-candidates --menu` and re-ask Q1. Don't defer on your own judgment —
+only when the user signals it; a task that's merely lower-priority stays
 `planned`.
 
+**Selected-entry load**: after Q1 (or the single-option skip) chooses an
+entry, fetch that entry alone:
+`node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --ids <id>`.
+Require exactly one returned row and use that full row as the selected entry
+for every step below. Do not fetch the other menu rows. This is where
+`what`, `touches`, `depends_on`, full `notes`, decision-doc fields, and
+`kind` first enter the flow. For this targeted read, the script also derives
+`depends_on_docs` as bounded paths from direct dependencies; it does not
+return those dependency entries.
+
 **Resume via the original agent, before Q2**: if the picked option was a
-resume entry and its `notes` carry the background-agent marker (the phrase
+resume entry and the selected entry's full `notes` carry the
+background-agent marker (the phrase
 "background agent" followed by the backticked id — written by step 5's
 delivery bullet below), try continuing that exact agent before asking
 anything else. Pull the id out of the marker and call `SendMessage` with
@@ -173,12 +173,20 @@ The other two destinations skip it entirely. "How should it run here?" —
 options and their free-text rule are `prompt-template.md`'s "Delivery
 mechanics" section, verbatim.
 
+**Selected-task preparation**: after the destination/mode questions and
+before Q4 or prompt assembly, run
+`node ${CLAUDE_PLUGIN_ROOT}/scripts/render-sections.js` exactly once. This
+satisfies the template's craft-time step 0; reuse its output during
+assembly and surface its `warnings` now, if any. Project-section rendering
+is deliberately delayed until a task has been selected.
+
 <!-- [Foreman: 111] -->
-**Q4 — match the recommendation**, asked only when step 1's render-sections
-result has `modelSuggestions: true` — it defaults to `false`, and a project
-that leaves it off never sees this question or any model/effort line
-anywhere in this branch. Then, and only then, asked when Q2's answer was
-`Execute here`, once per handoff and never once per task row, after Q3 and
+**Q4 — match the recommendation**, asked only when the selected-task
+preparation result has `modelSuggestions: true` — it defaults to `false`,
+and a project that leaves it off never sees this question or any
+model/effort line anywhere in this branch. Then, and only then, asked when
+Q2's answer was `Execute here`, once per handoff and never once per task
+row, after Q3 and
 **before the first task row is created**. The other two destinations skip
 it — there the model is a dispatch value the Model fit bullet already
 confirms. State BOTH halves of the recommendation in the question's
@@ -218,17 +226,17 @@ clipboard path. Say that in one line when the user picks it, so a project
 running `taskCloseGate: "block"` knows the gate is not in play this time.
 
 3. Craft the handoff prompt using `${CLAUDE_PLUGIN_ROOT}/prompt-template.md`'s
-   XML structure, straight from the candidate's fields — no verification
+   XML structure, straight from the selected entry's fields — no verification
    pass:
    - `task_context` goal ← `title` + `why`
-   - `background` / `context` ← `what`, plus the candidate's `notes` when
+   - `background` / `context` ← `what`, plus the selected entry's `notes` when
      non-empty, attributed as prior recorded findings on this entry (a
      survey verdict, a defer trigger, a previous session's evidence) — the
-     candidate already carries them, so this costs nothing and stops the
+     selected-entry read already carries them, so this stops the
      destination re-deriving what someone already wrote down
    - `relevant_files` seed ← `touches`, run once through
      `node ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-symbols.js` (the
-     template's step 0b) — the candidate's paths and its `what` go in, a
+     template's step 0b) — the selected entry's paths and its `what` go in, a
      symbol map comes out. This is a mechanical call, not investigation:
      it reads no file you choose and forms no judgment, so the
      no-investigation rule at the top of this branch still holds. Cite the
@@ -238,7 +246,7 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      correct them with. Don't upgrade the paths any other way.
    - `invariants`, `Expected file surface:`, and test-first ordering — the
      template's three optional per-task fields, all derived from the
-     candidate's own recorded fields, no extra question:
+     selected entry's own recorded fields, no extra question:
      - `invariants` ← the assertions already stated in `why`/`what`/`notes`,
        rewritten as observable assertions. A contract named in those fields
        goes in as the assertion behind it, never as the name — and when the
@@ -246,13 +254,13 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
        that in the line, so the destination knows to establish it rather
        than infer it. Nothing assertable means the block is omitted; that
        is normal.
-     - `Expected file surface:` ← the candidate's `touches` as given,
+     - `Expected file surface:` ← the selected entry's `touches` as given,
        followed by the flag-before-writing sentence the template supplies.
        `touches` is unverified area-level hints, which is precisely why it
        belongs here as a baseline to flag against rather than as a fact.
      - test-first ordering ← only when the entry describes a failure that
        would pass the existing checks. Omit it otherwise.
-   - `depends_on_docs` — when the candidate carries a non-empty one (the
+   - `depends_on_docs` — when the selected entry carries a non-empty one (the
      resolved decision-doc paths of its dependencies), list those paths in
      the handoff (in `background`/`context`) so the destination reads those
      decisions before starting, instead of silently re-deciding a settled
@@ -267,8 +275,8 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      verification commands are what the split cuts on, so gather them
      properly instead of settling for one inferred command — a single
      check yields a single task.
-   - **Decision entry** — when the candidate carries `kind: "decision"`
-     (surfaced by `next-candidates`), this task resolves an open question,
+   - **Decision entry** — when the selected entry carries `kind: "decision"`
+     (surfaced by `list --ids`), this task resolves an open question,
      not a build. Make the first `task_rule` (before the explore bullet):
      "This is a decision, not a build: resolve the open question — state the
      choice and the reason it wins over the alternatives — and do **not**
@@ -279,18 +287,18 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      `<decision_log>` block is present (below), the recorded choice lands
      there and the close carries the `doc` path rather than `"none"`. An
      entry with no `kind` key is an ordinary build — add nothing.
-   - Model fit — **only when step 1's render-sections result has
+   - Model fit — **only when the selected-task preparation result has
      `modelSuggestions: true`**; it defaults to `false`, and when it is
      `false` this bullet and the Effort fit bullet below both produce
      nothing. Call 6's executing-model question still runs on the
      dispatching destinations, since a dispatch needs a model named, but
      with no recommended default and no `(Recommended)` label. A
      DISPATCH-time recommendation, judged now from this
-     candidate's own `touches`/`what` (recorded fields only, same
+     selected entry's own `touches`/`what` (recorded fields only, same
      no-investigation rule as the rest of this branch), never at pick time
      or when the entry was created. If `.foreman/config.json` pins a
-     concrete `targetModel` (already in hand from the render-sections.js
-     call in step 1), that project declaration is the recommendation;
+     concrete `targetModel` (already in hand from the selected-task
+     preparation call), that project declaration is the recommendation;
      otherwise (`inherit`, the default) recommend a model per
      `prompt-template.md`'s "Model fit" note — including its grounded
      caution for a `what` that reconciles stale, conflicting, or renamed
@@ -324,7 +332,7 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      it is the whole mechanism. Q4 asks whether to run the task where the
      recommendation points, never which effort to use — the recommendation
      itself is not a question.
-   - `decision_log` — when step 1's render-sections result carries
+   - `decision_log` — when the selected-task preparation result carries
      `decisionLog.enabled` true, include the template's `<decision_log>`
      block, substituting its `dir` for `<dir>` and this entry's id for
      every `<entry-id>`. Omit the block when `enabled` is false (the
@@ -461,15 +469,19 @@ picking `Execute here` above, not this skill deciding on its own.
    id/title/status in one line and ask whether to add anyway
    (`AskUserQuestion`: `Add it anyway` / `Never mind`); a `rejected` match
    means the user already declined this, say so. No match: add it without
-   comment. Ask *before* the write, not after — `add` has no undo, `title`/
+   comment. If the user confirms an exact-title match is genuinely separate,
+   ask them for a distinguishing title; exact adds are always replay-safe and
+   never have an override. Ask *before* the write, not after — `add` has no undo, `title`/
    `why`/`what` are immutable once written, and the only exit is
    `update-status dropped`, which leaves the row in the file forever.
 3. `echo '{"title":"...","why":"...","what":"...","source":"user","depends_on":[...],"touches":[...]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js add`
    — the script computes the id, validates required fields (including that
    every `depends_on` id already exists), and confirms the file is still
-   well-formed after writing.
-4. Confirm back to the user with the new task's id and title (from the
-   script's JSON response), and surface any `warnings` the response carries,
+   well-formed after writing. An exact replay safely returns the existing
+   entry with `deduped: true` instead of adding another row.
+4. Confirm back to the user with the task's id and title (from the script's
+   JSON response). If `deduped: true`, say it was already tracked and no
+   duplicate was created. Surface any `warnings` the response carries,
    verbatim, in the same line.
 
 ---

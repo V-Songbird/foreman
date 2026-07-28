@@ -14,6 +14,10 @@ proceed from what you actually find — and treat the mismatch itself as part
 of the outcome: state it in one line of your final message (and in the
 roadmap entry's notes, if this task closes one). A minimal register trims
 narration, never a found discrepancy.
+One limit on that: the facts above are hypotheses, but the approach this
+prompt prescribes is a decision already taken. If what you find makes that
+approach unworkable, stop and report it — never silently substitute an
+approach of your own.
 </truth_grounding>
 
 <scope_discipline>

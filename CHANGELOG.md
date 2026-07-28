@@ -12,6 +12,8 @@ field by convention).
 
 ### Added
 
+- New experimental `/foreman:sprint` command works serially through up to five ready tasks from one approved plan and asks for one final acceptance.
+- Roadmap mutations now report newly unblocked, newly blocked, and stranded dependent tasks when the change creates them.
 - Crafting a prompt now checks whether the verification command can actually run in this project, and says so before the prompt is handed off.
 - A file that already imports the same helper is offered as a pattern to imitate, so the prompt cites a real example instead of general advice.
 - Each file a task touches now carries the date it last changed, making it clear which of the task's claims may have aged.
@@ -20,6 +22,10 @@ field by convention).
 
 ### Changed
 
+- Picking the next task now loads a compact choice menu and fetches full detail only for the selected entry.
+- Sprint handoffs are now built immediately before each task runs, so later tasks see earlier changes; planned path overlap is shown in the approved serial plan.
+- Roadmap writes now serialize automatically across concurrent Foreman sessions, and repeating an exact task add safely reuses the existing entry.
+- Task closure notes must cite observed work or outcomes instead of treating the planned task description as proof.
 - A commit that looks like it finishes a task now records the work and asks you to confirm it's verified before the task is closed. Set `requireVerification` to `false` to close it as soon as the commit lands.
 
 ### Removed

@@ -43,6 +43,7 @@ const PLUGIN_ROOT = '/plugins/foreman';
 const scopeText = canonical.scopeDiscipline.split('${CLAUDE_PLUGIN_ROOT}').join(PLUGIN_ROOT);
 const NO_INVENTION_LINE = `If a file, symbol, or fallback path this prompt names does not exist as described, ${NO_INVENTION_SENTENCE}`;
 const FIX_CEILING_LINE = `Do NOT claim success without running this. If it fails, fix and re-run — but ${FIX_CEILING_SENTENCE}`;
+const CLOSURE_EVIDENCE_SENTENCE = 'Closure notes and findings describe only observed work and cite supporting files, commands, commits, or outcomes; never restate planned scope as evidence that it was executed.';
 
 function goodPrompt(overrides = {}) {
   const parts = {
@@ -127,6 +128,17 @@ describe('guardrail blocks', () => {
     const project = makeTmpProject();
     const { json } = check(project, goodPrompt({ closing: '' }), ['--destination', 'clipboard']);
     assert.ok(json.errors.some((e) => e.includes('closing paragraph')));
+  });
+
+  test('altered closure evidence rule is an error', () => {
+    const project = makeTmpProject();
+    const closing = canonical.closing.replace(
+      CLOSURE_EVIDENCE_SENTENCE,
+      'Closure notes may summarize the planned scope.'
+    );
+    const { status, json } = check(project, goodPrompt({ closing }), ['--destination', 'clipboard']);
+    assert.equal(status, 1);
+    assert.ok(json.errors.some((e) => e.includes('closing paragraph')), JSON.stringify(json.errors));
   });
 });
 
@@ -658,6 +670,18 @@ describe('the ordered plan block', () => {
 });
 
 describe('durable handoff guardrails', () => {
+  test('the canonical closure rule pins observed evidence in the template and craft-prompt flow', () => {
+    assert.ok(
+      canonical.closing.includes(CLOSURE_EVIDENCE_SENTENCE),
+      'the canonical closing paragraph lost the closure-evidence rule'
+    );
+    const skill = fs.readFileSync(path.join(__dirname, '..', 'skills', 'craft-prompt', 'SKILL.md'), 'utf-8');
+    const normalized = skill.replace(/\s+/g, ' ');
+    assert.match(normalized, /closure notes and findings describe only observed work/);
+    assert.match(normalized, /cite supporting files, commands, commits, or outcomes/);
+    assert.match(normalized, /planned scope is never evidence that it was executed/);
+  });
+
   test('the precedence rule rides inside the canonical truth_grounding block', () => {
     assert.ok(
       /approach this\s+prompt prescribes is a decision already taken/.test(canonical.truthGrounding),

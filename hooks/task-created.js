@@ -24,7 +24,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const { readEntries, cmdUpdateStatus } = require("../scripts/roadmap");
+const { cmdUpdateStatus } = require("../scripts/roadmap");
 
 // The exact phrase the roadmap skill embeds right after scope_discipline.
 // Backticks are optional: descriptions are model-authored (paraphrased),
@@ -66,19 +66,15 @@ function main() {
   const root = projectDir(data);
   if (!fs.existsSync(path.join(root, "ROADMAP.jsonl"))) return;
 
-  let entries;
   try {
-    entries = readEntries(root);
-  } catch {
-    return; // corrupt file — never block or complicate task creation
-  }
-  const entry = entries.find((e) => e.id === id);
-  // Only the sanctioned transition: an entry the picking flow left planned.
-  // Never regress done/dropped/deferred, never re-touch in_progress.
-  if (!entry || entry.status !== "planned") return;
-
-  try {
-    cmdUpdateStatus(root, { id, status: "in_progress" });
+    // The expected-status guard is checked after the roadmap mutation lock is
+    // acquired. That single locked compare-and-set prevents a stale hook from
+    // regressing an entry another session just completed.
+    cmdUpdateStatus(root, {
+      id,
+      status: "in_progress",
+      expected_status: "planned",
+    });
   } catch {
     // best effort — the embedded prose instruction remains the fallback
   }

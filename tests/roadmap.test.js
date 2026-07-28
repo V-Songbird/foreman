@@ -16,7 +16,8 @@
 //     oldest created_at; counts only open dependents; supports --hint
 //     relevance ranking; flags touches collisions against in_progress,
 //     surfaces each candidate's notes and depends_on, and defaults to a
-//     limit of 3
+//     limit of 3; --menu preserves the order while omitting unselected
+//     task detail and bounding its why text
 //   - add/update-status return a `warnings` field for long why/what/notes
 //     without failing the write
 //   - annotate appends notes and bumps updated_at without touching status
@@ -129,6 +130,223 @@ describe('add', () => {
     });
     assert.equal(status, 1);
     assert.match(json.error, /add status must be one of/);
+  });
+
+  test('repeating an exact title is an idempotent no-op', () => {
+    const payload = { title: 'Safe retry', why: 'retry', what: 'retry', source: 'user' };
+    const first = run(['add'], payload);
+    const second = run(['add'], payload);
+
+    assert.equal(first.json.entry.id, '001');
+    assert.equal(second.json.entry.id, '001');
+    assert.equal(second.json.deduped, true);
+    assert.equal(run(['list']).json.entries.length, 1);
+  });
+
+  test('an exact-title add stays deduplicated even when the caller supplies extra fields', () => {
+    const payload = { title: 'Twin task', why: 'first', what: 'first', source: 'user' };
+    run(['add'], payload);
+    const { json } = run(['add'], {
+      ...payload,
+      why: 'second',
+      what: 'second',
+    });
+
+    assert.equal(json.entry.id, '001');
+    assert.equal(json.deduped, true);
+    assert.equal(run(['list']).json.entries.length, 1);
+  });
+});
+
+describe('mutation graph facts', () => {
+  const base = (id, title, status, depends_on = []) => ({
+    id,
+    title,
+    why: title,
+    what: title,
+    status,
+    source: 'user',
+    depends_on,
+    touches: [],
+    commits: [],
+    created_at: '2026-07-01',
+    updated_at: '2026-07-01',
+    notes: '',
+  });
+
+  test('closing the last blocker reports the task that became ready', () => {
+    writeRoadmap(project, [
+      base('001', 'blocker', 'in_progress'),
+      base('002', 'dependent', 'planned', ['001']),
+    ]);
+
+    const { json } = run(['update-status'], { id: '001', status: 'done' });
+
+    assert.deepEqual(json.newly_unblocked, [{ id: '002', title: 'dependent' }]);
+    assert.equal(json.newly_blocked, undefined);
+  });
+
+  test('adding a dependency reports the task that stopped being ready', () => {
+    writeRoadmap(project, [
+      base('001', 'blocker', 'planned'),
+      base('002', 'dependent', 'planned'),
+    ]);
+
+    const { json } = run(['update-deps'], { id: '002', add_depends_on: ['001'] });
+
+    assert.deepEqual(json.newly_blocked, [{ id: '002', title: 'dependent' }]);
+  });
+
+  test('dropping a dependency reports open dependents that are stranded', () => {
+    writeRoadmap(project, [
+      base('001', 'blocker', 'planned'),
+      base('002', 'dependent', 'planned', ['001']),
+    ]);
+
+    const { json } = run(['update-status'], { id: '001', status: 'dropped' });
+
+    assert.deepEqual(json.stranded_dependents, [{ id: '002', title: 'dependent' }]);
+  });
+
+  test('rejecting a done dependency reports both blocked and stranded consequences', () => {
+    writeRoadmap(project, [
+      base('001', 'blocker', 'done'),
+      base('002', 'dependent', 'planned', ['001']),
+    ]);
+
+    const { json } = run(['update-status'], { id: '001', status: 'rejected' });
+
+    assert.deepEqual(json.newly_blocked, [{ id: '002', title: 'dependent' }]);
+    assert.deepEqual(json.stranded_dependents, [{ id: '002', title: 'dependent' }]);
+  });
+
+  test('removing a dropped dependency reports the task that became ready', () => {
+    writeRoadmap(project, [
+      base('001', 'dropped blocker', 'dropped'),
+      base('002', 'dependent', 'planned', ['001']),
+    ]);
+
+    const { json } = run(['update-deps'], { id: '002', remove_depends_on: ['001'] });
+
+    assert.deepEqual(json.newly_unblocked, [{ id: '002', title: 'dependent' }]);
+    assert.equal(json.stranded_dependents, undefined);
+  });
+
+  test('the status-mutated entry is not reported as its own graph consequence', () => {
+    writeRoadmap(project, [base('001', 'self', 'planned')]);
+
+    const { json } = run(['update-status'], { id: '001', status: 'in_progress' });
+
+    assert.equal(json.newly_blocked, undefined);
+  });
+
+  test('unrelated status changes do not return empty graph fields', () => {
+    writeRoadmap(project, [base('001', 'standalone', 'in_progress')]);
+
+    const { json } = run(['update-status'], { id: '001', status: 'done' });
+
+    assert.equal(json.newly_unblocked, undefined);
+    assert.equal(json.newly_blocked, undefined);
+    assert.equal(json.stranded_dependents, undefined);
+  });
+});
+
+describe('update-status compare-and-set guard', () => {
+  test('skips a stale hook transition without regressing the entry', () => {
+    writeRoadmap(project, [
+      {
+        id: '001',
+        title: 'finished',
+        why: 'done',
+        what: 'done',
+        status: 'done',
+        source: 'user',
+        depends_on: [],
+        touches: [],
+        commits: ['abc1234'],
+        created_at: '2026-07-01',
+        updated_at: '2026-07-01',
+        notes: '',
+      },
+    ]);
+
+    const { json } = run(['update-status'], {
+      id: '001',
+      status: 'in_progress',
+      expected_status: 'planned',
+    });
+
+    assert.equal(json.skipped, true);
+    assert.equal(json.entry.status, 'done');
+    assert.equal(run(['list', '--ids', '001']).json.entries[0].status, 'done');
+  });
+});
+
+describe('update-status ready dispatch guard', () => {
+  const readyEntry = (id, title, status, depends_on = []) => ({
+    id,
+    title,
+    why: `${title} matters`,
+    what: `Implement ${title}`,
+    status,
+    source: 'user',
+    depends_on,
+    touches: [],
+    commits: [],
+    created_at: '2026-07-01',
+    updated_at: '2026-07-01',
+    notes: '',
+  });
+
+  test('atomically skips dispatch when a dependency is no longer done', () => {
+    writeRoadmap(project, [
+      readyEntry('001', 'blocker', 'planned'),
+      readyEntry('002', 'dependent', 'planned', ['001']),
+    ]);
+
+    const { json } = run(['update-status'], {
+      id: '002',
+      status: 'in_progress',
+      expected_status: 'planned',
+      require_ready: true,
+    });
+
+    assert.equal(json.skipped, true);
+    assert.equal(json.reason, 'dependencies_not_done');
+    assert.deepEqual(json.blocking_dependencies, [
+      { id: '001', title: 'blocker', status: 'planned' },
+    ]);
+    assert.equal(run(['list', '--ids', '002']).json.entries[0].status, 'planned');
+  });
+
+  test('starts the unit when every dependency is still done', () => {
+    writeRoadmap(project, [
+      readyEntry('001', 'blocker', 'done'),
+      readyEntry('002', 'dependent', 'planned', ['001']),
+    ]);
+
+    const { json } = run(['update-status'], {
+      id: '002',
+      status: 'in_progress',
+      expected_status: 'planned',
+      require_ready: true,
+    });
+
+    assert.equal(json.skipped, undefined);
+    assert.equal(json.entry.status, 'in_progress');
+  });
+
+  test('rejects a non-boolean readiness guard', () => {
+    writeRoadmap(project, [readyEntry('001', 'unit', 'planned')]);
+
+    const { status, json } = run(['update-status'], {
+      id: '001',
+      status: 'in_progress',
+      require_ready: 'yes',
+    });
+
+    assert.equal(status, 1);
+    assert.match(json.error, /require_ready must be a boolean/);
   });
 });
 
@@ -538,6 +756,29 @@ describe('list', () => {
     assert.deepEqual(json.entries.map((e) => e.id).sort(), ['001', '003']);
   });
 
+  test('--ids enriches only selected entries with direct dependency document pointers', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'documented decision', status: 'done', depends_on: [], doc: 'docs/foreman/001.md' },
+      { id: '002', title: 'no document', status: 'done', depends_on: [], doc: 'none' },
+      { id: '003', title: 'selected task', status: 'planned', depends_on: ['001', '002'] },
+      { id: '004', title: 'unselected task', status: 'planned', depends_on: [] },
+    ]);
+
+    const { json } = run(['list', '--ids', '003']);
+    assert.deepEqual(json.entries.map((e) => e.id), ['003']);
+    assert.deepEqual(json.entries[0].depends_on_docs, ['docs/foreman/001.md']);
+  });
+
+  test('whole-roadmap list output is not enriched with dependency document pointers', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'documented decision', status: 'done', depends_on: [], doc: 'docs/foreman/001.md' },
+      { id: '002', title: 'dependent task', status: 'planned', depends_on: ['001'] },
+    ]);
+
+    const { json } = run(['list']);
+    assert.equal(json.entries.find((e) => e.id === '002').depends_on_docs, undefined);
+  });
+
   test('combines --status and --ids (AND, not OR)', () => {
     const { json } = run(['list', '--status', 'planned,done', '--ids', '001,002']);
     assert.deepEqual(json.entries.map((e) => e.id), ['001']);
@@ -861,6 +1102,104 @@ describe('next-candidates', () => {
     const { json } = run(['next-candidates', '--limit', '3']);
     assert.equal(json.candidates.length, 3);
     assert.equal(json.total_unblocked, 8);
+  });
+
+  test('--menu preserves the full result ordering and ranking signals', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'in flight', why: 'Already underway', what: 'x', status: 'in_progress', depends_on: [], touches: ['src/shared.js'], updated_at: '2026-07-01' },
+      { id: '002', title: 'clean chain root', why: 'Unlock the chain', what: 'x', status: 'planned', depends_on: [], touches: ['src/clean.js'], created_at: '2026-07-03' },
+      { id: '003', title: 'blocked leaf', why: 'Waits on root', what: 'x', status: 'planned', depends_on: ['002'], touches: [] },
+      { id: '004', title: 'older collision', why: 'Touches shared code', what: 'x', status: 'planned', depends_on: [], touches: ['src/shared.js'], created_at: '2026-06-01' },
+    ]);
+
+    const full = run(['next-candidates', '--hint', 'chain']).json;
+    const menu = run(['next-candidates', '--menu', '--hint', 'chain']).json;
+
+    assert.deepEqual(menu.candidates.map((c) => c.id), full.candidates.map((c) => c.id));
+    assert.deepEqual(
+      menu.candidates.map(({ unblocks, unblocks_total, hint_score, collision, created_at }) => ({
+        unblocks, unblocks_total, hint_score, collision, created_at,
+      })),
+      full.candidates.map(({ unblocks, unblocks_total, hint_score, collision, created_at }) => ({
+        unblocks, unblocks_total, hint_score, collision, created_at,
+      }))
+    );
+    assert.equal(menu.total_unblocked, full.total_unblocked);
+    assert.equal(menu.hint_matched, full.hint_matched);
+  });
+
+  test('--menu carries only compact choice fields for candidates and in-progress rows', () => {
+    writeRoadmap(project, [
+      {
+        id: '001',
+        title: 'Resume me',
+        why: `${'resume '.repeat(50)}\nwith context`,
+        what: 'large resume details',
+        status: 'in_progress',
+        depends_on: [],
+        touches: ['src/resume.js'],
+        notes: 'full prior findings',
+        updated_at: '2026-07-02',
+        doc: 'docs/foreman/001.md',
+        kind: 'decision',
+      },
+      {
+        id: '002',
+        title: 'Choose me',
+        why: `${'candidate '.repeat(40)}\nwith context`,
+        what: 'large candidate details',
+        status: 'planned',
+        depends_on: [],
+        touches: ['src/candidate.js'],
+        notes: 'full candidate findings',
+        created_at: '2026-07-01',
+        doc: 'docs/foreman/002.md',
+        kind: 'decision',
+      },
+    ]);
+
+    const { json } = run(['next-candidates', '--menu']);
+    assert.deepEqual(Object.keys(json.candidates[0]).sort(), [
+      'collision', 'created_at', 'id', 'title', 'unblocks', 'unblocks_total', 'why',
+    ]);
+    assert.deepEqual(Object.keys(json.in_progress[0]).sort(), [
+      'id', 'title', 'updated_at', 'why',
+    ]);
+    assert.ok(json.candidates[0].why.length <= 240);
+    assert.ok(json.in_progress[0].why.length <= 240);
+    assert.doesNotMatch(json.candidates[0].why, /\n/);
+    assert.doesNotMatch(json.in_progress[0].why, /\n/);
+    for (const row of [...json.candidates, ...json.in_progress]) {
+      assert.equal(row.what, undefined);
+      assert.equal(row.touches, undefined);
+      assert.equal(row.notes, undefined);
+      assert.equal(row.depends_on, undefined);
+      assert.equal(row.depends_on_docs, undefined);
+      assert.equal(row.doc, undefined);
+      assert.equal(row.kind, undefined);
+    }
+  });
+
+  test('--menu materially reduces payload when unselected tasks have large details', () => {
+    writeRoadmap(
+      project,
+      Array.from({ length: 3 }, (_, i) => ({
+        id: String(i + 1).padStart(3, '0'),
+        title: `large task ${i + 1}`,
+        why: 'A short reason',
+        what: 'implementation detail '.repeat(300),
+        status: 'planned',
+        depends_on: [],
+        touches: Array.from({ length: 100 }, (_unused, n) => `src/area-${i}/file-${n}.js`),
+        notes: 'recorded finding '.repeat(500),
+        created_at: `2026-07-0${i + 1}`,
+        doc: `docs/foreman/00${i + 1}.md`,
+      }))
+    );
+
+    const full = JSON.stringify(run(['next-candidates']).json);
+    const menu = JSON.stringify(run(['next-candidates', '--menu']).json);
+    assert.ok(menu.length < full.length * 0.1, `expected menu ${menu.length} to be <10% of full ${full.length}`);
   });
 });
 

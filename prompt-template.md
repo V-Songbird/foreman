@@ -431,7 +431,7 @@ if Call 1 selected it.]
 
 [The immediate, specific request in one sentence.]
 
-Reason through the approach and edge cases in your thinking before editing — not in prose between tool calls. The steps and commands above are a working plan, not a narration script: whatever output style governs this session decides what you say aloud, so don't announce step transitions or restate command results in chat. The same style governs the register of your final message. Full evidence and findings belong in their durable home — the roadmap entry, the commit message, or the artifact the task names — with the final message stating the outcome and pointing there.
+Reason through the approach and edge cases in your thinking before editing — not in prose between tool calls. The steps and commands above are a working plan, not a narration script: whatever output style governs this session decides what you say aloud, so don't announce step transitions or restate command results in chat. The same style governs the register of your final message. Full evidence and findings belong in their durable home — the roadmap entry, the commit message, or the artifact the task names — with the final message stating the outcome and pointing there. Closure notes and findings describe only observed work and cite supporting files, commands, commits, or outcomes; never restate planned scope as evidence that it was executed.
 
 <plan>
 The order of work, stated once so you don't have to assemble it:
@@ -536,6 +536,9 @@ using them:
       handoff time)
 - [ ] `<plan>` present, unmodified — every handoff carries it, and nothing
       elsewhere in the prompt restates the order it already fixes
+- [ ] the fixed closing paragraph's closure-evidence rule is present,
+      unmodified — notes and findings cite observed files, commands,
+      commits, or outcomes, never planned scope presented as execution
 - [ ] `task_rules` has analyze/implement steps AND a runnable
       verification command with expected output (a pure-investigation
       handoff carries the question plus exact commands instead of steps;

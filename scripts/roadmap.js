@@ -4,6 +4,7 @@
 const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
+const { withRoadmapLock } = require("./roadmap-lock");
 
 function projectDir() {
   return path.resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
@@ -170,6 +171,16 @@ const WHAT_WARN_CHARS = 400;
 const NOTES_APPEND_WARN_CHARS = 3000;
 const NOTES_WARN_HINT = "a dense finding, not a wall of narrative or a serialized blob";
 
+// Menu rows cross the context boundary before the user has chosen a task, so
+// keep their only prose field bounded even when an older entry predates (or
+// ignored) the soft warning above. The selected entry is fetched in full
+// through `list --ids` after the choice.
+function menuExcerpt(text, maxChars = WHY_WARN_CHARS) {
+  const compact = String(text || "").replace(/\s+/g, " ").trim();
+  if (compact.length <= maxChars) return compact;
+  return `${compact.slice(0, maxChars - 1).trimEnd()}…`;
+}
+
 // notes accumulates across sessions, so each append gets its own dated line.
 // updated_at only says the entry moved, never which note moved it, and a
 // bare separator collapsed N sessions of findings into one run-on string.
@@ -235,7 +246,22 @@ function validateRan(name, value, allowed) {
 }
 
 function cmdAdd(root, payload) {
-  const { title, why, what, source, status, depends_on, touches, notes, doc, kind } = payload || {};
+  return withRoadmapLock(root, () => cmdAddUnlocked(root, payload));
+}
+
+function cmdAddUnlocked(root, payload) {
+  const {
+    title,
+    why,
+    what,
+    source,
+    status,
+    depends_on,
+    touches,
+    notes,
+    doc,
+    kind,
+  } = payload || {};
   if (!title || !why || !what) {
     throw new Error("add requires title, why, what");
   }
@@ -249,6 +275,10 @@ function cmdAdd(root, payload) {
   if (doc !== undefined) validateDoc(doc);
   if (kind !== undefined) validateKind(kind);
   const entries = readEntries(root);
+  const exact = entries.find((entry) => entry.title === title);
+  if (exact) {
+    return { entry: exact, deduped: true };
+  }
   // Same trust boundary update-deps already guards: an id that doesn't
   // resolve strands the entry out of next-candidates permanently — the
   // guard hook denies the hand-edit repair and depends_on only ever grows.
@@ -402,11 +432,94 @@ function stageRoadmapFile(root) {
   }
 }
 
+function compactEntries(entries, ids) {
+  return [...ids]
+    .map((id) => entries.find((entry) => entry.id === id))
+    .filter(Boolean)
+    .map(({ id, title }) => ({ id, title }));
+}
+
+function graphState(entries) {
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
+  const done = new Set(entries.filter((entry) => entry.status === "done").map((entry) => entry.id));
+  const ready = new Set(
+    entries
+      .filter((entry) => entry.status === "planned")
+      .filter((entry) => (entry.depends_on || []).every((dependency) => done.has(dependency)))
+      .map((entry) => entry.id)
+  );
+  const stranded = new Set(
+    entries
+      .filter((entry) => !["done", "dropped", "rejected"].includes(entry.status))
+      .filter((entry) =>
+        (entry.depends_on || []).some((dependency) => {
+          const parent = byId.get(dependency);
+          return !parent || ["dropped", "rejected"].includes(parent.status);
+        })
+      )
+      .map((entry) => entry.id)
+  );
+  return { ready, stranded };
+}
+
+function graphFacts(beforeEntries, afterEntries, options = {}) {
+  const before = graphState(beforeEntries);
+  const after = graphState(afterEntries);
+  const omit = new Set(options.omit || []);
+  const difference = (left, right) =>
+    new Set([...left].filter((id) => !right.has(id) && !omit.has(id)));
+  const newlyUnblocked = difference(after.ready, before.ready);
+  const newlyBlocked = difference(before.ready, after.ready);
+  const strandedDependents = difference(after.stranded, before.stranded);
+  const facts = {};
+  if (newlyUnblocked.size) {
+    facts.newly_unblocked = compactEntries(afterEntries, newlyUnblocked);
+  }
+  if (newlyBlocked.size) {
+    facts.newly_blocked = compactEntries(afterEntries, newlyBlocked);
+  }
+  if (strandedDependents.size) {
+    facts.stranded_dependents = compactEntries(afterEntries, strandedDependents);
+  }
+  return facts;
+}
+
 function cmdUpdateStatus(root, payload) {
-  const { id, status, commit, staged, notes, add_touches, doc, kind, model, effort } = payload || {};
+  return withRoadmapLock(root, () => cmdUpdateStatusUnlocked(root, payload));
+}
+
+function cmdUpdateStatusUnlocked(root, payload) {
+  const {
+    id,
+    status,
+    commit,
+    staged,
+    notes,
+    add_touches,
+    doc,
+    kind,
+    model,
+    effort,
+    expected_status,
+    require_ready,
+  } = payload || {};
   if (!id || !status) throw new Error("update-status requires id, status");
   if (!STATUSES.has(status)) {
     throw new Error(`status must be one of ${[...STATUSES].join("|")}`);
+  }
+  if (expected_status !== undefined && !STATUSES.has(expected_status)) {
+    throw new Error(`expected_status must be one of ${[...STATUSES].join("|")}`);
+  }
+  if (require_ready !== undefined && typeof require_ready !== "boolean") {
+    throw new Error("require_ready must be a boolean");
+  }
+  if (
+    require_ready
+    && (status !== "in_progress" || expected_status !== "planned")
+  ) {
+    throw new Error(
+      "require_ready is only valid for expected planned -> in_progress dispatch"
+    );
   }
   // A staged close exists precisely because the commit doesn't yet — the
   // two link modes are mutually exclusive by construction.
@@ -421,8 +534,48 @@ function cmdUpdateStatus(root, payload) {
   if (model !== undefined) validateRan("model", model, MODELS);
   if (effort !== undefined) validateRan("effort", effort, EFFORTS);
   const entries = readEntries(root);
+  const beforeEntries = entries.map((entry) => ({
+    ...entry,
+    depends_on: [...(entry.depends_on || [])],
+  }));
   const entry = entries.find((e) => e.id === id);
   if (!entry) throw new Error(`no entry with id ${id}`);
+  // Internal compare-and-set guard for hooks that first made a read-only
+  // eligibility check. Recheck inside the mutation lock so a concurrent
+  // close cannot be regressed by the stale hook observation.
+  if (expected_status !== undefined && entry.status !== expected_status) {
+    return {
+      entry,
+      skipped: true,
+      reason: "status_mismatch",
+      expected_status,
+    };
+  }
+  if (require_ready) {
+    const byId = new Map(entries.map((candidate) => [candidate.id, candidate]));
+    const blockingDependencies = (entry.depends_on || [])
+      .map((dependencyId) => {
+        const dependency = byId.get(dependencyId);
+        return dependency
+          ? {
+              id: dependency.id,
+              title: dependency.title,
+              status: dependency.status,
+            }
+          : { id: dependencyId, title: "(missing)", status: "missing" };
+      });
+    const unfinishedDependencies = blockingDependencies.filter(
+      (dependency) => dependency.status !== "done"
+    );
+    if (unfinishedDependencies.length) {
+      return {
+        entry,
+        skipped: true,
+        reason: "dependencies_not_done",
+        blocking_dependencies: unfinishedDependencies,
+      };
+    }
+  }
   entry.status = status;
   if (doc !== undefined) entry.doc = doc;
   // What ran, not what was recommended -- the gap between the two is the
@@ -473,7 +626,7 @@ function cmdUpdateStatus(root, payload) {
   entry.updated_at = today();
   writeEntries(root, entries);
   const warnings = notes ? fieldWarnings([["notes", notes, NOTES_APPEND_WARN_CHARS, NOTES_WARN_HINT]]) : [];
-  const result = { entry };
+  const result = { entry, ...graphFacts(beforeEntries, entries, { omit: [id] }) };
   if (derivedTouches.length) result.derived_touches = derivedTouches;
   if (drift && (drift.untouched.length || drift.unpredicted.length)) result.scope_drift = drift;
   // A staged close hands back the exact trailer line the commit message
@@ -489,6 +642,10 @@ function cmdUpdateStatus(root, payload) {
 // re-assert a status the caller read earlier, which would silently regress
 // an entry another session has since moved (e.g. planned -> in_progress).
 function cmdAnnotate(root, payload) {
+  return withRoadmapLock(root, () => cmdAnnotateUnlocked(root, payload));
+}
+
+function cmdAnnotateUnlocked(root, payload) {
   const { id, notes } = payload || {};
   if (!id || !notes) throw new Error("annotate requires id, notes");
   const entries = readEntries(root);
@@ -524,6 +681,10 @@ function reaches(entries, startId, targetId) {
 // reads. Unlike notes, this changes future ranking mechanically instead of
 // just leaving a breadcrumb for a human/Claude to notice.
 function cmdUpdateDeps(root, payload) {
+  return withRoadmapLock(root, () => cmdUpdateDepsUnlocked(root, payload));
+}
+
+function cmdUpdateDepsUnlocked(root, payload) {
   const { id, add_depends_on, remove_depends_on } = payload || {};
   const adds = Array.isArray(add_depends_on) ? add_depends_on : [];
   const removes = Array.isArray(remove_depends_on) ? remove_depends_on : [];
@@ -531,6 +692,10 @@ function cmdUpdateDeps(root, payload) {
     throw new Error("update-deps requires id and a non-empty add_depends_on or remove_depends_on array");
   }
   const entries = readEntries(root);
+  const beforeEntries = entries.map((entry) => ({
+    ...entry,
+    depends_on: [...(entry.depends_on || [])],
+  }));
   const entry = entries.find((e) => e.id === id);
   if (!entry) throw new Error(`no entry with id ${id}`);
   const knownIds = new Set(entries.map((e) => e.id));
@@ -558,11 +723,12 @@ function cmdUpdateDeps(root, payload) {
   }
   entry.updated_at = today();
   writeEntries(root, entries);
-  return { entry };
+  return { entry, ...graphFacts(beforeEntries, entries) };
 }
 
 function cmdList(root, filters) {
   const entries = readEntries(root);
+  const byId = new Map(entries.map((e) => [e.id, e]));
   const statusFilter = filters.status ? new Set(String(filters.status).split(",")) : null;
   const idsFilter = filters.ids ? new Set(String(filters.ids).split(",")) : null;
   let filtered = entries;
@@ -579,8 +745,27 @@ function cmdList(root, filters) {
       status: e.status,
       depends_on: e.depends_on || [],
     }));
+  } else if (idsFilter) {
+    // A targeted detail read is the post-menu preparation path. Carry only
+    // the direct dependencies' decision-document pointers so the caller can
+    // honor settled decisions without loading those dependency entries too.
+    // Whole-roadmap list output remains the stored entries unchanged.
+    filtered = filtered.map((e) => ({
+      ...e,
+      depends_on_docs: dependencyDocs(e, byId),
+    }));
   }
   return { entries: filtered };
+}
+
+// Upstream decision docs the dispatch should read before starting, so a task
+// building on an earlier decision does not silently re-decide it. Direct
+// parents only, and "none" explicitly means there is no document pointer.
+function dependencyDocs(entry, byId) {
+  return (entry.depends_on || [])
+    .map((dep) => byId.get(dep))
+    .filter((dependency) => dependency && typeof dependency.doc === "string" && dependency.doc !== "none")
+    .map((dependency) => dependency.doc);
 }
 
 // Statuses that still want their dependencies finished — a done/dropped/
@@ -664,13 +849,8 @@ function cmdNextCandidates(root, filters) {
       collision: (e.touches || []).some((t) => inProgressTouches.has(t)),
       created_at: e.created_at,
       notes: e.notes || "",
-      // Upstream decision docs the dispatch should read before starting, so a
-      // task building on an earlier decision on new files doesn't re-decide it.
       // Direct parents only, not the transitive chain. [Foreman: 097]
-      depends_on_docs: (e.depends_on || [])
-        .map((dep) => byId.get(dep))
-        .filter((d) => d && typeof d.doc === "string" && d.doc !== "none")
-        .map((d) => d.doc),
+      depends_on_docs: dependencyDocs(e, byId),
       ...(e.doc !== undefined ? { doc: e.doc } : {}),
       ...(e.kind !== undefined ? { kind: e.kind } : {}),
     }))
@@ -685,10 +865,9 @@ function cmdNextCandidates(root, filters) {
       return String(a.created_at || "").localeCompare(String(b.created_at || ""));
     });
 
-  // in_progress entries ride along (full-ish fields — there are rarely more
-  // than a couple): the pick flow offers to finish existing work before
-  // starting new work, and re-crafting a resume prompt needs the entry's
-  // substance without a second CLI call.
+  // in_progress entries ride along so the pick flow can offer to finish
+  // existing work before starting something new. Full callers still receive
+  // the entry substance; --menu projects these to choice-only rows below.
   const inProgress = entries
     .filter((e) => e.status === "in_progress")
     .map((e) => ({
@@ -705,9 +884,33 @@ function cmdNextCandidates(root, filters) {
     }));
 
   const result = {
-    candidates: unblocked.slice(0, limit),
+    // Shape only after filtering and sorting so --menu can never drift from
+    // the established recommendation order. Full output stays the default
+    // for existing callers that need the complete candidate records.
+    candidates: unblocked.slice(0, limit).map((candidate) =>
+      filters && filters.menu
+        ? {
+            id: candidate.id,
+            title: candidate.title,
+            why: menuExcerpt(candidate.why),
+            unblocks: candidate.unblocks,
+            unblocks_total: candidate.unblocks_total,
+            ...(candidate.hint_score !== undefined ? { hint_score: candidate.hint_score } : {}),
+            collision: candidate.collision,
+            created_at: candidate.created_at,
+          }
+        : candidate
+    ),
     total_unblocked: unblocked.length,
-    in_progress: inProgress,
+    in_progress:
+      filters && filters.menu
+        ? inProgress.map((entry) => ({
+            id: entry.id,
+            title: entry.title,
+            why: menuExcerpt(entry.why),
+            updated_at: entry.updated_at,
+          }))
+        : inProgress,
   };
   // hint_matched tells the caller whether relevance actually reordered
   // anything — all-zero scores mean the list below is just the standard
@@ -786,7 +989,10 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     kind: "build" (default, never stored) | "decision" (resolve
                     an open question, no code) -- only "decision" is stored;
                     the pick flow hands a decision entry a "decide, don't build" rule
-  update-status     stdin JSON: {id, status, commit?, staged?, notes?, add_touches?, doc?, kind?, model?, effort?}
+                    an exact existing title returns that entry with
+                    deduped:true; intentional separate tasks need distinct
+                    titles so every add remains safe to replay
+  update-status     stdin JSON: {id, status, commit?, staged?, notes?, add_touches?, doc?, kind?, model?, effort?, expected_status?, require_ready?}
                     status: "planned" | "in_progress" | "deferred" | "done" | "dropped" | "rejected"
                     "deferred" = recorded but waiting on an external trigger;
                     excluded from next-candidates until moved back to "planned"
@@ -812,6 +1018,14 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     effort: "low" | "medium" | "high" | "xhigh" | "max" --
                     likewise; both are self-reported (nothing can detect
                     them) and omitted entirely when not given
+                    dependency changes caused by the transition return
+                    compact newly_unblocked/newly_blocked/
+                    stranded_dependents facts only when non-empty
+                    expected_status is an internal compare-and-set guard:
+                    a mismatch returns skipped:true without writing
+                    require_ready is an internal dispatch guard: under the
+                    same mutation lock, every dependency must still be done
+                    or the call returns skipped:true with compact blockers
   annotate          stdin JSON: {id, notes}
                     appends notes and bumps updated_at without touching
                     status -- use for a breadcrumb write so a stale status
@@ -820,13 +1034,18 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     at least one must be a non-empty array of ids --
                     remove_depends_on is the recovery path when a dependency
                     was later dropped; removing an id that isn't there is a
-                    no-op
+                    no-op; returns the same compact graph-fact fields when
+                    the edge change makes them non-empty
   list              flag: --status planned,in_progress   (optional, comma-separated)
                     flag: --ids 002,005   (optional, comma-separated, combinable with --status)
+                    targeted full rows add depends_on_docs (direct
+                    dependency document paths only)
                     flag: --summary   (optional: entries carry only
                     id/title/status/depends_on -- use for whole-roadmap
                     renders, then fetch the few needing prose via --ids)
   next-candidates   flag: --limit N   (optional, default 3)
+                    flag: --menu   (optional: compact choice rows only;
+                    fetch the selected entry with list --ids <id>)
                     flag: --hint "words"   (optional: rank by how many of
                     the hint's words appear in each candidate's
                     title/why/what/touches/notes -- hint_score per

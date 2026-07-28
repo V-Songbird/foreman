@@ -94,6 +94,18 @@ node picks/run.js --tag mine                 # adds the markdown arm: 5 claude s
 
 Both arms see the same backlog content. The `markdown` arm hands a session a human-style TODO.md and asks it to pick; the `foreman` arm runs `roadmap.js next-candidates` — mechanical dependency-graph filtering, zero tokens, and the same answer every time. The report counts distinct picks across reps (normalized, so "Task X" and "**Task X** (#007)" count as one answer) next to mean cost and tokens.
 
+To inspect a possible ranking change without changing Foreman's production
+sorter, replay any real or synthetic roadmap through the current ranking,
+critical-depth-first, and critical depth as a late tie-breaker:
+
+```bash
+node picks/ranking-replay.js --roadmap /path/to/ROADMAP.jsonl
+```
+
+The replay is deterministic and free. It reports top-pick disagreements for
+human judgment; it does not silently turn critical depth into a new priority
+system.
+
 ## What's measured
 
 Each run records, per session: cost, output tokens, context traffic (input + cache tokens across every API call), mid-turn narration words, turns, wall time — and the discipline signals: how many Read/Glob/Grep calls before the first edit, whether a test-intent command actually ran (`npm test`, `node --test`, or executing the test file directly all count), the constraint violations by name, and on the stale-brief task, whether the final message names the file mismatch it found.

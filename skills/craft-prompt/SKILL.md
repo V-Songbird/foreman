@@ -362,7 +362,10 @@ Before moving to the next phase, verify the assembled prompt against
 `prompt-template.md`'s own checklist, then run its mechanical gate
 (`scripts/check-prompt.js` — the template's "Mechanical gate" section has
 the exact call) and fix every error until it passes — don't re-list
-either here.
+either here. Carry the fixed closing paragraph's closure-evidence rule
+verbatim: closure notes and findings describe only observed work and cite
+supporting files, commands, commits, or outcomes; planned scope is never
+evidence that it was executed.
 
 ---
 

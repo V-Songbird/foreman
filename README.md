@@ -32,6 +32,7 @@ Foreman keeps the plan where the code lives: a plain-language roadmap, committed
 - **Your plan survives you forgetting it.** The roadmap lives in your repo, committed like code. The next session picks up exactly where you left off, not from a shrug.
 - **You don't have to be good at prompting.** Every handoff prompt comes from the same template, guardrails built in. Say what you want in plain language, and Foreman does the rest.
 - **It updates itself.** After each commit, Foreman checks what got finished and marks it. Opt in, and it also flags new work the commit uncovered.
+- **It can clear a short run of work without turning into a process tool.** Ask for a small sprint, approve one plan, and review the finished entries together at the end. Still experimental.
 - **Nothing moves without you.** No task gets added, changed, or checked off behind your back, and a project you haven't set up stays untouched.
 
 ## How it works
@@ -40,6 +41,7 @@ Foreman keeps the plan where the code lives: a plain-language roadmap, committed
 | --- | --- |
 | You ask "what's next?" | Foreman weighs the roadmap — dependencies, collisions, what's done — and hands back the best task with a ready-to-run prompt |
 | You describe new work | It becomes a roadmap entry, once you approve it |
+| You ask for the next few tasks (experimental) | Foreman makes one small serial plan and brings the successful work back for one final acceptance |
 | You commit | Finished tasks get checked off; opt in and new work the commit uncovered gets flagged too |
 | You suspect the plan has drifted | The top tasks get double-checked against the actual code, and the roadmap corrected |
 
@@ -66,6 +68,7 @@ You talk to Foreman in plain language. Editing the roadmap file by hand defeats 
 | --- | --- |
 | Set up a roadmap for a project (one-time) | `/foreman:init` |
 | Pick the next task, add one, or check status | `/foreman:roadmap` |
+| Work through a few ready tasks with one approval (experimental) | `/foreman:sprint` |
 | Build a handoff prompt for a specific task | `/foreman:craft-prompt` |
 | Double-check the top tasks against your actual code | `/foreman:survey` |
 
@@ -73,7 +76,12 @@ You talk to Foreman in plain language. Editing the roadmap file by hand defeats 
 
 Git remembers every diff. Nobody remembers *why*. Turn this on, and any task that makes a real call writes a short note: the choice, the options that lost, and what it commits you to — tagged right into the code it governs. Open that code six months later, and Foreman hands you the note before you undo a decision you didn't know was there. It's off until you ask for it, because it writes files into your repo and comments into your source. The whole feature fits on one page: [`decision-log.md`](decision-log.md).
 
-Seeing `Foreman: 019` at the bottom of your commits? That's a different thing, and it's always on. A finished task closes in the same commit as the code it changed, so the commit names the task instead of the roadmap chasing a commit that doesn't exist yet. One commit, no second "update the roadmap" commit cluttering your history. Same page covers it.
+Seeing `Foreman: 019` at the bottom of your commits? That's a different
+thing, and it's always on. A normal single-task run closes alongside its
+code, so the commit names the task instead of the roadmap chasing a commit
+that doesn't exist yet. A sprint keeps one code commit per entry, then records
+the batch's final acceptance in one coordinator-owned bookkeeping commit.
+Same page covers it.
 
 ## Benchmarks
 
@@ -98,39 +106,20 @@ We measured what a good handoff is actually worth: the same real coding jobs, ru
 
 ## Under the hood
 
-The roadmap is a plain file in your repo (field-by-field details in [`roadmap-schema.md`](roadmap-schema.md)), and every prompt Foreman assembles is script-checked before it ships — a malformed handoff never reaches a session. Foreman pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush): razor cuts the code, hush cuts the noise, Foreman writes the prompts. Measured together, the three add no overhead to each other.
+The roadmap is a plain file in your repo (field-by-field details in [`roadmap-schema.md`](roadmap-schema.md)), and every prompt Foreman assembles is checked before it ships. Routine bookkeeping happens mechanically, leaving the model for work that needs judgment. Foreman pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush): razor cuts the code, hush cuts the noise, Foreman writes the prompts. Measured together, the three add no overhead to each other.
+
+## Scope
+
+Foreman is a solo-developer project companion — not project-management
+software, not an agent-workflow builder. It keeps the roadmap, hands off
+work, and can coordinate a small approved sprint. It has no roles, no
+pipelines, and no dashboards, and it never will.
 
 ## Settings
 
-Most people never touch these — `/foreman:init` asks about the common ones and writes `.foreman/config.json` for you. Here's the full set, if you ever want to set them by hand:
-
-| Setting | What it does |
-| --- | --- |
-| `discoverySuggestions` | After each commit, offer new roadmap entries Claude spotted in the work. On by default; set `false` to silence it. |
-| `usePersona` | Whether handoff prompts open with a "You are a…" role sentence (default `true`), or plain domain framing. |
-| `omitSections` | Prompt sections to leave out entirely (`tone`, `example`, `background`, `output_format`). Default none. |
-| `customSections` | Extra sections to add to crafted prompts, each `{tag, content}` rendered as an inline `<tag>` block. Tags reserved by the template are rejected. Default none. |
-| `requireVerification` | Hold off marking a task done after a commit until you confirm it's verified. On by default; set `false` to close a task as soon as its commit lands. |
-| `taskCloseGate` | When a tracked task finishes with its roadmap entry still open: `off` (default) says nothing, `block` holds the completion until you close the entry. |
-| `decisionLog` | The why-notes above: `{enabled, dir, gate}`. `enabled` is `false` by default — nothing is written until you set it `true`. Full details in [`decision-log.md`](decision-log.md). |
-| `checkpoints` | How task-split runs save their work. Optional keys set the base branch, whether to use a `foreman/<slug>` branch, and what to do at the end — `squash`, `merge`, `pr`, or `keep`. Default: ask you. Checkpoint commits always stay local, and the ending only applies to a branch the run created itself. |
-| `modelSuggestions` | Whether each handoff says which model and reasoning effort the task deserves, and offers to start it in a fresh session set to them. Off by default; set `true` to turn it on. |
-| `targetModel` | How much detail a prompt spells out, tuned to the model that runs it — smaller models get more scaffolding, bigger ones less. Default `inherit` keeps a standard level; set a concrete value to pin one. |
-| `fableEnabled` | Whether this project can run Fable 5 (Max plan or API only). Asked once during `/foreman:init`; `true` makes `Fable` a selectable model alongside Haiku/Sonnet/Opus. Default `false`. |
-
-Running with razor and hush? The recommended shape is:
-
-```json
-{
-  "usePersona": false,
-  "omitSections": ["tone", "output_format"]
-}
-```
-
-razor already gives the session its persona and hush already owns the voice, so Foreman's prompts stay out of both lanes. Prompts handed to a background agent keep Foreman's minimal default tone even when `tone` is omitted — output styles don't reach those sessions, so nothing else would own the voice there.
-
-> [!NOTE]
-> Foreman never detects which plugins you run — this file is you declaring the shape you want, and it works the same for any third-party style plugin.
+`/foreman:init` writes sensible project defaults, so most people never touch
+configuration. If you want to tune the optional behavior, see the
+[`settings.md`](settings.md) reference.
 
 ## License
 
