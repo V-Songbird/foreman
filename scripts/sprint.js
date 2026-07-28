@@ -372,6 +372,7 @@ module.exports = {
   repositoryState,
   repositorySnapshot,
   statusFingerprint,
+  normalizeCommit,
   isSharedLedger,
   attestUnit,
   candidateRow,

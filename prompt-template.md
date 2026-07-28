@@ -674,7 +674,11 @@ instructing the pasted session to:
   with `branch` `true`, create `foreman/<slug>` only when on the base
   branch, otherwise checkpoint in place (with `branch` `false`, always
   in place);
-- after each task's check passes, `git add -A` and commit
+- before task 1, stop if `git status --porcelain` is non-empty: say so
+  once and make no checkpoint commits at all for the run (the pasted
+  session has no Foreman scripts to call, so this is the gate);
+- after each task's check passes, stage only the files that task
+  changed — `git add -- <those paths>`, never `git add -A` — and commit
   `task <n>/<total>: <task subject>`, and leave it local — checkpoints
   are never pushed;
 - after the last task, apply the baked `onFinish` — `"ask"` asks the
@@ -748,22 +752,36 @@ craft time.
   `foreman/<slug>` — slug is a kebab-case cut of the goal, 40 chars max.
   On any other branch, or with `branch` `false`, create nothing and
   checkpoint in place on the current branch.
-- **Still before task 1:** if `git status --porcelain` is non-empty, tell
-  the user in one line that pre-existing changes will ride along in the
-  checkpoints, then proceed.
-- **One commit per finished task.** After a task's verification passes and
-  the task is marked completed: `git add -A`, then commit with the message
-  `task <n>/<total>: <task subject>`. Checkpoints always stay local, no
-  comment — never push them. `onFinish` is the only step that reaches a
-  remote, and only through its `Open a PR` option.
+<!-- [Foreman: 121] -->
+- **Take the boundary first — before task 1 and before the branch step
+  above:** `node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js begin`. A
+  `dirty:true` result means **this run makes no automated commits at
+  all** — say so once in a line naming the reason, then work the tasks
+  and leave every change in the tree for the user to commit. Never
+  offer to absorb the existing changes, and skip the branch step too:
+  there is nothing to checkpoint onto. Only a `dirty:false` result
+  continues below, and its `baseline.head` is the first checkpoint's
+  baseline.
+- **One commit per finished task, staged by the primitive.** After a
+  task's verification passes and the task is marked completed:
+  `echo '{"expected":["<the files this task changed>"],"message_title":"task <n>/<total>: <task subject>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js finish --baseline <the current baseline>`
+  — it stages only what changed since that baseline, refuses on any file
+  the `expected` list doesn't cover (`unexpected_files` names them: show
+  them and ask the user, then re-run with `--allow-unexpected` if they
+  approve), commits, and attests the result. Its `commit` is the next
+  task's baseline. Never `git add -A` — the primitive owns staging.
+  Checkpoints always stay local, no comment — never push them.
+  `onFinish` is the only step that reaches a remote, and only through
+  its `Open a PR` option.
 - **A roadmap-entry close lands inside the last checkpoint commit** (when
-  the handoff carries one): stage everything, close the entry with
-  `staged:true` (touches derive from the index, and the script stages
-  ROADMAP.jsonl alongside), then commit with `Foreman: <id>` as the
-  message's final line — entry and commit link through that trailer, so
-  no sha gets recorded and the roadmap never trails uncommitted. Then
-  mark the final task completed. The entry-paragraph and gate rules above
-  are unchanged.
+  the handoff carries one): stage the task's own files with
+  `safe-commit.js finish --no-commit`, close the entry with `staged:true`
+  (touches derive from the index, and the script stages ROADMAP.jsonl
+  alongside), then commit with `Foreman: <id>` as the message's final
+  line — entry and commit link through that trailer, so no sha gets
+  recorded and the roadmap never trails uncommitted. Then mark the final
+  task completed. The entry-paragraph and gate rules above are
+  unchanged.
 - **After the last task, `onFinish` decides the branch's fate** — only if
   this run created the branch. When the run checkpointed on a pre-existing
   branch, or `branch` is `false`, skip this step entirely. `"ask"` (the

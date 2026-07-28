@@ -30,6 +30,7 @@ field by convention).
 - Task closure notes must cite observed work or outcomes instead of treating the planned task description as proof.
 - A commit that looks like it finishes a task now records the work and asks you to confirm it's verified before the task is closed. Set `requireVerification` to `false` to close it as soon as the commit lands.
 - Every offered task now says why it is where it is in the order — the hint it matched, the open work behind it, the overlap it avoided, or its age — and Foreman calls the result its recommendation rather than the best task, since the pick is still yours. Wording across the README, skills, and the plugin description now reserves "preflighted", "grounded", and "verified" for the confidence a step has actually reached.
+- Foreman's commits now go through one shared safe-commit routine instead of `git add -A`: it takes a baseline before the work starts, stages only the files that changed after it, stops and names anything the task never declared, and makes no automated commit at all on a tree that was already dirty — a run that starts dirty says so once and leaves every change for you to commit.
 
 ### Removed
 

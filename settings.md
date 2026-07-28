@@ -13,7 +13,7 @@ configuration is normally unnecessary.
 | `requireVerification` | Hold off marking a task done after a commit until you confirm it's verified. On by default; set `false` to close a task as soon as its commit lands. |
 | `taskCloseGate` | When a tracked task finishes with its roadmap entry still open: `off` (default) says nothing, `block` holds the completion until you close the entry. |
 | `decisionLog` | The why-notes described in [`decision-log.md`](decision-log.md): `{enabled, dir, gate}`. Disabled by default. |
-| `checkpoints` | How task-split runs save their work. Optional keys set the base branch, whether to use a `foreman/<slug>` branch, and what to do at the end — `squash`, `merge`, `pr`, or `keep`. Default: ask. Checkpoint commits stay local. |
+| `checkpoints` | How task-split runs save their work. Optional keys set the base branch, whether to use a `foreman/<slug>` branch, and what to do at the end — `squash`, `merge`, `pr`, or `keep`. Default: ask. Checkpoint commits stay local. A run that starts on a dirty tree makes **no** automated checkpoint commits at all — it says so once and leaves every change for you to commit, rather than sweeping your work into a checkpoint. |
 | `modelSuggestions` | Whether each handoff suggests a model and reasoning effort. Off by default. |
 | `targetModel` | How much detail a prompt spells out. Default `inherit`; a concrete model tunes the handoff for that target. |
 | `fableEnabled` | Whether this project can run Fable 5. Asked once during initialization; default `false`. |

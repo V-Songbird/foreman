@@ -1243,9 +1243,10 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     actual changed files (git show, best-effort, silent if
                     git/the sha is unavailable) -- add_touches adds more on
                     top, for anything outside that commit's diff
-                    staged: true = the staged close -- call it AFTER "git add
-                    -A" and BEFORE committing: touches auto-folds from the
-                    index instead of a commit, the script stages
+                    staged: true = the staged close -- call it AFTER staging
+                    the task's own files with "safe-commit.js finish
+                    --no-commit" and BEFORE committing: touches auto-folds
+                    from the index instead of a commit, the script stages
                     ROADMAP.jsonl itself, and the result carries trailer
                     ("Foreman: <id>") to put as the commit message's final
                     line -- entry and commit link through that trailer, so
@@ -1359,7 +1360,8 @@ Examples:
     | node roadmap.js update-status
   echo '{"id":"003","status":"done","commit":"a1b2c3d","add_touches":["docs/migration.md"]}' \\
     | node roadmap.js update-status
-  git add -A && echo '{"id":"003","status":"done","staged":true}' \\
+  echo '{"id":"003","expected":["src/api"]}' | node safe-commit.js finish --baseline <begin.head> --no-commit
+  echo '{"id":"003","status":"done","staged":true}' \\
     | node roadmap.js update-status   # then commit with "Foreman: 003" as the last line
   echo '{"id":"004","add_depends_on":["002"]}' \\
     | node roadmap.js update-deps

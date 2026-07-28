@@ -375,15 +375,27 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      `planned` until you do:
      `echo '{"id":"<id>","status":"in_progress"}' | node
      ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
+     Then take the commit boundary before touching any file:
+     `node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js begin`
+     Keep its `baseline.head`. A `dirty:true` result means the tree
+     already carries someone else's changes: tell the user in one line,
+     then do the work and make NO commit at all — leave everything in the
+     tree for them. Never stage around it.
      When the work concludes, close the entry the same way — the status it
      actually earned (`done`, `dropped`, `rejected`) and your full findings
      in `notes`. If the work changed code, land the close inside the same
-     commit instead of after it: stage everything (`git add -A`), close
-     with `staged:true` (the script folds the staged files into `touches`
-     and stages ROADMAP.jsonl alongside), then commit once with
-     `Foreman: <id>` as the final line of the message — that trailer is
-     the durable link between entry and commit, so no sha gets recorded
-     and the roadmap never trails uncommitted:
+     commit instead of after it. Stage the task's own files with the
+     safe-commit primitive — never `git add -A`:
+     `echo '{"id":"<id>","expected":["<the files this task owns>"]}' | node
+     ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js finish --baseline <baseline.head> --no-commit`
+     It stages only what changed since the baseline and refuses on any file
+     `expected` doesn't cover, naming them in `unexpected_files` — show
+     those to the user and re-run with `--allow-unexpected` only once they
+     approve. Then close with `staged:true` (the script folds the staged
+     files into `touches` and stages ROADMAP.jsonl alongside), then commit
+     once with `Foreman: <id>` as the final line of the message — that
+     trailer is the durable link between entry and commit, so no sha gets
+     recorded and the roadmap never trails uncommitted:
      `echo '{"id":"<id>","status":"<status>","staged":true,"notes":"<findings>"}' | node
      ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
      A task that changed nothing (pure investigation) closes without
