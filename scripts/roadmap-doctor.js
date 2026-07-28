@@ -77,22 +77,33 @@ function checkEntry(entry, index, out) {
     out.push(finding("invalid_type", "error", [], `line ${index + 1} is not a JSON object`));
     return;
   }
-  const { STATUSES, SOURCES, KINDS, MODELS, EFFORTS, validateDoc, isValidId } = roadmap();
+  const {
+    STATUSES, SOURCES, KINDS, MODELS, EFFORTS, validateDoc, isValidId,
+    ROADMAP_FORMAT_KEY, CURRENT_ROADMAP_FORMAT, isFormatMeta,
+  } = roadmap();
   const id = typeof entry.id === "string" ? entry.id : "";
   const ids = id ? [id] : [];
   const at = id ? `entry ${id}` : `line ${index + 1}`;
 
-  // A later entry owns schema versioning. Until it lands, no version field
-  // is the compatible state and any version marker is from a Foreman that
-  // knows rules this one does not.
-  if (entry.schema_version !== undefined) {
+  // [Foreman: 129] The format meta line. readEntries consumes it wherever it
+  // is legal -- first line, whole-number version this Foreman supports -- so
+  // a marker that reaches the validator at all is one no reader will honor:
+  // either its version is not a usable number, or it is sitting below an
+  // entry where nothing looks for it. One finding, then stop: the rest of
+  // the entry checks would bury it under a dozen "has no title" errors for
+  // a line that was never an entry.
+  if (isFormatMeta(entry)) {
+    const version = entry[ROADMAP_FORMAT_KEY];
     out.push(finding(
       "unsupported_schema_version",
       "error",
-      ids,
-      `${at} declares schema_version ${JSON.stringify(entry.schema_version)}; this Foreman only understands unversioned entries`,
-      { field: "schema_version" }
+      [],
+      index === 0
+        ? `ROADMAP.jsonl declares format version ${JSON.stringify(version)}, which is not a whole number 1 or greater — run "roadmap.js migrate" to restamp it as format ${CURRENT_ROADMAP_FORMAT}`
+        : `ROADMAP.jsonl carries a ${ROADMAP_FORMAT_KEY} line below an entry; the version marker is only read as the file's first line — run "roadmap.js migrate" to put it back`,
+      { field: ROADMAP_FORMAT_KEY }
     ));
+    return;
   }
 
   if (entry.id === undefined || entry.id === null) {

@@ -164,7 +164,9 @@ describe("withRoadmapLock", () => {
       .readFileSync(path.join(project, "ROADMAP.jsonl"), "utf8")
       .trim()
       .split("\n")
-      .map(JSON.parse);
+      .map((line) => JSON.parse(line))
+      // Line 1 is the format marker every write stamps, not an entry.
+      .filter((row) => row.id !== undefined);
     assert.equal(lines.length, 5);
     assert.deepEqual(lines.map((entry) => entry.id).sort(), ["001", "002", "003", "004", "005"]);
   });

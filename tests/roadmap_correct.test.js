@@ -66,12 +66,15 @@ function seed(entries) {
   writeRoadmap(project, entries || [entryFixture()]);
 }
 
+// The format marker every write stamps as line 1 is not an entry; drop it
+// so these assertions stay about the entries.
 function onDisk() {
   return fs
     .readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf-8')
     .split('\n')
     .filter(Boolean)
-    .map((line) => JSON.parse(line));
+    .map((line) => JSON.parse(line))
+    .filter((row) => row.id !== undefined);
 }
 
 describe('correct — happy path per field', () => {

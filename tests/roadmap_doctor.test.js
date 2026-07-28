@@ -66,6 +66,16 @@ function base(id, overrides = {}) {
   };
 }
 
+/** The stored entries, without the format marker every write stamps first. */
+function storedEntries() {
+  return fs
+    .readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf-8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line))
+    .filter((row) => row.id !== undefined);
+}
+
 /** Findings carrying a given code. */
 function withCode(report, code) {
   return report.findings.filter((f) => f.code === code);
@@ -177,12 +187,18 @@ describe('doctor field and type findings', () => {
     assertFinding(doctor(), 'invalid_doc', 'error', ['001']);
   });
 
-  test('unsupported_schema_version: any version marker is from a newer Foreman', () => {
-    writeRoadmap(project, [base('001', { schema_version: 2 })]);
-    assertFinding(doctor(), 'unsupported_schema_version', 'error', ['001']);
+  // The file's format version lives on its own first line, not on an entry
+  // — full coverage of the marker is in roadmap_migrate.test.js.
+  test('unsupported_schema_version: a format marker no reader will honor', () => {
+    fs.writeFileSync(
+      path.join(project, 'ROADMAP.jsonl'),
+      `{"foreman_roadmap_format":"one"}\n${JSON.stringify(base('001'))}\n`,
+      'utf-8'
+    );
+    assertFinding(doctor(), 'unsupported_schema_version', 'error', []);
   });
 
-  test('an unversioned entry is the compatible state', () => {
+  test('an unversioned file is the compatible state — absence means format 1', () => {
     writeRoadmap(project, [base('001')]);
     assert.deepEqual(withCode(doctor(), 'unsupported_schema_version'), []);
   });
@@ -329,7 +345,7 @@ describe('doctor --fix', () => {
     assert.equal(report.fixed.length, 3);
     assert.deepEqual(report.findings, []);
 
-    const stored = JSON.parse(fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf-8').trim());
+    const stored = storedEntries()[0];
     assert.deepEqual(stored.touches, []);
     assert.deepEqual(stored.commits, []);
     assert.equal(stored.notes, '');
@@ -343,12 +359,7 @@ describe('doctor --fix', () => {
     ]);
     const report = doctor(['--fix']);
     assert.deepEqual(report.fixed.map((f) => f.code).sort(), ['duplicate_dependency', 'self_dependency']);
-    const stored = fs
-      .readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf-8')
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line));
-    assert.deepEqual(stored[1].depends_on, ['001']);
+    assert.deepEqual(storedEntries()[1].depends_on, ['001']);
     assert.equal(report.ok, true);
   });
 

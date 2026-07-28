@@ -383,9 +383,10 @@ describe('update-status', () => {
   test('a multi-line notes history still round-trips as one JSONL line', () => {
     run(['update-status'], { id: '001', status: 'in_progress', notes: 'first' });
     run(['update-status'], { id: '001', status: 'in_progress', notes: 'second' });
-    const raw = fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf-8').trim();
-    assert.equal(raw.split('\n').length, 1);
-    assert.equal(JSON.parse(raw).notes.split('\n').length, 2);
+    // Line 1 is the format marker; the entry itself is still one line.
+    const lines = fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf-8').trim().split('\n');
+    assert.equal(lines.length, 2);
+    assert.equal(JSON.parse(lines[1]).notes.split('\n').length, 2);
   });
 
   test('rejects unknown id', () => {

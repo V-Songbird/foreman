@@ -20,6 +20,47 @@ function roadmapPath(root) {
   return path.join(root, "ROADMAP.jsonl");
 }
 
+// [Foreman: 129]
+// The file's format version, declared by an OPTIONAL meta line
+// `{"foreman_roadmap_format":1}` as the first line. Absence means 1, so
+// every roadmap written before this marker existed stays valid with no
+// migration at all. Every write stamps the line from now on (see
+// writeEntries), so any mutated roadmap becomes explicitly versioned.
+//
+// The marker is recognized by SHAPE, not position: the format key and no
+// `id`, so it can never be mistaken for an entry (and an entry can never be
+// mistaken for it). readEntries consumes it only where it is legal — first
+// line, whole-number version this Foreman supports. Any other marker falls
+// through as a row, so `doctor` reports it and `migrate` repairs it, rather
+// than being silently ignored.
+const ROADMAP_FORMAT_KEY = "foreman_roadmap_format";
+const CURRENT_ROADMAP_FORMAT = 1;
+
+function isFormatMeta(value) {
+  return (
+    Boolean(value)
+    && typeof value === "object"
+    && !Array.isArray(value)
+    && ROADMAP_FORMAT_KEY in value
+    && value.id === undefined
+  );
+}
+
+// Plain words, and it names the fix: a file from a newer Foreman cannot be
+// parsed by guesswork, so every CLI surface stops here with one message
+// instead of misreading entries whose rules this version does not know.
+function unsupportedFormatError(version) {
+  const err = new Error(
+    `ROADMAP.jsonl is format version ${JSON.stringify(version)}, but this Foreman understands `
+      + `format version ${CURRENT_ROADMAP_FORMAT}. Upgrade the Foreman plugin, or run `
+      + `"roadmap.js migrate" with the newer Foreman that wrote this file.`
+  );
+  err.code = "FOREMAN_ROADMAP_FORMAT_UNSUPPORTED";
+  err.found = version;
+  err.supported = CURRENT_ROADMAP_FORMAT;
+  return err;
+}
+
 function readEntries(root) {
   const p = roadmapPath(root);
   if (!fs.existsSync(p)) return [];
@@ -34,9 +75,35 @@ function readEntries(root) {
     } catch (err) {
       throw new Error(`ROADMAP.jsonl line ${i + 1} is not valid JSON: ${err.message}`);
     }
+    // First non-blank line only — a marker further down declares nothing.
+    if (isFormatMeta(obj) && !entries.length) {
+      const version = obj[ROADMAP_FORMAT_KEY];
+      if (Number.isInteger(version) && version >= 1) {
+        if (version > CURRENT_ROADMAP_FORMAT) throw unsupportedFormatError(version);
+        return;
+      }
+    }
     entries.push(obj);
   });
   return entries;
+}
+
+// The declared version, or CURRENT when the file declares none (absence
+// means 1). Only ever called on text readEntries has already accepted, so a
+// version beyond CURRENT cannot reach here.
+function declaredFormat(text) {
+  for (const raw of String(text).split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    try {
+      const obj = JSON.parse(line);
+      const version = isFormatMeta(obj) ? obj[ROADMAP_FORMAT_KEY] : undefined;
+      return Number.isInteger(version) && version >= 1 ? version : CURRENT_ROADMAP_FORMAT;
+    } catch {
+      return CURRENT_ROADMAP_FORMAT;
+    }
+  }
+  return CURRENT_ROADMAP_FORMAT;
 }
 
 // A finding's identity, so a write can tell "this violation was already in
@@ -72,9 +139,25 @@ function existingErrorKeys(root) {
 // introduce a structural error is refused before the temp file is created.
 // Per-field validation in the commands above cannot cover this — it sees one
 // argument, never the resulting whole-file graph.
+// [Foreman: 129] The exact bytes of a roadmap holding these entries: the
+// format meta line first, then one line per entry. Shared with `migrate`, so
+// "is this file already current?" is answered by comparing text rather than
+// by a second reimplementation of the layout.
+function serializeEntries(entries) {
+  return [
+    JSON.stringify({ [ROADMAP_FORMAT_KEY]: CURRENT_ROADMAP_FORMAT }),
+    ...entries.map((e) => JSON.stringify(e)),
+  ].join("\n") + "\n";
+}
+
 function writeEntries(root, entries) {
+  // The meta line is this function's to write, never carried inside
+  // `entries`. A marker readEntries refused to consume (malformed version,
+  // or not the first line) is dropped here — the stamped line below is its
+  // repair, and it keeps the invariant exactly one marker, always first.
+  const rows = entries.filter((entry) => !isFormatMeta(entry));
   const allowed = new Set(existingErrorKeys(root));
-  const blocking = validateEntries(entries, { similarity: false })
+  const blocking = validateEntries(rows, { similarity: false })
     .filter((item) => item.severity === "error" && !allowed.has(findingKey(item)));
   if (blocking.length) {
     const detail = blocking.slice(0, 3).map((item) => `${item.code}: ${item.message}`).join("; ");
@@ -85,7 +168,7 @@ function writeEntries(root, entries) {
     );
   }
   const p = roadmapPath(root);
-  const text = entries.map((e) => JSON.stringify(e)).join("\n") + (entries.length ? "\n" : "");
+  const text = serializeEntries(rows);
   const tmp = `${p}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, text, "utf-8");
   try {
@@ -1207,6 +1290,56 @@ function cmdCheckDuplicate(root, payload) {
   return { duplicate: matches.length > 0, matches };
 }
 
+// [Foreman: 129]
+// Upgrade steps between adjacent formats, in order. Empty today: format 1 is
+// the only format there has ever been, so the only thing `migrate` does is
+// bring the file to the current on-disk layout (which stamps the meta line).
+// The next format bump adds one `{from, to, fn(entries)}` step here instead
+// of rewriting migrate — that is the whole reason this is a list.
+// razor: no step exists to exercise the chaining yet; when one lands, this
+// runs each step whose `from` is at or above the file's version, in order.
+const UPGRADE_STEPS = [];
+
+function backupStamp(date = new Date()) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return (
+    `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`
+    + `-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`
+  );
+}
+
+function cmdMigrate(root) {
+  return withRoadmapLock(root, () => cmdMigrateUnlocked(root));
+}
+
+// Repeat-safe by construction: it computes the file the current format would
+// produce and compares it with the file on disk. Identical means there is
+// nothing to do — no backup, no write, `changed:false` — so running it twice
+// is running it once. A file from a NEWER Foreman throws out of readEntries
+// before anything here touches the disk. Never reads or writes config.
+function cmdMigrateUnlocked(root) {
+  const p = roadmapPath(root);
+  if (!fs.existsSync(p)) {
+    throw new Error(`no ROADMAP.jsonl at ${p} — nothing to migrate`);
+  }
+  const before = fs.readFileSync(p, "utf-8");
+  const from = declaredFormat(before);
+  let entries = readEntries(root);
+  for (const step of UPGRADE_STEPS) {
+    if (step.from >= from) entries = step.fn(entries);
+  }
+  const after = serializeEntries(entries);
+  if (after === before) {
+    return { from, to: CURRENT_ROADMAP_FORMAT, changed: false };
+  }
+  // Before any rewrite, never after: the backup is what makes an upgrade
+  // recoverable, so it has to exist while the original still does.
+  const backup = `${p}.backup-${backupStamp()}`;
+  fs.copyFileSync(p, backup);
+  writeEntries(root, entries);
+  return { from, to: CURRENT_ROADMAP_FORMAT, changed: true, backup };
+}
+
 // Whole-file health check: the same structural contract every write is held
 // to, plus the settings file, reported instead of thrown. Read-only unless
 // --fix is passed. `ok` here answers "is the roadmap healthy" — the one
@@ -1379,6 +1512,26 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     then re-validates and returns what it changed as
                     "fixed". Ambiguous findings are never auto-fixed --
                     they are reported for a human to decide.
+                    A malformed or misplaced format meta line is reported as
+                    unsupported_schema_version and repaired by "migrate",
+                    never by --fix.
+  migrate           no input, no flags. Brings ROADMAP.jsonl up to the
+                    current format version, safe to repeat: returns
+                    {from, to, changed}, and changed:false when the file is
+                    already current (nothing written, no backup).
+                    ROADMAP.jsonl declares its format on an optional first
+                    line, {"foreman_roadmap_format":N}; a file without one
+                    is format 1, so nothing has to be migrated to keep
+                    working. Every write stamps the line, so a mutated
+                    roadmap becomes explicitly versioned either way.
+                    When it does change the file it first copies it to
+                    ROADMAP.jsonl.backup-<YYYYMMDD-HHmmss> and returns that
+                    path as "backup". Holds the same mutation lock as every
+                    other write; never touches .foreman/config.json.
+                    A file declaring a version NEWER than this Foreman
+                    supports fails here and on every other subcommand with
+                    one clear error naming both versions -- upgrade the
+                    plugin, or migrate with the Foreman that wrote it.
 
 Examples:
   echo '{"title":"Add JWT refresh middleware","why":"...","what":"...","source":"user"}' \\
@@ -1397,6 +1550,7 @@ Examples:
   node roadmap.js next-candidates --limit 5
   node roadmap.js doctor
   node roadmap.js doctor --fix
+  node roadmap.js migrate
 `;
 
 function parseFlags(argv) {
@@ -1453,9 +1607,12 @@ function main() {
     case "doctor":
       result = cmdDoctor(root, parseFlags(rest));
       break;
+    case "migrate":
+      result = cmdMigrate(root);
+      break;
     default:
       throw new Error(
-        `unknown subcommand: ${sub}. Use add|update-status|annotate|update-deps|correct|list|next-candidates|check-duplicate|doctor`
+        `unknown subcommand: ${sub}. Use add|update-status|annotate|update-deps|correct|list|next-candidates|check-duplicate|doctor|migrate`
       );
   }
   process.stdout.write(JSON.stringify({ ok: true, ...result }));
@@ -1480,6 +1637,14 @@ module.exports = {
   cmdNextCandidates,
   cmdCheckDuplicate,
   cmdDoctor,
+  cmdMigrate,
+  // The roadmap's format version: the meta line's key, the version this
+  // Foreman writes and accepts, and the shape test the doctor reuses so
+  // there is one definition of "that line is the marker, not an entry".
+  ROADMAP_FORMAT_KEY,
+  CURRENT_ROADMAP_FORMAT,
+  isFormatMeta,
+  declaredFormat,
   findingKey,
   submodulePaths,
   filesTouchedByCommit,
