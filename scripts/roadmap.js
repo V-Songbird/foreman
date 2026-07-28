@@ -7,6 +7,7 @@ const { execFileSync } = require("child_process");
 const { withRoadmapLock } = require("./roadmap-lock");
 const {
   validateEntries,
+  validateAcrossFiles,
   validateConfig,
   applyRepairs,
   summarize,
@@ -18,6 +19,18 @@ function projectDir() {
 
 function roadmapPath(root) {
   return path.join(root, "ROADMAP.jsonl");
+}
+
+// [Foreman: 132]
+// Terminal entries move here so the active file stays the working set and
+// stops growing forever. Same line format, same format marker, same CLI —
+// only the path differs, so `archive.jsonl` is inspectable with the same eyes
+// (and the same parser) as the roadmap itself. It sits beside config.json
+// rather than at the project root: it is history, not the plan.
+const ARCHIVE_LABEL = ".foreman/archive.jsonl";
+
+function archivePath(root) {
+  return path.join(root, ".foreman", "archive.jsonl");
 }
 
 // [Foreman: 129]
@@ -49,9 +62,9 @@ function isFormatMeta(value) {
 // Plain words, and it names the fix: a file from a newer Foreman cannot be
 // parsed by guesswork, so every CLI surface stops here with one message
 // instead of misreading entries whose rules this version does not know.
-function unsupportedFormatError(version) {
+function unsupportedFormatError(version, label) {
   const err = new Error(
-    `ROADMAP.jsonl is format version ${JSON.stringify(version)}, but this Foreman understands `
+    `${label} is format version ${JSON.stringify(version)}, but this Foreman understands `
       + `format version ${CURRENT_ROADMAP_FORMAT}. Upgrade the Foreman plugin, or run `
       + `"roadmap.js migrate" with the newer Foreman that wrote this file.`
   );
@@ -61,10 +74,11 @@ function unsupportedFormatError(version) {
   return err;
 }
 
-function readEntries(root) {
-  const p = roadmapPath(root);
-  if (!fs.existsSync(p)) return [];
-  const lines = fs.readFileSync(p, "utf-8").split("\n");
+// One parser for both files — the archive is the same JSONL with the same
+// marker, so it gets the same reader rather than a second implementation.
+function readEntriesFrom(file, label) {
+  if (!fs.existsSync(file)) return [];
+  const lines = fs.readFileSync(file, "utf-8").split("\n");
   const entries = [];
   lines.forEach((raw, i) => {
     const line = raw.trim();
@@ -73,19 +87,51 @@ function readEntries(root) {
     try {
       obj = JSON.parse(line);
     } catch (err) {
-      throw new Error(`ROADMAP.jsonl line ${i + 1} is not valid JSON: ${err.message}`);
+      throw new Error(`${label} line ${i + 1} is not valid JSON: ${err.message}`);
     }
     // First non-blank line only — a marker further down declares nothing.
     if (isFormatMeta(obj) && !entries.length) {
       const version = obj[ROADMAP_FORMAT_KEY];
       if (Number.isInteger(version) && version >= 1) {
-        if (version > CURRENT_ROADMAP_FORMAT) throw unsupportedFormatError(version);
+        if (version > CURRENT_ROADMAP_FORMAT) throw unsupportedFormatError(version, label);
         return;
       }
     }
     entries.push(obj);
   });
   return entries;
+}
+
+// [Foreman: 132] ACTIVE entries only, and deliberately unchanged in shape:
+// every existing caller (list, next-candidates, the hooks, the benchmarks)
+// excludes archived work by construction instead of remembering to filter.
+function readEntries(root) {
+  return readEntriesFrom(roadmapPath(root), "ROADMAP.jsonl");
+}
+
+function readArchive(root) {
+  return readEntriesFrom(archivePath(root), ARCHIVE_LABEL);
+}
+
+// An id's entry in the OTHER file, for the places where a dependency may
+// legitimately live across the boundary (an active entry waiting on an
+// archived, usually done, parent). Reads at most once per command, and only
+// when an id actually failed to resolve locally — the normal project with no
+// archive never pays for a second file read.
+function otherFileResolver(read) {
+  let byId = null;
+  return (id) => {
+    if (!byId) byId = new Map(read().filter((entry) => entry && entry.id).map((entry) => [entry.id, entry]));
+    return byId.get(id) || null;
+  };
+}
+
+function archiveResolver(root) {
+  return otherFileResolver(() => readArchive(root));
+}
+
+function activeResolver(root) {
+  return otherFileResolver(() => readEntries(root));
 }
 
 // The declared version, or CURRENT when the file declares none (absence
@@ -120,9 +166,9 @@ function findingKey(item) {
 // entire roadmap instead of the one bad line. `doctor` is what reports it.
 // Read under the caller's mutation lock, before the rename, so this is the
 // same pre-image the mutation was computed from.
-function existingErrorKeys(root) {
+function existingErrorKeys(read, resolve) {
   try {
-    return validateEntries(readEntries(root), { similarity: false })
+    return validateEntries(read(), { similarity: false, resolve })
       .filter((item) => item.severity === "error")
       .map(findingKey);
   } catch {
@@ -150,36 +196,49 @@ function serializeEntries(entries) {
   ].join("\n") + "\n";
 }
 
-function writeEntries(root, entries) {
+// [Foreman: 132] Both files write through here — same gate, same temp-file
+// rename, same marker — so the archive can never drift into a shape the
+// roadmap's own reader would refuse. `read` supplies the file's pre-image
+// (the errors it already carried, which stay allowed) and `resolve` looks
+// dependencies up in the sibling file.
+function writeEntriesTo(file, label, entries, read, resolve) {
   // The meta line is this function's to write, never carried inside
   // `entries`. A marker readEntries refused to consume (malformed version,
   // or not the first line) is dropped here — the stamped line below is its
   // repair, and it keeps the invariant exactly one marker, always first.
   const rows = entries.filter((entry) => !isFormatMeta(entry));
-  const allowed = new Set(existingErrorKeys(root));
-  const blocking = validateEntries(rows, { similarity: false })
+  const allowed = new Set(existingErrorKeys(read, resolve));
+  const blocking = validateEntries(rows, { similarity: false, resolve })
     .filter((item) => item.severity === "error" && !allowed.has(findingKey(item)));
   if (blocking.length) {
     const detail = blocking.slice(0, 3).map((item) => `${item.code}: ${item.message}`).join("; ");
     throw new Error(
-      `refusing to write ROADMAP.jsonl — the result would violate the roadmap contract `
+      `refusing to write ${label} — the result would violate the roadmap contract `
         + `(${blocking.length} error${blocking.length === 1 ? "" : "s"}): ${detail}`
         + `. Run "roadmap.js doctor" for the full report`
     );
   }
-  const p = roadmapPath(root);
   const text = serializeEntries(rows);
-  const tmp = `${p}.${process.pid}.tmp`;
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(tmp, text, "utf-8");
   try {
-    fs.renameSync(tmp, p);
+    fs.renameSync(tmp, file);
   } catch (err) {
     try {
       fs.unlinkSync(tmp);
     } catch {}
     throw err;
   }
-  readEntries(root); // throws if the write somehow produced malformed JSONL
+  readEntriesFrom(file, label); // throws if the write somehow produced malformed JSONL
+}
+
+function writeEntries(root, entries, resolve = archiveResolver(root)) {
+  writeEntriesTo(roadmapPath(root), "ROADMAP.jsonl", entries, () => readEntries(root), resolve);
+}
+
+function writeArchive(root, entries) {
+  writeEntriesTo(archivePath(root), ARCHIVE_LABEL, entries, () => readArchive(root), activeResolver(root));
 }
 
 // The one definition of an id's shape, for every script and hook that parses
@@ -433,16 +492,30 @@ function cmdAddUnlocked(root, payload) {
   if (exact) {
     return { entry: exact, deduped: true };
   }
+  // [Foreman: 132] Archived entries stay part of the history this command
+  // answers for: an add replaying a task that was already finished and
+  // archived returns that entry rather than creating a second one, and the
+  // ids it holds are still spent (see nextId below).
+  const archived = readArchive(root);
+  const archivedExact = archived.find((entry) => entry.title === title);
+  if (archivedExact) {
+    return { entry: archivedExact, deduped: true, archived: true };
+  }
+  const known = [...entries, ...archived];
   // Same trust boundary update-deps already guards: an id that doesn't
   // resolve strands the entry out of next-candidates permanently — the
   // guard hook denies the hand-edit repair and depends_on only ever grows.
+  // An archived (usually done) parent is a legitimate dependency, so the
+  // archive counts as resolved here too.
   // Self-reference and cycles stay unreachable here: id comes from nextId,
   // so it isn't in entries yet and nothing can reference it.
   const deps = Array.isArray(depends_on) ? depends_on : [];
-  const knownIds = new Set(entries.map((e) => e.id));
+  const knownIds = new Set(known.map((e) => e.id));
   const unknown = deps.filter((dep) => !knownIds.has(dep));
   if (unknown.length) throw new Error(`unknown depends_on id(s): ${unknown.join(", ")}`);
-  const id = nextId(entries);
+  // Over BOTH files: reissuing an archived id would point every commit
+  // trailer and `[Foreman: <id>]` anchor that names it at a different task.
+  const id = nextId(known);
   const date = today();
   const entry = {
     id,
@@ -463,7 +536,7 @@ function cmdAddUnlocked(root, payload) {
     ...(kind === "decision" ? { kind } : {}),
   };
   entries.push(entry);
-  writeEntries(root, entries);
+  writeEntries(root, entries, otherFileResolver(() => archived));
   const warnings = fieldWarnings([
     ["why", why, WHY_WARN_CHARS],
     ["what", what, WHAT_WARN_CHARS],
@@ -593,13 +666,22 @@ function compactEntries(entries, ids) {
     .map(({ id, title }) => ({ id, title }));
 }
 
-function graphState(entries) {
+// [Foreman: 132] `resolve` is how a dependency that has been archived still
+// counts: an id missing from `entries` is looked up in the archive and
+// resolves with its archived status (done ⇒ satisfied, dropped/rejected ⇒
+// stranded), exactly as it would have before the move. Only a truly absent
+// id is treated as missing.
+function graphState(entries, resolve) {
   const byId = new Map(entries.map((entry) => [entry.id, entry]));
-  const done = new Set(entries.filter((entry) => entry.status === "done").map((entry) => entry.id));
+  const parentOf = (id) => byId.get(id) || (resolve ? resolve(id) : null);
+  const isDone = (id) => {
+    const parent = parentOf(id);
+    return Boolean(parent) && parent.status === "done";
+  };
   const ready = new Set(
     entries
       .filter((entry) => entry.status === "planned")
-      .filter((entry) => (entry.depends_on || []).every((dependency) => done.has(dependency)))
+      .filter((entry) => (entry.depends_on || []).every(isDone))
       .map((entry) => entry.id)
   );
   const stranded = new Set(
@@ -607,7 +689,7 @@ function graphState(entries) {
       .filter((entry) => !TERMINAL_STATUSES.has(entry.status))
       .filter((entry) =>
         (entry.depends_on || []).some((dependency) => {
-          const parent = byId.get(dependency);
+          const parent = parentOf(dependency);
           return !parent || (TERMINAL_STATUSES.has(parent.status) && parent.status !== "done");
         })
       )
@@ -617,8 +699,8 @@ function graphState(entries) {
 }
 
 function graphFacts(beforeEntries, afterEntries, options = {}) {
-  const before = graphState(beforeEntries);
-  const after = graphState(afterEntries);
+  const before = graphState(beforeEntries, options.resolve);
+  const after = graphState(afterEntries, options.resolve);
   const omit = new Set(options.omit || []);
   const difference = (left, right) =>
     new Set([...left].filter((id) => !right.has(id) && !omit.has(id)));
@@ -636,6 +718,19 @@ function graphFacts(beforeEntries, afterEntries, options = {}) {
     facts.stranded_dependents = compactEntries(afterEntries, strandedDependents);
   }
   return facts;
+}
+
+// [Foreman: 132] Every mutation is an active-entry operation. An id the
+// active file does not have may still be archived, so the "not found" path
+// checks there and names the one command that makes it writable again
+// instead of leaving the caller to guess where the entry went.
+function missingEntryError(resolve, id) {
+  if (resolve(id)) {
+    return new Error(
+      `entry ${id} is archived — run "roadmap.js restore" for it first; archived entries are history, not edited in place`
+    );
+  }
+  return new Error(`no entry with id ${id}`);
 }
 
 function cmdUpdateStatus(root, payload) {
@@ -687,13 +782,14 @@ function cmdUpdateStatusUnlocked(root, payload) {
   if (kind !== undefined) validateKind(kind);
   if (model !== undefined) validateRan("model", model, MODELS);
   if (effort !== undefined) validateRan("effort", effort, EFFORTS);
+  const resolve = archiveResolver(root);
   const entries = readEntries(root);
   const beforeEntries = entries.map((entry) => ({
     ...entry,
     depends_on: [...(entry.depends_on || [])],
   }));
   const entry = entries.find((e) => e.id === id);
-  if (!entry) throw new Error(`no entry with id ${id}`);
+  if (!entry) throw missingEntryError(resolve, id);
   // Internal compare-and-set guard for hooks that first made a read-only
   // eligibility check. Recheck inside the mutation lock so a concurrent
   // close cannot be regressed by the stale hook observation.
@@ -709,7 +805,9 @@ function cmdUpdateStatusUnlocked(root, payload) {
     const byId = new Map(entries.map((candidate) => [candidate.id, candidate]));
     const blockingDependencies = (entry.depends_on || [])
       .map((dependencyId) => {
-        const dependency = byId.get(dependencyId);
+        // An archived parent still answers for its status — an archived
+        // done dependency is satisfied, not missing.
+        const dependency = byId.get(dependencyId) || resolve(dependencyId);
         return dependency
           ? {
               id: dependency.id,
@@ -778,9 +876,9 @@ function cmdUpdateStatusUnlocked(root, payload) {
     entry.notes = appendNote(entry.notes, note);
   }
   entry.updated_at = today();
-  writeEntries(root, entries);
+  writeEntries(root, entries, resolve);
   const warnings = notes ? fieldWarnings([["notes", notes, NOTES_APPEND_WARN_CHARS, NOTES_WARN_HINT]]) : [];
-  const result = { entry, ...graphFacts(beforeEntries, entries, { omit: [id] }) };
+  const result = { entry, ...graphFacts(beforeEntries, entries, { omit: [id], resolve }) };
   if (derivedTouches.length) result.derived_touches = derivedTouches;
   if (drift && (drift.untouched.length || drift.unpredicted.length)) result.scope_drift = drift;
   // A staged close hands back the exact trailer line the commit message
@@ -804,7 +902,7 @@ function cmdAnnotateUnlocked(root, payload) {
   if (!id || !notes) throw new Error("annotate requires id, notes");
   const entries = readEntries(root);
   const entry = entries.find((e) => e.id === id);
-  if (!entry) throw new Error(`no entry with id ${id}`);
+  if (!entry) throw missingEntryError(archiveResolver(root), id);
   // append-only invariant: never replace existing notes
   entry.notes = appendNote(entry.notes, notes);
   entry.updated_at = today();
@@ -850,10 +948,12 @@ function cmdUpdateDepsUnlocked(root, payload) {
     ...entry,
     depends_on: [...(entry.depends_on || [])],
   }));
+  const resolve = archiveResolver(root);
   const entry = entries.find((e) => e.id === id);
-  if (!entry) throw new Error(`no entry with id ${id}`);
+  if (!entry) throw missingEntryError(resolve, id);
+  // An archived (usually done) parent is a legitimate edge, same as add's.
   const knownIds = new Set(entries.map((e) => e.id));
-  const unknown = adds.filter((dep) => !knownIds.has(dep));
+  const unknown = adds.filter((dep) => !knownIds.has(dep) && !resolve(dep));
   if (unknown.length) throw new Error(`unknown depends_on id(s): ${unknown.join(", ")}`);
   if (adds.includes(id)) throw new Error("a task cannot depend on itself");
   // A cycle can only be introduced here — add sets depends_on once, at
@@ -876,8 +976,8 @@ function cmdUpdateDepsUnlocked(root, payload) {
     if (!entry.depends_on.includes(dep)) entry.depends_on.push(dep);
   }
   entry.updated_at = today();
-  writeEntries(root, entries);
-  return { entry, ...graphFacts(beforeEntries, entries) };
+  writeEntries(root, entries, resolve);
+  return { entry, ...graphFacts(beforeEntries, entries, { resolve }) };
 }
 
 // The fields a stale plan gets wrong that no other command can repair:
@@ -933,8 +1033,9 @@ function cmdCorrectUnlocked(root, payload) {
     ...entry,
     depends_on: [...(entry.depends_on || [])],
   }));
+  const resolve = archiveResolver(root);
   const entry = entries.find((e) => e.id === id);
-  if (!entry) throw new Error(`no entry with id ${id}`);
+  if (!entry) throw missingEntryError(resolve, id);
   if (!CORRECTABLE_STATUSES.has(entry.status)) {
     throw new Error(
       `entry ${id} is ${entry.status} — only ${[...CORRECTABLE_STATUSES].join("/")} entries can be corrected; a terminal entry is history its commits already describe`
@@ -948,9 +1049,11 @@ function cmdCorrectUnlocked(root, payload) {
       `entry ${id} was last updated ${entry.updated_at}, not ${expected_updated_at} — re-read the entry and re-apply the correction on top of it`
     );
   }
-  // add's exact-title replay dedup is only safe while titles stay unique.
+  // add's exact-title replay dedup is only safe while titles stay unique —
+  // and it now matches archived titles too, so those count as taken.
   if (text.title !== undefined) {
-    const clash = entries.find((other) => other.id !== id && other.title === text.title);
+    const clash = [...entries, ...readArchive(root)]
+      .find((other) => other.id !== id && other.title === text.title);
     if (clash) {
       throw new Error(
         `entry ${clash.id} already has the title ${JSON.stringify(text.title)} — titles must stay unique, they are add's replay key`
@@ -984,7 +1087,7 @@ function cmdCorrectUnlocked(root, payload) {
   // which is the very value every other session's guard is holding.
   if (changed.length) {
     entry.updated_at = today();
-    writeEntries(root, entries);
+    writeEntries(root, entries, resolve);
   }
   const warnings = fieldWarnings([
     ["why", text.why, WHY_WARN_CHARS],
@@ -992,12 +1095,15 @@ function cmdCorrectUnlocked(root, payload) {
   ]);
   // No correctable field touches status or depends_on, so these are always
   // empty today. Wired anyway so a later correctable field inherits it.
-  const result = { entry, changed, ...graphFacts(beforeEntries, entries) };
+  const result = { entry, changed, ...graphFacts(beforeEntries, entries, { resolve }) };
   return warnings.length ? { ...result, warnings } : result;
 }
 
 function cmdList(root, filters) {
-  const entries = readEntries(root);
+  // [Foreman: 132] --archived swaps the source file and nothing else: the
+  // same --ids/--status/--summary semantics, over history instead of the
+  // active plan. Without it, list is active-only like every other view.
+  const entries = filters.archived ? readArchive(root) : readEntries(root);
   const byId = new Map(entries.map((e) => [e.id, e]));
   const statusFilter = filters.status ? new Set(String(filters.status).split(",")) : null;
   const idsFilter = filters.ids ? new Set(String(filters.ids).split(",")) : null;
@@ -1093,6 +1199,17 @@ function cmdNextCandidates(root, filters) {
   const entries = readEntries(root);
   const byId = new Map(entries.map((e) => [e.id, e]));
   const doneIds = new Set(entries.filter((e) => e.status === "done").map((e) => e.id));
+  // [Foreman: 132] An archived parent still satisfies its dependents: an id
+  // the active file does not carry is looked up in the archive (once, and
+  // only when that happens) and answers with its archived status, so
+  // archiving a finished parent never strands the work waiting on it.
+  const resolve = archiveResolver(root);
+  const dependencyDone = (dep) => {
+    if (doneIds.has(dep)) return true;
+    if (byId.has(dep)) return false;
+    const parent = resolve(dep);
+    return Boolean(parent) && parent.status === "done";
+  };
 
   const inProgressTouches = [];
   for (const e of entries) {
@@ -1130,7 +1247,7 @@ function cmdNextCandidates(root, filters) {
     // here: it means "recorded but waiting on an external trigger the user
     // hasn't marked as met", so it must not surface as a "do this next" pick.
     .filter((e) => e.status === "planned")
-    .filter((e) => (e.depends_on || []).every((dep) => doneIds.has(dep)))
+    .filter((e) => (e.depends_on || []).every(dependencyDone))
     .map((e) => ({
       id: e.id,
       title: e.title,
@@ -1277,17 +1394,111 @@ function cmdCheckDuplicate(root, payload) {
   const { title, why } = payload || {};
   if (!title && !why) throw new Error("check-duplicate requires title and/or why");
   const words = normalizeWords(`${title || ""} ${why || ""}`);
-  const matches = readEntries(root)
-    .map((e) => ({
+  // [Foreman: 132] Archived entries are still the record of what this
+  // project has already considered, so they stay in the sweep — a task
+  // finished and archived last month must not be re-suggested as new.
+  const matches = [
+    ...readEntries(root).map((e) => ({ entry: e, archived: false })),
+    ...readArchive(root).map((e) => ({ entry: e, archived: true })),
+  ]
+    .map(({ entry: e, archived }) => ({
       id: e.id,
       title: e.title,
       status: e.status,
+      ...(archived ? { archived: true } : {}),
       score: jaccard(words, normalizeWords(`${e.title || ""} ${e.why || ""}`)),
     }))
     .filter((m) => m.score >= DUPLICATE_THRESHOLD)
     .sort((a, b) => b.score - a.score)
     .slice(0, MAX_MATCHES);
   return { duplicate: matches.length > 0, matches };
+}
+
+// [Foreman: 132]
+// Archive and restore are the same move in opposite directions, so they are
+// one implementation.
+//
+// Two files cannot be renamed atomically together, so the order is fixed:
+// the DESTINATION is written first (temp file + rename, the same crash-safe
+// pattern every roadmap write uses), then the source is rewritten without
+// the entries. A crash between the two leaves the id in BOTH files — never
+// in neither — and re-running the same command finishes the move, because a
+// byte-identical copy already sitting in the destination is read as an
+// interrupted move rather than a conflict. `doctor` reports that state as
+// duplicate_across_files and names the same repair.
+//
+// All-or-nothing: one bad id refuses the whole call, before anything is
+// written. A partial batch would leave the caller to work out which half
+// moved, which is exactly the bookkeeping this is supposed to remove.
+function moveEntries(root, payload, direction) {
+  const ids = (payload || {}).ids;
+  if (!Array.isArray(ids) || !ids.length || ids.some((id) => typeof id !== "string" || !id)) {
+    throw new Error(`${direction} requires ids: a non-empty array of entry ids`);
+  }
+  const archiving = direction === "archive";
+  const source = archiving ? readEntries(root) : readArchive(root);
+  const destination = archiving ? readArchive(root) : readEntries(root);
+  const sourceLabel = archiving ? "ROADMAP.jsonl" : ARCHIVE_LABEL;
+  const destinationById = new Map(destination.map((entry) => [entry.id, entry]));
+
+  const wanted = [...new Set(ids)];
+  const moving = [];
+  for (const id of wanted) {
+    const entry = source.find((candidate) => candidate.id === id);
+    const already = destinationById.get(id);
+    if (!entry) {
+      throw new Error(
+        already
+          ? `entry ${id} is already ${archiving ? "archived" : "active"}`
+          : `no entry with id ${id} in ${sourceLabel}`
+      );
+    }
+    // Only work nothing is waiting on any more leaves the active file. An
+    // entry still in flight would vanish from every view that plans work.
+    if (archiving && !TERMINAL_STATUSES.has(entry.status)) {
+      throw new Error(
+        `entry ${id} is ${entry.status} — only ${[...TERMINAL_STATUSES].join("/")} entries can be archived, `
+          + "and nothing is archived by halves, so this call moved nothing"
+      );
+    }
+    if (already) {
+      if (JSON.stringify(already) !== JSON.stringify(entry)) {
+        throw new Error(
+          `entry ${id} is in both ROADMAP.jsonl and ${ARCHIVE_LABEL} with different content — `
+            + 'resolve which one is the entry by hand (via Bash), then re-run; run "roadmap.js doctor" for the full report'
+        );
+      }
+      continue; // an interrupted move: only the source rewrite is still owed
+    }
+    moving.push(entry);
+  }
+
+  const keep = new Set(wanted);
+  const remaining = source.filter((entry) => !keep.has(entry.id));
+  const combined = [...destination, ...moving];
+  // Destination first, always — the entry is duplicated for an instant
+  // rather than at risk of existing nowhere.
+  if (archiving) {
+    if (moving.length) writeArchive(root, combined);
+    writeEntries(root, remaining);
+  } else {
+    if (moving.length) writeEntries(root, combined);
+    writeArchive(root, remaining);
+  }
+
+  return {
+    [archiving ? "archived" : "restored"]: wanted,
+    active_count: archiving ? remaining.length : combined.length,
+    archived_count: archiving ? combined.length : remaining.length,
+  };
+}
+
+function cmdArchive(root, payload) {
+  return withRoadmapLock(root, () => moveEntries(root, payload, "archive"));
+}
+
+function cmdRestore(root, payload) {
+  return withRoadmapLock(root, () => moveEntries(root, payload, "restore"));
 }
 
 // [Foreman: 129]
@@ -1345,24 +1556,45 @@ function cmdMigrateUnlocked(root) {
 // --fix is passed. `ok` here answers "is the roadmap healthy" — the one
 // subcommand where it is not just "did the call succeed"; a failed call
 // still exits 1 with an `error` field, as everywhere else.
+// [Foreman: 132] The archive is held to the SAME per-entry contract as the
+// roadmap — same schema, and a corrupt archive line is just as unreadable —
+// with each of its findings prefixed by the file it came from, plus the one
+// finding only the pair can produce (an id sitting in both). Dependencies
+// resolve across the boundary in both directions, so an active entry waiting
+// on an archived parent is not "missing" and an archived entry waiting on a
+// still-active one is not either. Archived findings are never marked
+// repairable: --fix writes the roadmap only.
+function allFindings(root) {
+  const active = readEntries(root);
+  const archived = readArchive(root);
+  return [
+    ...validateEntries(active, { resolve: otherFileResolver(() => archived) }),
+    ...validateEntries(archived, { resolve: otherFileResolver(() => active) }).map((item) => ({
+      ...item,
+      repairable: false,
+      message: `${ARCHIVE_LABEL}: ${item.message}`,
+    })),
+    ...validateAcrossFiles(active, archived),
+    ...validateConfig(root),
+  ];
+}
+
 function cmdDoctor(root, flags) {
   if (!flags || !flags.fix) {
-    return summarize([...validateEntries(readEntries(root)), ...validateConfig(root)]);
+    return summarize(allFindings(root));
   }
   return withRoadmapLock(root, () => {
     // Re-read inside the lock: the read that produced a finding must be the
     // read the repair is applied to.
     const entries = readEntries(root);
-    const fixed = applyRepairs(entries, validateEntries(entries));
+    const resolve = archiveResolver(root);
+    const fixed = applyRepairs(entries, validateEntries(entries, { resolve }));
     // The write gate tolerates what the file already had, so a partial
     // repair is never blocked by the damage it cannot fix.
-    if (fixed.length) writeEntries(root, entries);
+    if (fixed.length) writeEntries(root, entries, resolve);
     // Re-validate from disk, not from memory — the report describes the file
     // that now exists.
-    return {
-      ...summarize([...validateEntries(readEntries(root)), ...validateConfig(root)]),
-      fixed,
-    };
+    return { ...summarize(allFindings(root)), fixed };
   });
 }
 
@@ -1460,6 +1692,26 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     returns changed:[...] listing only the fields that
                     actually differed, plus the same compact graph-fact
                     fields when non-empty
+  archive           stdin JSON: {ids:["019", ...]}
+                    moves terminal (done/dropped/rejected) entries out of
+                    ROADMAP.jsonl into .foreman/archive.jsonl, verbatim --
+                    same id, same fields, same status. A non-terminal or
+                    unknown id refuses the WHOLE call; nothing moves by
+                    halves. Archived entries leave every active view (list,
+                    next-candidates) but still count for id continuity,
+                    add's exact-title dedup, check-duplicate, and dependency
+                    resolution. Returns {archived:[ids], active_count,
+                    archived_count}
+  restore           stdin JSON: {ids:["019", ...]}
+                    the exact inverse: moves entries back verbatim, refusing
+                    an id the active file already carries. Same
+                    all-or-nothing rule. Restore before changing an archived
+                    entry -- update-status/annotate/update-deps/correct all
+                    refuse one and say so. Returns {restored:[ids], ...}
+                    Both write the destination file BEFORE rewriting the
+                    source, so a crash duplicates an id rather than losing
+                    it; re-running the same call finishes the move, and
+                    doctor reports the gap as duplicate_across_files
   list              flag: --status planned,in_progress   (optional, comma-separated)
                     flag: --ids 002,005   (optional, comma-separated, combinable with --status)
                     targeted full rows add depends_on_docs (direct
@@ -1467,6 +1719,9 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     flag: --summary   (optional: entries carry only
                     id/title/status/depends_on -- use for whole-roadmap
                     renders, then fetch the few needing prose via --ids)
+                    flag: --archived   (optional: read .foreman/archive.jsonl
+                    instead of ROADMAP.jsonl -- same filter semantics;
+                    without it every view is active-only)
   next-candidates   flag: --limit N   (optional, default 3)
                     flag: --menu   (optional: compact choice rows only;
                     fetch the selected entry with list --ids <id>)
@@ -1485,7 +1740,8 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     the entry was checked against the code
   check-duplicate   stdin JSON: {title, why}
                     word-overlap match against ALL entries regardless of
-                    status; each match includes its status so callers can
+                    status, archived ones included (archived:true on those);
+                    each match includes its status so callers can
                     tell "already declined" from "already on the roadmap"
   doctor            flag: --fix   (optional; read-only without it)
                     checks the whole roadmap and .foreman/config.json against
@@ -1504,8 +1760,11 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     duplicate_dependency, dependency_cycle,
                     stranded_dependency, similar_titles,
                     terminal_without_evidence, unsupported_schema_version,
-                    unknown_config_key, invalid_config_value,
-                    unreadable_config
+                    duplicate_across_files, unknown_config_key,
+                    invalid_config_value, unreadable_config
+                    the whole per-entry contract also runs over
+                    .foreman/archive.jsonl (its findings' messages carry that
+                    prefix, and --fix never writes that file)
                     --fix applies ONLY the repairable ones (absent
                     depends_on/touches/commits/notes, a self-dependency
                     edge, a repeated dependency id) under the mutation lock,
@@ -1547,6 +1806,9 @@ Examples:
     | node roadmap.js update-deps
   echo '{"id":"004","expected_updated_at":"2026-07-28","what":"...","touches":["src/api/retry.ts"]}' \\
     | node roadmap.js correct
+  echo '{"ids":["001","003"]}' | node roadmap.js archive
+  echo '{"ids":["003"]}' | node roadmap.js restore
+  node roadmap.js list --archived --summary
   node roadmap.js next-candidates --limit 5
   node roadmap.js doctor
   node roadmap.js doctor --fix
@@ -1595,6 +1857,12 @@ function main() {
     case "correct":
       result = cmdCorrect(root, readStdinJSON());
       break;
+    case "archive":
+      result = cmdArchive(root, readStdinJSON());
+      break;
+    case "restore":
+      result = cmdRestore(root, readStdinJSON());
+      break;
     case "list":
       result = cmdList(root, parseFlags(rest));
       break;
@@ -1612,7 +1880,7 @@ function main() {
       break;
     default:
       throw new Error(
-        `unknown subcommand: ${sub}. Use add|update-status|annotate|update-deps|correct|list|next-candidates|check-duplicate|doctor|migrate`
+        `unknown subcommand: ${sub}. Use add|update-status|annotate|update-deps|correct|archive|restore|list|next-candidates|check-duplicate|doctor|migrate`
       );
   }
   process.stdout.write(JSON.stringify({ ok: true, ...result }));
@@ -1626,6 +1894,12 @@ module.exports = {
   roadmapPath,
   readEntries,
   writeEntries,
+  // [Foreman: 132] The archive half of the storage: same format, same
+  // writer, a different path. readEntries stays active-only.
+  ARCHIVE_LABEL,
+  archivePath,
+  readArchive,
+  writeArchive,
   nextId,
   today,
   cmdAdd,
@@ -1633,6 +1907,8 @@ module.exports = {
   cmdAnnotate,
   cmdUpdateDeps,
   cmdCorrect,
+  cmdArchive,
+  cmdRestore,
   cmdList,
   cmdNextCandidates,
   cmdCheckDuplicate,

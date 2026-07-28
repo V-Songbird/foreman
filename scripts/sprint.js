@@ -155,7 +155,11 @@ function foremanTrailerIds(root, commit) {
 
 function isSharedLedger(file) {
   const normalized = file.replaceAll("\\", "/");
-  if (normalized === "ROADMAP.jsonl") return true;
+  // [Foreman: 132] The archive is the roadmap's other half — same single
+  // writer rule, so a worker must not commit it either. safe-commit's
+  // roadmap_close carve-out stays ROADMAP.jsonl only: a close writes the
+  // roadmap, never the archive.
+  if (normalized === "ROADMAP.jsonl" || normalized === ".foreman/archive.jsonl") return true;
   return !normalized.includes("/") && /^CHANGELOG(?:\.[^/]+)?$/i.test(normalized);
 }
 

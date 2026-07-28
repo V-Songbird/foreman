@@ -20,7 +20,8 @@ hand-formatted JSON to get wrong). Never `Read`/`Edit` `ROADMAP.jsonl`
 directly — see "Using roadmap.js" below.
 
 This isn't just convention — `hooks/guard-roadmap-edit.js` (`PreToolUse`
-on `Edit`/`Write`) denies any direct edit of a file named `ROADMAP.jsonl`,
+on `Edit`/`Write`) denies any direct edit of a file named `ROADMAP.jsonl`
+or `archive.jsonl` (see [Archived entries](#archived-entries--foremanarchivejsonl)),
 pointing back at the CLI. `Read` is still fine (inspecting the file is
 harmless), only writing to it directly is blocked. `Bash` stays open as
 an escape hatch for the rare case where the file is corrupt and the CLI
@@ -160,11 +161,13 @@ JSON line to stdout: `{"ok":true, ...}` on success, `{"ok":false,"error":
 | `annotate` | JSON via stdin: `id`, `notes` | **Appends** `notes` (never overwrites) and bumps `updated_at` — status untouched. The notes-only write: unlike `update-status`, it can't regress an entry's status from a stale read (e.g. re-asserting `planned` on an entry another session moved to `in_progress` in the meantime). Use it whenever the only thing changing is a breadcrumb. Returns the updated `entry`. |
 | `update-deps` | JSON via stdin: `id`, plus at least one of `add_depends_on` / `remove_depends_on` (arrays of ids) | Adds ids to an existing entry's `depends_on` (no duplicates), rejects unknown ids, self-dependencies, and any addition that would close a dependency cycle (direct or transitive — walks the existing graph before writing), bumps `updated_at`. `remove_depends_on` drops edges and needs no guard of its own — a removal can't create a cycle or a dangling reference, and removing an id that isn't there is a no-op. It is the recovery path when a dependency was later `dropped`, which would otherwise leave the dependent permanently un-pickable. For a hidden dependency discovered after the entry was created — `add` only sets `depends_on` at creation time, this is the only way to correct it later. Structural, not a breadcrumb: this changes what `next-candidates` computes as unblocked, so it's the mechanism `foreman:survey` uses to make a finding persist across sessions instead of just noting it. Returns compact `newly_unblocked`, `newly_blocked`, or `stranded_dependents` arrays only when the edge change causes them. |
 | `correct` | JSON via stdin: `id`, `expected_updated_at`, plus at least one of `title` / `why` / `what` / `kind` / `touches` | The supported repair for an entry whose description or planned files went stale — the fields `add` writes once and nothing else can fix (the guard hook denies the hand edit). Each given field is a **full replacement**, not an append: `title`/`why`/`what` must be non-empty strings, `touches` replaces the whole planned surface (so a wrong prediction can shrink), `kind` follows the same contract as `add` — `"decision"` is stored, `"build"` drops the key. **Guarded**: `expected_updated_at` is required and must equal the entry's current `updated_at`; a mismatch names the current value, writes nothing, and exits 1, so a stale session cannot overwrite a newer correction (see `updated_at` above for what that guard does and does not cover). **Active entries only** — `planned`, `in_progress`, `deferred`. Correcting a `done`/`dropped`/`rejected` entry is rewriting history its commits already describe, and is refused. A `title` equal to another entry's is refused too: titles are `add`'s exact-replay key. Bumps `updated_at` and re-validates the file like every other mutation; a correction where every field already held the given value writes nothing at all. Returns the updated `entry` and `changed` — only the fields that actually differed — plus the same compact graph-fact fields when non-empty (no correctable field moves the dependency graph today, so in practice they are absent). **Git is the audit trail**: the active entry carries the best-known truth, and the prose it replaces lives in the file's history rather than in the entry. |
-| `list` | optional flags: `--status planned,in_progress`, `--ids 002,005` (combinable, AND semantics), `--summary` | Returns `entries` — filtered by whichever flags are given, everything otherwise. Read-only. `--ids` exists so a caller that only needs a handful of specific entries doesn't have to load the whole file; targeted, non-summary rows also carry `depends_on_docs`, the selected entries' direct dependency-document paths, without returning those dependency entries. Whole-roadmap output stays as stored. `--summary` strips each entry to `id`/`title`/`status`/`depends_on` — what a whole-roadmap render (`foreman:roadmap`'s Review status) actually needs; fetch the few entries that need prose via a follow-up `--ids` call. |
+| `archive` | JSON via stdin: `ids` (array) | Moves terminal (`done`/`dropped`/`rejected`) entries out of `ROADMAP.jsonl` into `.foreman/archive.jsonl` **verbatim** — same id, same fields, same status. **All-or-nothing**: a non-terminal or unknown id refuses the whole call before anything is written, so a batch never half-moves. Archived entries leave every active view (`list`, `next-candidates`) but stay part of the record for id continuity, `add`'s exact-title dedup, `check-duplicate`, and dependency resolution — see [Archived entries](#archived-entries--foremanarchivejsonl). Returns `{archived: [ids], active_count, archived_count}`. |
+| `restore` | JSON via stdin: `ids` (array) | The exact inverse — moves entries back verbatim, refusing an id the active file already carries (with different content), under the same all-or-nothing rule. This is the prerequisite for changing an archived entry: `update-status`, `annotate`, `update-deps`, and `correct` all refuse an archived id and say so. Returns `{restored: [ids], active_count, archived_count}`. |
+| `list` | optional flags: `--status planned,in_progress`, `--ids 002,005` (combinable, AND semantics), `--summary`, `--archived` | Returns `entries` — filtered by whichever flags are given, everything otherwise. Read-only. `--archived` reads `.foreman/archive.jsonl` instead of `ROADMAP.jsonl`, with identical filter semantics; without it (and in every other command) the view is active-only. `--ids` exists so a caller that only needs a handful of specific entries doesn't have to load the whole file; targeted, non-summary rows also carry `depends_on_docs`, the selected entries' direct dependency-document paths, without returning those dependency entries. Whole-roadmap output stays as stored. `--summary` strips each entry to `id`/`title`/`status`/`depends_on` — what a whole-roadmap render (`foreman:roadmap`'s Review status) actually needs; fetch the few entries that need prose via a follow-up `--ids` call. |
 | `next-candidates` | optional flags: `--limit N` (default 3 — matches `AskUserQuestion`'s 4-option cap, leaving one slot for the "something else" escape hatch), `--hint "words"` (rank by relevance first — the fraction of the hint's words found in each candidate's `title`/`why`/`what`/`touches`/`notes`; adds `hint_score` per candidate and a top-level `hint_matched`, `false` when no candidate matched at all), `--menu` (project the ranked result to choice-time fields only) | Mechanical filter (unblocked: `planned`, every `depends_on` done) + rank (`unblocks_total` — every *open* entry waiting behind this one, directly or down the dependency chain; closed dependents don't count — then direct `unblocks`, then no-collision before collision, then oldest `created_at`; no stored priority field) + a `collision` flag per candidate (true when any of its `touches` overlaps any `in_progress` entry's — the same normalized, folder-aware rule sprint planning uses: separators and case normalized, and a folder hint matching everything beneath it in either direction, so `src/auth/` collides with `src/auth/middleware.ts` while the sibling `src/auth-utils` does not) + a `reason` per candidate. `reason` is one short sentence naming the ranking key that actually placed that row — `matches your hint '<hint>'`, `unblocks N open tasks (M directly)`, `no file overlap with in-progress work, unlike an otherwise equal task`, or `oldest ready task` — with `; may overlap in-progress work` appended when `collision` is true. It is derived from the signals the sort already used (no new ranking input, no reordering) and explains Foreman's **default ordering**; it is never a claim that the entry was checked against the code. Both shapes carry the identical string. Full output remains the compatibility default and carries each candidate's complete handoff fields plus full `in_progress` entries. `--menu` preserves exactly the same order but returns candidate `id`/`title`/bounded `why`/collision/ranking signals and slim `in_progress` `id`/`title`/bounded `why`/`updated_at` rows; it omits `what`, `touches`, full `notes`, and decision-doc payload until the user chooses. This is what `foreman:roadmap`'s "Pick the next task" calls, followed by `list --ids <selected-id>` — never `list` + manual filtering over the whole roadmap. |
-| `doctor` | optional flag: `--fix` | Checks the **whole** roadmap and `.foreman/config.json` against the structural contract below and returns `{ok, findings, summary:{errors,warnings}}`. Read-only without `--fix`. Each finding carries a stable `code`, a `severity` (`error` when a consumer would break or have to guess — unknown status, duplicate id, dangling dependency, cycle, bad date/doc; `warning` when the value is mechanically recoverable, already defaulted by every reader, or merely suspicious — an absent `touches`, an unrecognized `source`, two entries that read alike), the entry `ids` it concerns, a one-line `message`, and `repairable: true` only where the fix has exactly one possible outcome. Codes: `missing_field`, `invalid_type`, `invalid_id`, `duplicate_id`, `unknown_status`, `unknown_source`, `unknown_kind`, `unknown_model`, `unknown_effort`, `invalid_date`, `invalid_path`, `invalid_doc`, `missing_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `stranded_dependency`, `similar_titles` (the five closest pairs, same Jaccard score `check-duplicate` uses), `terminal_without_evidence` (`done`, no commits, no notes), `unsupported_schema_version` (a format marker no reader will honor: a version that isn't a whole number ≥ 1, or a marker below an entry — `migrate` is the repair, and the message says so; a version *newer* than this Foreman isn't a finding at all, it fails the whole call), `unknown_config_key` (a warning: forward compatibility), `invalid_config_value`, `unreadable_config`. `ok` here answers "is the roadmap healthy", not "did the call work" — a *failed call* still exits 1 with an `error` field, as everywhere else. `--fix` applies **only** the repairable findings (an absent `depends_on`/`touches`/`commits`/`notes`, a self-dependency edge, a repeated dependency id) under the same mutation lock as every other write, re-validates from disk, and returns what it changed as `fixed`; it leaves `updated_at` alone, since normalizing a container field is not a change to the task. Ambiguous findings are never auto-fixed — the script prints them and never prompts. |
+| `doctor` | optional flag: `--fix` | Checks the **whole** roadmap and `.foreman/config.json` against the structural contract below and returns `{ok, findings, summary:{errors,warnings}}`. Read-only without `--fix`. Each finding carries a stable `code`, a `severity` (`error` when a consumer would break or have to guess — unknown status, duplicate id, dangling dependency, cycle, bad date/doc; `warning` when the value is mechanically recoverable, already defaulted by every reader, or merely suspicious — an absent `touches`, an unrecognized `source`, two entries that read alike), the entry `ids` it concerns, a one-line `message`, and `repairable: true` only where the fix has exactly one possible outcome. Codes: `missing_field`, `invalid_type`, `invalid_id`, `duplicate_id`, `unknown_status`, `unknown_source`, `unknown_kind`, `unknown_model`, `unknown_effort`, `invalid_date`, `invalid_path`, `invalid_doc`, `missing_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `stranded_dependency`, `similar_titles` (the five closest pairs, same Jaccard score `check-duplicate` uses), `terminal_without_evidence` (`done`, no commits, no notes), `unsupported_schema_version` (a format marker no reader will honor: a version that isn't a whole number ≥ 1, or a marker below an entry — `migrate` is the repair, and the message says so; a version *newer* than this Foreman isn't a finding at all, it fails the whole call), `duplicate_across_files` (one id in both `ROADMAP.jsonl` and `.foreman/archive.jsonl` — an interrupted `archive`/`restore`; re-running that move is the repair, and the message says so), `unknown_config_key` (a warning: forward compatibility), `invalid_config_value`, `unreadable_config`. The whole per-entry contract runs over the archive file too, with each of its findings' messages prefixed `.foreman/archive.jsonl:`; dependencies resolve across the two files in both directions, and `--fix` writes `ROADMAP.jsonl` only (archive findings are never marked repairable). `ok` here answers "is the roadmap healthy", not "did the call work" — a *failed call* still exits 1 with an `error` field, as everywhere else. `--fix` applies **only** the repairable findings (an absent `depends_on`/`touches`/`commits`/`notes`, a self-dependency edge, a repeated dependency id) under the same mutation lock as every other write, re-validates from disk, and returns what it changed as `fixed`; it leaves `updated_at` alone, since normalizing a container field is not a change to the task. Ambiguous findings are never auto-fixed — the script prints them and never prompts. |
 | `migrate` | none — no stdin, no flags | Brings `ROADMAP.jsonl` up to the current format version (see [Format version](#format-version)) under the same mutation lock as every other write. **Safe to repeat**: it compares the file with what the current format would produce, so an already-current file is `{"changed": false}` with nothing written and no backup. When it does rewrite, it copies the file to `ROADMAP.jsonl.backup-<YYYYMMDD-HHmmss>` **before** the rewrite and returns that path as `backup`. Returns `{from, to, changed}` — `from` is the file's version, and an unversioned file is `1` (absence means 1), so on a roadmap that has never been stamped `migrate` writes the marker and leaves every entry line byte-identical. Also the repair for a marker that is malformed or below an entry. Never touches `.foreman/config.json`. A file from a *newer* Foreman fails here like everywhere else — this Foreman cannot upgrade a format it does not know. |
-| `check-duplicate` | JSON via stdin: `title`, `why` | Word-overlap (Jaccard) match against **all** entries, any status. Returns `{"duplicate": bool, "matches": [...]}`; each match carries its `status`, so a caller can tell "already declined" (`rejected` — skip silently) from "already on the roadmap" (`planned`/`in_progress`/`done`/... — skip, or link the existing id). Not semantic — a cheap filter to stop re-suggesting known work, not a guarantee. |
+| `check-duplicate` | JSON via stdin: `title`, `why` | Word-overlap (Jaccard) match against **all** entries, any status, archived ones included (those carry `archived: true`). Returns `{"duplicate": bool, "matches": [...]}`; each match carries its `status`, so a caller can tell "already declined" (`rejected` — skip silently) from "already on the roadmap" (`planned`/`in_progress`/`done`/... — skip, or link the existing id). Not semantic — a cheap filter to stop re-suggesting known work, not a guarantee. |
 
 Examples:
 ```
@@ -199,6 +202,11 @@ echo '{"id":"004","expected_updated_at":"2026-07-03","what":"...","touches":["sr
 node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js next-candidates --limit 5
 
 node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --ids 002,005
+
+# move finished work out of the active file (and back, if it has to change):
+echo '{"ids":["001","002"]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js archive
+echo '{"ids":["002"]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js restore
+node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --archived --summary
 ```
 
 The invariants this replaces (kept here as the contract the script
@@ -245,6 +253,70 @@ A 4-task file showing a dependency chain and one Claude-suggested entry:
 "claude-suggested"`, a `notes` breadcrumb pointing back at the commit that
 surfaced it) and the density "Writing claude-suggested entries" above asks
 for — exact paths and line ranges instead of a vague "the fetch wrapper."
+
+---
+
+## Archived entries — `.foreman/archive.jsonl`
+
+Terminal entries never stop accumulating, and every `list` re-reads all of
+them. `archive` moves them out of the active file; `restore` moves them
+back. Nothing is deleted, and nothing is rewritten in the move.
+
+**Storage.** `.foreman/archive.jsonl`, beside `config.json` rather than at
+the project root — it is history, not the plan. Same JSONL, same fields,
+same `{"foreman_roadmap_format":1}` first line, written by the same writer
+as `ROADMAP.jsonl` and held to the same structural contract, so it reads
+(and `doctor`s) with the same parser. It is committed like the roadmap, and
+`hooks/guard-roadmap-edit.js` blocks direct `Edit`/`Write` of it too.
+
+**Move order — crash safety.** Two files cannot be renamed atomically
+together, so the order is fixed: the **destination** is written first
+(temp-file + rename, the same pattern every roadmap write uses), then the
+source is rewritten without the entries. A crash between the two leaves the
+id in *both* files rather than in neither — `doctor` reports that as
+`duplicate_across_files`, and **re-running the same `archive`/`restore` call
+finishes the move**, because a byte-identical copy already in the
+destination is read as an interrupted move rather than a conflict. Both
+commands hold the same mutation lock as every other write, and both are
+all-or-nothing: one bad id refuses the whole call before anything is
+written.
+
+**Only terminal entries archive.** `done`, `dropped`, `rejected` — a
+`planned`/`in_progress`/`deferred` entry would vanish from the views that
+plan work. Status, id, and every field survive the move unchanged.
+
+**Id continuity.** `nextId`/`add` compute `max + 1` over **active +
+archived** ids, so an archived id is never reissued — a reused id would
+point every `Foreman: <id>` commit trailer and `[Foreman: <id>]` anchor that
+names it at a different task. `add`'s exact-title dedup and
+`check-duplicate` see archived entries too: an exact-title match on an
+archived entry returns it with `deduped: true, archived: true` and writes
+nothing.
+
+**Dependency resolution.** An active entry may depend on an archived
+(usually `done`) parent, and that edge keeps working everywhere dependency
+status is consulted — `next-candidates` readiness, the `require_ready`
+dispatch guard, the `newly_unblocked`/`stranded_dependents` graph facts, and
+`doctor`'s `missing_dependency`/`stranded_dependency`. An id absent from the
+active file is looked up in the archive and resolves **with its archived
+status**: archived `done` satisfies the dependency, archived
+`dropped`/`rejected` strands the dependent exactly as an active one would.
+Only an id in neither file is `missing_dependency`. The archive is read at
+most once per command, and only when an id actually fails to resolve — a
+project with no archive never pays for the second file.
+
+**Views stay active-only by construction.** `readEntries` returns the
+active file, so `list`, `next-candidates`, the hooks, and everything else
+exclude archived work without remembering to filter. `list --archived` is
+the one way in, and it takes the same `--ids`/`--status`/`--summary`
+filters. Archived entries are not editable in place: `update-status`,
+`annotate`, `update-deps`, and `correct` refuse an archived id and name
+`restore`.
+
+**Guards.** The archive is a shared ledger like `ROADMAP.jsonl` — sprint
+workers must not commit it (`isSharedLedger` in `scripts/sprint.js`), and
+safe-commit's `roadmap_close` carve-out stays `ROADMAP.jsonl` only, since a
+close writes the roadmap and never the archive.
 
 ---
 

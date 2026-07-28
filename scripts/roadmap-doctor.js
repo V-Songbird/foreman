@@ -185,7 +185,11 @@ function checkEntry(entry, index, out) {
   }
 }
 
-function checkGraph(rows, out) {
+// [Foreman: 132] `resolve(id)` answers "does this id live in the OTHER file"
+// (the archive, when validating the roadmap; the roadmap, when validating the
+// archive) and hands back that entry. It is consulted only for an id the rows
+// themselves do not carry, so a project with no archive never reads one.
+function checkGraph(rows, out, resolve) {
   const { reaches, TERMINAL_STATUSES } = roadmap();
   const byId = new Map();
   const counts = new Map();
@@ -215,7 +219,7 @@ function checkGraph(rows, out) {
         continue;
       }
       seen.add(dep);
-      const parent = byId.get(dep);
+      const parent = byId.get(dep) || (resolve ? resolve(dep) : null);
       if (!parent) {
         out.push(finding("missing_dependency", "error", [id], `entry ${id} depends on ${dep}, which does not exist`, { field: "depends_on" }));
         continue;
@@ -275,13 +279,37 @@ function checkSimilarity(rows, out) {
  * `similarity: false` drops the pairwise duplicate heuristic — the one
  * quadratic pass, and warning-only, so the write gate (which acts on errors
  * alone) skips it rather than paying for it on every mutation.
+ * `resolve(id)` (optional) looks an unresolved dependency up in the sibling
+ * file, so an active entry may depend on an archived parent.
  */
 function validateEntries(entries, options = {}) {
   const out = [];
   entries.forEach((entry, index) => checkEntry(entry, index, out));
   const rows = entries.filter(isObject);
-  checkGraph(rows, out);
+  checkGraph(rows, out, options.resolve);
   if (options.similarity !== false) checkSimilarity(rows, out);
+  return out;
+}
+
+// [Foreman: 132] The crash window of an archive/restore move: the entry was
+// appended to the destination but the source rewrite never landed, so one id
+// sits in both files. The message names the repair because the repair is not
+// a hand edit — re-running the same move finishes it, since both commands
+// treat a byte-identical destination copy as an interrupted move.
+function validateAcrossFiles(active, archived) {
+  const out = [];
+  const activeIds = new Set(
+    active.filter((entry) => isObject(entry) && typeof entry.id === "string").map((entry) => entry.id)
+  );
+  for (const entry of archived) {
+    if (!isObject(entry) || typeof entry.id !== "string" || !activeIds.has(entry.id)) continue;
+    out.push(finding(
+      "duplicate_across_files",
+      "error",
+      [entry.id],
+      `entry ${entry.id} is in both ROADMAP.jsonl and .foreman/archive.jsonl — an archive/restore that was interrupted between the two writes; re-run "roadmap.js archive" (or "restore") for that id to finish the move`
+    ));
+  }
   return out;
 }
 
@@ -428,6 +456,7 @@ function summarize(findings) {
 
 module.exports = {
   validateEntries,
+  validateAcrossFiles,
   validateConfig,
   applyRepairs,
   summarize,

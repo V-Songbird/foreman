@@ -39,6 +39,14 @@ If they name an entry that already exists and say what's wrong with it
 ("003's what is out of date", "retarget 007 at the proxy"), that's
 "Correct a task".
 
+If they ask to clear out or archive finished work ("archive the finished
+tasks", "get the done ones out of the way"), skip the menu: run `list
+--status done,dropped,rejected --summary`, show those ids, and ask **one**
+`AskUserQuestion` (`Archive them` / `Leave them`). On yes, `echo
+'{"ids":["001","002"]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js
+archive` — one call, all the ids, nothing else moves. `restore` with the
+same shape is the way back if one has to change again.
+
 ---
 
 ## Branch: Pick the next task
@@ -569,7 +577,9 @@ entry's blocker resolves to an entry that is `dropped` or `rejected` — or
 to an id no entry has — say so explicitly rather than calling it plain
 "blocked": it will not reappear in the pick list until that dependency is
 moved back with `update-status`, or its edge is removed with
-`update-deps`'s `remove_depends_on`. If any `deferred`
+`update-deps`'s `remove_depends_on`. Finished work that has been archived
+is not in this render at all — `list --archived --summary` returns it in
+the same shape when the user asks for the history. If any `deferred`
 entries exist, fetch just those in full for the "waiting on what" word —
 `list --ids <deferred ids>` — drawn from their `why`/`notes`. No writes,
 no further questions.

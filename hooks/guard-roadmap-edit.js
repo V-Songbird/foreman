@@ -28,9 +28,14 @@ function readInput() {
 // Basename-only match, deliberately not path-aware — a project having some
 // unrelated file literally named ROADMAP.jsonl elsewhere isn't worth
 // distinguishing from the real one at this scale.
+// [Foreman: 132] archive.jsonl is the same file in a later life: the archived
+// half of the roadmap, written by the same CLI (archive/restore), so a hand
+// edit bypasses the same invariants.
+const GUARDED_BASENAMES = new Set(["roadmap.jsonl", "archive.jsonl"]);
+
 function targetsRoadmap(filePath) {
   if (!filePath) return false;
-  return path.basename(String(filePath)).toLowerCase() === "roadmap.jsonl";
+  return GUARDED_BASENAMES.has(path.basename(String(filePath)).toLowerCase());
 }
 
 function main() {
@@ -43,9 +48,10 @@ function main() {
       hookEventName: "PreToolUse",
       permissionDecision: "deny",
       permissionDecisionReason:
-        `Foreman: direct ${data.tool_name} of ROADMAP.jsonl is blocked. Use ` +
-        `node ${SCRIPT_PATH} instead (add/update-status/annotate/list/` +
-        "next-candidates/check-duplicate — run with --help for usage). " +
+        `Foreman: direct ${data.tool_name} of ` +
+        `${path.basename(String(data.tool_input.file_path))} is blocked. Use ` +
+        `node ${SCRIPT_PATH} instead (add/update-status/annotate/archive/` +
+        "restore/list/next-candidates/check-duplicate — run with --help for usage). " +
         "It enforces id computation and parse-before/after-write; a hand " +
         "edit bypasses both. If the file is corrupt and the CLI itself " +
         "can't read it, repair it via Bash instead — that path stays open.",
