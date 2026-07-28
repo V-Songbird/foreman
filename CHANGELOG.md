@@ -19,6 +19,7 @@ field by convention).
 - Each file a task touches now carries the date it last changed, making it clear which of the task's claims may have aged.
 - Closing a task now notes how far the files it predicted differ from the files it actually changed.
 - Foreman can now check the whole roadmap and its settings file for structural problems — missing fields, unknown values, dangling or circular dependencies, look-alike tasks, finished tasks with nothing recording what happened — repair the unambiguous ones on request, and report the rest instead of guessing. Every roadmap write is held to the same contract, so a mutation can no longer leave the file in a state Foreman cannot read back.
+- A task's title, rationale, description, kind, and planned files can now be corrected after the fact — ask Foreman to fix a stale entry instead of dropping it and adding a replacement. Only tasks still open can be corrected, and a correction written against an older version of the entry is refused instead of overwriting a newer one.
 - New `modelSuggestions` setting, off by default: turn it on and each handoff says which model and reasoning effort the task deserves. Running a task in your own session then offers to hand the prompt to a fresh session already set to them. With it off, Foreman recommends nothing and only asks which model to dispatch on when a dispatch needs one. `/foreman:init` asks about it.
 
 ### Changed

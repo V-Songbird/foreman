@@ -1,12 +1,12 @@
 ---
 name: roadmap
-description: Ongoing entry point for a project's ROADMAP.jsonl. Pick the next task to work on (reasons about dependencies and file-touch collisions like a software architect, then crafts a self-contained handoff prompt), add a new task, or review roadmap status.
-when_to_use: Trigger when the user asks what to work on next, wants to add something to the roadmap, wants to see roadmap status, says "what's next", "pick a task", "add to the roadmap", "roadmap status", or invokes /foreman:roadmap.
+description: Ongoing entry point for a project's ROADMAP.jsonl. Pick the next task to work on (reasons about dependencies and file-touch collisions like a software architect, then crafts a self-contained handoff prompt), add a new task, correct a stale one, or review roadmap status.
+when_to_use: Trigger when the user asks what to work on next, wants to add something to the roadmap, wants to fix or reword an entry that already exists, wants to see roadmap status, says "what's next", "pick a task", "add to the roadmap", "that task's description is wrong", "roadmap status", or invokes /foreman:roadmap.
 argument-hint: "<optional — a task description to add, or a hint about what to pick next>"
 allowed-tools: AskUserQuestion, Read, Write, Bash, PowerShell, TaskCreate, TaskUpdate, Agent, SendMessage
 ---
 
-# foreman:roadmap — pick, add to, or review the project roadmap
+# foreman:roadmap — pick, add to, correct, or review the project roadmap
 
 All reads/writes to `ROADMAP.jsonl` at the project root go through
 `${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js` — never `Read`/`Edit` the file
@@ -26,6 +26,8 @@ Options:
 - `Pick the next task` — read the roadmap, reason about what to work on
   next, craft a handoff prompt for it.
 - `Add a task` — append a new entry to the roadmap.
+- `Correct a task` — fix a stale title, why, what, kind, or planned files
+  on an entry that already exists.
 - `Review status` — read-only summary of where every task stands.
 
 If args were provided and read like a task description rather than a
@@ -33,6 +35,9 @@ question, treat it as a seed for "Add a task" and skip this call. If they
 read like a pick request or a hint about what to pick ("what's next on
 auth", "something quick I can finish today"), go straight to "Pick the
 next task" with the hint in hand — that branch says what to do with it.
+If they name an entry that already exists and say what's wrong with it
+("003's what is out of date", "retarget 007 at the proxy"), that's
+"Correct a task".
 
 ---
 
@@ -471,9 +476,10 @@ picking `Execute here` above, not this skill deciding on its own.
    means the user already declined this, say so. No match: add it without
    comment. If the user confirms an exact-title match is genuinely separate,
    ask them for a distinguishing title; exact adds are always replay-safe and
-   never have an override. Ask *before* the write, not after — `add` has no undo, `title`/
-   `why`/`what` are immutable once written, and the only exit is
-   `update-status dropped`, which leaves the row in the file forever.
+   never have an override. Ask *before* the write, not after — `add` has no
+   undo: the only exit is `update-status dropped`, which leaves the row in
+   the file forever. Wording that later turns out wrong is repairable (see
+   "Correct a task"); a task that shouldn't exist is not.
 3. `echo '{"title":"...","why":"...","what":"...","source":"user","depends_on":[...],"touches":[...]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js add`
    — the script computes the id, validates required fields (including that
    every `depends_on` id already exists), and confirms the file is still
@@ -483,6 +489,37 @@ picking `Execute here` above, not this skill deciding on its own.
    JSON response). If `deduped: true`, say it was already tracked and no
    duplicate was created. Surface any `warnings` the response carries,
    verbatim, in the same line.
+
+---
+
+## Branch: Correct a task
+
+The user wants an existing entry fixed, not a new one: reworded, retargeted
+at different files, or reclassified. **This branch does not investigate the
+codebase** — no `Read`, no `Grep`. The user says what is wrong; the entry
+says what it currently claims.
+
+1. `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --ids <id>` — the
+   entry as stored. If the user named the task by words rather than id, run
+   `list --summary` first to resolve it.
+2. Show the current value against the proposed one for each field being
+   corrected (`title`, `why`, `what`, `kind`, `touches` — nothing else is
+   correctable here: status is `update-status`, dependencies are
+   `update-deps`, notes only ever append). Then **one** `AskUserQuestion`:
+   `Apply the correction` / `Never mind`. `touches` is a full replacement,
+   so show the whole new list, not just the additions.
+3. `echo '{"id":"...","expected_updated_at":"<the updated_at from step 1>","what":"..."}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js correct`
+   — pass the fetched `updated_at` verbatim as `expected_updated_at`; it is
+   what stops a correction composed against an older version from
+   overwriting a newer one. On a mismatch the script names the current
+   value: re-fetch (step 1), re-check the correction still makes sense
+   against the newer text, and ask again. Only `planned`/`in_progress`/
+   `deferred` entries are correctable, and a title another entry already
+   has is refused.
+4. Confirm back in one line: the id and the response's `changed` list (a
+   field the user restated identically will not be in it). Surface any
+   `warnings` verbatim. Git holds what the entry used to say — don't copy
+   the old wording into `notes`.
 
 ---
 

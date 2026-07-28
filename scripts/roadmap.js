@@ -797,6 +797,122 @@ function cmdUpdateDepsUnlocked(root, payload) {
   return { entry, ...graphFacts(beforeEntries, entries) };
 }
 
+// The fields a stale plan gets wrong that no other command can repair:
+// status is update-status', depends_on is update-deps', notes is append-only
+// on purpose. Git is the audit trail for what these used to say -- the active
+// entry carries the best-known truth, not a museum of obsolete prose.
+const CORRECTABLE_TEXT = ["title", "why", "what"];
+const CORRECTABLE_FIELDS = [...CORRECTABLE_TEXT, "kind", "touches"];
+// Only an entry still being worked toward is correctable. Rewriting a
+// done/dropped/rejected one rewrites history: its commits, notes, and closure
+// evidence describe the task as it was worded then.
+const CORRECTABLE_STATUSES = new Set(["planned", "in_progress", "deferred"]);
+
+function cmdCorrect(root, payload) {
+  return withRoadmapLock(root, () => cmdCorrectUnlocked(root, payload));
+}
+
+function cmdCorrectUnlocked(root, payload) {
+  const { id, expected_updated_at, kind, touches } = payload || {};
+  if (!id) throw new Error("correct requires id");
+  // Staleness guard, not a revision counter: `updated_at` already exists and
+  // already moves on every write, so no new stored field is needed. It is
+  // date-only, so two corrections on the SAME day both pass this check -- the
+  // mutation lock is what serializes those (read and write happen inside one
+  // lock, so the second call sees the first's result). This catches the
+  // cross-session case the lock cannot: a session holding an entry it read
+  // days ago, overwriting a correction made since.
+  if (!expected_updated_at) {
+    throw new Error(
+      "correct requires expected_updated_at (the entry's current updated_at) so a stale session cannot overwrite a newer correction"
+    );
+  }
+  const text = {};
+  for (const field of CORRECTABLE_TEXT) {
+    const value = (payload || {})[field];
+    if (value === undefined) continue;
+    if (typeof value !== "string" || !value.trim()) {
+      throw new Error(`${field} must be a non-empty string`);
+    }
+    text[field] = value;
+  }
+  if (kind !== undefined) validateKind(kind);
+  // Same shape check add_touches gets; per-path safety is the write gate's
+  // (invalid_path / non-string item), so it is not restated here.
+  if (touches !== undefined && !Array.isArray(touches)) {
+    throw new Error("touches must be an array of paths");
+  }
+  if (!Object.keys(text).length && kind === undefined && touches === undefined) {
+    throw new Error(`correct requires at least one of ${CORRECTABLE_FIELDS.join(", ")}`);
+  }
+  const entries = readEntries(root);
+  const beforeEntries = entries.map((entry) => ({
+    ...entry,
+    depends_on: [...(entry.depends_on || [])],
+  }));
+  const entry = entries.find((e) => e.id === id);
+  if (!entry) throw new Error(`no entry with id ${id}`);
+  if (!CORRECTABLE_STATUSES.has(entry.status)) {
+    throw new Error(
+      `entry ${id} is ${entry.status} — only ${[...CORRECTABLE_STATUSES].join("/")} entries can be corrected; a terminal entry is history its commits already describe`
+    );
+  }
+  // Refused, not silently skipped like update-status' expected_status: a
+  // correction the caller composed against older text cannot be applied to
+  // text it never saw, so the caller has to re-read and re-decide.
+  if (entry.updated_at !== expected_updated_at) {
+    throw new Error(
+      `entry ${id} was last updated ${entry.updated_at}, not ${expected_updated_at} — re-read the entry and re-apply the correction on top of it`
+    );
+  }
+  // add's exact-title replay dedup is only safe while titles stay unique.
+  if (text.title !== undefined) {
+    const clash = entries.find((other) => other.id !== id && other.title === text.title);
+    if (clash) {
+      throw new Error(
+        `entry ${clash.id} already has the title ${JSON.stringify(text.title)} — titles must stay unique, they are add's replay key`
+      );
+    }
+  }
+  const changed = [];
+  for (const [field, value] of Object.entries(text)) {
+    if (entry[field] === value) continue;
+    entry[field] = value;
+    changed.push(field);
+  }
+  // Same omit-when-default contract as add/update-status: "build" removes the
+  // key, only "decision" is stored.
+  if (kind !== undefined && kind !== (entry.kind === "decision" ? "decision" : "build")) {
+    if (kind === "decision") entry.kind = "decision";
+    else delete entry.kind;
+    changed.push("kind");
+  }
+  // Full replacement, unlike update-status' append-only fold: this field is
+  // the mutable prediction of the surface the work will touch, and a
+  // prediction that was wrong has to be able to shrink.
+  if (touches !== undefined) {
+    const current = Array.isArray(entry.touches) ? entry.touches : [];
+    if (current.length !== touches.length || current.some((p, i) => p !== touches[i])) {
+      entry.touches = touches;
+      changed.push("touches");
+    }
+  }
+  // A correction that changes nothing writes nothing — including updated_at,
+  // which is the very value every other session's guard is holding.
+  if (changed.length) {
+    entry.updated_at = today();
+    writeEntries(root, entries);
+  }
+  const warnings = fieldWarnings([
+    ["why", text.why, WHY_WARN_CHARS],
+    ["what", text.what, WHAT_WARN_CHARS],
+  ]);
+  // No correctable field touches status or depends_on, so these are always
+  // empty today. Wired anyway so a later correctable field inherits it.
+  const result = { entry, changed, ...graphFacts(beforeEntries, entries) };
+  return warnings.length ? { ...result, warnings } : result;
+}
+
 function cmdList(root, filters) {
   const entries = readEntries(root);
   const byId = new Map(entries.map((e) => [e.id, e]));
@@ -1133,6 +1249,26 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     was later dropped; removing an id that isn't there is a
                     no-op; returns the same compact graph-fact fields when
                     the edge change makes them non-empty
+  correct           stdin JSON: {id, expected_updated_at, title?, why?, what?, kind?, touches?}
+                    the supported repair for an entry whose description or
+                    planned files went stale -- at least one correctable
+                    field is required, each is a full replacement (title/why/
+                    what non-empty strings, touches the whole planned
+                    surface -- so a wrong prediction can shrink -- kind on
+                    add's contract: "decision" stored, "build" drops the key)
+                    expected_updated_at is required and must equal the
+                    entry's current updated_at, so a stale session cannot
+                    overwrite a newer correction; a mismatch names the
+                    current value and writes nothing
+                    only planned/in_progress/deferred entries are
+                    correctable -- done/dropped/rejected is history its
+                    commits already describe
+                    a title equal to another entry's is refused: titles are
+                    add's exact-replay key. Git is the audit trail for what
+                    the entry used to say
+                    returns changed:[...] listing only the fields that
+                    actually differed, plus the same compact graph-fact
+                    fields when non-empty
   list              flag: --status planned,in_progress   (optional, comma-separated)
                     flag: --ids 002,005   (optional, comma-separated, combinable with --status)
                     targeted full rows add depends_on_docs (direct
@@ -1193,6 +1329,8 @@ Examples:
     | node roadmap.js update-status   # then commit with "Foreman: 003" as the last line
   echo '{"id":"004","add_depends_on":["002"]}' \\
     | node roadmap.js update-deps
+  echo '{"id":"004","expected_updated_at":"2026-07-28","what":"...","touches":["src/api/retry.ts"]}' \\
+    | node roadmap.js correct
   node roadmap.js next-candidates --limit 5
   node roadmap.js doctor
   node roadmap.js doctor --fix
@@ -1237,6 +1375,9 @@ function main() {
     case "update-deps":
       result = cmdUpdateDeps(root, readStdinJSON());
       break;
+    case "correct":
+      result = cmdCorrect(root, readStdinJSON());
+      break;
     case "list":
       result = cmdList(root, parseFlags(rest));
       break;
@@ -1251,7 +1392,7 @@ function main() {
       break;
     default:
       throw new Error(
-        `unknown subcommand: ${sub}. Use add|update-status|annotate|update-deps|list|next-candidates|check-duplicate|doctor`
+        `unknown subcommand: ${sub}. Use add|update-status|annotate|update-deps|correct|list|next-candidates|check-duplicate|doctor`
       );
   }
   process.stdout.write(JSON.stringify({ ok: true, ...result }));
@@ -1271,6 +1412,7 @@ module.exports = {
   cmdUpdateStatus,
   cmdAnnotate,
   cmdUpdateDeps,
+  cmdCorrect,
   cmdList,
   cmdNextCandidates,
   cmdCheckDuplicate,
