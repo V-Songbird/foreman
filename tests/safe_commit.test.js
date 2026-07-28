@@ -101,6 +101,27 @@ describe('safe-commit begin', () => {
     assert.equal(begin().dirty, true);
   });
 
+  // [Foreman: 184] The flow's own bookkeeping is not foreign work: the entry
+  // flips in_progress BEFORE begin, so a tracked roadmap is always dirty here.
+  test('ledger-only dirt still yields the baseline, named in ledger_dirty', () => {
+    cleanRepo();
+    writeRoadmap(project, [{ ...entry('001'), notes: 'flipped by the flow' }]);
+    const json = begin();
+    assert.equal(json.ok, true);
+    assert.equal(json.dirty, false);
+    assert.deepEqual(json.ledger_dirty, ['ROADMAP.jsonl']);
+    assert.equal(json.baseline.head, git('rev-parse', 'HEAD').trim());
+  });
+
+  test('ledger dirt mixed with real dirt is still dirty:true', () => {
+    cleanRepo();
+    writeRoadmap(project, [{ ...entry('001'), notes: 'flipped by the flow' }]);
+    writeFile('someone-elses-work.txt', 'in progress\n');
+    const json = begin();
+    assert.equal(json.dirty, true);
+    assert.equal(json.baseline, undefined);
+  });
+
   test('without a baseline, finish refuses outright', () => {
     cleanRepo();
     const { status, json } = run(['finish'], { id: '001', expected: ['src'], message_title: 'x' });
@@ -252,20 +273,25 @@ describe('safe-commit finish commit and attestation', () => {
     assert.equal(git('log', '-1', '--format=%B').trim(), 'task 1/3: the first slice');
   });
 
-  test('a staged ROADMAP.jsonl is unexpected unless roadmap_close says so', () => {
+  // [Foreman: 184] An undeclared ledger change is excluded, never staged: the
+  // commit stays the task's alone, and the roadmap dirt waits in the tree for
+  // the close that owns it. Declaring roadmap_close folds it in.
+  test('an undeclared ROADMAP.jsonl change is left out; roadmap_close folds it in', () => {
     cleanRepo();
     const baseline = begin().baseline.head;
     writeFile('src/a.js', 'owned\n');
     writeRoadmap(project, [{ ...entry('001'), status: 'done' }]);
 
-    const refused = run(['finish', '--baseline', baseline], {
+    const excluded = run(['finish', '--baseline', baseline, '--no-commit'], {
       id: '001',
       expected: ['src'],
-      message_title: 'close it',
     }).json;
-    assert.equal(refused.ok, false);
-    assert.equal(refused.reason, 'unexpected_files');
-    assert.deepEqual(refused.unexpected_files, ['ROADMAP.jsonl']);
+    assert.equal(excluded.ok, true, JSON.stringify(excluded));
+    assert.deepEqual(excluded.files, ['src/a.js']);
+    assert.deepEqual(excluded.ledger_excluded, ['ROADMAP.jsonl']);
+    const staged = git('diff', '--cached', '--name-only').trim();
+    assert.equal(staged, 'src/a.js', 'the ledger is not staged');
+    git('reset', '-q');
 
     const allowed = run(['finish', '--baseline', baseline], {
       id: '001',
@@ -275,6 +301,7 @@ describe('safe-commit finish commit and attestation', () => {
     }).json;
     assert.equal(allowed.ok, true, JSON.stringify(allowed));
     assert.deepEqual(allowed.files, ['ROADMAP.jsonl', 'src/a.js']);
+    assert.equal(allowed.ledger_excluded, undefined);
     assert.deepEqual(allowed.attested.forbidden_files, []);
   });
 

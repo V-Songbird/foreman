@@ -27,6 +27,7 @@ const {
   repositorySnapshot,
   normalizeCommit,
   isSharedLedger,
+  ledgerOnlyDirt,
   touchesOverlap,
 } = require("./sprint");
 const { commitTrailerFor, isValidId } = require("./roadmap");
@@ -82,7 +83,17 @@ function beginUnit(root) {
   const state = repositoryState(root);
   // No baseline on a dirty tree, deliberately: finish refuses without one,
   // so "work anyway" mechanically means "work without automated commits".
-  if (!state.clean) return { ok: true, dirty: true, reason: state.reason };
+  // [Foreman: 184] One exception: dirt confined to shared-ledger files is
+  // Foreman's own bookkeeping — on a tracked roadmap the entry's
+  // in_progress flip precedes this call, so refusing it would switch the
+  // primitive off for every routine task. finish keeps ledger files out of
+  // the unit's staging either way.
+  if (!state.clean) {
+    const ledger =
+      state.reason === "working_tree_has_changes" ? ledgerOnlyDirt(root) : null;
+    if (!ledger) return { ok: true, dirty: true, reason: state.reason };
+    return { ok: true, dirty: false, ledger_dirty: ledger, baseline: repositorySnapshot(root) };
+  }
   return { ok: true, dirty: false, baseline: repositorySnapshot(root) };
 }
 
@@ -162,7 +173,14 @@ function finishUnit(root, options) {
     return { ok: false, reason: "head_moved_since_baseline", baseline, head };
   }
 
-  const changed = changedSinceBaseline(root, baseline);
+  const changedAll = changedSinceBaseline(root, baseline);
+  // [Foreman: 184] Ledger files are never this unit's to stage. Unless this
+  // finish IS the declared roadmap close, they are left out entirely — not
+  // staged, not counted as unexpected — so the coordinator's in_progress
+  // flip (or any other ledger dirt) stays in the tree for the close that
+  // owns it.
+  const changed = roadmapClose ? changedAll : changedAll.filter((file) => !isSharedLedger(file));
+  const ledgerExcluded = roadmapClose ? [] : changedAll.filter(isSharedLedger);
   if (!changed.length) return { ok: false, reason: "no_task_changes", baseline };
 
   const allowed = roadmapClose ? [...expected, ROADMAP_FILE] : expected;
@@ -207,6 +225,7 @@ function finishUnit(root, options) {
       committed: false,
       baseline,
       files: staged,
+      ...(ledgerExcluded.length ? { ledger_excluded: ledgerExcluded } : {}),
       ...(id ? { trailer: commitTrailerFor(id) } : {}),
     };
   }
@@ -224,6 +243,7 @@ function finishUnit(root, options) {
     baseline,
     commit,
     files: staged,
+    ...(ledgerExcluded.length ? { ledger_excluded: ledgerExcluded } : {}),
     attested,
   };
 }
@@ -263,7 +283,9 @@ error; a refusal is a successful call reporting ok:false).
   begin     no input. Clean tree -> {ok:true,dirty:false,baseline:{head,state_hash}}.
             Dirty tree -> {ok:true,dirty:true,reason:"..."} and NO baseline:
             offer the user to resolve it first, or continue WITHOUT automated
-            commits. Never proceed implicitly.
+            commits. Never proceed implicitly. Exception: dirt confined to
+            shared-ledger files (a tracked roadmap's own status flip) still
+            returns the baseline, with ledger_dirty naming those files.
 
   finish    --baseline <sha from begin>  [--no-commit] [--allow-unexpected]
             stdin JSON: {id?, expected:[paths...], message_title?, roadmap_close?}

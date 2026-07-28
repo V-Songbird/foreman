@@ -136,6 +136,21 @@ describe("sprint planning mechanics", () => {
     assert.ok(plan.reasons.includes("working_tree_has_changes"));
   });
 
+  // [Foreman: 184] A tracked roadmap is dirty the moment any entry moves;
+  // that must not stall planning the way foreign work does.
+  test("a dirty tracked roadmap alone keeps the plan runnable", () => {
+    writeRoadmap(project, [entry("001", "API", ["src/api.js"])]);
+    cleanGitProject();
+    writeRoadmap(project, [{ ...entry("001", "API", ["src/api.js"]), notes: "moved" }]);
+
+    const plan = buildPlan(project, { limit: 1 });
+
+    assert.equal(plan.repository_clean, false);
+    assert.equal(plan.runnable, true);
+    assert.deepEqual(plan.ledger_dirty, ["ROADMAP.jsonl"]);
+    assert.deepEqual(plan.reasons, []);
+  });
+
   test("existing in-progress work makes the plan non-runnable", () => {
     writeRoadmap(project, [
       entry("001", "Ready", ["src/ready.js"]),

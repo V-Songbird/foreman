@@ -160,6 +160,31 @@ function isSharedLedger(file) {
   return !normalized.includes("/") && /^CHANGELOG(?:\.[^/]+)?$/i.test(normalized);
 }
 
+// [Foreman: 184] Every path `git status` reports as differing, porcelain -z so
+// special characters survive; a rename/copy record carries both sides.
+function dirtyFiles(root) {
+  const tokens = git(root, ["status", "--porcelain", "-z"]).split("\0").filter(Boolean);
+  const files = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    files.push(token.slice(3).replaceAll("\\", "/"));
+    if (/[RC]/.test(token.slice(0, 2)) && tokens[index + 1] !== undefined) {
+      index += 1;
+      files.push(tokens[index].replaceAll("\\", "/"));
+    }
+  }
+  return files;
+}
+
+// [Foreman: 184] The one distinction begin and the plan gate act on: dirt
+// confined to shared-ledger files is Foreman's own bookkeeping (the entry's
+// in_progress flip on a tracked roadmap), not someone else's work in the
+// tree. Anything else keeps the ordinary dirty refusal.
+function ledgerOnlyDirt(root) {
+  const files = dirtyFiles(root);
+  return files.length && files.every(isSharedLedger) ? files : null;
+}
+
 function attestUnit(root, options = {}) {
   const entryId = String(options.entryId || "");
   const baseline = normalizeCommit(root, options.baseline);
@@ -284,14 +309,19 @@ function buildPlan(root, options = {}) {
   const selected = result.candidates.slice(0, limit);
   const overlaps = plannedOverlaps(selected);
   const tree = repositoryState(root);
+  // [Foreman: 184] A tracked roadmap is dirty the moment any entry moves, so
+  // ledger-only dirt must not stall the plan the way foreign work does.
+  const ledgerDirty =
+    !tree.clean && tree.reason === "working_tree_has_changes" ? ledgerOnlyDirt(root) : null;
   const reasons = [];
-  if (!tree.clean) reasons.push(tree.reason);
+  if (!tree.clean && !ledgerDirty) reasons.push(tree.reason);
   if (result.in_progress.length) reasons.push("existing_work_in_progress");
 
   return {
     limit,
     mode: "serial",
-    runnable: tree.clean && result.in_progress.length === 0,
+    runnable: (tree.clean || Boolean(ledgerDirty)) && result.in_progress.length === 0,
+    ...(ledgerDirty ? { ledger_dirty: ledgerDirty } : {}),
     selected: selected.map(candidateRow),
     serial: selected.map(candidateRow),
     overlaps,
@@ -364,6 +394,8 @@ module.exports = {
   statusFingerprint,
   normalizeCommit,
   isSharedLedger,
+  dirtyFiles,
+  ledgerOnlyDirt,
   attestUnit,
   candidateRow,
   normalizedTouch,
