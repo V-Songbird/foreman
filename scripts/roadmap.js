@@ -975,6 +975,31 @@ function hintScore(hintWords, entry) {
   return hit / hintWords.size;
 }
 
+// [Foreman: 125]
+// The one collision rule, shared by next-candidates, sprint planning
+// (scripts/sprint.js re-exports both) and safe-commit's ownership check.
+// `touches` is an area hint, so `src/auth` owns everything beneath it —
+// matching has to be folder-aware in both directions, and forgiving about
+// the shapes a human types: Windows separators, `./` prefixes, trailing
+// slashes, casing.
+function normalizedTouch(touch) {
+  return String(touch || "")
+    .trim()
+    .replaceAll("\\", "/")
+    .replace(/^\.\/+/, "")
+    .replace(/\/+$/, "")
+    .toLowerCase();
+}
+
+// Prefix matching stops at a segment boundary on purpose: `src/auth-utils`
+// is a sibling of `src/auth`, not a child of it.
+function touchesOverlap(left, right) {
+  const a = normalizedTouch(left);
+  const b = normalizedTouch(right);
+  if (!a || !b) return false;
+  return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
+}
+
 // Mechanical filter + rank for "what should I work on next" — no stored,
 // staleness-prone priority field. unblocks (how much open work depends on
 // this entry, directly and down the chain) is a derived proxy for
@@ -986,10 +1011,10 @@ function cmdNextCandidates(root, filters) {
   const byId = new Map(entries.map((e) => [e.id, e]));
   const doneIds = new Set(entries.filter((e) => e.status === "done").map((e) => e.id));
 
-  const inProgressTouches = new Set();
+  const inProgressTouches = [];
   for (const e of entries) {
     if (e.status !== "in_progress") continue;
-    for (const t of e.touches || []) inProgressTouches.add(t);
+    for (const t of e.touches || []) inProgressTouches.push(t);
   }
 
   // Reverse dependency edges, open dependents only.
@@ -1033,7 +1058,9 @@ function cmdNextCandidates(root, filters) {
       unblocks: (openDependents.get(e.id) || []).length,
       unblocks_total: transitiveUnblocks(e.id),
       ...(hintWords.size ? { hint_score: hintScore(hintWords, e) } : {}),
-      collision: (e.touches || []).some((t) => inProgressTouches.has(t)),
+      collision: (e.touches || []).some((t) =>
+        inProgressTouches.some((busy) => touchesOverlap(t, busy))
+      ),
       created_at: e.created_at,
       notes: e.notes || "",
       // Direct parents only, not the transitive chain. [Foreman: 097]
@@ -1458,6 +1485,8 @@ module.exports = {
   filesTouchedByCommit,
   filesStagedIn,
   coversPath,
+  normalizedTouch,
+  touchesOverlap,
   scopeDrift,
   driftNote,
   stageRoadmapFile,

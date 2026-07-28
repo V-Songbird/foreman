@@ -68,7 +68,9 @@ the code, and never call an entry grounded or verified here.
    counts the whole dependency chain, not just direct dependents — then
    collision-free before colliding, then oldest), limited to 3 by
    default, with a `collision` flag per candidate (its `touches` overlaps
-   a currently-`in_progress` task's) and a `reason` per candidate — the
+   a currently-`in_progress` task's — folder-aware, so a planned
+   `src/auth/` collides with an in-progress `src/auth/middleware.ts` and
+   vice versa) and a `reason` per candidate — the
    ranking key that actually placed that row. This is Foreman's
    **recommended** ordering, the default one, not a claim to have found
    the objectively best task: the sort knows dependencies, hint words,

@@ -996,6 +996,45 @@ describe('next-candidates', () => {
     assert.equal(byId['003'].collision, false);
   });
 
+  // [Foreman: 125] Collision matching is the same normalized, folder-aware
+  // rule sprint planning uses — an area hint owns everything beneath it, in
+  // either direction, whatever separators/case/decoration the author typed.
+  describe('folder-aware collision matching', () => {
+    const cases = [
+      ['folder in progress covers a file planned beneath it', 'src/auth', 'src/auth/middleware.ts', true],
+      ['file in progress collides with the folder planned over it', 'src/auth/middleware.ts', 'src/auth', true],
+      ['windows separators normalize to the same path', 'src/auth', 'src\\auth\\middleware.ts', true],
+      ['casing is ignored', 'SRC/Auth', 'src/auth/middleware.ts', true],
+      ['a trailing slash is decoration, not a different path', 'src/auth/', 'src/auth', true],
+      ['a ./ prefix is decoration, not a different path', './src/auth', 'src/auth/middleware.ts', true],
+      ['siblings sharing a name prefix do not collide', 'src/auth', 'src/auth-utils/index.ts', false],
+      ['siblings sharing a name prefix do not collide, inverted', 'src/auth-utils', 'src/auth', false],
+      ['unrelated paths do not collide', 'src/auth', 'src/billing/index.ts', false],
+      ['an empty touch never collides', '', 'src/auth', false],
+    ];
+
+    for (const [name, inProgress, planned, expected] of cases) {
+      test(name, () => {
+        writeRoadmap(project, [
+          { id: '001', title: 'in progress', status: 'in_progress', depends_on: [], touches: [inProgress] },
+          { id: '002', title: 'candidate', status: 'planned', depends_on: [], touches: [planned] },
+        ]);
+        const { json } = run(['next-candidates']);
+        assert.equal(json.candidates[0].collision, expected);
+      });
+    }
+
+    test('the menu shape carries the same folder-aware flag', () => {
+      writeRoadmap(project, [
+        { id: '001', title: 'in flight', why: 'w', what: 'x', status: 'in_progress', depends_on: [], touches: ['src/auth'], updated_at: '2026-07-01' },
+        { id: '002', title: 'nested', why: 'w', what: 'x', status: 'planned', depends_on: [], touches: ['src/auth/middleware.ts'], created_at: '2026-06-01' },
+      ]);
+      const { json } = run(['next-candidates', '--menu']);
+      assert.equal(json.candidates[0].collision, true);
+      assert.match(json.candidates[0].reason, /may overlap in-progress work$/);
+    });
+  });
+
   test('surfaces notes so a survey breadcrumb is visible without a separate list call', () => {
     writeRoadmap(project, [
       { id: '001', title: 'surveyed', status: 'planned', depends_on: [], touches: [], notes: 'surveyed 2026-07-04: prefer after 002, shared risk pattern' },

@@ -10,6 +10,10 @@ const {
   commitTrailerFor,
   trailerIdsIn,
   isValidId,
+  // One collision rule for planning and for picking; re-exported below so
+  // safe-commit.js keeps importing it from here. [Foreman: 125]
+  normalizedTouch,
+  touchesOverlap,
 } = require("./roadmap");
 
 const DEFAULT_LIMIT = 3;
@@ -238,22 +242,6 @@ function candidateRow(candidate) {
     id: candidate.id,
     title: candidate.title,
   };
-}
-
-function normalizedTouch(touch) {
-  return String(touch || "")
-    .trim()
-    .replaceAll("\\", "/")
-    .replace(/^\.\/+/, "")
-    .replace(/\/+$/, "")
-    .toLowerCase();
-}
-
-function touchesOverlap(left, right) {
-  const a = normalizedTouch(left);
-  const b = normalizedTouch(right);
-  if (!a || !b) return false;
-  return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
 }
 
 function plannedOverlaps(entries) {
