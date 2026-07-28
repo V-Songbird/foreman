@@ -490,6 +490,9 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      recorded and the roadmap never trails uncommitted:
      `echo '{"id":"<id>","status":"<status>","staged":true,"notes":"<findings>"}' | node
      ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
+     If that close returns `roadmap_staged: false`, stage `ROADMAP.jsonl`
+     yourself before committing — otherwise the close misses its own
+     commit.
      A task that changed nothing (pure investigation) closes without
      staging or trailer. If the commit already landed before the close,
      pass `"commit":"<sha>"` instead of `staged` — that path still works

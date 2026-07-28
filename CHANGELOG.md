@@ -64,6 +64,7 @@ field by convention).
 - Picking the next task now warns about overlap with a folder that work is already underway in, instead of only when both tasks name the exact same path — a task planning `src/auth/` no longer looks safe while `src/auth/middleware.ts` is being changed. Recommendations and sprint planning now share one path-matching rule, so Windows separators, trailing slashes, and casing can't hide an overlap from either.
 - Fixed an issue where starting a task turned off automated commits on a project that keeps its roadmap in git: marking the task in progress counted as a dirty tree. Foreman's own bookkeeping files no longer count, and they still stay out of a task's commit unless the close declares them.
 - Fixed an issue where a handed-off task closed itself straight to done even with `requireVerification` on: the handoff now tells the closing session to record the work as awaiting your acceptance, the same hold the after-commit check already applied.
+- Closing a task now refuses a recorded commit that is not actually a git sha, instead of storing any text as permanent evidence — and when staging the roadmap alongside a close fails, the handoff now says to stage it by hand so the close doesn't miss its own commit.
 
 ## [0.46.0-alpha] — 2026-07-24
 

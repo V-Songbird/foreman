@@ -436,14 +436,15 @@ describe('the write path validates the whole structural contract', () => {
     assert.equal(fs.existsSync(path.join(project, 'ROADMAP.jsonl')), false);
   });
 
-  test('update-status is rejected when it would introduce a violation', () => {
-    // `commit` has no per-field type check of its own — the whole-file
-    // contract is the only thing standing between it and commits: [42].
+  test('update-status rejects a malformed commit at the input gate, file untouched', () => {
+    // [Foreman: 186] `commit` now has its own shape check, so a non-sha is
+    // refused before the write gate ever runs — the whole-file contract
+    // stays the backstop behind it, as the add case above still proves.
     writeRoadmap(project, [base('001')]);
     const before = fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf-8');
     const { status, json } = run(['update-status'], { id: '001', status: 'done', commit: 42 });
     assert.equal(status, 1);
-    assert.match(json.error, /refusing to write ROADMAP\.jsonl/);
+    assert.match(json.error, /hex sha/);
     assert.equal(fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf-8'), before);
   });
 

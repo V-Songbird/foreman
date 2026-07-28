@@ -374,6 +374,25 @@ describe('update-status', () => {
     assert.deepEqual(json.entry.commits, ['a1b2c3d']);
   });
 
+  // [Foreman: 186] Any other truthy string would persist as evidence nothing
+  // can resolve; existence stays the views' concern, shape is the gate's.
+  test('rejects a commit that is not sha-shaped, before writing anything', () => {
+    for (const bad of ['not-a-sha', 'abc12', 'g1234567', 'HEAD']) {
+      const { status, json } = run(['update-status'], { id: '001', status: 'done', commit: bad });
+      assert.equal(status, 1, bad);
+      assert.match(json.error, /hex sha/);
+    }
+    const after = run(['list'], null);
+    assert.equal(after.json.entries[0].status, 'in_progress', 'the refused close changed nothing');
+  });
+
+  test('accepts short, long, and uppercase hex shas', () => {
+    for (const good of ['a1b2c3d', 'A1B2C3D4E5F6a7b8c9d0a1b2c3d4e5f6a7b8c9d0']) {
+      const { status } = run(['update-status'], { id: '001', status: 'in_progress', commit: good });
+      assert.equal(status, 0, good);
+    }
+  });
+
   test('appends notes on their own dated line rather than replacing them', () => {
     run(['update-status'], { id: '001', status: 'in_progress', notes: 'first' });
     const { json } = run(['update-status'], { id: '001', status: 'in_progress', notes: 'second' });

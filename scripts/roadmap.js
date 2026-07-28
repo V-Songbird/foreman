@@ -928,6 +928,12 @@ function cmdUpdateStatusUnlocked(root, payload) {
   if (staged && commit) {
     throw new Error("staged and commit are mutually exclusive — staged closes before the commit exists, commit records one that already landed");
   }
+  // [Foreman: 186] Recorded evidence must at least be sha-shaped: any other
+  // truthy string would persist as a "commit" nothing can ever resolve.
+  // Existence is still the views' job — this gate runs without git.
+  if (commit !== undefined && !/^[0-9a-f]{7,64}$/i.test(String(commit))) {
+    throw new Error("commit must be a 7-64 character hex sha — the short or full form git prints");
+  }
   if (add_touches !== undefined && !Array.isArray(add_touches)) {
     throw new Error("add_touches must be an array of paths");
   }
