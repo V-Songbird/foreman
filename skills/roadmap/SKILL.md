@@ -272,6 +272,18 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
 3. Craft the handoff prompt using `${CLAUDE_PLUGIN_ROOT}/prompt-template.md`'s
    XML structure, straight from the selected entry's fields — no verification
    pass:
+   <!-- [Foreman: 138] -->
+   - **Profile first** — before assembling anything, compute the mechanical
+     signals in `prompt-template.md`'s "Handoff profiles" section from what is
+     already in hand: the candidate row's `collision`, whether the pick came
+     from the `in_progress` array, and the selected entry's `updated_at`,
+     `commits`, `observed_touches`, `depends_on`, `notes`, and `kind` (plus
+     `resolve-symbols.js`'s `lastChanged`, once step 0b has run). Any signal
+     true → `reinforced`; none → `standard`. These are lookups, not
+     judgments — never talk yourself into reinforced because a task "feels"
+     risky. Say which profile and the signal that chose it in one line of the
+     delivery message, then build that shape: the bullets below fill
+     whichever blocks the profile keeps.
    - `task_context` goal ← `title` + `why`
    - `background` / `context` ← `what`, plus the selected entry's `notes` when
      non-empty, attributed as prior recorded findings on this entry (a
@@ -462,8 +474,8 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
 
    Then run `prompt-template.md`'s mechanical gate on the assembled prompt
    (its "Mechanical gate" section has the exact call — pass
-   `--entry <id>`, plus `--resume` for a resumed pick) and fix every error
-   until it passes before delivering.
+   `--profile <standard|reinforced>` and `--entry <id>`, plus `--resume` for a
+   resumed pick) and fix every error until it passes before delivering.
 4. **Foreman never marks the entry `in_progress` itself.** It stays
    `planned` — even after this prompt is assembled, delivered, or copied —
    until whichever session actually starts the work runs the

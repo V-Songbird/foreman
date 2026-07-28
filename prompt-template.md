@@ -496,8 +496,66 @@ using them:
 
 ---
 
+<!-- [Foreman: 138] -->
+## Handoff profiles
+
+Two profiles, `standard` and `reinforced`. Ordinary fresh work does not need
+the same weight as work that is stale, conflicting, risky, resumed, or highly
+constrained, so decide the profile **before** assembling and say which one and
+why in one line of the delivery message.
+
+**The signals — all mechanical, computed from the roadmap/git facts already in
+hand at craft time. Never a judgment call.** Any one of them true →
+`reinforced`. None true → `standard`.
+
+- **resumed** — the pick came from the `next-candidates` `in_progress` array
+  (the finish-first resume path), or the selected entry's `commits` /
+  `observed_touches` is non-empty. A sprint coordinator's own
+  `planned` → `in_progress` transition immediately before dispatch does not
+  count: the entry had no earlier session.
+- **conflicting** — the candidate row's `collision` is `true`.
+- **stale** — the entry's `updated_at` is more than **30 days** before today,
+  or any `files[].lastChanged` from step 0b's `resolve-symbols.js` call is
+  later than that `updated_at` (the code moved after the entry was written).
+- **highly constrained** — `depends_on` holds **3 or more** ids, or `notes` is
+  longer than **1000 characters**.
+- **risky** — `kind: "decision"`, or the handoff carries no verification
+  command at all (the gate's `--research` case): both are wrong-answer-is-
+  expensive with nothing runnable to catch it. There is no roadmap risk field
+  and none should be added — until one exists, every other risky task routes
+  through the four signals above.
+
+**Reinforced** is the full shape the Template section above describes —
+`truth_grounding`, `scope_discipline`, `<plan>`, the closing paragraph, the
+no-invention line, the bounded fix ceiling, `tone`, `output_format`, and the
+optional per-task fields. Nothing about it changes.
+
+**Standard** carries only: `<task_context>` (the entry's identity and the
+one-sentence goal), the concise truth line below, `<relevant_files>` with its
+symbols, `<task_rules>` (constraints plus the `Verification (REQUIRED):`
+Run:/Expected: pairs), the closure-evidence sentence, and the ROADMAP.jsonl
+entry paragraph when the handoff carries one. Everything else is dropped —
+the point of the profile is the length it saves. Two rules survive the cut
+because they are trust invariants, not ceremony:
+
+> Treat every claim in this prompt as a hypothesis to verify against the codebase before acting on it; if reality contradicts it, trust reality, say so in one line, and never create a file or symbol just to make this prompt true.
+
+and the closure-evidence sentence from the closing paragraph, carried on its
+own line, verbatim:
+
+> Closure notes and findings describe only observed work and cite supporting files, commands, commits, or outcomes; never restate planned scope as evidence that it was executed.
+
+A block a standard prompt does keep is still held to the template verbatim —
+`standard` is a smaller floor, never a licence to reword.
+
+---
+
 ## Checklist (verify before handoff)
 
+- [ ] the profile was decided from the mechanical signals above, before
+      assembly, and stated in one line with the signal that chose it — every
+      item below applies to a `reinforced` handoff; a `standard` one keeps
+      only the blocks the "Handoff profiles" section lists
 - [ ] `task_context` names a specific role (domain framing when
       `usePersona` was `false`) and a concrete one-sentence "done" state
 - [ ] `truth_grounding` present, unmodified — every handoff carries it
@@ -582,9 +640,14 @@ assembled prompt to a temp file (the clipboard delivery path needs that
 file anyway), then run:
 
 ```
-node ${CLAUDE_PLUGIN_ROOT}/scripts/check-prompt.js <file> --destination <task|agent|clipboard>
+node ${CLAUDE_PLUGIN_ROOT}/scripts/check-prompt.js <file> --destination <task|agent|clipboard> --profile <standard|reinforced>
 ```
 
+- `--profile` — the profile chosen above. Omitting it makes the checker read
+  the profile off the prompt (the full guardrail blocks mean `reinforced`),
+  which is what keeps every prompt written before profiles existed valid;
+  pass it explicitly so a standard prompt that accidentally kept a guardrail
+  block is still checked as standard. The result echoes back `profile`.
 - `--destination` — `task` for `Execute here` in any of its execution
   modes, `agent` for a background Agent, `clipboard` for copy. This is how
   the checker knows whether an omitted `tone` must stay (agent) or go.

@@ -67,6 +67,11 @@ same handoff used by the `foreman:roadmap` pick branch. Reuse its prompt rules a
 lifecycle paragraph: the sprint coordinator is the only process allowed to
 change or close entries.
 
+That includes the template's "Handoff profiles" choice — compute the same
+mechanical signals per unit, from that unit's own entry. Step 2's `planned` → `in_progress`
+transition immediately above is **not** the `resumed` signal (the template's
+definition says so): a fresh unit with no other signal gets `standard`.
+
 Add these sprint-only worker rules:
 
 - implement and verify only this entry;

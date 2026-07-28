@@ -77,6 +77,35 @@ const NO_INVENTION_SENTENCE =
 const FIX_CEILING_SENTENCE =
   "after two failed fix attempts, stop and report what is still failing instead of widening the change to make the check pass.";
 
+// [Foreman: 138]
+// The two handoff profiles. `reinforced` is today's full-strength shape, for
+// stale/conflicting/risky/resumed/highly-constrained work; `standard` is the
+// short handoff ordinary fresh work gets. The signals that choose between them
+// are mechanical and live in prompt-template.md's "Handoff profiles" section —
+// this checker never sees the roadmap, so it validates a shape, never a choice.
+const PROFILES = new Set(["standard", "reinforced"]);
+
+// Standard's one-line stand-in for the full <truth_grounding> block. It folds
+// the no-invention rule in, so the short profile loses length, not the rule.
+const CONCISE_TRUTH_SENTENCE =
+  "Treat every claim in this prompt as a hypothesis to verify against the codebase before acting on it; if reality contradicts it, trust reality, say so in one line, and never create a file or symbol just to make this prompt true.";
+
+// The trust invariant both profiles carry. In `reinforced` it rides inside the
+// fixed closing paragraph (already compared verbatim); `standard` carries the
+// sentence on its own. Never weakened for either profile.
+const CLOSURE_EVIDENCE_SENTENCE =
+  "Closure notes and findings describe only observed work and cite supporting files, commands, commits, or outcomes; never restate planned scope as evidence that it was executed.";
+
+// Which profile a prompt was assembled at, read off the prompt itself so every
+// prompt written before profiles existed still validates exactly as it did:
+// the full guardrail blocks mean `reinforced`. An explicit --profile wins.
+function detectProfile(prompt) {
+  return extractBlock(prompt, "truth_grounding") !== null ||
+    extractBlock(prompt, "scope_discipline") !== null
+    ? "reinforced"
+    : "standard";
+}
+
 // [Foreman: 107]
 // A plugins-cache path carrying a version segment — what ${CLAUDE_PLUGIN_ROOT}
 // resolves to. A skill's markdown reaches the crafting session already
@@ -136,25 +165,40 @@ function checkPrompt(prompt, opts) {
   const canonical = readCanonical();
   const config = render(opts.root || projectDir());
   const omit = new Set(config.omit);
+  // [Foreman: 138] Reinforced requires every fixed block; standard requires
+  // only the short ones. A block that IS present is held to the template
+  // either way — standard is a smaller floor, never a licence to reword.
+  const profile = opts.profile || detectProfile(prompt);
+  const reinforced = profile !== "standard";
 
   // --- guardrail blocks, verbatim ---
   const truth = extractBlock(prompt, "truth_grounding");
-  if (!truth) errors.push("missing <truth_grounding> — every handoff carries it, unmodified");
-  else if (norm(truth) !== norm(canonical.truthGrounding)) {
+  if (!truth) {
+    if (reinforced) errors.push("missing <truth_grounding> — every reinforced handoff carries it, unmodified");
+    else if (!norm(prompt).includes(norm(CONCISE_TRUTH_SENTENCE))) {
+      errors.push("standard handoff is missing the concise truth-grounding line (\"Treat every claim in this prompt as a hypothesis…\") — the short profile drops the block, never the rule");
+    }
+  } else if (norm(truth) !== norm(canonical.truthGrounding)) {
     errors.push("<truth_grounding> differs from the template — it must be carried verbatim");
   }
   const scope = extractBlock(prompt, "scope_discipline");
-  if (!scope) errors.push("missing <scope_discipline> — every handoff carries it, unmodified");
-  else if (!segmentsInOrder(canonical.scopeDiscipline, scope)) {
+  if (!scope) {
+    if (reinforced) errors.push("missing <scope_discipline> — every reinforced handoff carries it, unmodified");
+  } else if (!segmentsInOrder(canonical.scopeDiscipline, scope)) {
     errors.push("<scope_discipline> differs from the template — it must be carried verbatim (only the ${CLAUDE_PLUGIN_ROOT} paths are substituted)");
   }
-  if (!segmentsInOrder(canonical.closing, prompt)) {
+  if (reinforced && !segmentsInOrder(canonical.closing, prompt)) {
     errors.push("the fixed closing paragraph (\"Reason through the approach…\") is missing or altered");
+  }
+  // [Foreman: 138] The one guardrail neither profile may drop.
+  if (!norm(prompt).includes(norm(CLOSURE_EVIDENCE_SENTENCE))) {
+    errors.push("missing the closure-evidence rule (\"Closure notes and findings describe only observed work…\") — required in both handoff profiles");
   }
   // [Foreman: 104]
   const plan = extractBlock(prompt, "plan");
-  if (!plan) errors.push("missing <plan> — every handoff carries it, unmodified");
-  else if (norm(plan) !== norm(canonical.plan)) {
+  if (!plan) {
+    if (reinforced) errors.push("missing <plan> — every reinforced handoff carries it, unmodified");
+  } else if (norm(plan) !== norm(canonical.plan)) {
     errors.push("<plan> differs from the template — it must be carried verbatim");
   }
   // [Foreman: 107]
@@ -163,7 +207,7 @@ function checkPrompt(prompt, opts) {
     errors.push(`resolved plugin path in the prompt body ("${pinned[0]}") — write \${CLAUDE_PLUGIN_ROOT} instead, or every bookkeeping command dies at the next version bump`);
   }
   // [Foreman: 103]
-  if (!norm(prompt).includes(norm(NO_INVENTION_SENTENCE))) {
+  if (reinforced && !norm(prompt).includes(norm(NO_INVENTION_SENTENCE))) {
     errors.push("missing the no-invention line (\"a finding to report, not a gap to fill\") — it belongs outside <background>, so an omitted background can't drop it");
   }
 
@@ -196,8 +240,9 @@ function checkPrompt(prompt, opts) {
     if (!hasVerification) {
       errors.push("task_rules has no verification block (Run:/Expected:) — required unless the task is pure research (--research)");
     }
-    // [Foreman: 103]
-    if (!norm(taskRules).includes(norm(FIX_CEILING_SENTENCE))) {
+    // [Foreman: 103] Bounded recovery is a reinforced rule; standard carries
+    // the runnable check itself and nothing around it.
+    if (reinforced && !norm(taskRules).includes(norm(FIX_CEILING_SENTENCE))) {
       errors.push("the verification block's fix loop is unbounded — it must end with the fixed ceiling (\"after two failed fix attempts, stop and report…\"), not \"iterate until it passes\"");
     }
   }
@@ -226,7 +271,7 @@ function checkPrompt(prompt, opts) {
     if (toneBlock !== null) errors.push("<tone> present in a Workflow-stage prompt — the flavor drops it unconditionally");
   } else if (omit.has("tone") && opts.destination !== "agent") {
     if (toneBlock !== null) errors.push("<tone> present but the project omits it (omitSections) and the destination is not a background Agent");
-  } else if (toneBlock === null) {
+  } else if (toneBlock === null && reinforced) {
     errors.push(
       opts.destination === "agent" && omit.has("tone")
         ? "<tone> missing — an omitted tone STAYS for a background-Agent destination (no output style reaches that session)"
@@ -249,7 +294,7 @@ function checkPrompt(prompt, opts) {
     if (!prompt.includes(WORKFLOW_STAGE_SENTENCE)) {
       errors.push("Workflow-stage prompt is missing its fixed enforcement sentence");
     }
-  } else if (!omit.has("output_format") && extractBlock(prompt, "output_format") === null) {
+  } else if (reinforced && !omit.has("output_format") && extractBlock(prompt, "output_format") === null) {
     errors.push("missing <output_format> — include the template default unless the project omits it");
   }
 
@@ -297,7 +342,7 @@ function checkPrompt(prompt, opts) {
     warnings.push(`asks the destination to echo its reasoning ("${echo[0]}") — this can trigger reasoning_extraction refusals on Fable-class models; ask for the outcome instead`);
   }
 
-  return { errors, warnings, configWarnings: config.warnings };
+  return { errors, warnings, configWarnings: config.warnings, profile };
 }
 
 const USAGE = `check-prompt.js -- mechanical gate for an assembled handoff prompt.
@@ -305,8 +350,14 @@ Prints one JSON line: {"ok":true,"warnings":[...]} or
 {"ok":false,"errors":[...],"warnings":[...]} (exit 1).
 
   node check-prompt.js <prompt-file> --destination task|agent|clipboard
+                       [--profile standard|reinforced]
                        [--entry <id> [--resume]] [--research] [--workflow-stage]
 
+  --profile       which handoff profile the prompt was assembled at
+                  (prompt-template.md's "Handoff profiles" section says which
+                  signals choose it). Optional: without it the profile is read
+                  off the prompt -- the full guardrail blocks mean reinforced.
+                  Echoed back as "profile" in the result.
   --destination   required: where the prompt is going (task = Execute here
                   in this session, in any of its execution modes,
                   agent = background Agent, clipboard = copy).
@@ -324,6 +375,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--destination") opts.destination = argv[++i];
+    else if (a === "--profile") opts.profile = argv[++i];
     else if (a === "--entry") opts.entry = argv[++i];
     else if (a === "--resume") opts.resume = true;
     else if (a === "--research") opts.research = true;
@@ -347,15 +399,18 @@ function main() {
   if (opts.entry !== undefined && (!opts.entry || opts.entry.startsWith("--"))) {
     throw new Error("--entry requires an entry id");
   }
+  if (opts.profile !== undefined && !PROFILES.has(opts.profile)) {
+    throw new Error(`--profile must be one of ${[...PROFILES].join("|")}`);
+  }
   const prompt = opts.file ? fs.readFileSync(opts.file, "utf-8") : fs.readFileSync(0, "utf-8");
   if (!prompt.trim()) throw new Error("empty prompt");
-  const { errors, warnings, configWarnings } = checkPrompt(prompt, opts);
+  const { errors, warnings, configWarnings, profile } = checkPrompt(prompt, opts);
   const allWarnings = [...warnings, ...configWarnings];
   if (errors.length) {
-    process.stdout.write(JSON.stringify({ ok: false, errors, warnings: allWarnings }));
+    process.stdout.write(JSON.stringify({ ok: false, profile, errors, warnings: allWarnings }));
     process.exit(1);
   }
-  process.stdout.write(JSON.stringify({ ok: true, warnings: allWarnings }));
+  process.stdout.write(JSON.stringify({ ok: true, profile, warnings: allWarnings }));
 }
 
 if (require.main === module) {
@@ -371,8 +426,12 @@ module.exports = {
   checkPrompt,
   readCanonical,
   segmentsInOrder,
+  detectProfile,
   norm,
   PLACEHOLDER_FRAGMENTS,
+  PROFILES,
+  CONCISE_TRUTH_SENTENCE,
+  CLOSURE_EVIDENCE_SENTENCE,
   WORKFLOW_STAGE_SENTENCE,
   NO_INVENTION_SENTENCE,
   FIX_CEILING_SENTENCE,

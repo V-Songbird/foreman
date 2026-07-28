@@ -29,7 +29,11 @@ const path = require('path');
 const { makeTmpProject, writeConfig, runNodeScript, SCRIPTS_DIR } = require('./helpers.js');
 const {
   readCanonical,
+  detectProfile,
   PLACEHOLDER_FRAGMENTS,
+  PROFILES,
+  CONCISE_TRUTH_SENTENCE,
+  CLOSURE_EVIDENCE_SENTENCE,
   WORKFLOW_STAGE_SENTENCE,
   NO_INVENTION_SENTENCE,
   FIX_CEILING_SENTENCE,
@@ -43,7 +47,6 @@ const PLUGIN_ROOT = '/plugins/foreman';
 const scopeText = canonical.scopeDiscipline.split('${CLAUDE_PLUGIN_ROOT}').join(PLUGIN_ROOT);
 const NO_INVENTION_LINE = `If a file, symbol, or fallback path this prompt names does not exist as described, ${NO_INVENTION_SENTENCE}`;
 const FIX_CEILING_LINE = `Do NOT claim success without running this. If it fails, fix and re-run — but ${FIX_CEILING_SENTENCE}`;
-const CLOSURE_EVIDENCE_SENTENCE = 'Closure notes and findings describe only observed work and cite supporting files, commands, commits, or outcomes; never restate planned scope as evidence that it was executed.';
 
 function goodPrompt(overrides = {}) {
   const parts = {
@@ -62,6 +65,22 @@ function goodPrompt(overrides = {}) {
     closing: canonical.closing,
     plan: `<plan>${canonical.plan}</plan>`,
     output_format: '<output_format>\nGive a concise, human-readable summary: what changed, and the verification result. No XML tags in the visible response.\n</output_format>',
+    ...overrides,
+  };
+  return Object.values(parts).filter(Boolean).join('\n\n') + '\n';
+}
+
+// [Foreman: 138] The short profile: identity + goal, the concise truth line,
+// touches, how to verify, and the closure-evidence rule. Nothing else.
+function standardPrompt(overrides = {}) {
+  const parts = {
+    task_context: '<task_context>\nYou are a senior engineer.\nYour goal is to fix the retry bug so all tests pass.\n</task_context>',
+    truth_line: CONCISE_TRUTH_SENTENCE,
+    background: '<background>\n<relevant_files>\nsrc/auth/middleware.ts — refreshToken (42), verifySession (77)\n</relevant_files>\n</background>',
+    task_rules: '<task_rules>\n- Fix the bug.\n\nConstraints:\n- Do not modify the public API.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\n</task_rules>',
+    closure: CLOSURE_EVIDENCE_SENTENCE,
+    request: 'Fix the token refresh bug in the auth middleware.',
+    autonomy: '',
     ...overrides,
   };
   return Object.values(parts).filter(Boolean).join('\n\n') + '\n';
@@ -779,5 +798,142 @@ describe('optional per-task fields', () => {
     const { json } = check(project, prompt, ['--destination', 'task']);
     assert.equal(json.ok, false);
     assert.ok(json.errors.some((e) => e.includes('One observable assertion')), JSON.stringify(json.errors));
+  });
+});
+
+// [Foreman: 138]
+describe('handoff profiles', () => {
+  const SIGNALS = ['resumed', 'conflicting', 'stale', 'highly constrained', 'risky'];
+
+  test('the profile names are exactly standard and reinforced', () => {
+    assert.deepEqual([...PROFILES].sort(), ['reinforced', 'standard']);
+  });
+
+  test('a valid standard prompt passes for every destination', () => {
+    const project = makeTmpProject();
+    for (const dest of ['task', 'agent', 'clipboard']) {
+      const prompt = standardPrompt({ autonomy: dest === 'agent' ? AUTONOMY : '' });
+      const { status, json } = check(project, prompt, ['--destination', dest, '--profile', 'standard']);
+      assert.equal(status, 0, JSON.stringify(json));
+      assert.equal(json.ok, true);
+      assert.equal(json.profile, 'standard');
+    }
+  });
+
+  test('a valid reinforced prompt still passes, flag or no flag', () => {
+    const project = makeTmpProject();
+    const explicit = check(project, goodPrompt(), ['--destination', 'task', '--profile', 'reinforced']);
+    assert.equal(explicit.status, 0, JSON.stringify(explicit.json));
+    assert.equal(explicit.json.profile, 'reinforced');
+    // Backward compatibility: a prompt written before profiles existed carries
+    // no flag and must validate exactly as it did.
+    const implicit = check(project, goodPrompt(), ['--destination', 'task']);
+    assert.equal(implicit.status, 0, JSON.stringify(implicit.json));
+    assert.equal(implicit.json.profile, 'reinforced');
+  });
+
+  test('the profile is auto-detected from the guardrail blocks', () => {
+    assert.equal(detectProfile(goodPrompt()), 'reinforced');
+    assert.equal(detectProfile(standardPrompt()), 'standard');
+    const project = makeTmpProject();
+    assert.equal(check(project, standardPrompt(), ['--destination', 'task']).json.profile, 'standard');
+  });
+
+  test('an unknown --profile is refused', () => {
+    const project = makeTmpProject();
+    const { status, json } = check(project, goodPrompt(), ['--destination', 'task', '--profile', 'light']);
+    assert.equal(status, 1);
+    assert.match(json.error, /--profile must be one of/);
+  });
+
+  test('the short shape is rejected when the profile says reinforced', () => {
+    const project = makeTmpProject();
+    const { status, json } = check(project, standardPrompt(), ['--destination', 'task', '--profile', 'reinforced']);
+    assert.equal(status, 1);
+    for (const missing of ['<truth_grounding>', '<scope_discipline>', '<plan>', 'closing paragraph', 'no-invention line']) {
+      assert.ok(json.errors.some((e) => e.includes(missing)), `${missing} not required at --profile reinforced: ${JSON.stringify(json.errors)}`);
+    }
+  });
+
+  test('the closure-evidence rule is required in BOTH profiles', () => {
+    const project = makeTmpProject();
+    const shortNoClosure = check(project, standardPrompt({ closure: '' }), ['--destination', 'task', '--profile', 'standard']);
+    assert.equal(shortNoClosure.status, 1);
+    assert.ok(shortNoClosure.json.errors.some((e) => e.includes('closure-evidence rule')), JSON.stringify(shortNoClosure.json.errors));
+    const strippedClosing = canonical.closing.replace(CLOSURE_EVIDENCE_SENTENCE, '');
+    const longNoClosure = check(project, goodPrompt({ closing: strippedClosing }), ['--destination', 'task', '--profile', 'reinforced']);
+    assert.equal(longNoClosure.status, 1);
+    assert.ok(longNoClosure.json.errors.some((e) => e.includes('closure-evidence rule')), JSON.stringify(longNoClosure.json.errors));
+  });
+
+  test('standard still needs its truth line and a runnable verification', () => {
+    const project = makeTmpProject();
+    const noTruth = check(project, standardPrompt({ truth_line: '' }), ['--destination', 'task', '--profile', 'standard']);
+    assert.ok(noTruth.json.errors.some((e) => e.includes('concise truth-grounding line')), JSON.stringify(noTruth.json.errors));
+    const noVerify = check(project, standardPrompt({ task_rules: '<task_rules>\n- Fix the bug.\n</task_rules>' }), ['--destination', 'task', '--profile', 'standard']);
+    assert.ok(noVerify.json.errors.some((e) => e.includes('verification')), JSON.stringify(noVerify.json.errors));
+    const noFiles = check(project, standardPrompt({ background: '<background>\n<relevant_files>\n</relevant_files>\n</background>' }), ['--destination', 'task', '--profile', 'standard']);
+    assert.ok(noFiles.json.errors.some((e) => e.includes('relevant_files')), JSON.stringify(noFiles.json.errors));
+  });
+
+  test('standard is a smaller floor, not a licence to reword what it keeps', () => {
+    const project = makeTmpProject();
+    const prompt = standardPrompt({ closure: `${CLOSURE_EVIDENCE_SENTENCE}\n\n<plan>\n1. Do whatever seems best.\n</plan>` });
+    const { status, json } = check(project, prompt, ['--destination', 'task', '--profile', 'standard']);
+    assert.equal(status, 1);
+    assert.ok(json.errors.some((e) => e.includes('<plan> differs')), JSON.stringify(json.errors));
+  });
+
+  test('the template maps every mechanical signal to reinforced, with thresholds', () => {
+    const raw = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
+    const flat = raw.replace(/\s+/g, ' ');
+    assert.ok(flat.includes('## Handoff profiles'), 'the template lost the Handoff profiles section');
+    for (const signal of SIGNALS) {
+      assert.ok(flat.includes(`**${signal}**`), `the signal set lost "${signal}"`);
+    }
+    assert.ok(
+      flat.includes('Any one of them true → `reinforced`. None true → `standard`.'),
+      'the template lost the any-signal/no-signal mapping'
+    );
+    // Each signal's threshold is documented, not left to judgment.
+    assert.ok(flat.includes('more than **30 days** before today'), 'the stale threshold is gone');
+    assert.ok(flat.includes('**3 or more** ids'), 'the dependency-count threshold is gone');
+    assert.ok(flat.includes('longer than **1000 characters**'), 'the notes-length threshold is gone');
+    assert.ok(flat.includes('`collision` is `true`'), 'the conflicting signal lost its mechanical source');
+    assert.ok(
+      flat.includes('There is no roadmap risk field and none should be added'),
+      'the template lost the no-new-risk-field rule'
+    );
+    assert.ok(
+      /computed from the roadmap\/git facts already in hand at craft time. Never a judgment call/.test(flat),
+      'the template lost the mechanical-only rule'
+    );
+  });
+
+  test('the template carries both profiles fixed sentences verbatim', () => {
+    const raw = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
+    assert.ok(raw.includes(CONCISE_TRUTH_SENTENCE), 'the template lost the concise truth line');
+    assert.ok(raw.includes(CLOSURE_EVIDENCE_SENTENCE), 'the template lost the closure-evidence sentence');
+    assert.ok(
+      canonical.closing.includes(CLOSURE_EVIDENCE_SENTENCE),
+      'the closing paragraph and the standalone closure rule have drifted apart'
+    );
+  });
+
+  test('the prompt-building skills choose a profile from the signals', () => {
+    for (const rel of [['skills', 'roadmap', 'SKILL.md'], ['skills', 'sprint', 'SKILL.md']]) {
+      const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8').replace(/\s+/g, ' ');
+      assert.ok(skill.includes('Handoff profiles'), `${rel.join('/')} never reaches the profile section`);
+      assert.ok(
+        /Any signal true → `reinforced`; none → `standard`|same mechanical signals/.test(skill),
+        `${rel.join('/')} lost the signal → profile mapping`
+      );
+    }
+    const roadmap = fs.readFileSync(path.join(__dirname, '..', 'skills', 'roadmap', 'SKILL.md'), 'utf-8').replace(/\s+/g, ' ');
+    assert.ok(roadmap.includes('--profile <standard|reinforced>'), 'the roadmap skill does not pass the profile to the gate');
+    assert.ok(
+      roadmap.includes('Say which profile and the signal that chose it in one line'),
+      'the roadmap skill lost the state-the-profile rule'
+    );
   });
 });
