@@ -106,10 +106,11 @@ The replay is deterministic and free. It reports top-pick disagreements for
 human judgment; it does not silently turn critical depth into a new priority
 system.
 
-## Roadmap health
+## Roadmap health and attention cost
 
-A different question again: does a roadmap stay accurate over months? Mechanical
-tests can't answer that, so `health/` measures it directly.
+A different question again: does a roadmap stay accurate over months, and what
+does keeping one cost you? Mechanical tests can't answer either, so `health/`
+measures them directly.
 
 ```bash
 node health/roadmap-health.js --roadmap /path/to/ROADMAP.jsonl --date 2026-07-28
@@ -122,13 +123,34 @@ the doctor's own checks so the numbers can't disagree with `roadmap.js doctor`.
 `--archive` is autodetected next to the roadmap; `--date` fixes the run date so
 a report is reproducible.
 
-Three of the nine metrics — whether you accept the recommendation, override it,
-or get what you meant from a hint — only exist if a session records the choice.
-[`health/TRIALS.md`](health/TRIALS.md) defines those as opt-in, local,
-count-only project trials: no titles, no paths, no ids, a log you can delete at
-any time, and nothing recording anything today. Pass `--trial-log <path>` and
-the tool computes the three rates; without one it reports them as `null` with a
-reason rather than as zero.
+`attention-cost.js` is the same shape, asking what Foreman costs you rather
+than what shape the roadmap is in:
+
+```bash
+node health/attention-cost.js --roadmap /path/to/ROADMAP.jsonl --date 2026-07-28
+```
+
+Also free, deterministic, read-only, same flags. Three of its seven metrics
+need nothing but the files: how closely each closed task's predicted files
+matched the files it actually changed (precision and recall, matched with
+`roadmap.js`'s own prefix-aware rule, so `src/auth` counts as predicting
+`src/auth/middleware.ts`), how many files it changed that nothing predicted
+— cross-checked against the scope-drift note the close already stamped — and
+how much fixed guardrail text the short handoff profile drops relative to the
+full one, read out of `prompt-template.md` through `check-prompt.js`'s own
+exports so the two can't disagree.
+
+Seven of the sixteen metrics across the two tools — whether you accept the
+recommendation, override it, get what you meant from a hint, how long setup
+runs before the first useful task, how many questions a task costs, how often a
+commit gets interrupted, and whether an interrupted run comes back — only exist
+if a session records them as they happen. [`health/TRIALS.md`](health/TRIALS.md)
+defines those as opt-in, local, count-only project trials: no titles, no paths,
+no ids, a log you can delete at any time, and nothing recording anything today.
+Pass `--trial-log <path>` and each tool computes its own rates; without one they
+report `null` with a reason rather than zero. The recovery number additionally
+ships a clearly labeled proxy — how much interrupted work is sitting open —
+which is not the same thing and never stands in for the rate.
 
 ## What's measured
 

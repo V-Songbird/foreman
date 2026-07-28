@@ -282,6 +282,10 @@ module.exports = {
   daysBetween,
   fileMetrics,
   loadTrialLog,
+  // [Foreman: 143] The trial-log reader and the one rounding rule, shared with
+  // attention-cost.js so the two reports round and tolerate a truncated log
+  // identically instead of each inventing its own answer.
+  ratio,
   trialMetrics,
   health,
 };

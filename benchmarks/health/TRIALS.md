@@ -1,4 +1,4 @@
-# Project trials: recommendation quality
+# Project trials: recommendation quality, attention cost, and recovery
 
 Three of the nine metrics in [`roadmap-health.js`](roadmap-health.js) cannot be
 read off the roadmap files. Whether a user *accepts* Foreman's recommendation,
@@ -6,16 +6,26 @@ how often they pick something else, and whether a hint finds what they meant
 are facts about a person choosing — they only exist if a session records the
 choice as it happens.
 
+<!-- [Foreman: 143] -->
+Four of the seven in [`attention-cost.js`](attention-cost.js) are the same kind
+of fact seen from the other side: how long setup runs before the first useful
+task, how many questions a task costs, how often a commit is interrupted, and
+whether an interrupted or failed run comes back. The roadmap records what work
+happened, never what it cost the person doing it, so these need the same
+recording.
+
 This document defines that recording so it can be switched on later. **Nothing
-records anything today.** No skill and no hook writes a trial log; entry 142
-defines the measurement, and acting on it is separate work. The analysis half
-is real code and ships now: `roadmap-health.js --trial-log <path>` computes the
-three rates over a log in this format, and reports them `null` with
-`"no_trial_log"` when there is none.
+records anything today.** No skill and no hook writes a trial log; entries 142
+and 143 define the measurements, and acting on them is separate work. The
+analysis half is real code and ships now: `roadmap-health.js --trial-log
+<path>` computes the three recommendation rates over a log in this format,
+`attention-cost.js --trial-log <path>` computes the four attention and recovery
+ones, and both report `null` with `"no_trial_log"` when there is none.
 
 ## What a trial may record
 
-Counts, booleans, and ranks. That is the whole vocabulary.
+Counts, booleans, ranks, elapsed seconds, and names from a closed list. That is
+the whole vocabulary.
 
 - **Never** a title, `why`, `what`, note, hint word, file path, entry id,
   project name, or anything typed by the user.
@@ -24,6 +34,15 @@ Counts, booleans, and ranks. That is the whole vocabulary.
   a menu and the pick that answered it can be paired; it identifies nothing
   outside the log.
 - Ranks are positions in a menu the user just saw. A rank is not a task.
+- Elapsed seconds are a duration between two of this log's own events, never a
+  wall-clock time. A duration says how long something took; it does not say
+  when anyone was at their desk.
+- Every `flow`, `hook`, `reason_class`, and `kind` value is one name from the
+  closed list this document fixes below — Foreman's own branch and refusal
+  names, decided at write time, never free text and never a message a script
+  or git produced. `safe-commit`'s dirty-tree `reason` string in particular is
+  prose about the user's working tree and is deliberately **not** what
+  `reason_class` records.
 - **Opt-in.** No trial runs unless the user turns it on, and turning it on is a
   question about *this* project, not a global default.
 - **Local.** The log is `.foreman/trial-log.jsonl` in the project — the same
@@ -41,6 +60,8 @@ Counts, booleans, and ranks. That is the whole vocabulary.
 Every line carries `event`, `ts` (date only, `YYYY-MM-DD` — the day is enough
 resolution for a rate, and a timestamp is one more identifying signal), and
 `session`. Per type:
+
+### Recommendation events
 
 | `event` | Extra fields | Written when |
 | --- | --- | --- |
@@ -62,7 +83,46 @@ accept or resume row above the recommendation, which moves the `(Recommended)`
 tag down the list. Recording the position keeps that visible instead of
 assuming it away.
 
+<!-- [Foreman: 143] -->
+### Attention and recovery events
+
+| `event` | Extra fields | Written when |
+| --- | --- | --- |
+| `session_start` | — | A main session started on a project that has a roadmap |
+| `init_started` | — | `/foreman:init` began its first question |
+| `init_completed` | `tasks` (integer, entries written) | `/foreman:init`'s write phase finished and committed |
+| `first_pick` | `seconds_since_init` (integer, or `null`), `sessions_since_init` (integer, or `null`) | The first handoff of this project was delivered |
+| `question_asked` | `flow` (one of `init`, `pick`, `add`, `correct`, `status`, `survey`, `sprint`) | One `AskUserQuestion` call was put to the user |
+| `commit_interrupted` | `hook` (one of `safe-commit`, `post-commit`, `task-completed`), `reason_class` (see below) | A Foreman commit path stopped and handed the decision back |
+| `recovery_attempted` | `kind` (one of `reinit-snapshot`, `resume-in-progress`, `failed-verification-retry`), `success` (boolean) | A recovery path ran to a definite outcome |
+
+```jsonl
+{"event":"session_start","ts":"2026-07-28","session":"m7q1x4"}
+{"event":"init_started","ts":"2026-07-28","session":"m7q1x4"}
+{"event":"init_completed","ts":"2026-07-28","session":"m7q1x4","tasks":6}
+{"event":"question_asked","ts":"2026-07-28","session":"m7q1x4","flow":"init"}
+{"event":"first_pick","ts":"2026-07-28","session":"m7q1x4","seconds_since_init":214,"sessions_since_init":0}
+{"event":"commit_interrupted","ts":"2026-07-28","session":"m7q1x4","hook":"safe-commit","reason_class":"unexpected_files"}
+{"event":"recovery_attempted","ts":"2026-07-28","session":"m7q1x4","kind":"resume-in-progress","success":true}
+```
+
+`seconds_since_init` is the gap between this project's `init_completed` and its
+first delivered handoff, and it is `null` whenever the two fall in different
+sessions — a number covering an overnight gap would measure sleep, not setup.
+`sessions_since_init` counts `session_start` events in between and is the
+honest answer in that case, so the two are recorded together and analyzed
+separately. Both are `null` on a project whose init predates the trial.
+
+`reason_class` is one of the refusal names `scripts/safe-commit.js` already
+returns — `dirty_tree` (its `begin` reporting `dirty: true`),
+`head_moved_since_baseline`, `no_task_changes`, `unexpected_files`,
+`staging_incomplete` — plus `verification_declined` for the
+`requireVerification` hold. Names only: never the count of dirty files, never
+which files were unexpected.
+
 ## Where each event would be recorded
+
+### Recommendation events
 
 Exact branches in `skills/roadmap/SKILL.md`, Fast pick (and, unchanged,
 whenever Reconcile and pick composes it):
@@ -92,6 +152,70 @@ rather than answering "what next", so they record neither `pick_accepted` nor
 `pick_overridden`. They are counted in the `menu_shown` row's `candidates`
 because the user had to read past them.
 
+<!-- [Foreman: 143] -->
+### Attention and recovery events
+
+Each of these already has a surface that reads the roadmap or asks the
+question, so switching a trial on adds a write to an existing branch and
+nothing else:
+
+- **`session_start`** — `hooks/session-start.js`, on the same `startup|clear`
+  matcher that already gates it, and **before** its silent-when-nothing-to-say
+  return. The hook stays silent either way; the event is the denominator for
+  `sessions_since_init`, so it cannot depend on whether there happened to be an
+  open entry to mention.
+- **`init_started`** — `skills/init/SKILL.md`, at the first question actually
+  put to the user: the Pre-check's Q1 on a project that already has a roadmap,
+  Call 1's Q1 otherwise. A Pre-check `Cancel` therefore leaves an
+  `init_started` with no `init_completed`, which is the correct record of an
+  abandoned setup.
+- **`init_completed`** — the same file's Write phase, after the `add` loop and
+  the commit of both files. `tasks` is how many `add` calls succeeded, not how
+  many were drafted.
+- **`first_pick`** — `skills/roadmap/SKILL.md`, Pick the next task, at delivery
+  of the assembled handoff (step 3's `check-prompt.js` pass, immediately before
+  the prompt goes to its destination), and only when the log holds no earlier
+  `first_pick`. A pick that never survived the gate is not a first useful task.
+- **`question_asked`** — every `AskUserQuestion` call in `skills/`, one event
+  per call, `flow` naming the branch it sits in and never the question:
+  `init` for all three of `skills/init/SKILL.md`'s calls, `pick` / `add` /
+  `correct` / `status` for `skills/roadmap/SKILL.md`'s four branches (Call 1's
+  menu and the archive-finished-work ask belong to the branch the user ends up
+  in), `survey`, and `sprint` for the experimental skill. A question batched
+  into one call with others is one event — the cost being measured is the
+  interruption, not the number of fields in it.
+- **`commit_interrupted`** — every `ok:false` return from
+  `scripts/safe-commit.js` (`begin` reporting `dirty: true`, and `finish`'s
+  `head_moved_since_baseline` / `no_task_changes` / `unexpected_files` /
+  `staging_incomplete`), recorded by the caller that receives it, plus
+  `hooks/task-completed.js` when `requireVerification` holds a close
+  (`verification_declined`). `hook` names the surface, `reason_class` copies
+  the refusal name verbatim and nothing else from the result.
+- **`recovery_attempted`, `reinit-snapshot`** — `skills/init/SKILL.md`, Write
+  phase step 1's four-option question after a failed snapshot. `success: true`
+  for a retry that exited 0 or a backup that copied; `success: false` for
+  `Continue without a snapshot` and for `Cancel`. One event per resolution, not
+  per retry loop.
+- **`recovery_attempted`, `resume-in-progress`** — two halves, written by the
+  two surfaces that already read the roadmap. `success: true` from
+  `hooks/task-completed.js` when an entry that carried commits or
+  `observed_touches` *before* this session reaches a terminal status — an
+  interrupted run that came back. `success: false` from
+  `hooks/session-start.js`, once per startup, for each open entry it surfaces
+  that already carries commits — a run that has not come back yet. A resume
+  that takes three days is therefore three failures and one success: the rate
+  is a per-day view of recovery, not a per-run one, and `attempts` is reported
+  beside it so that stays visible. Pairing the halves per run would need an
+  entry identifier in the log, and no privacy-safe version of that is worth the
+  number.
+- **`recovery_attempted`, `failed-verification-retry`** — the destination
+  session, at the bounded fix loop `prompt-template.md`'s verification block
+  fixes ("after two failed fix attempts, stop and report"): `success: true`
+  when a retry made the command pass, `false` when the ceiling was reached.
+  Only a tracked destination can record it — a clipboard handoff runs where
+  this log does not exist, so its retries are invisible and the metric is a
+  floor, never a total.
+
 ## The analysis
 
 `roadmap-health.js --trial-log .foreman/trial-log.jsonl` adds three metrics:
@@ -106,6 +230,42 @@ one minus the other. They sum to 1 in a complete log, so a pair that does not
 is evidence of dropped events rather than a hidden preference. A log with no
 decisions in it reports `null` with `"no_events"` — an empty trial is not a 0%
 acceptance rate.
+
+<!-- [Foreman: 143] -->
+`attention-cost.js --trial-log .foreman/trial-log.jsonl` adds four more, over
+the same log:
+
+- **`setup_to_first_task`** — the median `seconds_since_init` across
+  `first_pick` events, with `seconds_samples` beside it, and the median
+  `sessions_since_init` reported separately for the picks that crossed a
+  session boundary. Two shapes of the same question, never averaged together.
+- **`questions_per_task`** — `question_asked` over the number of tasks taken,
+  broken down `by_flow`. The denominator is 142's own decision count,
+  `pick_accepted + pick_overridden`, and the output names it: nothing in the
+  log marks a task *finished*, so this is questions per task **taken**, which
+  is a slightly optimistic reading of PRODUCT-STRATEGY.md's "questions per
+  completed task" and is labeled rather than silently substituted.
+- **`commit_interruptions`** — `commit_interrupted` over the same denominator,
+  broken down `by_reason` and `by_hook`. A `dirty_tree` refusal and an
+  `unexpected_files` stop are both interruptions but not the same product
+  problem, so the breakdown is the number that matters and the aggregate is
+  context.
+- **`recovery_success`** — `recovery_attempted` with `success: true` over all
+  of them, with `by_kind` giving reinitialization, resume, and failed
+  verification their own attempt/success pairs. PRODUCT-STRATEGY.md asks about
+  those three separately and the aggregate hides which one is failing.
+
+The three derivable metrics in the same report — task-to-commit accuracy,
+dirty-file capture, and prompt overhead — need no trial and are computed from
+the roadmap and `prompt-template.md` alone.
+
+`recovery_success` also carries a `proxy` block, and it is labeled `proxy`
+because it is not the metric: it counts open entries that already have commits
+or `observed_touches` behind them — runs that *were* interrupted — using the
+same mechanical `resumed` signal `prompt-template.md`'s profile rule uses. It
+says how much interrupted work exists, never how much of it recovered. Without
+a trial that is the honest ceiling, and it is reported next to a `null` rate
+rather than in place of one.
 
 ## Protocol
 
@@ -142,3 +302,40 @@ acceptance rate.
   carries what PRODUCT-STRATEGY.md's reproducibility section requires:
   configuration, duration, repetition count, aggregate and per-period results,
   and the claim's limitations. Raw logs stay private; they are the user's.
+
+<!-- [Foreman: 143] -->
+### What the attention and recovery numbers need on top
+
+Same log, same project, same 30/90-day windows — one trial produces all seven
+metrics and no separate run is needed. What differs is how much of each a
+single project can supply:
+
+- **`setup_to_first_task` is n=1 per project.** `first_pick` fires once, ever.
+  A single-project trial reports one number and calls it one number; the median
+  only becomes a median across separate projects' logs, each read on its own.
+  This is the metric a synthetic fixture genuinely cannot fake and also the one
+  a single trial can least afford to generalize from.
+- **`questions_per_task` and `commit_interruptions` reuse the 20-decision
+  floor.** They share the recommendation metrics' denominator, so they become
+  reportable at exactly the same moment and no earlier.
+- **`recovery_success` has no volume floor worth setting.** Recovery events are
+  rare by design — a project that never crashes, never gets interrupted, and
+  never fails a verification produces none, and that is a good outcome rather
+  than a failed trial. Report `attempts` and `by_kind` raw at any count, and a
+  rate only above 10 attempts of a single kind.
+- **Success.** PRODUCT-STRATEGY.md again sets no numeric threshold, and this
+  document again does not invent one. The decisions the numbers feed are
+  already written down. The open question these answer is whether "users accept
+  the setup and commit-time attention costs" — so a `commit_interruptions`
+  breakdown dominated by `dirty_tree` is the safe-commit design working as
+  principle 4 requires ("dirty work is never swept into a Foreman commit"), and
+  one dominated by `unexpected_files` is the prediction being wrong, which is
+  the derivable task-to-commit accuracy metric's problem, not the commit
+  path's. For recovery, the exit criteria are the bar: "reinitialization has a
+  confirmed recovery path" and "interrupted work has a tested, understandable
+  recovery path" — `by_kind` says which of the three is not there yet.
+- **Prompt overhead needs no trial at all**, and its decision is already
+  stated: "the correct product response is likely a short default handoff and
+  an optional reinforced handoff, not indiscriminate prompt reduction". The
+  ratio measures whether the standard profile actually delivers that; where the
+  crossover sits is a benchmark-harness question, not a trial one.
