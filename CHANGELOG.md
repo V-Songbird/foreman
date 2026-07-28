@@ -29,6 +29,7 @@ field by convention).
 - Roadmap writes now serialize automatically across concurrent Foreman sessions, and repeating an exact task add safely reuses the existing entry.
 - Task closure notes must cite observed work or outcomes instead of treating the planned task description as proof.
 - A commit that looks like it finishes a task now records the work and asks you to confirm it's verified before the task is closed. Set `requireVerification` to `false` to close it as soon as the commit lands.
+- Every offered task now says why it is where it is in the order — the hint it matched, the open work behind it, the overlap it avoided, or its age — and Foreman calls the result its recommendation rather than the best task, since the pick is still yours. Wording across the README, skills, and the plugin description now reserves "preflighted", "grounded", and "verified" for the confidence a step has actually reached.
 
 ### Removed
 

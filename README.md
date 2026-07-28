@@ -17,7 +17,7 @@
     <a href="https://docs.anthropic.com/en/docs/claude-code"><img src="https://img.shields.io/badge/Claude_Code-E5582B" alt="Claude Code"/></a>
 </p>
 
-> **TL;DR** — Every Claude Code session starts with amnesia. Foreman keeps your plan in your repo, committed like code. Ask "what's next?" and you get the best task with a ready-to-run prompt, checked against the actual codebase — about a quarter cheaper per session than a bare one-line ask.
+> **TL;DR** — Every Claude Code session starts with amnesia. Foreman keeps your plan in your repo, committed like code. Ask "what's next?" and you get Foreman's recommended task — with the reason it's the recommendation — and a ready-to-run prompt whose paths and symbols are preflighted, and which checks its own claims against the codebase before it edits anything. About a quarter cheaper per session than a bare one-line ask.
 
 ---
 
@@ -25,13 +25,13 @@
 
 Close the laptop, and every plan that only lived in your head closes with it. Open Claude Code tomorrow and it starts from zero — no memory of what you were building, what you already ruled out, or that the file it's about to edit got renamed yesterday.
 
-Foreman keeps the plan where the code lives: a plain-language roadmap, committed like any other file. Ask "what's next?" and Foreman hands back the best task and a ready-to-run prompt, built from what's actually true about your project right now. It earns its keep on real engineering work — the kind that outlives a single chat window.
+Foreman keeps the plan where the code lives: a plain-language roadmap, committed like any other file. Ask "what's next?" and Foreman hands back its recommended task — and says why it's first — plus a ready-to-run prompt that starts by checking its own claims against your code. It earns its keep on real engineering work — the kind that outlives a single chat window.
 
 ## Why you'd want it
 
 - **Your plan survives you forgetting it.** The roadmap lives in your repo, committed like code. The next session picks up exactly where you left off, not from a shrug.
 - **You don't have to be good at prompting.** Every handoff prompt comes from the same template, guardrails built in. Say what you want in plain language, and Foreman does the rest.
-- **It updates itself.** After each commit, Foreman checks what got finished and marks it. Opt in, and it also flags new work the commit uncovered.
+- **It keeps up with your commits.** After each commit, Foreman spots the task that looks finished and asks you to confirm before checking it off. Opt in, and it also flags new work the commit uncovered.
 - **It can clear a short run of work without turning into a process tool.** Ask for a small sprint, approve one plan, and review the finished entries together at the end. Still experimental.
 - **Nothing moves without you.** No task gets added, changed, or checked off behind your back, and a project you haven't set up stays untouched.
 
@@ -39,10 +39,10 @@ Foreman keeps the plan where the code lives: a plain-language roadmap, committed
 
 | Moment | What happens |
 | --- | --- |
-| You ask "what's next?" | Foreman weighs the roadmap — dependencies, collisions, what's done — and hands back the best task with a ready-to-run prompt |
+| You ask "what's next?" | Foreman orders the roadmap — dependencies, collisions, what's done — and recommends the top one, with the reason it came first, plus a ready-to-run prompt. The order is Foreman's default; the pick is yours |
 | You describe new work | It becomes a roadmap entry, once you approve it |
 | You ask for the next few tasks (experimental) | Foreman makes one small serial plan and brings the successful work back for one final acceptance |
-| You commit | Finished tasks get checked off; opt in and new work the commit uncovered gets flagged too |
+| You commit | A task that looks finished is surfaced for you to confirm, then checked off; opt in and new work the commit uncovered gets flagged too |
 | You suspect the plan has drifted | The top tasks get double-checked against the actual code, and the roadmap corrected |
 
 Hand a task off as tracked work, and every finished piece lands as its own commit on a `foreman/<slug>` branch. Done work stays done. At the end, you pick what happens to it: squash, merge, PR, or keep.
@@ -67,7 +67,7 @@ You talk to Foreman in plain language. Editing the roadmap file by hand defeats 
 | You want to… | Command |
 | --- | --- |
 | Set up a roadmap for a project (one-time) | `/foreman:init` |
-| Pick the next task, add one, or check status | `/foreman:roadmap` |
+| See the recommended next task, add one, or check status | `/foreman:roadmap` |
 | Work through a few ready tasks with one approval (experimental) | `/foreman:sprint` |
 | Build a handoff prompt for a specific task | `/foreman:craft-prompt` |
 | Double-check the top tasks against your actual code | `/foreman:survey` |
@@ -106,7 +106,7 @@ We measured what a good handoff is actually worth: the same real coding jobs, ru
 
 ## Under the hood
 
-The roadmap is a plain file in your repo (field-by-field details in [`roadmap-schema.md`](roadmap-schema.md)), and every prompt Foreman assembles is checked before it ships. Routine bookkeeping happens mechanically, leaving the model for work that needs judgment. Foreman pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush): razor cuts the code, hush cuts the noise, Foreman writes the prompts. Measured together, the three add no overhead to each other.
+The roadmap is a plain file in your repo (field-by-field details in [`roadmap-schema.md`](roadmap-schema.md)), and every prompt Foreman assembles is structurally validated before it ships. Routine bookkeeping happens mechanically, leaving the model for work that needs judgment. Foreman pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush): razor cuts the code, hush cuts the noise, Foreman writes the prompts. Measured together, the three add no overhead to each other.
 
 ## Scope
 

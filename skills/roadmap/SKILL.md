@@ -1,6 +1,6 @@
 ---
 name: roadmap
-description: Ongoing entry point for a project's ROADMAP.jsonl. Pick the next task to work on (reasons about dependencies and file-touch collisions like a software architect, then crafts a self-contained handoff prompt), add a new task, correct a stale one, or review roadmap status.
+description: Ongoing entry point for a project's ROADMAP.jsonl. Pick the next task to work on (ranks candidates deterministically by dependencies and file-touch collisions, shows why each is where it is, then crafts a self-contained handoff prompt), add a new task, correct a stale one, or review roadmap status.
 when_to_use: Trigger when the user asks what to work on next, wants to add something to the roadmap, wants to fix or reword an entry that already exists, wants to see roadmap status, says "what's next", "pick a task", "add to the roadmap", "that task's description is wrong", "roadmap status", or invokes /foreman:roadmap.
 argument-hint: "<optional — a task description to add, or a hint about what to pick next>"
 allowed-tools: AskUserQuestion, Read, Write, Bash, PowerShell, TaskCreate, TaskUpdate, Agent, SendMessage
@@ -52,13 +52,28 @@ of *its* work — that's exactly what the `<truth_grounding>` block in
 mechanical menu, one question, then one detailed read of the selected entry
 only.
 
+Say it that way whenever the flow explains itself, and never more than it
+does: the entry is **preflighted at craft time** — its paths and symbols
+get checked mechanically by `resolve-symbols.js`, nothing else does — and
+**the handoff verifies the claims during work**. A task is only
+**grounded** when something actually investigated its substance
+(`foreman:survey`, or the handoff's own truth-grounding once the work
+starts), and only **verified** once the finished work passed its checks
+and the user accepted it. Never tell the user a pick was checked against
+the code, and never call an entry grounded or verified here.
+
 1. `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js next-candidates --menu` —
    already filtered (unblocked: `planned` with every `depends_on` done),
    ranked (most open work waiting behind it first — `unblocks_total`
    counts the whole dependency chain, not just direct dependents — then
    collision-free before colliding, then oldest), limited to 3 by
    default, with a `collision` flag per candidate (its `touches` overlaps
-   a currently-`in_progress` task's). Do not re-derive this by calling
+   a currently-`in_progress` task's) and a `reason` per candidate — the
+   ranking key that actually placed that row. This is Foreman's
+   **recommended** ordering, the default one, not a claim to have found
+   the objectively best task: the sort knows dependencies, hint words,
+   collisions, and age, and nothing about product value, urgency, or
+   effort. Do not re-derive this by calling
    `list` and reasoning over the whole file yourself — that's exactly the
    cost `next-candidates` exists to cut. `--menu` returns only choice-time
    fields; do not fetch or reconstruct the unselected entries' details.
@@ -104,19 +119,23 @@ hint or not; resume options lead when `in_progress` is non-empty, per the
 finish-first check above):
 - Label: `<title> (<id>)`. The first-ranked candidate's label gets
   `(Recommended)` appended — unless a resume option already carries it —
-  it's first for a reason (most open work behind it, hint relevance, or
-  oldest on a tie), say so with the tag instead of making the user infer
-  it from list order alone.
+  say so with the tag instead of making the user infer it from list order
+  alone.
 - Description: the entry's `why` restated in your own everyday words, one
   sentence, written for a teammate who has never seen this codebase —
-  never the field pasted verbatim. Never
+  never the field pasted verbatim — then the row's `reason` as a short
+  trailing clause, so the user sees what put this row where it is and can
+  overrule it on the spot. Use the returned `reason` as the fact it states
+  (reworded to fit the sentence is fine, contradicted is not); it already
+  carries the collision caution when there is one, so don't restate that
+  separately. Never
   fold `what`/`touches`/`notes`/`unblocks` into the description — none of
   that is a pick-time decision input if the session isn't ground-truthing
-  anyway (that's `foreman:survey`'s job); it only bloats the dialog. Add
-  "(possible file overlap with in-progress work)" to the description if
-  `collision:true` — still a caution, not a blocker.
+  anyway (that's `foreman:survey`'s job); it only bloats the dialog. The
+  overlap clause `reason` carries on a `collision:true` row is a caution,
+  never a blocker.
 - Preview: plain text built only from the menu row's `title`, compact
-  `why`, collision caution, and ranking signals, capped at ~6 lines. It
+  `why`, `reason`, and ranking signals, capped at ~6 lines. It
   supplements the description rule above, never replaces it. Resume rows
   use `title`, compact `why`, and `updated_at`. A harness whose
   `AskUserQuestion` doesn't support `preview` simply ignores the field —

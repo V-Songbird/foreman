@@ -1,6 +1,6 @@
 {
   "name": "foreman",
-  "description": "Prompt-engineering and project-roadmap plugin that crafts Anthropic-grade prompts and picks, surveys, and tracks your next tasks.",
+  "description": "Prompt-engineering and project-roadmap plugin that crafts Anthropic-grade prompts and recommends, surveys, and tracks your next tasks.",
   "license": "MIT",
   "author": {
     "name": "Victor Villegas",

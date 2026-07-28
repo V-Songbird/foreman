@@ -1052,6 +1052,35 @@ function cmdNextCandidates(root, filters) {
       return String(a.created_at || "").localeCompare(String(b.created_at || ""));
     });
 
+  // Why each candidate sits where it sits, read back off the signals the
+  // sort already used — no new ranking input, no reordering. The branches
+  // mirror the comparator's own precedence, so the first one that fires is
+  // the key that actually decided this row's place.
+  for (const candidate of unblocked) {
+    let reason;
+    if (candidate.hint_score > 0) {
+      reason = `matches your hint '${filters.hint}'`;
+    } else if (candidate.unblocks_total > 0) {
+      reason = `unblocks ${candidate.unblocks_total} open task${candidate.unblocks_total === 1 ? "" : "s"} (${candidate.unblocks} directly)`;
+    } else if (
+      !candidate.collision &&
+      // Tied on every earlier key, so collision is what separated them —
+      // and the comparator always puts the colliding one second.
+      unblocked.some(
+        (other) =>
+          other.collision &&
+          other.hint_score === candidate.hint_score &&
+          other.unblocks_total === candidate.unblocks_total &&
+          other.unblocks === candidate.unblocks
+      )
+    ) {
+      reason = "no file overlap with in-progress work, unlike an otherwise equal task";
+    } else {
+      reason = "oldest ready task";
+    }
+    candidate.reason = candidate.collision ? `${reason}; may overlap in-progress work` : reason;
+  }
+
   // in_progress entries ride along so the pick flow can offer to finish
   // existing work before starting something new. Full callers still receive
   // the entry substance; --menu projects these to choice-only rows below.
@@ -1085,6 +1114,7 @@ function cmdNextCandidates(root, filters) {
             ...(candidate.hint_score !== undefined ? { hint_score: candidate.hint_score } : {}),
             collision: candidate.collision,
             created_at: candidate.created_at,
+            reason: candidate.reason,
           }
         : candidate
     ),
@@ -1288,6 +1318,10 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     depending directly), and unblocks_total (the whole
                     open chain behind it); ranked unblocks_total, then
                     unblocks, then no-collision, then oldest
+                    every candidate (both shapes) carries reason: one short
+                    sentence naming the ranking key that put it there --
+                    it is the default ordering explained, not a claim that
+                    the entry was checked against the code
   check-duplicate   stdin JSON: {title, why}
                     word-overlap match against ALL entries regardless of
                     status; each match includes its status so callers can

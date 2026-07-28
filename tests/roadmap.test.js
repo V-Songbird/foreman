@@ -17,7 +17,9 @@
 //     relevance ranking; flags touches collisions against in_progress,
 //     surfaces each candidate's notes and depends_on, and defaults to a
 //     limit of 3; --menu preserves the order while omitting unselected
-//     task detail and bounding its why text
+//     task detail and bounding its why text; every candidate carries a
+//     reason naming the ranking key that placed it, identical in both
+//     shapes and never affecting the order
 //   - add/update-status return a `warnings` field for long why/what/notes
 //     without failing the write
 //   - annotate appends notes and bumps updated_at without touching status
@@ -1160,7 +1162,7 @@ describe('next-candidates', () => {
 
     const { json } = run(['next-candidates', '--menu']);
     assert.deepEqual(Object.keys(json.candidates[0]).sort(), [
-      'collision', 'created_at', 'id', 'title', 'unblocks', 'unblocks_total', 'why',
+      'collision', 'created_at', 'id', 'reason', 'title', 'unblocks', 'unblocks_total', 'why',
     ]);
     assert.deepEqual(Object.keys(json.in_progress[0]).sort(), [
       'id', 'title', 'updated_at', 'why',
@@ -1200,6 +1202,96 @@ describe('next-candidates', () => {
     const full = JSON.stringify(run(['next-candidates']).json);
     const menu = JSON.stringify(run(['next-candidates', '--menu']).json);
     assert.ok(menu.length < full.length * 0.1, `expected menu ${menu.length} to be <10% of full ${full.length}`);
+  });
+
+  describe('reason', () => {
+    test('names the hint when relevance is what ranked the row', () => {
+      writeRoadmap(project, [
+        { id: '001', title: 'Refactor payment retries', why: 'w', what: 'x', status: 'planned', depends_on: [], touches: [], created_at: '2026-06-01' },
+        { id: '002', title: 'Fix auth token refresh', why: 'w', what: 'x', status: 'planned', depends_on: [], touches: [], created_at: '2026-07-01' },
+      ]);
+      const { json } = run(['next-candidates', '--hint', 'auth refresh']);
+      assert.equal(json.candidates[0].id, '002');
+      assert.equal(json.candidates[0].reason, "matches your hint 'auth refresh'");
+      // A zero-scoring row falls through to the next rule, not to the hint.
+      assert.equal(json.candidates[1].reason, 'oldest ready task');
+    });
+
+    test('names the downstream work when the chain is what ranked the row', () => {
+      writeRoadmap(project, [
+        { id: '001', title: 'chain root', why: 'w', what: 'x', status: 'planned', depends_on: [], touches: [], created_at: '2026-07-01' },
+        { id: '002', title: 'direct dependent', why: 'w', what: 'x', status: 'planned', depends_on: ['001'], touches: [] },
+        { id: '003', title: 'transitive dependent', why: 'w', what: 'x', status: 'planned', depends_on: ['002'], touches: [] },
+        { id: '004', title: 'lone task', why: 'w', what: 'x', status: 'planned', depends_on: [], touches: [], created_at: '2026-07-02' },
+      ]);
+      const { json } = run(['next-candidates']);
+      assert.equal(json.candidates[0].id, '001');
+      assert.equal(json.candidates[0].reason, 'unblocks 2 open tasks (1 directly)');
+    });
+
+    test('singularizes a one-task chain', () => {
+      writeRoadmap(project, [
+        { id: '001', title: 'root', why: 'w', what: 'x', status: 'planned', depends_on: [], touches: [], created_at: '2026-07-01' },
+        { id: '002', title: 'dependent', why: 'w', what: 'x', status: 'planned', depends_on: ['001'], touches: [] },
+      ]);
+      const { json } = run(['next-candidates']);
+      assert.equal(json.candidates[0].reason, 'unblocks 1 open task (1 directly)');
+    });
+
+    test('names the collision-free preference when it beat a colliding sibling', () => {
+      writeRoadmap(project, [
+        { id: '001', title: 'in flight', why: 'w', what: 'x', status: 'in_progress', depends_on: [], touches: ['src/shared.js'], updated_at: '2026-07-01' },
+        { id: '002', title: 'older but colliding', why: 'w', what: 'x', status: 'planned', depends_on: [], touches: ['src/shared.js'], created_at: '2026-06-01' },
+        { id: '003', title: 'newer but clean', why: 'w', what: 'x', status: 'planned', depends_on: [], touches: ['src/clean.js'], created_at: '2026-07-05' },
+      ]);
+      const { json } = run(['next-candidates']);
+      assert.deepEqual(json.candidates.map((c) => c.id), ['003', '002']);
+      assert.equal(json.candidates[0].reason, 'no file overlap with in-progress work, unlike an otherwise equal task');
+    });
+
+    test('falls back to seniority when nothing else separated the row', () => {
+      writeRoadmap(project, [
+        { id: '001', title: 'older', why: 'w', what: 'x', status: 'planned', depends_on: [], touches: [], created_at: '2026-06-01' },
+        { id: '002', title: 'newer', why: 'w', what: 'x', status: 'planned', depends_on: [], touches: [], created_at: '2026-07-01' },
+      ]);
+      const { json } = run(['next-candidates']);
+      assert.deepEqual(json.candidates.map((c) => c.reason), ['oldest ready task', 'oldest ready task']);
+    });
+
+    test('appends the overlap caution to a colliding row on top of its own reason', () => {
+      writeRoadmap(project, [
+        { id: '001', title: 'in flight', why: 'w', what: 'x', status: 'in_progress', depends_on: [], touches: ['src/shared.js'], updated_at: '2026-07-01' },
+        { id: '002', title: 'colliding chain root', why: 'w', what: 'x', status: 'planned', depends_on: [], touches: ['src/shared.js'], created_at: '2026-06-01' },
+        { id: '003', title: 'dependent', why: 'w', what: 'x', status: 'planned', depends_on: ['002'], touches: [] },
+      ]);
+      const { json } = run(['next-candidates']);
+      assert.equal(json.candidates[0].id, '002');
+      assert.equal(json.candidates[0].reason, 'unblocks 1 open task (1 directly); may overlap in-progress work');
+    });
+
+    test('menu and full shapes carry identical reasons, and reasons never reorder', () => {
+      writeRoadmap(project, [
+        { id: '001', title: 'in flight', why: 'Already underway', what: 'x', status: 'in_progress', depends_on: [], touches: ['src/shared.js'], updated_at: '2026-07-01' },
+        { id: '002', title: 'auth chain root', why: 'w', what: 'x', status: 'planned', depends_on: [], touches: ['src/auth.js'], created_at: '2026-07-03' },
+        { id: '003', title: 'blocked leaf', why: 'w', what: 'x', status: 'planned', depends_on: ['002'], touches: [] },
+        { id: '004', title: 'older collision', why: 'w', what: 'x', status: 'planned', depends_on: [], touches: ['src/shared.js'], created_at: '2026-06-01' },
+        { id: '005', title: 'clean and newest', why: 'w', what: 'x', status: 'planned', depends_on: [], touches: ['src/clean.js'], created_at: '2026-07-09' },
+      ]);
+
+      const full = run(['next-candidates', '--limit', '5']).json;
+      const menu = run(['next-candidates', '--limit', '5', '--menu']).json;
+
+      // The documented precedence, unchanged by reason derivation: chain
+      // first, then collision-free before colliding, then oldest.
+      assert.deepEqual(full.candidates.map((c) => c.id), ['002', '005', '004']);
+      assert.deepEqual(menu.candidates.map((c) => c.id), full.candidates.map((c) => c.id));
+      assert.deepEqual(menu.candidates.map((c) => c.reason), full.candidates.map((c) => c.reason));
+      assert.deepEqual(full.candidates.map((c) => c.reason), [
+        'unblocks 1 open task (1 directly)',
+        'no file overlap with in-progress work, unlike an otherwise equal task',
+        'oldest ready task; may overlap in-progress work',
+      ]);
+    });
   });
 });
 
