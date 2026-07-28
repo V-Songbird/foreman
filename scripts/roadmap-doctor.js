@@ -236,12 +236,20 @@ function checkGraph(rows, out, resolve) {
     }
   }
 
+  // [Foreman: 131] Same shape, one status earlier: `awaiting_acceptance`
+  // claims the work is finished and checked, so an entry making that claim
+  // with nothing recorded is asking the user to accept on trust. A warning,
+  // not an error — the entry is still writable and still recoverable.
   for (const entry of rows) {
-    if (entry.status !== "done" || typeof entry.id !== "string") continue;
+    if (typeof entry.id !== "string") continue;
+    if (entry.status !== "done" && entry.status !== "awaiting_acceptance") continue;
     const commits = Array.isArray(entry.commits) ? entry.commits : [];
-    if (!commits.length && !String(entry.notes || "").trim()) {
-      out.push(finding("terminal_without_evidence", "warning", [entry.id], `entry ${entry.id} is done with no commits and no notes — nothing records what happened`));
-    }
+    if (commits.length || String(entry.notes || "").trim()) continue;
+    out.push(
+      entry.status === "done"
+        ? finding("terminal_without_evidence", "warning", [entry.id], `entry ${entry.id} is done with no commits and no notes — nothing records what happened`)
+        : finding("awaiting_without_evidence", "warning", [entry.id], `entry ${entry.id} is awaiting_acceptance with no commits and no notes — nothing records the work it asks the user to accept`)
+    );
   }
 }
 

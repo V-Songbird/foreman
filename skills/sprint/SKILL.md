@@ -29,7 +29,9 @@ If `runnable` is false, explain `reasons` and stop before creating tasks. A
 dirty tree must be committed or stashed first, because a sprint worker makes
 commits and must never absorb the developer's unfinished changes. Existing
 `in_progress` entries must be resumed or closed through `/foreman:roadmap`
-before starting a new batch.
+before starting a new batch. Entries left `awaiting_acceptance` by an earlier
+batch do not block a new one — their work is committed and the tree is clean;
+accepting them is a `/foreman:roadmap` step, not a sprint precondition.
 
 Otherwise present one compact serial plan in ranked order and ask once
 whether to run it. If `has_overlaps` is true, mention the compact `overlaps`
@@ -153,16 +155,20 @@ partial:
 
 `echo '<json>' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
 
-Use `{"id":"<id>","status":"in_progress","commit":"<sha>","notes":"<observed evidence>"}`.
-This preserves the commit and actual touched files while awaiting one human
-acceptance or a later recovery. For a successful result, keep its changelog
-line for final acceptance. For a partial or verification-failed result,
-include the observed reason in the same update and stop before dispatching
-another unit.
+For a successful, boundary-valid, re-verified result, use
+`{"id":"<id>","status":"awaiting_acceptance","commit":"<sha>","notes":"<observed evidence>"}`.
+That is what is true: implemented, checked, waiting only on the acceptance in
+step 5. For a partial or verification-failed result, use
+`{"id":"<id>","status":"in_progress","commit":"<sha>","notes":"<observed reason>"}`
+instead — the work is not finished, so it must not claim to be. Either way the
+commit and actual touched files are preserved for acceptance or recovery. For a
+successful result, keep its changelog line for final acceptance. For a partial
+or verification-failed result, stop before dispatching another unit.
 
 For `blocked`, `failed_verification`, or `conflict`, use `annotate` with the
 observed reason only when no commit was returned; the commit-bearing path
-above already records that evidence. Leave the entry `in_progress`. Mark its
+above already records that evidence. Leave the entry `in_progress` — those
+outcomes never reach `awaiting_acceptance`. Mark its
 visible task blocked or keep it in progress; do not discard successful
 siblings. Stop before dispatching another unit.
 
@@ -183,7 +189,8 @@ For each accepted id, call `update-status` with
 only those entries' effect-only changelog lines to the project's changelog,
 once, if that project uses one.
 
-Leave unaccepted or failed entries `in_progress` with their evidence intact.
+Leave unaccepted entries `awaiting_acceptance` and failed ones `in_progress`,
+both with their evidence intact.
 Then stage only `ROADMAP.jsonl` and the changelog if it changed, verify with
 `git diff --cached --name-only` that no other path is staged, and create one
 coordinator-owned `Record Foreman sprint results` commit. Put all affected

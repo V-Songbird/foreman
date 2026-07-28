@@ -43,6 +43,17 @@ const { readEntries, anchorHasId, trailerIdsIn } = require("../scripts/roadmap")
 const { readDecisionLog } = require("../scripts/decision-log-config");
 const { ENTRY_MARKER_RE, entryIdFromDescription } = require("./task-created");
 
+// [Foreman: 131] `awaiting_acceptance` is deliberately NOT gated here, even
+// though it is an open status everywhere dependency and archive logic asks.
+// This gate exists to stop work from disappearing UNRECORDED — its block text
+// orders the session to close the entry `done`, which is exactly the move
+// `awaiting_acceptance` exists to withhold until the user says yes. An
+// awaiting entry is already recorded (status, commit, notes), so blocking
+// would demand an unauthorized close, and would deadlock every session with
+// no user to ask — background agents and the sprint coordinator's own
+// fold-back, both of which leave entries awaiting on purpose. The doctor's
+// `awaiting_without_evidence` warning covers the one case this gate would
+// otherwise catch: an awaiting entry with nothing recorded at all.
 const OPEN_STATUSES = new Set(["planned", "in_progress"]);
 const GATE_MODES = new Set(["off", "block"]);
 

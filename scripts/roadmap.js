@@ -344,10 +344,32 @@ function trailerIdsIn(text) {
   return ids;
 }
 
-const STATUSES = new Set(["planned", "in_progress", "deferred", "done", "dropped", "rejected"]);
+// [Foreman: 131]
+// `awaiting_acceptance` means the implementation finished AND its checks ran:
+// only the user's acceptance is missing. It exists because active work, failed
+// verification, and finished-but-unapproved work all used to read `in_progress`,
+// so the roadmap could not say which one it was. It is one status value, not a
+// review lifecycle: nothing schedules, assigns, or approves through it.
+//
+// Canonical path: planned → in_progress → awaiting_acceptance → done, with
+// awaiting_acceptance → in_progress as the recovery path when the user says
+// it is not ready. Only two rules are mechanical (see CREATE_STATUSES below
+// and cmdNextCandidates' filter); everything else — a planned→done fast
+// close, a reopen — keeps working exactly as before, deliberately.
+const STATUSES = new Set([
+  "planned",
+  "in_progress",
+  "awaiting_acceptance",
+  "deferred",
+  "done",
+  "dropped",
+  "rejected",
+]);
 const SOURCES = new Set(["user", "claude-suggested"]);
 // Statuses nothing is waiting on any more: the entry will not move again, so
 // a dependent of a dropped/rejected one is stranded rather than blocked.
+// `awaiting_acceptance` is deliberately NOT here: the user can still send it
+// back, so it neither archives nor satisfies a dependent that needs it done.
 const TERMINAL_STATUSES = new Set(["done", "dropped", "rejected"]);
 // A newly created entry only ever starts as planned or rejected — nothing
 // gets created already in_progress/deferred/done/dropped, those are
@@ -988,8 +1010,15 @@ const CORRECTABLE_TEXT = ["title", "why", "what"];
 const CORRECTABLE_FIELDS = [...CORRECTABLE_TEXT, "kind", "touches"];
 // Only an entry still being worked toward is correctable. Rewriting a
 // done/dropped/rejected one rewrites history: its commits, notes, and closure
-// evidence describe the task as it was worded then.
-const CORRECTABLE_STATUSES = new Set(["planned", "in_progress", "deferred"]);
+// evidence describe the task as it was worded then. An `awaiting_acceptance`
+// entry is not history yet — it can still be sent back — so it stays
+// correctable like any other active entry.
+const CORRECTABLE_STATUSES = new Set([
+  "planned",
+  "in_progress",
+  "awaiting_acceptance",
+  "deferred",
+]);
 
 function cmdCorrect(root, payload) {
   return withRoadmapLock(root, () => cmdCorrectUnlocked(root, payload));
@@ -1147,7 +1176,13 @@ function dependencyDocs(entry, byId) {
 // Statuses that still want their dependencies finished — a done/dropped/
 // rejected dependent no longer benefits from anything landing, so it
 // neither counts toward unblocks nor extends a dependency chain.
-const OPEN_STATUSES = new Set(["planned", "in_progress", "deferred"]);
+// `awaiting_acceptance` is open: it can still come back to in_progress.
+const OPEN_STATUSES = new Set([
+  "planned",
+  "in_progress",
+  "awaiting_acceptance",
+  "deferred",
+]);
 
 // Fraction of the hint's own words found in the entry's text — containment,
 // not jaccard, so a long entry isn't penalized for having words the hint
@@ -1211,6 +1246,11 @@ function cmdNextCandidates(root, filters) {
     return Boolean(parent) && parent.status === "done";
   };
 
+  // [Foreman: 131] `in_progress` only, deliberately: collision is the
+  // proxy for "someone is mid-flight in these files", and an
+  // `awaiting_acceptance` entry's work is already committed — its files are
+  // in the tree, not in someone's working copy. Including it would flag
+  // overlap that cannot conflict with anything.
   const inProgressTouches = [];
   for (const e of entries) {
     if (e.status !== "in_progress") continue;
@@ -1246,6 +1286,9 @@ function cmdNextCandidates(root, filters) {
     // Only `planned` is a candidate — `deferred` is deliberately excluded
     // here: it means "recorded but waiting on an external trigger the user
     // hasn't marked as met", so it must not surface as a "do this next" pick.
+    // `awaiting_acceptance` is excluded by the same test: its work is already
+    // done, so offering it as a task to start would be a lie. It rides along
+    // in its own result array below, where the action is "accept", not "do".
     .filter((e) => e.status === "planned")
     .filter((e) => (e.depends_on || []).every(dependencyDone))
     .map((e) => ({
@@ -1326,6 +1369,21 @@ function cmdNextCandidates(root, filters) {
       ...(e.kind !== undefined ? { kind: e.kind } : {}),
     }));
 
+  // [Foreman: 131] Finished work still waiting on the user's yes. It rides
+  // along so the pick flow can offer acceptance, and it is kept OUT of
+  // `in_progress` on purpose: the action is different (accept or send back,
+  // never resume). Compact in both shapes — accepting needs an id, a title,
+  // and how long it has been waiting, not the entry's substance; a caller
+  // that wants more fetches it with `list --ids`.
+  const awaiting = entries
+    .filter((e) => e.status === "awaiting_acceptance")
+    .map((e) => ({
+      id: e.id,
+      title: e.title,
+      why: menuExcerpt(e.why),
+      updated_at: e.updated_at,
+    }));
+
   const result = {
     // Shape only after filtering and sorting so --menu can never drift from
     // the established recommendation order. Full output stays the default
@@ -1355,6 +1413,9 @@ function cmdNextCandidates(root, filters) {
             updated_at: entry.updated_at,
           }))
         : inProgress,
+    // Absent, not empty, when nothing is waiting — a project that never uses
+    // the state never sees the key.
+    ...(awaiting.length ? { awaiting_acceptance: awaiting } : {}),
   };
   // hint_matched tells the caller whether relevance actually reordered
   // anything — all-zero scores mean the list below is just the standard
@@ -1628,7 +1689,11 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     deduped:true; intentional separate tasks need distinct
                     titles so every add remains safe to replay
   update-status     stdin JSON: {id, status, commit?, staged?, notes?, add_touches?, doc?, kind?, model?, effort?, expected_status?, require_ready?}
-                    status: "planned" | "in_progress" | "deferred" | "done" | "dropped" | "rejected"
+                    status: "planned" | "in_progress" | "awaiting_acceptance" | "deferred" | "done" | "dropped" | "rejected"
+                    "awaiting_acceptance" = implemented AND checked, waiting
+                    only on the user's yes; open everywhere (does not satisfy
+                    a dependent, does not archive), never a next-candidate.
+                    User confirms -> "done"; not ready -> back to "in_progress"
                     "deferred" = recorded but waiting on an external trigger;
                     excluded from next-candidates until moved back to "planned"
                     if commit is given, touches auto-folds in that commit's
@@ -1738,6 +1803,11 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     sentence naming the ranking key that put it there --
                     it is the default ordering explained, not a claim that
                     the entry was checked against the code
+                    awaiting_acceptance: compact id/title/bounded why/
+                    updated_at rows for entries finished and waiting on the
+                    user's yes -- same in both shapes, omitted when empty.
+                    Separate from in_progress: the action is accept, not
+                    resume
   check-duplicate   stdin JSON: {title, why}
                     word-overlap match against ALL entries regardless of
                     status, archived ones included (archived:true on those);
@@ -1759,7 +1829,8 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     missing_dependency, self_dependency,
                     duplicate_dependency, dependency_cycle,
                     stranded_dependency, similar_titles,
-                    terminal_without_evidence, unsupported_schema_version,
+                    terminal_without_evidence, awaiting_without_evidence,
+                    unsupported_schema_version,
                     duplicate_across_files, unknown_config_key,
                     invalid_config_value, unreadable_config
                     the whole per-entry contract also runs over

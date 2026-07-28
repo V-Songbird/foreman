@@ -194,8 +194,12 @@ const OVERLAP_CAVEAT =
 //
 // requireVerification decouples "record the work" from "call it done": data
 // (commit/touches) is never worth gating on a human, only the status label
-// is — so under the flag, the in_progress branch still records immediately
-// but leaves status alone until the user actually confirms it.
+// is — so under the flag, the in_progress branch still records immediately.
+// [Foreman: 131] That recording step now also moves the entry to
+// `awaiting_acceptance`, which is what is actually true at that moment:
+// committed, checked, waiting on the user. The question mechanics are
+// unchanged — confirm still closes to `done`, "not ready" sends it back to
+// `in_progress` — only the status the roadmap holds meanwhile is honest.
 function statusSyncBlock(inProgress, freshlyDone, requireVerification, committedFiles, trailerIds) {
   const parts = [];
   const trailerSet = new Set(trailerIds || []);
@@ -216,15 +220,17 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
         `This commit may complete an in-progress ROADMAP.jsonl task (${list}), ` +
           "but requireVerification is on for this project — record the work now, " +
           "don't close it out yet. Run `git rev-parse --short HEAD` for the SHA, then: " +
-          `echo '{"id":"<id>","status":"in_progress","commit":"<sha>"}' | node ${SCRIPT_PATH} update-status ` +
+          `echo '{"id":"<id>","status":"awaiting_acceptance","commit":"<sha>"}' | node ${SCRIPT_PATH} update-status ` +
           "(keeps commits[]/touches accurate — touches still auto-folds from the " +
-          "commit's diff, same as always). Then ask the user (AskUserQuestion) " +
+          "commit's diff, same as always — and says what is true: finished, " +
+          "waiting on the user). Then ask the user (AskUserQuestion) " +
           "whether this is actually verified and working. Only on confirmation, " +
           "close it out: " +
           `echo '{"id":"<id>","status":"done"}' | node ${SCRIPT_PATH} update-status. ` +
-          "If they say it's not ready, leave it in_progress — don't mark done. " +
-          "If this session has no user to ask (a background agent), leave it " +
-          "in_progress too — the user confirms later." +
+          "If they say it's not ready, send it back: " +
+          `echo '{"id":"<id>","status":"in_progress","notes":"<what they said>"}' | node ${SCRIPT_PATH} update-status ` +
+          "— don't mark done. If this session has no user to ask (a background " +
+          "agent), leave it awaiting_acceptance — the user confirms later." +
           caveat
       );
     } else {

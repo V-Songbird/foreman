@@ -192,6 +192,10 @@ describe("sprint skill contract", () => {
     assert.match(skill, /execution is strictly serial/);
     assert.match(skill, /For every boundary-valid result that returned a commit/);
     assert.match(skill, /reclassify the result as\s+`failed_verification`/);
+    // [Foreman: 131] The fold-back records the state it earned: a
+    // re-verified result waits on acceptance, a failed one is still in flight.
+    assert.match(skill, /"status":"awaiting_acceptance","commit":"<sha>"/);
+    assert.match(skill, /"status":"in_progress","commit":"<sha>"/);
     assert.match(workflow, /RESULT_SCHEMA/);
     assert.match(workflow, /schema: RESULT_SCHEMA/);
     assert.match(workflow, /\^\[0-9a-fA-F\]\{7,64\}\$/);

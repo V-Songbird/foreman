@@ -46,6 +46,13 @@ function run(payload) {
   return result.stdout;
 }
 
+// The emitted context with the JSON envelope's escaping undone — for
+// assertions on the literal roadmap.js commands, which are full of quotes.
+function context(payload) {
+  const out = run(payload);
+  return JSON.parse(out).hookSpecificOutput.additionalContext;
+}
+
 describe('non-matching tool calls', () => {
   test('non-Bash/PowerShell tool stays silent', () => {
     const out = run({ tool_name: 'Read', tool_input: { file_path: 'x' } });
@@ -180,6 +187,40 @@ describe('requireVerification gate', () => {
     assert.match(out, /AskUserQuestion/);
     assert.match(out, /don't close it out yet/);
     assert.match(out, /confirmation/i);
+  });
+
+  // [Foreman: 131] The recorded step now stores what is true — finished,
+  // waiting on the user — instead of leaving the entry looking mid-work.
+  // The question mechanics are unchanged either side of it.
+  test('on: the recorded step stores awaiting_acceptance, and confirming still closes done', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    writeConfig(project, { requireVerification: true });
+    const out = context(bashPayload('git commit -m "finish task"'));
+    assert.match(out, /"status":"awaiting_acceptance","commit":"<sha>"/);
+    assert.match(out, /"status":"done"/);
+  });
+
+  test('on: a declined confirmation sends the entry back to in_progress', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    writeConfig(project, { requireVerification: true });
+    const out = context(bashPayload('git commit -m "finish task"'));
+    assert.match(out, /If they say it's not ready, send it back/);
+    assert.match(out, /"status":"in_progress","notes":"<what they said>"/);
+  });
+
+  test('on: a session with no user leaves it awaiting, not in_progress', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    writeConfig(project, { requireVerification: true });
+    const out = run(bashPayload('git commit -m "finish task"'));
+    assert.match(out, /background\s+agent\), leave it awaiting_acceptance/);
+  });
+
+  test('off: the direct-close nudge never mentions the awaiting state', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    writeConfig(project, { requireVerification: false });
+    const out = context(bashPayload('git commit -m "finish task"'));
+    assert.doesNotMatch(out, /awaiting_acceptance/);
+    assert.match(out, /"status":"done","commit":"<sha>"/);
   });
 
   test('on: does not affect the freshly-done follow-up branch', () => {

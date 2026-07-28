@@ -105,28 +105,37 @@ the code, and never call an entry grounded or verified here.
 2. Go straight to Q1 below — no narrative recap of the candidates in prose
    first, the question *is* the presentation.
 
-**Finish-first check**: if the script's `in_progress` array is non-empty,
-work already started somewhere — offer to finish it before starting
-something new. Those entries take the top option slot(s) in Q1 (at most 2;
-oldest `updated_at` first), labeled `Resume: <title> (<id>)`, with the
-first one carrying `(Recommended)`. Description: `why` plus
-"in progress since <updated_at>". Preview: `title`, compact `why`, and
-`updated_at`. The selected entry's full notes — including any
-background-agent marker — are fetched only after the choice. Planned
-candidates fill the remaining slots. This is a suggestion, never a gate —
-picking a planned candidate proceeds exactly as before.
+**Finish-first check**: if the script's `awaiting_acceptance` or `in_progress`
+array is non-empty, work already exists — offer to settle it before starting
+something new. Those entries take the top option slot(s) in Q1 (at most 2 of
+each; oldest `updated_at` first), with the first one carrying
+`(Recommended)`:
+- `awaiting_acceptance` rows lead, labeled `Accept: <title> (<id>)`.
+  Description: `why` plus "finished, waiting on you since <updated_at>". On
+  that choice, ask once whether the work holds up; accepting closes it —
+  `echo '{"id":"<id>","status":"done"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
+  — and declining sends it back with what they said:
+  `echo '{"id":"<id>","status":"in_progress","notes":"<what they said>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`.
+  Either way, say what changed and stop; no prompt is crafted for an accept.
+- `in_progress` rows follow, labeled `Resume: <title> (<id>)`. Description:
+  `why` plus "in progress since <updated_at>". Preview: `title`, compact
+  `why`, and `updated_at`. The selected entry's full notes — including any
+  background-agent marker — are fetched only after the choice.
+
+Planned candidates fill the remaining slots. This is a suggestion, never a
+gate — picking a planned candidate proceeds exactly as before.
 
 **Single-option skip**: when the menu would hold exactly one option —
-candidates and resume entries combined — skip Q1 and take that entry as
-the pick. Q2 then opens with it instead: prefix Q2's question with the
+candidates, accept, and resume entries combined — skip Q1 and take that entry
+as the pick (a lone accept row still runs the accept flow above, not Q2). Q2 then opens with it instead: prefix Q2's question with the
 entry's `title` (`<id>`) and its `why` restated per Q1's description
 rule below, so the user can still veto or redirect through Q2's escape.
 Two or more options of any kind ask Q1 as usual.
 
 **Q1** — "Which task next?"
 Options, one per candidate (already ranked — take the order as given,
-hint or not; resume options lead when `in_progress` is non-empty, per the
-finish-first check above):
+hint or not; accept options lead, then resume options, when those arrays are
+non-empty, per the finish-first check above):
 - Label: `<title> (<id>)`. The first-ranked candidate's label gets
   `(Recommended)` appended — unless a resume option already carries it —
   say so with the tag instead of making the user infer it from list order
@@ -570,8 +579,10 @@ Read-only. `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --summary`
 — id/title/status/depends_on per entry, which is everything the render
 below needs; the full entries' prose would multiply the payload for
 nothing on a large roadmap. Render a compact list grouped by `status`
-(`in_progress` first, then `planned` — noting which are blocked and on
-what, derivable from `depends_on` plus the other entries' statuses — then
+(`awaiting_acceptance` first — those are finished and waiting on the user,
+the only group that needs them to act — then `in_progress`, then `planned`
+— noting which are blocked and on what, derivable from `depends_on` plus
+the other entries' statuses — then
 `deferred`, then `done`, `dropped`, `rejected` last). When a `planned`
 entry's blocker resolves to an entry that is `dropped` or `rejected` — or
 to an id no entry has — say so explicitly rather than calling it plain
