@@ -152,6 +152,34 @@ report `null` with a reason rather than zero. The recovery number additionally
 ships a clearly labeled proxy — how much interrupted work is sitting open —
 which is not the same thing and never stands in for the rate.
 
+One of `attention-cost.js`'s numbers is published as a record:
+[`records/R-001-prompt-overhead.json`](records/R-001-prompt-overhead.json) —
+**the standard handoff profile carries 68 words of fixed guardrail text against
+the reinforced profile's 567, 12% of it, 499 words saved on every standard
+handoff.** That is a static computation over `prompt-template.md`, not a model
+trial, and the record says so in its limitations.
+
+## Result records
+
+Anything Foreman claims publicly about performance has to point at a file in
+[`records/`](records/README.md): the exact fixtures and prompts, the model and
+its settings, the repetition count, every run next to the aggregate, the date,
+the environment, and the claim's limitations. Records are immutable — a
+correction is a new record with a `supersedes` pointer, never an edit.
+
+```bash
+node records/validate-records.js
+```
+
+Free, deterministic, no model call. It fails if a record is missing a field,
+names no limitation, has fewer runs than repetitions claims, carries an
+unnamed aggregate statistic, or references a fixture that has been edited since
+the run — the hash check is what stops a claim drifting away from its evidence.
+`--records <dir>` points it elsewhere; the default is the published set.
+
+`results/` is *not* records. It is your own local run output, gitignored, and
+nothing there supports a public claim until someone publishes a record for it.
+
 ## What's measured
 
 Each run records, per session: cost, output tokens, context traffic (input + cache tokens across every API call), mid-turn narration words, turns, wall time — and the discipline signals: how many Read/Glob/Grep calls before the first edit, whether a test-intent command actually ran (`npm test`, `node --test`, or executing the test file directly all count), the constraint violations by name, and on the stale-brief task, whether the final message names the file mismatch it found.

@@ -17,7 +17,7 @@
     <a href="https://docs.anthropic.com/en/docs/claude-code"><img src="https://img.shields.io/badge/Claude_Code-E5582B" alt="Claude Code"/></a>
 </p>
 
-> **TL;DR** — Every Claude Code session starts with amnesia. Foreman keeps your plan in your repo, committed like code. Ask "what's next?" and you get Foreman's recommended task — with the reason it's the recommendation — and a ready-to-run prompt whose paths and symbols are preflighted, and which checks its own claims against the codebase before it edits anything. About a quarter cheaper per session than a bare one-line ask.
+> **TL;DR** — Every Claude Code session starts with amnesia. Foreman keeps your plan in your repo, committed like code. Ask "what's next?" and you get Foreman's recommended task — with the reason it's the recommendation — and a ready-to-run prompt whose paths and symbols are preflighted, and which checks its own claims against the codebase before it edits anything. Cheaper per session than a bare one-line ask, in our own runs of the harness.
 
 ---
 
@@ -117,7 +117,7 @@ We measured what a good handoff is actually worth: the same real coding jobs, ru
 
 <p align="center"><img src="assets/bench-cost.svg" alt="The same jobs asked two ways on the bigger model: the one-line ask cost $0.21 per session, the Foreman handoff $0.16 — about a quarter less" width="700"></p>
 
-**Skipping the brief doesn't skip the cost.** Every fact you leave out of the ask, the session buys back by exploring your codebase — on your dime. On the bigger model, the one-line ask cost about a third more than the Foreman handoff for the same jobs. The shortest prompt was the most expensive session.
+**Skipping the brief doesn't skip the cost.** Every fact you leave out of the ask, the session buys back by exploring your codebase — on your dime. On the bigger model, the one-line ask cost more than the Foreman handoff for the same jobs. The shortest prompt was the most expensive session.
 
 <p align="center"><img src="assets/bench-picks.svg" alt="Cost per what-should-I-work-on-next as the backlog grows: a to-do file costs $0.12 at 10 tasks, $0.14 at 50, $0.21 at 150 — Foreman's roadmap answers free at any size, with the same answer every time" width="700"></p>
 
@@ -128,9 +128,27 @@ We measured what a good handoff is actually worth: the same real coding jobs, ru
 
 *How we tested: same jobs, four ways of asking, several runs each in fresh throwaway workspaces — a full multi-turn agent session every time, never a single generated reply — costs read from the API, not estimated. Numbers move a few percent between runs. Reproduce it yourself — see [benchmarks/](benchmarks/).*
 
+### Performance claims
+
+Every number Foreman publishes has to point at a result record in
+[`benchmarks/records/`](benchmarks/records/) — the exact fixtures and prompts
+it was measured with, the model and its settings, the repetition count, every
+individual run next to the aggregate, the date, the machine, and what the
+number doesn't say. A claim without a record doesn't ship, and
+`node benchmarks/records/validate-records.js` fails if a fixture has been
+edited out from under one.
+
+**The three charts above predate that rule and no record backs them yet.** They
+came from our own runs of the harness in [`benchmarks/`](benchmarks/), whose
+output lands in a local `results/` directory that isn't committed. Read them as
+what we saw on our machines and can hand you the harness to reproduce — not as
+figures Foreman stands behind. The one published record today,
+[`R-001-prompt-overhead`](benchmarks/records/R-001-prompt-overhead.json),
+covers a static computation over `prompt-template.md`, not a model run.
+
 ## Under the hood
 
-The roadmap is a plain file in your repo (field-by-field details in [`roadmap-schema.md`](roadmap-schema.md)), and every prompt Foreman assembles is structurally validated before it ships. Routine bookkeeping happens mechanically, leaving the model for work that needs judgment. Foreman pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush): razor cuts the code, hush cuts the noise, Foreman keeps the plan. Measured together, the three add no overhead to each other.
+The roadmap is a plain file in your repo (field-by-field details in [`roadmap-schema.md`](roadmap-schema.md)), and every prompt Foreman assembles is structurally validated before it ships. Routine bookkeeping happens mechanically, leaving the model for work that needs judgment. Foreman pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush): razor cuts the code, hush cuts the noise, Foreman keeps the plan. They're built to stay out of each other's way.
 
 ## Scope
 
