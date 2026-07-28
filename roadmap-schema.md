@@ -352,8 +352,11 @@ All access — from any caller — goes through `scripts/roadmap.js`, and
   entry for why that path forbids exploration). Writes findings back via
   `update-deps` (hidden dependency found — structural, changes future
   ranking), `update-status` (duplicate/already-done, a user-confirmed
-  status change), or `annotate` (stale-touches breadcrumb — notes-only,
-  status untouched) — never a direct `Edit`.
+  status change), `correct` (a stale `what`/`touches` the survey can
+  replace with a concrete, user-approved value, guarded by the
+  `expected_updated_at` its own `list --ids` just read), or `annotate`
+  (unconfirmed finding — notes-only, status untouched) — never a direct
+  `Edit`.
 - `foreman/hooks/post-commit.js` — reads the file in-process (it
   `require()`s `roadmap.js`'s `readEntries` directly, same Node process,
   no subprocess) to decide whether to mention status-sync at all. It never

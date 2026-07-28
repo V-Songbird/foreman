@@ -1,6 +1,6 @@
 ---
 name: survey
-description: Ground-truth the roadmap's near-term candidates against the actual codebase — an Explore agent checks whether each candidate's touches/depends_on still match reality, then persists any real finding (hidden dependency, already-done, stale) back into ROADMAP.jsonl so future sessions pick it up automatically.
+description: Ground-truth the roadmap's near-term candidates against the actual codebase — an Explore agent checks whether each candidate's touches/depends_on still match reality, then proposes a concrete repair for every finding (hidden dependency, already-done, stale description or planned files), applies only the ones you approve, and persists them back into ROADMAP.jsonl so future sessions pick them up automatically.
 when_to_use: Trigger when the user explicitly asks to reconcile, audit, double-check, or verify the roadmap's ordering — "survey the roadmap", "audit the next tasks", "double-check what's next", "is the roadmap still accurate", or invokes /foreman:survey. Never trigger automatically from foreman:roadmap's pick-next-task flow, a commit, or any other implicit signal.
 argument-hint: "<optional — a task id or two to focus on, otherwise surveys the top unblocked candidates>"
 allowed-tools: AskUserQuestion, Read, Bash, PowerShell, Agent
@@ -88,10 +88,16 @@ step 1:
      `stale-touches` only if it can be shown to have *once existed and
      moved* — `git log --diff-filter=D -- <path>`, or `--follow` showing a
      rename. Nothing found means the task simply hasn't created it yet:
-     verdict stays `valid`, nothing to annotate. For paths confirmed to
-     exist, does their current content still match what `what` describes?
-     (`git log --oneline -- <path>` plus a read of the file's current
-     state.)
+     verdict stays `valid`, nothing to annotate. When a path did move, the
+     agent returns the **whole corrected `touches` array** — the new path
+     in place of the old one, every unaffected path kept — because
+     `correct` replaces that field wholesale rather than merging a diff
+     into it. For paths confirmed to exist, does their current content
+     still match what `what` describes? (`git log --oneline -- <path>`
+     plus a read of the file's current state.) Where it no longer does,
+     that is `stale-description`, and the agent returns a **rewritten
+     `what`**: the same task re-described against the code as it now
+     stands, ready to be stored verbatim — not a summary of the drift.
   2. **Dependencies actually satisfied?** If step 1's `exists` map already
      flags a `done` entry's commit as missing, that alone is a red flag —
      no further check needed. Otherwise, for commits confirmed to exist,
@@ -109,9 +115,21 @@ step 1:
      what `what` describes, or does it closely overlap another entry?
 
   Verdict per candidate: `valid` (nothing found) | `hidden-dependency` |
-  `stale-touches` | `already-done` | `duplicate`. Every non-`valid` verdict
-  must cite the file:line or commit that grounds it — refuse to report a
-  finding it can't point to concretely.
+  `stale-description` | `stale-touches` | `already-done` | `duplicate`.
+  Every non-`valid` verdict must cite the file:line or commit that grounds
+  it — refuse to report a finding it can't point to concretely.
+
+  A `stale-description` or `stale-touches` verdict carries **two** things
+  or it is not reportable as one: the **evidence** — the file paths and
+  symbols it actually opened, and what it found there instead — and a
+  **concrete proposed replacement value**, a finished `what` string or a
+  complete `touches` array, ready to be written as-is. A vague "this looks
+  stale" is not a finding of this kind. When the evidence is real but no
+  replacement can be grounded, the agent returns it with
+  `confident: false` and says what it could not determine, keeping the
+  evidence either way. That flag is what step 3 reads to choose between
+  proposing a repair and leaving a breadcrumb — an agent that invents a
+  replacement it cannot ground turns a survey into a rewrite.
 
 ---
 
@@ -120,7 +138,23 @@ step 1:
 Present findings to the user — one line per candidate, `valid` ones need
 no more than a mention. For anything else, **ask before persisting**
 (`AskUserQuestion`) — a survey finding is Claude's read of the evidence,
-not an automatic mutation:
+not an automatic mutation.
+
+For every finding that carries a concrete proposal, show three things
+before asking: the entry's **id and title**, the **current value →
+proposed value**, and the **evidence line(s)** the agent cited. Show
+`touches` in full on both sides — `correct` replaces the array, so a
+partial list would read as the entire new one. The user is approving a
+specific string; the specific string has to be on screen.
+
+**Approval is per finding.** One `AskUserQuestion` per entry, using
+`multiSelect` when several fields of the same entry changed together (a
+rewritten `what` and a corrected `touches` — the user may well want one
+and not the other). Batch at most a handful of entries into one question,
+and only while every option still names its own entry and field. **Never
+offer a single blanket "apply everything"**: an approval that covers
+findings the user did not read one at a time is not the confirmation this
+step exists to collect.
 
 - **`hidden-dependency`** → on confirm:
   `echo '{"id":"<candidate>","add_depends_on":["<dep-id>"]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-deps`
@@ -133,9 +167,37 @@ not an automatic mutation:
   `echo '{"id":"<candidate>","status":"dropped","notes":"survey: <one-line evidence>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
   (or `"done"` with the actual `commit` if the evidence points to a specific
   commit that already did the work).
-- **`stale-touches`** with no structural fix (the description just needs
-  updating, nothing to block on) → notes-only, status untouched:
-  `echo '{"id":"<candidate>","notes":"survey: <one-line evidence>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js annotate`
+- **`stale-description` / `stale-touches`** with a concrete proposal → on
+  confirm, apply it with `correct`, the one command that can replace
+  `what`/`touches` on a live entry (`foreman:roadmap`'s "Correct a task"
+  branch uses the same call):
+  1. `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --ids <candidate>`
+     — re-read the entry immediately before writing. Its `updated_at` is
+     the value the write is guarded by, the surveying agents ran for a
+     while in between, and `next-candidates` does not return that field at
+     all.
+  2. `echo '{"id":"<candidate>","expected_updated_at":"<the updated_at that read just returned>","what":"<approved what>","touches":[<approved touches>]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js correct`
+     — only the approved fields go in the payload; a field the user
+     declined is simply absent, and `touches` is sent as the whole
+     replacement array.
+  3. If the script refuses with `was last updated … , not …`, another
+     session changed the entry between that read and this write. **Re-read
+     (1), re-show current → proposed against the newer text, and ask
+     again** — the proposal was composed against text that no longer
+     exists, so it may now be wrong or already applied. Never re-send with
+     the `updated_at` from the error message to force it through: that
+     value is the guard, and overriding it silently overwrites someone
+     else's correction.
+
+  `correct` refuses terminal (`done`/`dropped`/`rejected`) entries and a
+  title another entry already holds, on its own — a stale description
+  found on a terminal entry is history its commits describe, not a repair.
+- **Uncertain findings are never applied.** Evidence gathered but no
+  grounded replacement (the agent's `confident: false`), or a proposal
+  neither you nor the user can pin down here: it lands as exactly one
+  breadcrumb, marked unconfirmed so a later session reads it as a lead and
+  not as a fact — status untouched, no field rewritten:
+  `echo '{"id":"<candidate>","notes":"survey (unconfirmed): <one-line evidence>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js annotate`
   (the script date-stamps each appended note itself — don't write one in)
   `annotate` exists precisely for this write: unlike `update-status`, it
   can't regress the entry to a status read before the survey ran (e.g.
@@ -147,6 +209,11 @@ not an automatic mutation:
   then no-collision, then `created_at`) doesn't change. Say this explicitly if the user expects a guaranteed reorder —
   that would need a stored priority field this schema deliberately doesn't
   have (see `roadmap-schema.md`'s comment on why not).
+- **A declined proposal writes nothing.** No note, no "Claude proposed
+  this and the user said no" breadcrumb, no status change. The user read
+  the evidence and answered; recording the refusal on the entry would
+  resurface it as a lead in every later session and quietly make saying no
+  expensive. It goes in the report (step 4), not in the roadmap.
 
 Never write on an unconfirmed finding, and never touch `ROADMAP.jsonl`
 directly — every write above goes through `roadmap.js`, same as every other
@@ -157,5 +224,8 @@ Foreman flow.
 ## 4. Report
 
 Short summary: candidates surveyed (and how many were left unsurveyed, if
-any), verdicts, what got written. If nothing was confirmed, say the roadmap
-is unchanged — this skill running is not itself news.
+any), verdicts, what got written. Separate the three outcomes in one line
+each: corrections applied, findings left unconfirmed as breadcrumbs, and
+proposals declined (declined ones exist only here — nothing about them was
+written). If nothing was confirmed, say the roadmap is unchanged — this
+skill running is not itself news.

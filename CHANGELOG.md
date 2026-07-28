@@ -27,6 +27,7 @@ field by convention).
 ### Changed
 
 - After-commit discovery is now opt-in and no longer reads your backlog into each commit's context. Projects that relied on it being on by default will stop seeing suggestions — set `discoverySuggestions: true` in `.foreman/config.json` to keep it. With it on, it no longer lists every planned task; each candidate suggestion is checked for duplicates one at a time instead, so the cost no longer grows with the roadmap.
+- Surveying the roadmap now proposes concrete fixes for stale task descriptions and planned files — the current wording against the suggested one, with the evidence behind it — applies only the ones you approve one by one, and leaves findings it cannot ground as an unconfirmed note instead of rewriting anything.
 - Picking the next task now loads a compact choice menu and fetches full detail only for the selected entry.
 - Sprint handoffs are now built immediately before each task runs, so later tasks see earlier changes; planned path overlap is shown in the approved serial plan.
 - Roadmap writes now serialize automatically across concurrent Foreman sessions, and repeating an exact task add safely reuses the existing entry.
