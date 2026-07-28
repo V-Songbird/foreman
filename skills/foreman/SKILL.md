@@ -28,11 +28,13 @@ skill run from its own first step.
 
 Notes that change how a route is handed over:
 
-- **pick work** is the fast path and the default sense of a bare "what's
-  next": that branch deliberately does not investigate the codebase. Don't
+- **pick work** is **Fast pick**, the default confidence mode and the sense of
+  a bare "what's next": that branch deliberately does not investigate the
+  codebase. Don't
   promote it to **reconcile and pick** because the roadmap looks old — the
   user asks for that or it doesn't happen.
-- **reconcile and pick** is those two flows in sequence, nothing new:
+- **reconcile and pick** is the other confidence mode, **Reconcile and pick**
+  — those two flows in sequence, nothing new:
   `foreman:survey` ground-truths the near-term candidates and applies only
   the repairs the user approves, one finding at a time, and then the pick
   branch runs on the repaired roadmap. Hand off to the survey skill first

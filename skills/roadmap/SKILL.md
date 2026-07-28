@@ -51,6 +51,12 @@ same shape is the way back if one has to change again.
 
 ## Branch: Pick the next task
 
+<!-- [Foreman: 141] -->
+This is **Fast pick**, the default and the whole of this branch — nothing
+below changes because the other mode exists. **Reconcile and pick** is the
+deeper mode for when the roadmap itself has gone stale: it repairs the
+near-term entries first, then runs this same flow on the repaired data.
+
 **This branch does not investigate the codebase. At all.** No `Read`, no
 `Grep`, no exploring files to confirm or expand what an entry says. The
 selected entry's own fields are the only input to the prompt. Verifying
@@ -69,6 +75,48 @@ get checked mechanically by `resolve-symbols.js`, nothing else does — and
 starts), and only **verified** once the finished work passed its checks
 and the user accepted it. Never tell the user a pick was checked against
 the code, and never call an entry grounded or verified here.
+
+<!-- [Foreman: 141] -->
+### Reconcile and pick — the deeper mode, only when the user asks
+
+The second confidence mode, in this order: **investigate → propose → apply →
+recommend.** It is composition, not a second pick flow — a survey pass scoped
+to the near-term entries, then Fast pick unchanged on the repaired data:
+
+1. **Investigate** — run step 1's `next-candidates --menu` first and take the
+   **near-term set** from that one result: every `candidates[].id`, plus every
+   `in_progress[].id`, plus every `awaiting_acceptance[].id`. That is the
+   whole definition — no second call computes it, and nothing outside that
+   menu is near-term. Hand those ids to `foreman:survey` as its scope (its
+   "Pick the scope" step takes a given set verbatim) and let it run through
+   to its own report.
+2. **Propose**, then **apply** — survey's own machinery, untouched: an
+   evidence-backed concrete proposal per finding, approval per finding, and
+   `correct`/`update-deps`/`update-status` for only what the user approved,
+   with an unconfirmed breadcrumb for what it could not ground. Nothing here
+   overrides any of it. A pass that finds nothing is a clean result, not a
+   failure — say so and go on to 3.
+3. **Recommend** — re-run `next-candidates --menu`, because the approved
+   repairs may have changed statuses, dependencies, and planned surfaces, so
+   the menu from 1 is stale. Then continue through Fast pick's steps below
+   exactly as written. The pick is not a different pick; it just reads
+   repaired data.
+
+**Offering it from Fast pick — one line, never a run.** Fast pick may mention
+this mode once, in a single line, when its own data already shows staleness.
+Never as a blocking question, never started on your own, and never because the
+roadmap merely looks old. Two mechanical signals, both already in hand:
+- a menu `in_progress` or `awaiting_acceptance` row whose `updated_at` is more
+  than **30 days** before today (the same stale signal step 3's profile check
+  reads);
+- the selected entry's `notes` carrying a `survey (unconfirmed):` breadcrumb —
+  a lead an earlier survey could not ground, visible after the selected-entry
+  load.
+
+Menu candidate rows carry neither `updated_at` nor `notes`, so there is no
+staleness to read there — don't fetch any to find some. If the user says yes,
+start at 1 above; if they don't answer or say no, Fast pick continues
+unchanged.
 
 1. `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js next-candidates --menu` —
    already filtered (unblocked: `planned` with every `depends_on` done),

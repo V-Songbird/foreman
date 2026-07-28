@@ -73,6 +73,11 @@ Talk to Foreman. That's the whole interface — one entrance, plain language, no
 | "is the plan still right? then give me something" | the top tasks checked against your code, repairs you approve one by one, then the pick |
 | "work through the next few" | one small serial batch, one approval, one final acceptance (experimental) |
 
+Two ways to get a task, and the cheap one is the default:
+
+- **Fast pick** — ask "what's next" and Foreman orders the roadmap it already has, recommends one, and hands you a ready-to-run prompt. It reads no code, so it costs next to nothing.
+- **Reconcile and pick** — the near-term tasks get checked against your actual code first, you approve each repair one at a time, and the pick then runs on a roadmap that was just corrected. Ask for it and it happens; Foreman never starts it on its own, because it costs real tokens.
+
 Editing the roadmap file by hand defeats the point, so don't.
 
 ### Advanced

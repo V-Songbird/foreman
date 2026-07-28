@@ -1,7 +1,7 @@
 ---
 name: survey
-description: Advanced surface, normally reached through the `foreman` entrance's reconcile-and-pick intent. Ground-truths the roadmap's near-term candidates against the actual codebase — an Explore agent checks whether each candidate's planned_touches/depends_on still match reality, then proposes a concrete repair for every finding (hidden dependency, already-done, stale description or planned files), applies only the ones you approve, and persists them back into ROADMAP.jsonl so future sessions pick them up automatically. It costs materially more than a plain pick, which is why it is explicit.
-when_to_use: Reached through the `foreman` entrance for reconcile and pick; trigger directly when a power user explicitly asks to reconcile, audit, double-check, or verify the roadmap's ordering — "survey the roadmap", "audit the next tasks", "double-check what's next", "is the roadmap still accurate", or invokes /foreman:survey. Never trigger automatically from foreman:roadmap's pick-next-task flow, a commit, or any other implicit signal.
+description: Advanced surface, normally reached through the `foreman` entrance's Reconcile and pick mode, which hands it a near-term set of ids to scope the pass to. Ground-truths the roadmap's near-term candidates against the actual codebase — an Explore agent checks whether each candidate's planned_touches/depends_on still match reality, then proposes a concrete repair for every finding (hidden dependency, already-done, stale description or planned files), applies only the ones you approve, and persists them back into ROADMAP.jsonl so future sessions pick them up automatically. It costs materially more than a plain pick, which is why it is explicit.
+when_to_use: Reached through the `foreman` entrance for Reconcile and pick; trigger directly when a power user explicitly asks to reconcile, audit, double-check, or verify the roadmap's ordering — "survey the roadmap", "audit the next tasks", "double-check what's next", "is the roadmap still accurate", or invokes /foreman:survey. Never trigger automatically from foreman:roadmap's pick-next-task flow, a commit, or any other implicit signal.
 argument-hint: "<optional — a task id or two to focus on, otherwise surveys the top unblocked candidates>"
 allowed-tools: AskUserQuestion, Read, Bash, PowerShell, Agent
 ---
@@ -27,8 +27,16 @@ the user to run `/foreman:init` first and stop here.
 
 ## 1. Pick the scope
 
-If args named specific task ids, `list --ids <those ids>` (validate they
-exist and are `planned`). Otherwise:
+<!-- [Foreman: 141] -->
+If a caller handed over a set of ids, that set **is** the scope — args naming
+specific tasks, or **Reconcile and pick**'s near-term set (`foreman:roadmap`'s
+pick branch derives it from one `next-candidates --menu` result: the candidate
+rows plus the `in_progress` and `awaiting_acceptance` rows). Run `list --ids
+<those ids>`, drop any that don't exist or are terminal
+(`done`/`dropped`/`rejected` — history its commits already describe) and say
+which you dropped, and skip the `next-candidates` call below. Scoping decides
+which entries get investigated and nothing else: steps 2–4 run exactly as
+written, on whatever the scope holds. Otherwise:
 
 `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js next-candidates`
 (default `--limit 3`) — candidates already include each one's own
