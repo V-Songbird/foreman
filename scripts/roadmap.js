@@ -8,13 +8,19 @@ const { withRoadmapLock } = require("./roadmap-lock");
 const {
   validateEntries,
   validateAcrossFiles,
+  enrichDuplicates,
   validateConfig,
   applyRepairs,
   summarize,
 } = require("./roadmap-doctor");
 // [Foreman: 134] One interpreter for entry-to-commit facts, shared with the
 // doctor, the close gate, sprint, safe-commit and the survey flow.
-const { filesFromGit, recordedCommits, evidenceSummary } = require("./commit-evidence");
+const {
+  filesFromGit,
+  recordedCommits,
+  evidenceSummary,
+  trailerShasFor,
+} = require("./commit-evidence");
 
 function projectDir() {
   return path.resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
@@ -1561,6 +1567,122 @@ function cmdRestore(root, payload) {
   return withRoadmapLock(root, () => moveEntries(root, payload, "restore"));
 }
 
+// [Foreman: 135]
+// The repair for the one thing a branch merge breaks that nothing else can:
+// two branches each computed the same next id, and the merged file carries
+// two entries claiming it. `doctor` reports that as duplicate_id (or
+// duplicate_across_files when the twin sits in the archive) and describes
+// what the collision costs; this is the guarded write that ends it.
+//
+// The division of labour is deliberate. Mechanical: which ids are free, who
+// still points at the duplicated one, rewriting both files without breaking a
+// link. Judgment: WHICH holder deserves to keep the id -- the one whose
+// commit trailers, anchors and dependents already mean it. So the caller
+// names that holder by its exact `title` (the natural discriminator after a
+// merge; ids are exactly what is ambiguous here) and every other holder is
+// renumbered.
+//
+// Links survive by construction rather than by rewriting: the id does not
+// move, so every `depends_on` that named it still names the entry that kept
+// it. A dependent that actually meant the RENUMBERED entry is a judgment too
+// -- the result and the doctor detail say which dependents exist, and
+// `update-deps` re-points the ones that were meant for the other side.
+//
+// Computed all-or-nothing: every refusal happens before the first write. When
+// holders live in both files a crash between the two writes leaves the
+// un-rewritten file's holder still on the old id -- re-running the same call
+// finishes it, exactly like an interrupted archive/restore.
+function cmdReassignId(root, payload) {
+  return withRoadmapLock(root, () => cmdReassignIdUnlocked(root, payload));
+}
+
+function cmdReassignIdUnlocked(root, payload) {
+  const { id, keep, expected_updated_at_kept: expectedKept } = payload || {};
+  if (typeof id !== "string" || !id) throw new Error("reassign-id requires id: the duplicated entry id");
+  if (typeof keep !== "string" || !keep) {
+    throw new Error("reassign-id requires keep: the exact title of the holder that keeps the id");
+  }
+  const active = readEntries(root);
+  const archived = readArchive(root);
+  // File order, active file first -- the renumbering has to be reproducible,
+  // and a duplicated id is exactly the case where nothing else orders these.
+  const holders = [
+    ...active.filter((entry) => entry && entry.id === id).map((entry) => ({ entry, archived: false })),
+    ...archived.filter((entry) => entry && entry.id === id).map((entry) => ({ entry, archived: true })),
+  ];
+  if (holders.length < 2) {
+    throw new Error(
+      holders.length
+        ? `id ${id} is held by exactly one entry — there is nothing to repair`
+        : `no entry with id ${id} in ROADMAP.jsonl or ${ARCHIVE_LABEL}`
+    );
+  }
+  const titles = holders.map((holder) => JSON.stringify(holder.entry.title)).join(", ");
+  const matches = holders.filter((holder) => holder.entry.title === keep);
+  if (!matches.length) {
+    throw new Error(
+      `no holder of ${id} has the title ${JSON.stringify(keep)} — the holders are ${titles}`
+    );
+  }
+  // The degenerate merge: the same task added on both branches. Renumbering
+  // would leave two identical entries with different ids, which is a worse
+  // roadmap than the one that came in -- and the CLI cannot tell them apart to
+  // edit one, since every command resolves an id to the FIRST holder. Deduping
+  // them is a hand edit, which is the one thing the guard hook leaves open.
+  if (matches.length > 1) {
+    throw new Error(
+      `${matches.length} holders of ${id} share the title ${JSON.stringify(keep)} — titles are the only thing `
+        + "telling duplicate holders apart, so this one is a manual dedup: drop or re-title one of them by hand "
+        + "(the guard hook leaves the Bash path open for a file the CLI cannot repair), then re-run"
+    );
+  }
+  const kept = matches[0];
+  // Same staleness guard `correct` uses, and optional for the same reason it
+  // is required there: this call does not rewrite the kept entry at all, so
+  // pass it only when the choice of holder was made against a read that may
+  // since have moved.
+  if (expectedKept !== undefined && kept.entry.updated_at !== expectedKept) {
+    throw new Error(
+      `the holder keeping ${id} was last updated ${kept.entry.updated_at}, not ${expectedKept} — `
+        + "re-read the duplicate and re-decide which holder keeps the id"
+    );
+  }
+  // Commit labels are immutable history: a commit saying `Foreman: <id>` may
+  // have closed the entry being renumbered, and nothing can rewrite that. So
+  // the mismatch is reported instead of hidden, and each renumbered entry
+  // carries a dated note saying its old trailers predate the move. Fail-soft:
+  // null (git unavailable) reports as no known commits, never as a failure.
+  const trailers = trailerShasFor(root, id) || [];
+  const known = [...active, ...archived];
+  const date = today();
+  const others = holders.filter((holder) => holder !== kept);
+  const reassigned = others.map((holder) => {
+    const to = nextId(known);
+    known.push({ id: to });
+    holder.entry.id = to;
+    holder.entry.notes = appendNote(
+      holder.entry.notes,
+      `id reassigned from ${id} during duplicate repair; commit trailers ${commitTrailerFor(id)} predate the reassignment`
+    );
+    holder.entry.updated_at = date;
+    return { from: id, to, title: holder.entry.title, trailer_commits: trailers };
+  });
+  if (others.some((holder) => !holder.archived)) {
+    writeEntries(root, active, otherFileResolver(() => archived));
+  }
+  if (others.some((holder) => holder.archived)) writeArchive(root, archived);
+  return {
+    kept: { id, title: kept.entry.title },
+    reassigned,
+    // Every entry still pointing at the id -- which now unambiguously means
+    // the kept holder. The list is what `update-deps` gets aimed at when one
+    // of them actually meant a renumbered entry.
+    dependents_on_kept: [...active, ...archived]
+      .filter((entry) => entry && Array.isArray(entry.depends_on) && entry.depends_on.includes(id))
+      .map((entry) => entry.id),
+  };
+}
+
 // [Foreman: 129]
 // Upgrade steps between adjacent formats, in order. Empty today: format 1 is
 // the only format there has ever been, so the only thing `migrate` does is
@@ -1624,10 +1746,14 @@ function cmdMigrateUnlocked(root) {
 // on an archived parent is not "missing" and an archived entry waiting on a
 // still-active one is not either. Archived findings are never marked
 // repairable: --fix writes the roadmap only.
+// [Foreman: 135] Duplicate findings pick up the merge-repair facts here and
+// not in validateEntries: the write gate runs that on every mutation, and it
+// must never pay for a git history scan. A roadmap with no duplicate is
+// untouched by the pass.
 function allFindings(root) {
   const active = readEntries(root);
   const archived = readArchive(root);
-  return [
+  return enrichDuplicates(root, [
     ...validateEntries(active, { resolve: otherFileResolver(() => archived) }),
     ...validateEntries(archived, { resolve: otherFileResolver(() => active) }).map((item) => ({
       ...item,
@@ -1636,7 +1762,7 @@ function allFindings(root) {
     })),
     ...validateAcrossFiles(active, archived),
     ...validateConfig(root),
-  ];
+  ], active, archived);
 }
 
 function cmdDoctor(root, flags) {
@@ -1756,6 +1882,31 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     returns changed:[...] listing only the fields that
                     actually differed, plus the same compact graph-fact
                     fields when non-empty
+  reassign-id       stdin JSON: {id, keep, expected_updated_at_kept?}
+                    the branch-merge repair: two branches computed the same
+                    next id, so the merged file has two entries claiming it
+                    (doctor reports duplicate_id, or duplicate_across_files
+                    when the twin is archived, and describes the collision)
+                    keep is the EXACT title of the holder that keeps the id --
+                    which one deserves it is the user's call, so it is named,
+                    never guessed. Every OTHER holder gets a fresh id (nextId
+                    over both files, one each, in file order) and a dated note
+                    saying its "Foreman: <old>" commit trailers predate the
+                    move; commit history is never rewritten
+                    depends_on links are preserved by construction: the id
+                    does not move, so every dependent still points at the kept
+                    holder. A dependent that actually meant the renumbered
+                    entry is re-pointed with update-deps -- that judgment is
+                    not automated
+                    holders may live in ROADMAP.jsonl or the archive; both
+                    files are rewritten with the same gate as any other write
+                    refuses: an id only one entry holds, a keep title no
+                    holder has, and a keep title SEVERAL holders share (the
+                    same task added on both branches -- dedup that by hand)
+                    expected_updated_at_kept is the optional staleness guard
+                    from correct, checked against the kept holder
+                    returns {kept:{id,title}, reassigned:[{from,to,title,
+                    trailer_commits}], dependents_on_kept:[ids]}
   archive           stdin JSON: {ids:["019", ...]}
                     moves terminal (done/dropped/rejected) entries out of
                     ROADMAP.jsonl into .foreman/archive.jsonl, verbatim --
@@ -1821,6 +1972,13 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     each finding: code, severity ("error"|"warning"), the
                     entry ids it concerns, a one-line message, and
                     repairable:true only where the fix is mechanical
+                    a duplicate_id/duplicate_across_files finding also carries
+                    detail: every holder's title/status/created_at, every
+                    entry depending on the id, and how many commits already
+                    carry the "Foreman: <id>" trailer (with the first few
+                    shas; absent when git cannot be asked) -- the facts
+                    "reassign-id" is decided from. No git history is read
+                    unless a duplicate is actually present
                     codes: missing_field, invalid_type, invalid_id,
                     duplicate_id, unknown_status, unknown_source,
                     unknown_kind, unknown_model, unknown_effort,
@@ -1876,6 +2034,8 @@ Examples:
     | node roadmap.js update-deps
   echo '{"id":"004","expected_updated_at":"2026-07-28","what":"...","touches":["src/api/retry.ts"]}' \\
     | node roadmap.js correct
+  echo '{"id":"130","keep":"Cache the rate lookup"}' \\
+    | node roadmap.js reassign-id
   echo '{"ids":["001","003"]}' | node roadmap.js archive
   echo '{"ids":["003"]}' | node roadmap.js restore
   node roadmap.js list --archived --summary
@@ -1927,6 +2087,9 @@ function main() {
     case "correct":
       result = cmdCorrect(root, readStdinJSON());
       break;
+    case "reassign-id":
+      result = cmdReassignId(root, readStdinJSON());
+      break;
     case "archive":
       result = cmdArchive(root, readStdinJSON());
       break;
@@ -1950,7 +2113,7 @@ function main() {
       break;
     default:
       throw new Error(
-        `unknown subcommand: ${sub}. Use add|update-status|annotate|update-deps|correct|archive|restore|list|next-candidates|check-duplicate|doctor|migrate`
+        `unknown subcommand: ${sub}. Use add|update-status|annotate|update-deps|correct|reassign-id|archive|restore|list|next-candidates|check-duplicate|doctor|migrate`
       );
   }
   process.stdout.write(JSON.stringify({ ok: true, ...result }));
@@ -1977,6 +2140,7 @@ module.exports = {
   cmdAnnotate,
   cmdUpdateDeps,
   cmdCorrect,
+  cmdReassignId,
   cmdArchive,
   cmdRestore,
   cmdList,

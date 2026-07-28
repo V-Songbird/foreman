@@ -24,7 +24,10 @@ const fs = require("fs");
 const path = require("path");
 const { VALID_GATES, isValidDir } = require("./decision-log-config");
 // [Foreman: 134] The one reading of `commits[]`, shared with every status view.
-const { recordedCommits } = require("./commit-evidence");
+// [Foreman: 135] trailerShasFor answers "which commits already say Foreman:
+// <id>" for a duplicate finding -- fail-soft, and only ever called when a
+// duplicate is actually present.
+const { recordedCommits, trailerShasFor } = require("./commit-evidence");
 const {
   configPath,
   VALID_TARGET_MODELS,
@@ -326,6 +329,93 @@ function validateAcrossFiles(active, archived) {
   return out;
 }
 
+// [Foreman: 135]
+// The aftermath of a branch merge: two branches independently computed the
+// same next id, and the merged file carries both entries. `duplicate_id` (and
+// its cross-file twin) already names the collision, but on its own it leaves
+// the user to work out by hand which entries collided, what is pointing at
+// the id, and which commits already claim it. Those are all facts, so the
+// doctor states them; which holder deserves to keep the id is a judgment, so
+// it stays the user's (`roadmap.js reassign-id`).
+//
+// Reached only when a duplicate finding actually exists: the git history scan
+// behind the trailer count must never run on a healthy roadmap, and the write
+// gate (validateEntries) does not come through here at all.
+const DUPLICATE_CODES = new Set(["duplicate_id", "duplicate_across_files"]);
+// A count plus the first couple of shas is enough to know where to look; the
+// exhaustive list is one `git log --grep` away, and this message is read in a
+// hook's context budget.
+const MAX_TRAILER_SHAS = 3;
+
+function holdersOf(entries, id, archived) {
+  return entries
+    .filter((entry) => isObject(entry) && entry.id === id)
+    .map((entry) => ({
+      title: entry.title,
+      status: entry.status,
+      created_at: entry.created_at,
+      ...(archived ? { archived: true } : {}),
+    }));
+}
+
+function dependentsOf(entries, id, archived) {
+  return entries
+    .filter((entry) => (
+      isObject(entry) && Array.isArray(entry.depends_on) && entry.depends_on.includes(id)
+    ))
+    .map((entry) => ({ id: entry.id, ...(archived ? { archived: true } : {}) }));
+}
+
+/**
+ * Everything one duplicated id costs, across both files: who holds it, what
+ * depends on it, and which commits label themselves with it. `trailer_commits`
+ * is absent (not zero) when git could not be asked at all -- fail-soft, and
+ * "unknown" is not "none".
+ */
+function describeDuplicate(root, id, active, archived) {
+  const shas = trailerShasFor(root, id);
+  return {
+    holders: [...holdersOf(active, id, false), ...holdersOf(archived, id, true)],
+    dependents: [...dependentsOf(active, id, false), ...dependentsOf(archived, id, true)],
+    ...(shas
+      ? { trailer_commits: shas.slice(0, MAX_TRAILER_SHAS), trailer_commit_count: shas.length }
+      : {}),
+  };
+}
+
+function duplicateMessage(message, id, detail) {
+  const holders = detail.holders
+    .map((h) => `${JSON.stringify(h.title)} (${h.status}, created ${h.created_at}${h.archived ? ", archived" : ""})`)
+    .join(", ");
+  const dependents = detail.dependents.length
+    ? `depended on by ${detail.dependents.map((d) => `${d.id}${d.archived ? " (archived)" : ""}`).join(", ")}`
+    : "nothing depends on it";
+  const count = detail.trailer_commit_count;
+  const shown = detail.trailer_commits;
+  const trailers = shown === undefined
+    ? ""
+    : `; ${count === 1 ? "1 commit carries" : `${count} commits carry`} "${roadmap().commitTrailerFor(id)}"`
+      + (count ? ` (${shown.join(", ")}${count > shown.length ? ", …" : ""})` : "");
+  return `${message} — holders: ${holders}; ${dependents}${trailers}`
+    + '. Repair with "roadmap.js reassign-id": name the title that keeps the id, every other holder gets a fresh one';
+}
+
+/**
+ * Duplicate findings, restated with the facts a merge repair needs. Codes,
+ * severities and ids are untouched on purpose -- findingKey identity is what
+ * lets the write gate tolerate a duplicate the file already had, so enriching
+ * a message must never move a finding's identity.
+ */
+function enrichDuplicates(root, findings, active, archived) {
+  if (!findings.some((item) => DUPLICATE_CODES.has(item.code))) return findings;
+  return findings.map((item) => {
+    if (!DUPLICATE_CODES.has(item.code)) return item;
+    const id = item.ids[0];
+    const detail = describeDuplicate(root, id, active, archived);
+    return { ...item, message: duplicateMessage(item.message, id, detail), detail };
+  });
+}
+
 const BOOL = { ok: (value) => typeof value === "boolean", expected: "true or false" };
 const STRING = { ok: (value) => typeof value === "string" && value !== "", expected: "a non-empty string" };
 const ON_FINISH = new Set(["ask", "squash", "merge", "pr", "keep"]);
@@ -470,6 +560,7 @@ function summarize(findings) {
 module.exports = {
   validateEntries,
   validateAcrossFiles,
+  enrichDuplicates,
   validateConfig,
   applyRepairs,
   summarize,
