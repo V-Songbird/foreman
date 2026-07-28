@@ -39,11 +39,9 @@ function roadmap() {
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-// Zero-padded, at least three digits -- the width the `Foreman: <id>` commit
-// trailer and `[Foreman: <id>]` anchors are written against. Four digits and
-// up are accepted here so a roadmap that outgrows 999 fails at the trailer
-// grammar (which owns that limit), not at every write.
-const ID_RE = /^\d{3,}$/;
+// The id shape lives in roadmap.js (ID_RE/isValidId) and is read through the
+// deferred require below -- the same one definition the `Foreman: <id>`
+// trailer and `[Foreman: <id>]` anchor grammars are built from.
 
 // Required and always a plain string with content.
 const REQUIRED_TEXT = ["title", "why", "what"];
@@ -79,7 +77,7 @@ function checkEntry(entry, index, out) {
     out.push(finding("invalid_type", "error", [], `line ${index + 1} is not a JSON object`));
     return;
   }
-  const { STATUSES, SOURCES, KINDS, MODELS, EFFORTS, validateDoc } = roadmap();
+  const { STATUSES, SOURCES, KINDS, MODELS, EFFORTS, validateDoc, isValidId } = roadmap();
   const id = typeof entry.id === "string" ? entry.id : "";
   const ids = id ? [id] : [];
   const at = id ? `entry ${id}` : `line ${index + 1}`;
@@ -101,8 +99,8 @@ function checkEntry(entry, index, out) {
     out.push(finding("missing_field", "error", [], `line ${index + 1} has no id`, { field: "id" }));
   } else if (typeof entry.id !== "string") {
     out.push(finding("invalid_type", "error", [], `line ${index + 1}: id must be a string`, { field: "id" }));
-  } else if (!ID_RE.test(entry.id)) {
-    out.push(finding("invalid_id", "error", ids, `${at}: id must be zero-padded digits ("001"), not ${JSON.stringify(entry.id)}`, { field: "id" }));
+  } else if (!isValidId(entry.id)) {
+    out.push(finding("invalid_id", "error", ids, `${at}: id must be three or more digits, zero-padded to at least three ("001", "999", "1000"), not ${JSON.stringify(entry.id)}`, { field: "id" }));
   }
 
   for (const field of REQUIRED_TEXT) {

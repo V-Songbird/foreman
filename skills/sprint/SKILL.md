@@ -110,7 +110,7 @@ Before each workflow call, capture the mechanical boundary:
 
 `node ${CLAUDE_PLUGIN_ROOT}/scripts/sprint.js snapshot`
 
-Keep its `head` and `state_hash`. The workflow accepts exactly one three-digit
+Keep its `head` and `state_hash`. The workflow accepts exactly one
 Foreman entry per invocation. It fixes the worker type, bounds model and
 effort values, and does not expose worktree or parallel controls.
 

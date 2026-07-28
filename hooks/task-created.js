@@ -24,14 +24,16 @@
 const fs = require("fs");
 const path = require("path");
 
-const { cmdUpdateStatus } = require("../scripts/roadmap");
+const { cmdUpdateStatus, ID_PATTERN } = require("../scripts/roadmap");
 
 // The exact phrase the roadmap skill embeds right after scope_discipline.
 // Backticks are optional: descriptions are model-authored (paraphrased),
 // so a rewrite that drops them must still mechanize. No looser secondary
 // pattern (e.g. bare "entry (\d+)") — false-positive risk against
-// arbitrary descriptions.
-const ENTRY_MARKER_RE = /ROADMAP\.jsonl entry `?(\d+)`?/;
+// arbitrary descriptions. The id itself is roadmap.js's one shared shape,
+// so `1000` marks as readily as `001`; the trailing (?!\d) stops a
+// non-id run like `0199` from yielding a real-looking `019`.
+const ENTRY_MARKER_RE = new RegExp(`ROADMAP\\.jsonl entry \`?(${ID_PATTERN})(?!\\d)\`?`);
 
 function readInput() {
   let raw;

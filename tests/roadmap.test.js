@@ -1532,8 +1532,16 @@ describe('anchor comments (DECISION_ANCHOR_RE / anchorIdsIn / anchorHasId)', () 
     assert.deepEqual(anchorIdsIn('see roadmap entry 019 and also 034 for context'), []);
   });
 
-  test('a 4-digit run does not match -- ids are always exactly 3 digits', () => {
+  test('an over-padded run does not match -- past 999 an id carries no leading zero', () => {
     assert.deepEqual(anchorIdsIn('[Foreman: 0199]'), []);
+    assert.deepEqual(anchorIdsIn('[Foreman: 01000]'), []);
+  });
+
+  test('finds an id past 999 whole, not truncated to its first three digits', () => {
+    assert.deepEqual(anchorIdsIn('// [Foreman: 1000]'), ['1000']);
+    assert.deepEqual(anchorIdsIn('// [Foreman: 999, 1000]'), ['999', '1000']);
+    assert.equal(anchorHasId('// [Foreman: 1000]', '1000'), true);
+    assert.equal(anchorHasId('// [Foreman: 1000]', '100'), false);
   });
 
   test('anchorHasId is true when the id is present in an anchor', () => {

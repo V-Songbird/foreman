@@ -9,6 +9,7 @@ const {
   cmdNextCandidates,
   commitTrailerFor,
   trailerIdsIn,
+  isValidId,
 } = require("./roadmap");
 
 const DEFAULT_LIMIT = 3;
@@ -157,8 +158,8 @@ function isSharedLedger(file) {
 function attestUnit(root, options = {}) {
   const entryId = String(options.entryId || "");
   const baseline = normalizeCommit(root, options.baseline);
-  if (!/^\d{3}$/.test(entryId)) {
-    throw new Error("--entry must be a three-digit Foreman id");
+  if (!isValidId(entryId)) {
+    throw new Error("--entry must be a Foreman id (three or more digits, zero-padded to at least three)");
   }
   if (!baseline) throw new Error("--baseline must name an existing commit");
   if (!/^[0-9a-f]{64}$/i.test(String(options.stateHash || ""))) {

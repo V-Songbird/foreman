@@ -29,7 +29,7 @@ never has to name them.
 
 ## One task, one id
 
-Every roadmap task gets a three-digit id, and that id is the thread. It
+Every roadmap task gets an id of three or more digits, and that id is the thread. It
 starts in the roadmap, ends in your git history, and picks up the reasoning
 on the way.
 

@@ -99,6 +99,21 @@ function writeEntries(root, entries) {
   readEntries(root); // throws if the write somehow produced malformed JSONL
 }
 
+// The one definition of an id's shape, for every script and hook that parses
+// one: three OR MORE digits, zero-padded to at least three -- `001`..`999`,
+// then `1000`, `1001`, ... Above 999 the canonical form carries no leading
+// zero, so `01000` is not an id (and neither is `07` or `7`). The 4-and-up
+// alternative comes first so a global scan over `1000` yields one id and not
+// a truncated `100`.
+const ID_PATTERN = "(?:[1-9]\\d{3,}|\\d{3})";
+const ID_RE = new RegExp(`^${ID_PATTERN}$`);
+
+function isValidId(value) {
+  return ID_RE.test(String(value === undefined || value === null ? "" : value));
+}
+
+// Numeric max + 1, then padded -- so 999 is followed by 1000, not by a
+// lexicographic neighbour. Existing ids are never re-padded.
 function nextId(entries) {
   let max = 0;
   for (const e of entries) {
@@ -118,15 +133,18 @@ function today() {
 }
 
 // Anchor comment format pointing code at its decision-log doc: `[Foreman: 019]`
-// or multi-id `[Foreman: 019, 034]` -- 3-digit zero-padded ids only, comma-
-// separated, spaces around the comma optional. Exported so the close gate
-// and the anchor tripwire hook share one definition instead of two regexes
-// drifting apart. A trailing/leading digit run outside the exact {3} width
-// (e.g. a 4-digit id) fails the whole bracketed match rather than partially
-// matching -- deliberate, ids are always zero-padded to exactly 3 digits.
-const DECISION_ANCHOR_RE = /\[Foreman:\s*\d{3}(?:\s*,\s*\d{3})*\s*\]/g;
+// or multi-id `[Foreman: 019, 034]` -- ID_PATTERN ids, comma-separated,
+// spaces around the comma optional. Exported so the close gate and the anchor
+// tripwire hook share one definition instead of two regexes drifting apart. A
+// digit run that is not a valid id (`0199`, `07`) fails the whole bracketed
+// match rather than partially matching -- deliberate.
+const DECISION_ANCHOR_RE = new RegExp(
+  `\\[Foreman:\\s*${ID_PATTERN}(?:\\s*,\\s*${ID_PATTERN})*\\s*\\]`,
+  "g"
+);
+const ID_SCAN_RE = new RegExp(ID_PATTERN, "g");
 
-// All 3-digit ids named across every anchor comment in `text`, deduped,
+// All ids named across every anchor comment in `text`, deduped,
 // first-seen order. String.prototype.matchAll clones the regex per call,
 // so the shared `g` flag's lastIndex never leaks across calls or into
 // other consumers of DECISION_ANCHOR_RE.
@@ -135,7 +153,7 @@ function anchorIdsIn(text) {
   const ids = [];
   const seen = new Set();
   for (const match of String(text).matchAll(DECISION_ANCHOR_RE)) {
-    for (const id of match[0].match(/\d{3}/g) || []) {
+    for (const id of match[0].match(ID_SCAN_RE) || []) {
       if (!seen.has(id)) {
         seen.add(id);
         ids.push(id);
@@ -155,15 +173,18 @@ function anchorHasId(text, id) {
 // `Foreman: 042` (or multi-id `Foreman: 041, 042`) as its own line. This
 // is the inverse pointer a staged close relies on -- a commit can never
 // contain its own sha, but it can name the entry id, which is known
-// before committing. Same 3-digit zero-padded grammar as the decision
-// anchors, unbracketed because trailers follow git's `Key: value` shape.
-const COMMIT_TRAILER_RE = /^Foreman:\s*\d{3}(?:\s*,\s*\d{3})*\s*$/gm;
+// before committing. Same ID_PATTERN grammar as the decision anchors,
+// unbracketed because trailers follow git's `Key: value` shape.
+const COMMIT_TRAILER_RE = new RegExp(
+  `^Foreman:\\s*${ID_PATTERN}(?:\\s*,\\s*${ID_PATTERN})*\\s*$`,
+  "gm"
+);
 
 function commitTrailerFor(id) {
   return `Foreman: ${id}`;
 }
 
-// All 3-digit ids named across every trailer line in `text` (a commit
+// All ids named across every trailer line in `text` (a commit
 // message), deduped, first-seen order. matchAll clones the regex, so the
 // shared `g` flag's lastIndex never leaks across calls.
 function trailerIdsIn(text) {
@@ -171,7 +192,7 @@ function trailerIdsIn(text) {
   const ids = [];
   const seen = new Set();
   for (const match of String(text).matchAll(COMMIT_TRAILER_RE)) {
-    for (const id of match[0].match(/\d{3}/g) || []) {
+    for (const id of match[0].match(ID_SCAN_RE) || []) {
       if (!seen.has(id)) {
         seen.add(id);
         ids.push(id);
@@ -1270,6 +1291,10 @@ module.exports = {
   validateDoc,
   validateKind,
   validateRan,
+  ID_PATTERN,
+  ID_RE,
+  isValidId,
+  nextId,
   STATUSES,
   SOURCES,
   CREATE_STATUSES,

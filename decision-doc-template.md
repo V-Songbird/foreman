@@ -1,5 +1,5 @@
 ---
-id: <3-digit entry id, e.g. "090">
+id: <entry id — three or more digits, zero-padded to at least three, e.g. "090" or "1000">
 title: <short imperative title of the decision>
 date: <YYYY-MM-DD>
 supersedes: [<entry id>, ...]   # optional — omit this key entirely when nothing is superseded

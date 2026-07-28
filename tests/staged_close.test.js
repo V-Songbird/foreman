@@ -124,11 +124,18 @@ describe('trailer parsing', () => {
     assert.deepEqual(trailerIdsIn('msg\n\nForeman: 041, 042\nForeman: 042'), ['041', '042']);
   });
 
-  test('ignores anchor comments, inline mentions, and non-3-digit ids', () => {
+  test('ignores anchor comments, inline mentions, and ids under three digits', () => {
     assert.deepEqual(trailerIdsIn('code has [Foreman: 042] anchors'), []);
     assert.deepEqual(trailerIdsIn('see Foreman: 042 for details, mid-sentence'), []);
-    assert.deepEqual(trailerIdsIn('Foreman: 1042'), []);
+    assert.deepEqual(trailerIdsIn('Foreman: 42'), []);
+    assert.deepEqual(trailerIdsIn('Foreman: 7'), []);
     assert.deepEqual(trailerIdsIn(''), []);
+  });
+
+  test('parses ids past 999 whole, and rejects the over-padded form', () => {
+    assert.deepEqual(trailerIdsIn('Foreman: 1042'), ['1042']);
+    assert.deepEqual(trailerIdsIn('msg\n\nForeman: 999, 1000'), ['999', '1000']);
+    assert.deepEqual(trailerIdsIn('Foreman: 01000'), []);
   });
 
   test('commitTrailerFor produces the line trailerIdsIn parses', () => {

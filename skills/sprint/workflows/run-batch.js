@@ -11,8 +11,11 @@ if (!input || !Array.isArray(input.units) || input.units.length !== 1) {
 }
 
 const unit = input.units[0];
-if (!unit || !/^\d{3}$/.test(String(unit.entry_id || ""))) {
-  throw new Error("unit.entry_id must be a three-digit Foreman id");
+// Inlined copy of ID_PATTERN from scripts/roadmap.js -- this file runs
+// sandboxed, with no require access to the repo. Keep the two in step.
+const ENTRY_ID_RE = /^(?:[1-9]\d{3,}|\d{3})$/;
+if (!unit || !ENTRY_ID_RE.test(String(unit.entry_id || ""))) {
+  throw new Error("unit.entry_id must be a Foreman id (three or more digits, zero-padded to at least three)");
 }
 if (typeof unit.prompt !== "string" || !unit.prompt.trim()) {
   throw new Error("unit.prompt must be a non-empty handoff");

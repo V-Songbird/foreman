@@ -35,6 +35,7 @@ field by convention).
 
 ### Fixed
 
+- A roadmap can now pass 999 tasks safely: task ids of four or more digits are created, validated, ordered, committed, and closed the same way three-digit ones always were, instead of being silently unreadable to commit trailers, decision anchors, sprint checks, and hooks.
 - Closing a task with a commit that lives in a submodule now records the files that commit changed, instead of recording nothing.
 
 ## [0.46.0-alpha] — 2026-07-24
