@@ -57,7 +57,8 @@ function base(id, overrides = {}) {
     status: 'planned',
     source: 'user',
     depends_on: [],
-    touches: [],
+    planned_touches: [],
+    observed_touches: [],
     commits: [],
     created_at: '2026-07-01',
     updated_at: '2026-07-01',
@@ -131,19 +132,22 @@ describe('doctor on a healthy roadmap', () => {
 });
 
 describe('doctor field and type findings', () => {
-  test('missing_field: an absent title is an error, an absent touches is a repairable warning', () => {
+  test('missing_field: an absent title is an error, either absent touch surface a repairable warning', () => {
     const noTitle = base('001');
     delete noTitle.title;
     const noTouches = base('002');
-    delete noTouches.touches;
+    delete noTouches.planned_touches;
+    delete noTouches.observed_touches;
     writeRoadmap(project, [noTitle, noTouches]);
     const report = doctor();
     const title = withCode(report, 'missing_field').find((f) => f.field === 'title');
     assert.equal(title.severity, 'error');
     assert.equal(title.repairable, false);
-    const touches = withCode(report, 'missing_field').find((f) => f.field === 'touches');
-    assert.equal(touches.severity, 'warning');
-    assert.equal(touches.repairable, true);
+    for (const field of ['planned_touches', 'observed_touches']) {
+      const found = withCode(report, 'missing_field').find((f) => f.field === field);
+      assert.equal(found.severity, 'warning', field);
+      assert.equal(found.repairable, true, field);
+    }
   });
 
   test('invalid_type: depends_on that is not an array', () => {
@@ -157,8 +161,13 @@ describe('doctor field and type findings', () => {
     assert.match(finding.message, /line 2 is not a JSON object/);
   });
 
-  test('invalid_type: a non-string item inside touches', () => {
-    writeRoadmap(project, [base('001', { touches: ['src/a.ts', 7] })]);
+  test('invalid_type: a non-string item inside planned_touches', () => {
+    writeRoadmap(project, [base('001', { planned_touches: ['src/a.ts', 7] })]);
+    assertFinding(doctor(), 'invalid_type', 'error', ['001']);
+  });
+
+  test('invalid_type: a non-string item inside observed_touches', () => {
+    writeRoadmap(project, [base('001', { observed_touches: ['src/a.ts', 7] })]);
     assertFinding(doctor(), 'invalid_type', 'error', ['001']);
   });
 
@@ -177,9 +186,18 @@ describe('doctor field and type findings', () => {
     assertFinding(doctor(), 'invalid_date', 'error', ['001']);
   });
 
-  test('invalid_path: a touches hint that escapes the project', () => {
-    writeRoadmap(project, [base('001', { touches: ['../secrets.env'] })]);
+  test('invalid_path: a planned_touches hint that escapes the project', () => {
+    writeRoadmap(project, [base('001', { planned_touches: ['../secrets.env'] })]);
     assertFinding(doctor(), 'invalid_path', 'warning', ['001']);
+  });
+
+  // [Foreman: 130] The trust boundary is on the hand-written half only.
+  // observed_touches is whatever `git show --name-only --relative` reported;
+  // a path that looks odd there is the repository's, not a roadmap defect,
+  // and no repair here could change it.
+  test('invalid_path is NOT raised for observed_touches — that half comes from git', () => {
+    writeRoadmap(project, [base('001', { observed_touches: ['../secrets.env'] })]);
+    assert.deepEqual(withCode(doctor(), 'invalid_path'), []);
   });
 
   test('invalid_doc: a doc that is neither "none" nor a relative .md path', () => {
@@ -336,17 +354,19 @@ describe('doctor config findings', () => {
 describe('doctor --fix', () => {
   test('repairs absent container fields without touching updated_at', () => {
     const entry = base('001');
-    delete entry.touches;
+    delete entry.planned_touches;
+    delete entry.observed_touches;
     delete entry.commits;
     delete entry.notes;
     writeRoadmap(project, [entry]);
 
     const report = doctor(['--fix']);
-    assert.equal(report.fixed.length, 3);
+    assert.equal(report.fixed.length, 4);
     assert.deepEqual(report.findings, []);
 
     const stored = storedEntries()[0];
-    assert.deepEqual(stored.touches, []);
+    assert.deepEqual(stored.planned_touches, []);
+    assert.deepEqual(stored.observed_touches, []);
     assert.deepEqual(stored.commits, []);
     assert.equal(stored.notes, '');
     assert.equal(stored.updated_at, '2026-07-01');
@@ -365,7 +385,7 @@ describe('doctor --fix', () => {
 
   test('leaves ambiguous findings alone and still reports them', () => {
     const entry = base('002', { depends_on: ['099'], status: 'mystery' });
-    delete entry.touches;
+    delete entry.planned_touches;
     writeRoadmap(project, [base('001'), entry]);
 
     const report = doctor(['--fix']);
@@ -405,9 +425,9 @@ describe('doctor --fix', () => {
 });
 
 describe('the write path validates the whole structural contract', () => {
-  test('add is rejected when the resulting file would carry a bad touches item', () => {
+  test('add is rejected when the resulting file would carry a bad planned_touches item', () => {
     const { status, json } = run(['add'], {
-      title: 'a', why: 'a', what: 'a', source: 'user', touches: ['src/a.ts', 42],
+      title: 'a', why: 'a', what: 'a', source: 'user', planned_touches: ['src/a.ts', 42],
     });
     assert.equal(status, 1);
     assert.equal(json.ok, false);
@@ -464,7 +484,12 @@ describe('production roadmap shapes stay valid', () => {
         model: 'sonnet',
         effort: 'xhigh',
       }),
-      base('124', { status: 'in_progress', depends_on: ['119'], touches: ['scripts/roadmap.js', 'tests/'] }),
+      base('124', {
+        status: 'in_progress',
+        depends_on: ['119'],
+        planned_touches: ['scripts/roadmap.js', 'tests/'],
+        observed_touches: ['scripts/roadmap.js', 'tests/roadmap.test.js'],
+      }),
       base('161', { kind: 'decision', source: 'claude-suggested' }),
       // the one legacy source value the real corpus still carries
       base('176', { source: 'user-requested', depends_on: ['124'] }),

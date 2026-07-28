@@ -29,7 +29,7 @@ const path = require('path');
 
 const { runRoadmap, runScriptRaw, makeTmpProject, writeRoadmap } = require('./helpers');
 
-const META = '{"foreman_roadmap_format":1}';
+const META = '{"foreman_roadmap_format":2}';
 
 let project;
 let env;
@@ -59,7 +59,8 @@ function entry(id, overrides = {}) {
     status: 'planned',
     source: 'user',
     depends_on: [],
-    touches: [],
+    planned_touches: [],
+    observed_touches: [],
     commits: [],
     created_at: '2026-07-01',
     updated_at: '2026-07-01',
@@ -180,7 +181,7 @@ describe('restore', () => {
   test('round-trips an entry back verbatim', () => {
     const done = entry('001', { status: 'done', commits: ['a1b2c3d'], notes: 'shipped' });
     writeRoadmap(project, [done, entry('002')]);
-    const before = roadmapLines();
+    const before = roadmapLines().slice(1); // entry lines only, marker aside
     run(['archive'], { ids: ['001'] });
 
     const { status, json } = run(['restore'], { ids: ['001'] });

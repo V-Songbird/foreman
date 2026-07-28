@@ -250,8 +250,11 @@ function plannedOverlaps(entries) {
       const left = entries[leftIndex];
       const right = entries[rightIndex];
       const paths = new Set();
-      for (const leftPath of left.touches || []) {
-        for (const rightPath of right.touches || []) {
+      // [Foreman: 130] Predicted surfaces only: a batch plan asks whether two
+      // tasks are about to work in the same files, which is a question about
+      // what they intend to touch, never about where either has already been.
+      for (const leftPath of left.planned_touches || []) {
+        for (const rightPath of right.planned_touches || []) {
           if (!touchesOverlap(leftPath, rightPath)) continue;
           paths.add(String(leftPath).replaceAll("\\", "/"));
           paths.add(String(rightPath).replaceAll("\\", "/"));

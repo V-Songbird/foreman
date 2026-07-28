@@ -100,13 +100,13 @@ an instruction for the spawned session to act on later):**
      **Model fit** — how to seed the recommended default when `targetModel`
      is `inherit` and `modelSuggestions` is `true`; a recommendation the
      operator confirms or overrides, never an automatic switch. Judge from
-     the task's own `what`/`touches`, recorded fields only:
+     the task's own `what`/`planned_touches`, recorded fields only:
        - `haiku` for mechanical, well-scoped work — a single file or a
          bounded change with an unambiguous spec. Cheapest, and per the
          elaboration note above a fully-spelled-out Haiku prompt cut its
          own exploration overhead at equal correctness.
        - `sonnet` or `opus` when the task turns on judgment — design
-         decisions, ambiguity, cross-cutting `touches`, or logic no spec
+         decisions, ambiguity, a cross-cutting predicted file surface, or logic no spec
          pins down.
        - one caution: a `what` that reconciles stale, renamed, or
          conflicting references hit a proven capability cliff on Haiku in
@@ -290,7 +290,7 @@ out in the same breath rather than leaving it "planned":
 echo '{"title":"...","why":"...","what":"...","source":"claude-suggested","status":"planned"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js add
 then, using the id just returned:
 echo '{"id":"<new-id>","status":"done","commit":"<sha>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status
-(touches auto-derives from that commit, same as any other completion). If
+(observed_touches auto-derives from that commit, same as any other completion). If
 no ROADMAP.jsonl exists, flagging it to the user is enough — nothing to
 log. This doesn't apply to legitimate refinement of this task's own
 scope — only to work that's genuinely a separate concern from
@@ -399,8 +399,8 @@ Constraints:
 - [OPTIONAL, one line — "Expected file surface: <paths>", the files this
   task is expected to touch, followed by: anything beyond this list gets
   flagged to the user before it is written, not after. This is the
-  pre-committed scope baseline `touches` cannot be, since `touches`
-  derives from the commit after the fact. Omit the line when the surface
+  pre-committed scope baseline `observed_touches` cannot be, since that
+  field derives from the commit after the fact. Omit the line when the surface
   genuinely isn't known yet.]
 
 Verification (REQUIRED):
@@ -531,7 +531,7 @@ using them:
       that matter — a line range only where the spot has no name, and then
       with its enclosing symbol named too — and no vague
       references (`craft-prompt`: from the user directly; `foreman:roadmap`:
-      the entry's `touches` passed through as-is, never upgraded by
+      the entry's `planned_touches` passed through as-is, never upgraded by
       exploring the codebase — `truth_grounding` covers that gap at
       handoff time)
 - [ ] `<plan>` present, unmodified — every handoff carries it, and nothing
@@ -701,7 +701,7 @@ single-task mode, skips this section entirely.
 - **Slice at verification boundaries** — one task per runnable check. Never
   slice the analyze/implement bullets: a `sonnet`, `opus`, or `fable`
   target doesn't carry them at all, so there is nothing there to cut. Never
-  slice by file either — `touches`-style groupings are unverified guesses,
+  slice by file either — predicted-file-surface groupings are unverified guesses,
   not a schedule. One check means one task; say so and move on rather than
   inventing slices to reach a number.
 - **The first task carries the whole assembled prompt** in its
@@ -776,7 +776,7 @@ craft time.
 - **A roadmap-entry close lands inside the last checkpoint commit** (when
   the handoff carries one): stage the task's own files with
   `safe-commit.js finish --no-commit`, close the entry with `staged:true`
-  (touches derive from the index, and the script stages ROADMAP.jsonl
+  (observed_touches derives from the index, and the script stages ROADMAP.jsonl
   alongside), then commit with `Foreman: <id>` as the message's final
   line — entry and commit link through that trailer, so no sha gets
   recorded and the roadmap never trails uncommitted. Then mark the final

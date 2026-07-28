@@ -94,8 +94,8 @@ describe('update-status staged mode', () => {
     const json = JSON.parse(r.stdout);
     assert.equal(json.ok, true);
     assert.equal(json.entry.status, 'done');
-    assert.ok(json.entry.touches.includes('src/thing.js'), JSON.stringify(json.entry.touches));
-    assert.ok(!json.entry.touches.includes('ROADMAP.jsonl'), 'the roadmap itself is not task footprint');
+    assert.ok(json.entry.observed_touches.includes('src/thing.js'), JSON.stringify(json.entry.observed_touches));
+    assert.ok(!json.entry.observed_touches.includes('ROADMAP.jsonl'), 'the roadmap itself is not task footprint');
     assert.deepEqual(json.entry.commits, [], 'a staged close records no sha');
     assert.equal(json.trailer, 'Foreman: 001');
     assert.equal(json.roadmap_staged, true);

@@ -126,7 +126,11 @@ function generate(size, rand) {
       status,
       source,
       depends_on,
-      touches: [area.dir],
+      // Format 2: the predicted surface is the area the task is about; the
+      // observed half is what a close would derive, so a done entry has it
+      // and everything still open does not.
+      planned_touches: [area.dir],
+      observed_touches: status === 'done' ? [`${area.dir}/index.js`] : [],
       commits: status === 'done' ? [sha] : [],
       created_at: dateStr(created),
       updated_at: dateStr(updated),
@@ -151,7 +155,7 @@ function generate(size, rand) {
 function renderTodo(entries) {
   const dep = (e) => (e.depends_on.length ? ` Depends on: ${e.depends_on.map((d) => `#${d}`).join(', ')}.` : '');
   const line = (e) =>
-    `**${e.title}** (#${e.id}) — ${e.why} Plan: ${e.what}${dep(e)} Touches: ${e.touches.join(', ')}.${e.notes ? ` _(${e.notes})_` : ''}`;
+    `**${e.title}** (#${e.id}) — ${e.why} Plan: ${e.what}${dep(e)} Touches: ${e.planned_touches.join(', ')}.${e.notes ? ` _(${e.notes})_` : ''}`;
 
   let md = `# TODO\n\nProject backlog. \`[x]\` done · \`[~]\` in progress · \`[ ]\` planned · deferred/dropped noted inline.\n`;
   const sections = [
@@ -180,7 +184,8 @@ for (const size of SIZES) {
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(
     path.join(dir, 'ROADMAP.jsonl'),
-    entries.map((e) => JSON.stringify(e)).join('\n') + '\n'
+    // Stamped, like every file roadmap.js writes — the entries are format 2.
+    [JSON.stringify({ foreman_roadmap_format: 2 }), ...entries.map((e) => JSON.stringify(e))].join('\n') + '\n'
   );
   fs.writeFileSync(path.join(dir, 'TODO.md'), renderTodo(entries));
   const counts = {};

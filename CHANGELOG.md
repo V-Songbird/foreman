@@ -28,6 +28,7 @@ field by convention).
 
 ### Changed
 
+- A task's planned files and the files it actually changed are now two separate records, so the pre-work overlap check no longer counts a finished task's committed files as a conflict. Existing roadmaps read fine as they are, but the first change Foreman makes to one needs `roadmap.js migrate` first — it converts both the roadmap and the archive, taking a timestamped backup of each, and everything already recorded becomes the planned half.
 - Every view now reports the same task-to-commit facts from one interpreter: a commit recorded on a task resolves whether it lives in the project repo or a submodule, so a finished task whose commit sits in a submodule is no longer reported as missing its evidence, and a task closed inside its own commit is recognized as recorded rather than empty.
 - After-commit discovery is now opt-in and no longer reads your backlog into each commit's context. Projects that relied on it being on by default will stop seeing suggestions — set `discoverySuggestions: true` in `.foreman/config.json` to keep it. With it on, it no longer lists every planned task; each candidate suggestion is checked for duplicates one at a time instead, so the cost no longer grows with the roadmap.
 - Surveying the roadmap now proposes concrete fixes for stale task descriptions and planned files — the current wording against the suggested one, with the evidence behind it — applies only the ones you approve one by one, and leaves findings it cannot ground as an unconfirmed note instead of rewriting anything.

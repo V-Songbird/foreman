@@ -24,7 +24,7 @@ const path = require('path');
 
 const { runRoadmap, makeTmpProject, writeRoadmap } = require('./helpers');
 
-const META = '{"foreman_roadmap_format":1}';
+const META = '{"foreman_roadmap_format":2}';
 
 let project;
 let env;
@@ -54,7 +54,8 @@ function entry(id, overrides = {}) {
     status: 'planned',
     source: 'user',
     depends_on: [],
-    touches: [],
+    planned_touches: [],
+    observed_touches: [],
     commits: [],
     created_at: '2026-07-01',
     updated_at: '2026-07-01',
@@ -72,6 +73,34 @@ function writeRaw(lines) {
   fs.writeFileSync(roadmapFile(), `${lines.join('\n')}\n`, 'utf-8');
 }
 
+/**
+ * A FORMAT 1 entry: one `touches` array, no marker line. [Foreman: 130] The
+ * shape every roadmap written before format 2 has on disk, written raw so
+ * these tests exercise the real unmigrated file rather than the helper's
+ * current-format one.
+ */
+function v1Entry(id, overrides = {}) {
+  return {
+    id,
+    title: `sig${id}`,
+    why: `rationale ${id}`,
+    what: `work ${id}`,
+    status: 'planned',
+    source: 'user',
+    depends_on: [],
+    touches: [],
+    commits: [],
+    created_at: '2026-07-01',
+    updated_at: '2026-07-01',
+    notes: '',
+    ...overrides,
+  };
+}
+
+function writeV1(rows) {
+  writeRaw(rows.map((row) => JSON.stringify(row)));
+}
+
 function readLines() {
   return fs.readFileSync(roadmapFile(), 'utf-8').split('\n').filter(Boolean);
 }
@@ -82,19 +111,32 @@ function backups() {
 
 describe('an unversioned roadmap is format 1', () => {
   test('reads fine — absence of the marker means 1', () => {
-    writeRoadmap(project, [entry('001'), entry('002')]);
+    writeV1([v1Entry('001'), v1Entry('002')]);
     const { json } = run(['list']);
     assert.deepEqual(json.entries.map((e) => e.id), ['001', '002']);
   });
 
   test('doctor reports nothing about the version', () => {
-    writeRoadmap(project, [entry('001')]);
+    writeV1([v1Entry('001')]);
     const { json } = run(['doctor']);
     assert.deepEqual(json.findings, []);
   });
 
-  test('any mutation stamps the marker as the first line', () => {
-    writeRoadmap(project, [entry('001')]);
+  // [Foreman: 130] A mutation no longer stamps an unversioned file: format 2
+  // changed the entry shape, so rewriting one would convert every line with
+  // no backup taken. `migrate` is that rewrite now, and the refusal says so.
+  test('a mutation is refused and names migrate', () => {
+    writeV1([v1Entry('001')]);
+    const before = fs.readFileSync(roadmapFile(), 'utf-8');
+    const { status, json } = run(['update-status'], { id: '001', status: 'in_progress' });
+    assert.equal(status, 1);
+    assert.match(json.error, /roadmap\.js migrate/);
+    assert.equal(fs.readFileSync(roadmapFile(), 'utf-8'), before);
+  });
+
+  test('once migrated, every mutation stamps the marker as the first line', () => {
+    writeV1([v1Entry('001')]);
+    run(['migrate']);
     run(['update-status'], { id: '001', status: 'in_progress' });
     const lines = readLines();
     assert.equal(lines[0], META);
@@ -153,7 +195,7 @@ describe('a format newer than this Foreman', () => {
       assert.equal(status, 1);
       assert.equal(json.ok, false);
       assert.match(json.error, /format version 99/);
-      assert.match(json.error, /this Foreman understands format version 1/);
+      assert.match(json.error, /this Foreman understands format version 2/);
       assert.match(json.error, /Upgrade the Foreman plugin/);
     });
   }
@@ -243,20 +285,22 @@ describe('migrate', () => {
     const before = fs.readFileSync(roadmapFile(), 'utf-8');
     const { status, json } = run(['migrate']);
     assert.equal(status, 0);
-    assert.deepEqual(json, { ok: true, from: 1, to: 1, changed: false });
+    assert.deepEqual(json, { ok: true, from: 2, to: 2, changed: false });
     assert.equal(fs.readFileSync(roadmapFile(), 'utf-8'), before);
     assert.deepEqual(backups(), []);
   });
 
-  test('stamps an implicit file, backs it up, and preserves the entry lines', () => {
-    const rows = [entry('001'), entry('002', { status: 'done', commits: ['a1b2c3d'] })];
-    writeRoadmap(project, rows);
+  test('upgrades an unversioned file, backs it up, and splits the file surface', () => {
+    writeV1([
+      v1Entry('001', { touches: ['src/a.ts'] }),
+      v1Entry('002', { status: 'done', commits: ['a1b2c3d'], touches: ['src/b.ts'] }),
+    ]);
     const before = fs.readFileSync(roadmapFile(), 'utf-8');
 
     const { json } = run(['migrate']);
     assert.equal(json.ok, true);
     assert.equal(json.from, 1);
-    assert.equal(json.to, 1);
+    assert.equal(json.to, 2);
     assert.equal(json.changed, true);
 
     const saved = backups();
@@ -267,11 +311,14 @@ describe('migrate', () => {
 
     const lines = readLines();
     assert.equal(lines[0], META);
-    assert.deepEqual(lines.slice(1), before.split('\n').filter(Boolean));
+    assert.deepEqual(lines.slice(1).map((line) => JSON.parse(line)), [
+      entry('001', { planned_touches: ['src/a.ts'] }),
+      entry('002', { status: 'done', commits: ['a1b2c3d'], planned_touches: ['src/b.ts'] }),
+    ]);
   });
 
   test('is safe to repeat — the second run changes nothing', () => {
-    writeRoadmap(project, [entry('001')]);
+    writeV1([v1Entry('001')]);
     assert.equal(run(['migrate']).json.changed, true);
     const afterFirst = fs.readFileSync(roadmapFile(), 'utf-8');
 
@@ -290,7 +337,7 @@ describe('migrate', () => {
   });
 
   test('never touches .foreman/config.json', () => {
-    writeRoadmap(project, [entry('001')]);
+    writeV1([v1Entry('001')]);
     run(['migrate']);
     assert.equal(fs.existsSync(path.join(project, '.foreman')), false);
   });
@@ -298,14 +345,14 @@ describe('migrate', () => {
   test('a roadmap that was already broken still migrates', () => {
     // The write gate tolerates inherited damage; the version stamp must not
     // become the one thing that strands an unhealthy file.
-    writeRaw([JSON.stringify(entry('001', { depends_on: ['404'] }))]);
+    writeV1([v1Entry('001', { depends_on: ['404'] })]);
     assert.equal(run(['migrate']).json.changed, true);
     assert.equal(readLines()[0], META);
     assert.equal(run(['doctor']).json.findings[0].code, 'missing_dependency');
   });
 
   test('rejects flags and stdin it does not take', () => {
-    writeRoadmap(project, [entry('001')]);
+    writeV1([v1Entry('001')]);
     const { status, json } = run(['migrate', '--fix'], { id: '001' });
     assert.equal(status, 0);
     assert.equal(json.changed, true);

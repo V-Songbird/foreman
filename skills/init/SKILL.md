@@ -15,7 +15,7 @@ state. All reads/writes go through
 enforces the write invariants (id computation, parse-before/after-write)
 mechanically, so you don't have to. Skim
 `${CLAUDE_PLUGIN_ROOT}/roadmap-schema.md` if you need field semantics
-beyond what's obvious from the names (`why`/`what`/`depends_on`/`touches`).
+beyond what's obvious from the names (`why`/`what`/`depends_on`/`planned_touches`).
 
 If args were provided, treat them as the project description seed and skip
 asking for it in Call 1.
@@ -163,8 +163,10 @@ the schema exactly:
 - `status: "planned"`, `depends_on` filled in only where one task is
   obviously sequential to another (don't invent dependencies that aren't
   there).
-- `touches` as a best-guess area hint per task, or `[]` if genuinely
+- `planned_touches` as a best-guess area hint per task, or `[]` if genuinely
   unknown (a brand-new project has no files to point at yet — that's fine).
+  It is a prediction; what the work actually reaches gets recorded separately
+  at close, so a wrong guess costs nothing and `correct` can replace it.
 - ids `"001"` through `"00N"` (or continuing past the existing max, if
   appending to an existing file per the pre-check).
 
@@ -223,7 +225,7 @@ the updated draft, ask again. Repeat until approved.
    start at `001` again.
 2. For each drafted task, call `add` with its fields as JSON over stdin:
    ```
-   echo '{"title":"...","why":"...","what":"...","source":"user","depends_on":[],"touches":[]}' \
+   echo '{"title":"...","why":"...","what":"...","source":"user","depends_on":[],"planned_touches":[]}' \
      | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js add
    ```
    The script computes the id, sets `status:"planned"`, stamps

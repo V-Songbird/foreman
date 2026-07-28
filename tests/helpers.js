@@ -49,10 +49,41 @@ function makeTmpProject() {
   return project;
 }
 
+const {
+  ROADMAP_FORMAT_KEY,
+  CURRENT_ROADMAP_FORMAT,
+  splitTouches,
+} = require(path.join(SCRIPTS_DIR, 'roadmap'));
+
+/**
+ * The exact bytes of a roadmap holding these entries, at the CURRENT format:
+ * the marker line first, then one line per entry.
+ *
+ * [Foreman: 130] A fixture written the old way (a single `touches` array, no
+ * marker) is converted through the real 1 -> 2 upgrade rather than written to
+ * disk as-is. Format 1 is now a read-only shape — every mutation refuses it
+ * and names `migrate` — so an unconverted fixture would make every write-path
+ * test assert the migrate gate instead of the behavior it was written for. A
+ * test that actually wants an unmigrated file writes the raw lines itself
+ * (see tests/planned_observed.test.js).
+ */
+function roadmapText(entries) {
+  return [
+    JSON.stringify({ [ROADMAP_FORMAT_KEY]: CURRENT_ROADMAP_FORMAT }),
+    ...entries.map((e) => JSON.stringify(splitTouches(e))),
+  ].join('\n') + '\n';
+}
+
 /** Write ROADMAP.jsonl in a project dir from an array of line objects. */
 function writeRoadmap(project, entries) {
-  const text = entries.map((e) => JSON.stringify(e)).join('\n') + '\n';
-  fs.writeFileSync(path.join(project, 'ROADMAP.jsonl'), text, 'utf-8');
+  fs.writeFileSync(path.join(project, 'ROADMAP.jsonl'), roadmapText(entries), 'utf-8');
+}
+
+/** Write .foreman/archive.jsonl the same way — same format, same converter. */
+function writeArchiveFile(project, entries) {
+  const dir = path.join(project, '.foreman');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'archive.jsonl'), roadmapText(entries), 'utf-8');
 }
 
 /** Write .foreman/config.json in a project dir. */
@@ -85,7 +116,9 @@ module.exports = {
   runRoadmap,
   runRenderSections,
   makeTmpProject,
+  roadmapText,
   writeRoadmap,
+  writeArchiveFile,
   writeConfig,
   initGitRepo,
   commitFile,

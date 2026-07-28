@@ -11,8 +11,9 @@
 // Severity rule, applied throughout: **error** when a consumer would break
 // or have to guess (unknown status, duplicate id, dangling dependency,
 // cycle); **warning** when the value is mechanically recoverable, already
-// defaulted by every reader, or merely suspicious (a missing `touches`
-// array, an unrecognized `source`, two entries that read alike). Historical
+// defaulted by every reader, or merely suspicious (a missing
+// `planned_touches` array, an unrecognized `source`, two entries that read
+// alike). Historical
 // entries predate later fields and later rules; they must stay writable, so
 // anything a real roadmap legitimately contains is a warning at most.
 //
@@ -52,7 +53,16 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const REQUIRED_TEXT = ["title", "why", "what"];
 // Required, and every reader already defaults them -- so a missing one is a
 // warning with exactly one sane repair rather than a broken file.
-const DEFAULTED_FIELDS = { depends_on: [], touches: [], commits: [], notes: "" };
+// [Foreman: 130] Both halves of the file surface are required-but-defaulted,
+// exactly as the single `touches` array was: absent is a repairable warning,
+// present-but-wrong-shape is an error.
+const DEFAULTED_FIELDS = {
+  depends_on: [],
+  planned_touches: [],
+  observed_touches: [],
+  commits: [],
+  notes: "",
+};
 
 function isObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -66,8 +76,8 @@ function finding(code, severity, ids, message, extra = {}) {
   return { code, severity, ids, message, repairable: false, ...extra };
 }
 
-// Same trust boundary validateDoc guards on doc: a `touches` hint that is
-// absolute or escapes the project is not a path any collision check should
+// Same trust boundary validateDoc guards on doc: a planned-surface hint that
+// is absolute or escapes the project is not a path any collision check should
 // be matching against.
 function isUnsafePath(value) {
   return (
@@ -145,9 +155,15 @@ function checkEntry(entry, index, out) {
     }
   }
 
-  for (const item of Array.isArray(entry.touches) ? entry.touches : []) {
+  // [Foreman: 130] The trust boundary is on the PLANNED half only. That is
+  // the hand-written one — a typed absolute path or a `..` escape is exactly
+  // the mistake this catches, and `correct` is the repair. observed_touches
+  // is whatever `git show --name-only --relative` reported for a commit this
+  // repository already contains; flagging git's own output would be reporting
+  // the repository as damage, and nothing can repair it from here anyway.
+  for (const item of Array.isArray(entry.planned_touches) ? entry.planned_touches : []) {
     if (typeof item === "string" && item && isUnsafePath(item)) {
-      out.push(finding("invalid_path", "warning", ids, `${at}: touches "${item}" is absolute or escapes the project`, { field: "touches" }));
+      out.push(finding("invalid_path", "warning", ids, `${at}: planned_touches "${item}" is absolute or escapes the project`, { field: "planned_touches" }));
     }
   }
 

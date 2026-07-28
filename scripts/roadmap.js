@@ -56,7 +56,7 @@ function archivePath(root) {
 // through as a row, so `doctor` reports it and `migrate` repairs it, rather
 // than being silently ignored.
 const ROADMAP_FORMAT_KEY = "foreman_roadmap_format";
-const CURRENT_ROADMAP_FORMAT = 1;
+const CURRENT_ROADMAP_FORMAT = 2;
 
 function isFormatMeta(value) {
   return (
@@ -66,6 +66,58 @@ function isFormatMeta(value) {
     && ROADMAP_FORMAT_KEY in value
     && value.id === undefined
   );
+}
+
+// [Foreman: 130]
+// Format 1 -> 2: one `touches` array carried both an editable prediction and
+// a commit-derived history, so a close could only ever grow it and a
+// collision check could not tell forecast from footprint. It becomes two
+// fields: `planned_touches` (the prediction, replaceable by `correct`) and
+// `observed_touches` (append-only, derived at close).
+//
+// Purely mechanical, and deliberately no git: everything a v1 entry recorded
+// was reached through the one array, and nothing in the file says which paths
+// came from the guess and which from a commit. Guessing would invent history,
+// so the whole array becomes the prediction (which `correct` can fix) and the
+// observed half starts empty, filled by the next close. `commits[]` remains
+// the ground truth either way.
+//
+// Idempotent by shape: an entry with no `touches` key is already upgraded and
+// passes through untouched, so migrate can run over a file readEntries has
+// already normalized.
+function splitTouches(entry) {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry) || !("touches" in entry)) {
+    return entry;
+  }
+  const upgraded = {};
+  for (const [key, value] of Object.entries(entry)) {
+    if (key === "planned_touches" || key === "observed_touches") continue;
+    if (key !== "touches") {
+      upgraded[key] = value;
+      continue;
+    }
+    // In place, so the field keeps its column in the line.
+    upgraded.planned_touches = Array.isArray(value) ? value : [];
+    upgraded.observed_touches = Array.isArray(entry.observed_touches) ? entry.observed_touches : [];
+  }
+  return upgraded;
+}
+
+// Upgrade steps between adjacent formats, in order. `migrate` is the only
+// thing that writes the result; readEntries applies the same steps IN MEMORY
+// so every read-only command works on an unmigrated file.
+const UPGRADE_STEPS = [
+  { from: 1, to: 2, fn: (entries) => entries.map(splitTouches) },
+];
+
+// Every step at or above the file's own version, in order — so a format-1
+// file walks the whole chain and a current one walks none.
+function upgradeEntries(entries, from) {
+  let out = entries;
+  for (const step of UPGRADE_STEPS) {
+    if (step.from >= from) out = step.fn(out);
+  }
+  return out;
 }
 
 // Plain words, and it names the fix: a file from a newer Foreman cannot be
@@ -89,6 +141,8 @@ function readEntriesFrom(file, label) {
   if (!fs.existsSync(file)) return [];
   const lines = fs.readFileSync(file, "utf-8").split("\n");
   const entries = [];
+  // Absence means 1, same rule the marker has always had.
+  let format = 1;
   lines.forEach((raw, i) => {
     const line = raw.trim();
     if (!line) return;
@@ -103,12 +157,18 @@ function readEntriesFrom(file, label) {
       const version = obj[ROADMAP_FORMAT_KEY];
       if (Number.isInteger(version) && version >= 1) {
         if (version > CURRENT_ROADMAP_FORMAT) throw unsupportedFormatError(version, label);
+        format = version;
         return;
       }
     }
     entries.push(obj);
   });
-  return entries;
+  // [Foreman: 130] Reading an older format is normalization, not migration:
+  // callers always see the current entry shape, and the FILE is untouched.
+  // That keeps every read-only command (list, next-candidates, doctor, the
+  // hooks) working on an unmigrated roadmap, while writes still refuse it —
+  // `migrate` stays the only thing that rewrites the file, with a backup.
+  return upgradeEntries(entries, format);
 }
 
 // [Foreman: 132] ACTIVE entries only, and deliberately unchanged in shape:
@@ -143,9 +203,17 @@ function activeResolver(root) {
   return otherFileResolver(() => readEntries(root));
 }
 
-// The declared version, or CURRENT when the file declares none (absence
-// means 1). Only ever called on text readEntries has already accepted, so a
-// version beyond CURRENT cannot reach here.
+// [Foreman: 130] The version this file declares, or 1 when it declares none.
+// A marker that is malformed or below an entry declares nothing either — no
+// reader honors it — so it reads as 1 exactly like an absent one, and
+// readEntriesFrom's own accounting says the same. The two must agree: the
+// write gate compares this against the version the reader normalized FROM,
+// and a disagreement would let one file be silently rewritten into the new
+// shape with no backup behind it.
+// Only ever called on text readEntries has already accepted, so a version
+// beyond CURRENT cannot reach here.
+const IMPLICIT_ROADMAP_FORMAT = 1;
+
 function declaredFormat(text) {
   for (const raw of String(text).split("\n")) {
     const line = raw.trim();
@@ -153,12 +221,12 @@ function declaredFormat(text) {
     try {
       const obj = JSON.parse(line);
       const version = isFormatMeta(obj) ? obj[ROADMAP_FORMAT_KEY] : undefined;
-      return Number.isInteger(version) && version >= 1 ? version : CURRENT_ROADMAP_FORMAT;
+      return Number.isInteger(version) && version >= 1 ? version : IMPLICIT_ROADMAP_FORMAT;
     } catch {
-      return CURRENT_ROADMAP_FORMAT;
+      return IMPLICIT_ROADMAP_FORMAT;
     }
   }
-  return CURRENT_ROADMAP_FORMAT;
+  return IMPLICIT_ROADMAP_FORMAT;
 }
 
 // A finding's identity, so a write can tell "this violation was already in
@@ -242,11 +310,53 @@ function writeEntriesTo(file, label, entries, read, resolve) {
   readEntriesFrom(file, label); // throws if the write somehow produced malformed JSONL
 }
 
-function writeEntries(root, entries, resolve = archiveResolver(root)) {
+// [Foreman: 130] The one place a write can tell "this file is still an older
+// format" — every mutation lands in writeEntries/writeArchive. Reading an old
+// file is fine (readEntriesFrom normalizes it); rewriting one is not, because
+// the rewrite would silently convert every line with no backup behind it.
+// `migrate` is that rewrite, and it says so. A file that does not exist yet
+// (or is empty) has nothing to migrate, so a first write is never blocked.
+function fileFormat(file) {
+  if (!fs.existsSync(file)) return CURRENT_ROADMAP_FORMAT;
+  const text = fs.readFileSync(file, "utf-8");
+  return text.trim() ? declaredFormat(text) : CURRENT_ROADMAP_FORMAT;
+}
+
+function migrateRequiredError(file, label) {
+  const err = new Error(
+    `${label} is format version ${fileFormat(file)}, and this Foreman writes format `
+      + `${CURRENT_ROADMAP_FORMAT} — run "roadmap.js migrate" once (it backs the file up first, `
+      + "and is safe to repeat), then re-run this command. Reading an unmigrated file works; "
+      + "writing one does not, so nothing rewrites it behind your back."
+  );
+  err.code = "FOREMAN_ROADMAP_MIGRATE_REQUIRED";
+  err.found = fileFormat(file);
+  err.supported = CURRENT_ROADMAP_FORMAT;
+  return err;
+}
+
+function assertMigrated(file, label) {
+  if (fileFormat(file) < CURRENT_ROADMAP_FORMAT) throw migrateRequiredError(file, label);
+}
+
+// The two-file mutations (archive/restore, reassign-id) write one file and
+// then the other, so both have to be checked BEFORE the first write — a
+// refusal halfway through would leave the move half-done for a reason that
+// was knowable up front.
+function assertBothMigrated(root) {
+  assertMigrated(roadmapPath(root), "ROADMAP.jsonl");
+  assertMigrated(archivePath(root), ARCHIVE_LABEL);
+}
+
+// `migrating: true` is migrate's own write — the one rewrite allowed to start
+// from an older file, and the only one that took a backup first.
+function writeEntries(root, entries, resolve = archiveResolver(root), options = {}) {
+  if (!options.migrating) assertMigrated(roadmapPath(root), "ROADMAP.jsonl");
   writeEntriesTo(roadmapPath(root), "ROADMAP.jsonl", entries, () => readEntries(root), resolve);
 }
 
-function writeArchive(root, entries) {
+function writeArchive(root, entries, options = {}) {
+  if (!options.migrating) assertMigrated(archivePath(root), ARCHIVE_LABEL);
   writeEntriesTo(archivePath(root), ARCHIVE_LABEL, entries, () => readArchive(root), activeResolver(root));
 }
 
@@ -489,6 +599,27 @@ function validateRan(name, value, allowed) {
   }
 }
 
+// [Foreman: 130] The one reader for a planned-surface argument, shared by
+// `add` and `correct`. `planned_touches` is canonical and `touches` is
+// accepted as an alias for it (skills, examples and muscle memory all still
+// send the old key; when both are given the canonical one wins).
+// `observed_touches` is refused outright: it is derived from the closing
+// commit, so accepting a hand-written one would let a caller forge history.
+function plannedTouchesInput(payload, command) {
+  const given = payload || {};
+  if (given.observed_touches !== undefined) {
+    throw new Error(
+      `observed_touches is not a ${command} input — it is derived mechanically from the closing `
+        + "commit's diff (or the index, on a staged close). Pass planned_touches to change the prediction"
+    );
+  }
+  const value = given.planned_touches !== undefined ? given.planned_touches : given.touches;
+  if (value !== undefined && !Array.isArray(value)) {
+    throw new Error("planned_touches must be an array of paths");
+  }
+  return value;
+}
+
 function cmdAdd(root, payload) {
   return withRoadmapLock(root, () => cmdAddUnlocked(root, payload));
 }
@@ -501,11 +632,15 @@ function cmdAddUnlocked(root, payload) {
     source,
     status,
     depends_on,
-    touches,
     notes,
     doc,
     kind,
   } = payload || {};
+  // [Foreman: 130] `planned_touches` is the field; `touches` is kept as an
+  // INPUT alias because every skill, example and habit still types it. The
+  // stored entry only ever has the new fields — the alias is a doorway, not
+  // a second schema.
+  const planned = plannedTouchesInput(payload, "add");
   if (!title || !why || !what) {
     throw new Error("add requires title, why, what");
   }
@@ -556,7 +691,10 @@ function cmdAddUnlocked(root, payload) {
     status: entryStatus,
     source,
     depends_on: deps,
-    touches: Array.isArray(touches) ? touches : [],
+    planned_touches: Array.isArray(planned) ? planned : [],
+    // Mechanical history, never seeded at creation: nothing has been touched
+    // yet, and only a close may add to it.
+    observed_touches: [],
     commits: [],
     created_at: date,
     updated_at: date,
@@ -861,22 +999,26 @@ function cmdUpdateStatusUnlocked(root, payload) {
     // append-only invariant: never replace existing notes
     entry.notes = appendNote(entry.notes, notes);
   }
-  // touches is a growing footprint, same append-only spirit as commits — the
-  // creation-time guess stays, and both what the commit's diff actually
-  // shows (or, for a staged close, the index) and whatever add_touches
-  // names get folded in instead of leaving the record stale.
+  // [Foreman: 130] observed_touches is the growing footprint, same
+  // append-only spirit as commits: what the commit's diff actually shows (or,
+  // for a staged close, the index), plus whatever add_touches names on top.
+  // It lands HERE and not in planned_touches — the prediction is the entry's
+  // forecast and stays exactly as its author left it, which is what makes the
+  // drift below (and every collision check) mean something.
   const derivedTouches = commit
     ? filesTouchedByCommit(root, commit)
     : staged
       ? filesStagedIn(root)
       : [];
-  // [Foreman: 110] Snapshot the prediction before the fold destroys it.
-  const predictedTouches = Array.isArray(entry.touches) ? [...entry.touches] : [];
+  // [Foreman: 110] The prediction, as stored before this call. Nothing folds
+  // into it any more, but it is still read before the write so the drift
+  // describes the entry as it was framed.
+  const predictedTouches = Array.isArray(entry.planned_touches) ? [...entry.planned_touches] : [];
   const newTouches = [...(add_touches || []), ...derivedTouches];
   if (newTouches.length) {
-    entry.touches = Array.isArray(entry.touches) ? entry.touches : [];
+    entry.observed_touches = Array.isArray(entry.observed_touches) ? entry.observed_touches : [];
     for (const t of newTouches) {
-      if (typeof t === "string" && t && !entry.touches.includes(t)) entry.touches.push(t);
+      if (typeof t === "string" && t && !entry.observed_touches.includes(t)) entry.observed_touches.push(t);
     }
   }
   // [Foreman: 110] An entry that predicted nothing has nothing to drift from,
@@ -1000,7 +1142,11 @@ function cmdUpdateDepsUnlocked(root, payload) {
 // on purpose. Git is the audit trail for what these used to say -- the active
 // entry carries the best-known truth, not a museum of obsolete prose.
 const CORRECTABLE_TEXT = ["title", "why", "what"];
-const CORRECTABLE_FIELDS = [...CORRECTABLE_TEXT, "kind", "touches"];
+// [Foreman: 130] The PLANNED half only. observed_touches is mechanical
+// history derived from the commits the entry already names, so there is
+// nothing here for a caller to correct — a wrong observation means the wrong
+// commit was recorded, which is a different repair.
+const CORRECTABLE_FIELDS = [...CORRECTABLE_TEXT, "kind", "planned_touches"];
 // Only an entry still being worked toward is correctable. Rewriting a
 // done/dropped/rejected one rewrites history: its commits, notes, and closure
 // evidence describe the task as it was worded then. An `awaiting_acceptance`
@@ -1018,8 +1164,11 @@ function cmdCorrect(root, payload) {
 }
 
 function cmdCorrectUnlocked(root, payload) {
-  const { id, expected_updated_at, kind, touches } = payload || {};
+  const { id, expected_updated_at, kind } = payload || {};
   if (!id) throw new Error("correct requires id");
+  // Same canonical-plus-alias contract as add, and the same refusal of a
+  // hand-written observed surface.
+  const planned = plannedTouchesInput(payload, "correct");
   // Staleness guard, not a revision counter: `updated_at` already exists and
   // already moves on every write, so no new stored field is needed. It is
   // date-only, so two corrections on the SAME day both pass this check -- the
@@ -1042,12 +1191,9 @@ function cmdCorrectUnlocked(root, payload) {
     text[field] = value;
   }
   if (kind !== undefined) validateKind(kind);
-  // Same shape check add_touches gets; per-path safety is the write gate's
-  // (invalid_path / non-string item), so it is not restated here.
-  if (touches !== undefined && !Array.isArray(touches)) {
-    throw new Error("touches must be an array of paths");
-  }
-  if (!Object.keys(text).length && kind === undefined && touches === undefined) {
+  // Shape is checked in plannedTouchesInput; per-path safety is the write
+  // gate's (invalid_path / non-string item), so it is not restated here.
+  if (!Object.keys(text).length && kind === undefined && planned === undefined) {
     throw new Error(`correct requires at least one of ${CORRECTABLE_FIELDS.join(", ")}`);
   }
   const entries = readEntries(root);
@@ -1095,14 +1241,14 @@ function cmdCorrectUnlocked(root, payload) {
     else delete entry.kind;
     changed.push("kind");
   }
-  // Full replacement, unlike update-status' append-only fold: this field is
-  // the mutable prediction of the surface the work will touch, and a
-  // prediction that was wrong has to be able to shrink.
-  if (touches !== undefined) {
-    const current = Array.isArray(entry.touches) ? entry.touches : [];
-    if (current.length !== touches.length || current.some((p, i) => p !== touches[i])) {
-      entry.touches = touches;
-      changed.push("touches");
+  // Full replacement, unlike update-status' append-only fold into
+  // observed_touches: this field is the mutable prediction of the surface the
+  // work will touch, and a prediction that was wrong has to be able to shrink.
+  if (planned !== undefined) {
+    const current = Array.isArray(entry.planned_touches) ? entry.planned_touches : [];
+    if (current.length !== planned.length || current.some((p, i) => p !== planned[i])) {
+      entry.planned_touches = planned;
+      changed.push("planned_touches");
     }
   }
   // A correction that changes nothing writes nothing — including updated_at,
@@ -1192,10 +1338,24 @@ const OPEN_STATUSES = new Set([
 // Fraction of the hint's own words found in the entry's text — containment,
 // not jaccard, so a long entry isn't penalized for having words the hint
 // didn't mention.
+// [Foreman: 130] BOTH file surfaces feed the hint. A hint is how a user finds
+// the work they mean ("the auth middleware thing"), so the honest surface is
+// everything the entry is about: what it predicts it will touch AND where it
+// has already been. Scanning the observed half only ever finds resumed areas
+// — it cannot invent a match, since containment scoring needs the hint's own
+// words to appear — and the collision check (which must not see history) is a
+// separate rule below.
 function hintScore(hintWords, entry) {
   if (!hintWords.size) return 0;
   const words = normalizeWords(
-    [entry.title, entry.why, entry.what, (entry.touches || []).join(" "), entry.notes]
+    [
+      entry.title,
+      entry.why,
+      entry.what,
+      (entry.planned_touches || []).join(" "),
+      (entry.observed_touches || []).join(" "),
+      entry.notes,
+    ]
       .filter(Boolean)
       .join(" ")
   );
@@ -1256,10 +1416,16 @@ function cmdNextCandidates(root, filters) {
   // `awaiting_acceptance` entry's work is already committed — its files are
   // in the tree, not in someone's working copy. Including it would flag
   // overlap that cannot conflict with anything.
+  // [Foreman: 130] PLANNED only, on both sides. Collision asks "would
+  // starting this task put two sessions in the same files", which is a
+  // question about intent: the observed half is where an entry has ALREADY
+  // been, and a path it committed last week collides with nothing. Mixing the
+  // two is what made a long-running entry accumulate a footprint that flagged
+  // every later candidate.
   const inProgressTouches = [];
   for (const e of entries) {
     if (e.status !== "in_progress") continue;
-    for (const t of e.touches || []) inProgressTouches.push(t);
+    for (const t of e.planned_touches || []) inProgressTouches.push(t);
   }
 
   // Reverse dependency edges, open dependents only.
@@ -1301,12 +1467,13 @@ function cmdNextCandidates(root, filters) {
       title: e.title,
       why: e.why,
       what: e.what,
-      touches: e.touches || [],
+      planned_touches: e.planned_touches || [],
+      observed_touches: e.observed_touches || [],
       depends_on: e.depends_on || [],
       unblocks: (openDependents.get(e.id) || []).length,
       unblocks_total: transitiveUnblocks(e.id),
       ...(hintWords.size ? { hint_score: hintScore(hintWords, e) } : {}),
-      collision: (e.touches || []).some((t) =>
+      collision: (e.planned_touches || []).some((t) =>
         inProgressTouches.some((busy) => touchesOverlap(t, busy))
       ),
       created_at: e.created_at,
@@ -1366,7 +1533,8 @@ function cmdNextCandidates(root, filters) {
       title: e.title,
       why: e.why,
       what: e.what,
-      touches: e.touches || [],
+      planned_touches: e.planned_touches || [],
+      observed_touches: e.observed_touches || [],
       depends_on: e.depends_on || [],
       notes: e.notes || "",
       updated_at: e.updated_at,
@@ -1501,6 +1669,7 @@ function moveEntries(root, payload, direction) {
   if (!Array.isArray(ids) || !ids.length || ids.some((id) => typeof id !== "string" || !id)) {
     throw new Error(`${direction} requires ids: a non-empty array of entry ids`);
   }
+  assertBothMigrated(root);
   const archiving = direction === "archive";
   const source = archiving ? readEntries(root) : readArchive(root);
   const destination = archiving ? readArchive(root) : readEntries(root);
@@ -1602,6 +1771,7 @@ function cmdReassignIdUnlocked(root, payload) {
   if (typeof keep !== "string" || !keep) {
     throw new Error("reassign-id requires keep: the exact title of the holder that keeps the id");
   }
+  assertBothMigrated(root);
   const active = readEntries(root);
   const archived = readArchive(root);
   // File order, active file first -- the renumbering has to be reproducible,
@@ -1683,16 +1853,6 @@ function cmdReassignIdUnlocked(root, payload) {
   };
 }
 
-// [Foreman: 129]
-// Upgrade steps between adjacent formats, in order. Empty today: format 1 is
-// the only format there has ever been, so the only thing `migrate` does is
-// bring the file to the current on-disk layout (which stamps the meta line).
-// The next format bump adds one `{from, to, fn(entries)}` step here instead
-// of rewriting migrate — that is the whole reason this is a list.
-// razor: no step exists to exercise the chaining yet; when one lands, this
-// runs each step whose `from` is at or above the file's version, in order.
-const UPGRADE_STEPS = [];
-
 function backupStamp(date = new Date()) {
   const pad = (n) => String(n).padStart(2, "0");
   return (
@@ -1710,27 +1870,50 @@ function cmdMigrate(root) {
 // nothing to do — no backup, no write, `changed:false` — so running it twice
 // is running it once. A file from a NEWER Foreman throws out of readEntries
 // before anything here touches the disk. Never reads or writes config.
+//
+// [Foreman: 130] The archive is the same JSONL at the same format, so it is
+// upgraded in the same call and with a backup of its own — leaving it behind
+// would strand `restore` (a write) on a file `migrate` claimed to have
+// handled. It is skipped entirely when the project has none.
 function cmdMigrateUnlocked(root) {
   const p = roadmapPath(root);
   if (!fs.existsSync(p)) {
     throw new Error(`no ROADMAP.jsonl at ${p} — nothing to migrate`);
   }
-  const before = fs.readFileSync(p, "utf-8");
+  const roadmap = migrateFile(p, () => readEntries(root), (entries) =>
+    writeEntries(root, entries, archiveResolver(root), { migrating: true })
+  );
+  const archive = fs.existsSync(archivePath(root))
+    ? migrateFile(archivePath(root), () => readArchive(root), (entries) =>
+        writeArchive(root, entries, { migrating: true })
+      )
+    : null;
+  return {
+    from: roadmap.from,
+    to: CURRENT_ROADMAP_FORMAT,
+    changed: roadmap.changed || Boolean(archive && archive.changed),
+    ...(roadmap.backup ? { backup: roadmap.backup } : {}),
+    // Reported separately: two files, two versions, two backups — a caller
+    // that has to restore one needs to know which.
+    ...(archive ? { archive: { from: archive.from, changed: archive.changed, ...(archive.backup ? { backup: archive.backup } : {}) } } : {}),
+  };
+}
+
+function migrateFile(file, read, write) {
+  const before = fs.readFileSync(file, "utf-8");
   const from = declaredFormat(before);
-  let entries = readEntries(root);
-  for (const step of UPGRADE_STEPS) {
-    if (step.from >= from) entries = step.fn(entries);
-  }
+  // readEntries already applied every upgrade step in memory; re-running them
+  // here would be a no-op (each step is idempotent by shape), so the read IS
+  // the upgrade and this only decides whether the file on disk still differs.
+  const entries = read();
   const after = serializeEntries(entries);
-  if (after === before) {
-    return { from, to: CURRENT_ROADMAP_FORMAT, changed: false };
-  }
+  if (after === before) return { from, changed: false };
   // Before any rewrite, never after: the backup is what makes an upgrade
   // recoverable, so it has to exist while the original still does.
-  const backup = `${p}.backup-${backupStamp()}`;
-  fs.copyFileSync(p, backup);
-  writeEntries(root, entries);
-  return { from, to: CURRENT_ROADMAP_FORMAT, changed: true, backup };
+  const backup = `${file}.backup-${backupStamp()}`;
+  fs.copyFileSync(file, backup);
+  write(entries);
+  return { from, changed: true, backup };
 }
 
 // Whole-file health check: the same structural contract every write is held
@@ -1799,8 +1982,13 @@ const USAGE = `roadmap.js -- mechanical CRUD for ROADMAP.jsonl. Every call
 prints one JSON line to stdout: {"ok":true, ...} on success,
 {"ok":false,"error":"..."} (exit 1) on failure.
 
-  add               stdin JSON: {title, why, what, source, depends_on?, touches?, notes?, status?, doc?, kind?}
+  add               stdin JSON: {title, why, what, source, depends_on?, planned_touches?, notes?, status?, doc?, kind?}
                     source: "user" | "claude-suggested"
+                    planned_touches: the PREDICTED file/area surface (the
+                    editable half; "touches" is still accepted as an input
+                    alias for it). observed_touches is never an input -- it
+                    is derived at close from the commit's own diff
+
                     depends_on ids must already exist -- an id that doesn't
                     resolve would strand the entry out of next-candidates
                     status (create-time only): "planned" (default) | "rejected"
@@ -1821,21 +2009,26 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     User confirms -> "done"; not ready -> back to "in_progress"
                     "deferred" = recorded but waiting on an external trigger;
                     excluded from next-candidates until moved back to "planned"
-                    if commit is given, touches auto-folds in that commit's
-                    actual changed files (git show, best-effort, silent if
-                    git/the sha is unavailable) -- add_touches adds more on
-                    top, for anything outside that commit's diff
+                    if commit is given, observed_touches auto-folds in that
+                    commit's actual changed files (git show, best-effort,
+                    silent if git/the sha is unavailable) -- add_touches adds
+                    more on top, for anything outside that commit's diff.
+                    planned_touches is never folded into: it is the entry's
+                    prediction, and scope_drift is that prediction measured
+                    against what the close actually derived
                     staged: true = the staged close -- call it AFTER staging
                     the task's own files with "safe-commit.js finish
-                    --no-commit" and BEFORE committing: touches auto-folds
-                    from the index instead of a commit, the script stages
+                    --no-commit" and BEFORE committing: observed_touches
+                    auto-folds from the index instead of a commit, the script stages
                     ROADMAP.jsonl itself, and the result carries trailer
                     ("Foreman: <id>") to put as the commit message's final
                     line -- entry and commit link through that trailer, so
                     the close lands inside its own commit with no sha
                     recorded and no roadmap ride-along. Mutually exclusive
                     with commit (which records one that already landed).
-                    add_touches: array of paths to fold into touches (dedup, never removes)
+                    add_touches: array of paths to fold into observed_touches
+                    (dedup, never removes) -- for a file the commit's own
+                    diff cannot show
                     doc: same "none" | relative .md path contract as add
                     kind: "build" | "decision" -- reclassify the entry;
                     "decision" is stored, "build" drops the key (the default)
@@ -1862,13 +2055,17 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     was later dropped; removing an id that isn't there is a
                     no-op; returns the same compact graph-fact fields when
                     the edge change makes them non-empty
-  correct           stdin JSON: {id, expected_updated_at, title?, why?, what?, kind?, touches?}
+  correct           stdin JSON: {id, expected_updated_at, title?, why?, what?, kind?, planned_touches?}
                     the supported repair for an entry whose description or
                     planned files went stale -- at least one correctable
                     field is required, each is a full replacement (title/why/
-                    what non-empty strings, touches the whole planned
+                    what non-empty strings, planned_touches the whole planned
                     surface -- so a wrong prediction can shrink -- kind on
                     add's contract: "decision" stored, "build" drops the key)
+                    "touches" is accepted as an input alias for
+                    planned_touches; observed_touches is NOT correctable --
+                    it is mechanical history derived from the entry's own
+                    commits, and a wrong one means a wrong commit was recorded
                     expected_updated_at is required and must equal the
                     entry's current updated_at, so a stale session cannot
                     overwrite a newer correction; a mismatch names the
@@ -1941,8 +2138,9 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     flag: --menu   (optional: compact choice rows only;
                     fetch the selected entry with list --ids <id>)
                     flag: --hint "words"   (optional: rank by how many of
-                    the hint's words appear in each candidate's
-                    title/why/what/touches/notes -- hint_score per
+                    the hint's words appear in each candidate's title/why/
+                    what/planned_touches/observed_touches/notes -- both file
+                    surfaces, so a hint also finds resumed areas; hint_score per
                     candidate, hint_matched:false in the result when no
                     candidate matched at all)
                     candidates include depends_on, unblocks (open entries
@@ -1993,8 +2191,9 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     the whole per-entry contract also runs over
                     .foreman/archive.jsonl (its findings' messages carry that
                     prefix, and --fix never writes that file)
-                    --fix applies ONLY the repairable ones (absent
-                    depends_on/touches/commits/notes, a self-dependency
+                    --fix applies ONLY the repairable ones (an absent
+                    depends_on/planned_touches/observed_touches/commits/
+                    notes, a self-dependency
                     edge, a repeated dependency id) under the mutation lock,
                     then re-validates and returns what it changed as
                     "fixed". Ambiguous findings are never auto-fixed --
@@ -2002,17 +2201,26 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     A malformed or misplaced format meta line is reported as
                     unsupported_schema_version and repaired by "migrate",
                     never by --fix.
-  migrate           no input, no flags. Brings ROADMAP.jsonl up to the
-                    current format version, safe to repeat: returns
-                    {from, to, changed}, and changed:false when the file is
-                    already current (nothing written, no backup).
+  migrate           no input, no flags. Brings ROADMAP.jsonl (and
+                    .foreman/archive.jsonl, when the project has one) up to
+                    the current format version, safe to repeat: returns
+                    {from, to, changed}, and changed:false when the files are
+                    already current (nothing written, no backup). The
+                    archive's own {from, changed, backup} rides along as
+                    "archive" when that file exists.
                     ROADMAP.jsonl declares its format on an optional first
                     line, {"foreman_roadmap_format":N}; a file without one
-                    is format 1, so nothing has to be migrated to keep
-                    working. Every write stamps the line, so a mutated
-                    roadmap becomes explicitly versioned either way.
-                    When it does change the file it first copies it to
-                    ROADMAP.jsonl.backup-<YYYYMMDD-HHmmss> and returns that
+                    is format 1. Format 2 split the old single "touches"
+                    array into planned_touches (the editable prediction) and
+                    observed_touches (derived at close): the 1->2 step is
+                    mechanical and runs no git -- the whole old array becomes
+                    planned_touches and observed_touches starts empty.
+                    READING an older file still works everywhere (it is
+                    normalized in memory, the file is untouched); WRITING to
+                    one is refused with one error naming migrate, so nothing
+                    converts the file without a backup behind it.
+                    When it does change a file it first copies it to
+                    <file>.backup-<YYYYMMDD-HHmmss> and returns that
                     path as "backup". Holds the same mutation lock as every
                     other write; never touches .foreman/config.json.
                     A file declaring a version NEWER than this Foreman
@@ -2032,7 +2240,7 @@ Examples:
     | node roadmap.js update-status   # then commit with "Foreman: 003" as the last line
   echo '{"id":"004","add_depends_on":["002"]}' \\
     | node roadmap.js update-deps
-  echo '{"id":"004","expected_updated_at":"2026-07-28","what":"...","touches":["src/api/retry.ts"]}' \\
+  echo '{"id":"004","expected_updated_at":"2026-07-28","what":"...","planned_touches":["src/api/retry.ts"]}' \\
     | node roadmap.js correct
   echo '{"id":"130","keep":"Cache the rate lookup"}' \\
     | node roadmap.js reassign-id
@@ -2155,6 +2363,10 @@ module.exports = {
   CURRENT_ROADMAP_FORMAT,
   isFormatMeta,
   declaredFormat,
+  // [Foreman: 130] The 1->2 upgrade, exported so a fixture or a caller that
+  // needs the current entry shape uses the same transform migrate does.
+  splitTouches,
+  UPGRADE_STEPS,
   findingKey,
   submodulePaths,
   filesTouchedByCommit,

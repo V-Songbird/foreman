@@ -13,16 +13,16 @@ describe("survey skill contract", () => {
     assert.match(skill, /the \*\*evidence\*\* — the file paths and\s+symbols it actually opened, and what it found there instead/);
     assert.match(
       skill,
-      /\*\*concrete proposed replacement value\*\*, a finished `what` string or a\s+complete `touches` array, ready to be written as-is/
+      /\*\*concrete proposed replacement value\*\*, a finished `what` string or a\s+complete `planned_touches` array, ready to be written as-is/
     );
     assert.match(skill, /A vague "this looks\s+stale" is not a finding of this kind/);
-    assert.match(skill, /\*\*whole corrected `touches` array\*\*/);
+    assert.match(skill, /\*\*whole corrected `planned_touches` array\*\*/);
     assert.match(skill, /a \*\*rewritten\s+`what`\*\*/);
   });
 
   test("every proposal is shown with current value, proposed value, and evidence", () => {
     assert.match(skill, /the entry's \*\*id and title\*\*, the \*\*current value →\s+proposed value\*\*, and the \*\*evidence line\(s\)\*\*/);
-    assert.match(skill, /Show\s+`touches` in full on both sides/);
+    assert.match(skill, /Show\s+`planned_touches` in full on both sides/);
   });
 
   test("approval is per finding and never one blanket yes", () => {
@@ -33,11 +33,11 @@ describe("survey skill contract", () => {
   });
 
   test("approved description and planned-file repairs go through correct", () => {
-    assert.match(skill, /apply it with `correct`, the one command that can replace\s+`what`\/`touches` on a live entry/);
+    assert.match(skill, /apply it with `correct`, the one command that can replace\s+`what`\/`planned_touches` on a live entry/);
     assert.match(skill, /roadmap\.js correct/);
     assert.match(skill, /"expected_updated_at":"<the updated_at that read just returned>"/);
     assert.match(skill, /roadmap\.js list --ids <candidate>`\s+— re-read the entry immediately before writing/);
-    assert.match(skill, /`touches` is sent as the whole\s+replacement array/);
+    assert.match(skill, /`planned_touches` is sent as the whole\s+replacement array/);
   });
 
   test("a stale-guard rejection is re-read and re-asked, never forced through", () => {

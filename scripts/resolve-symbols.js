@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 "use strict";
 
-// Craft-time symbol resolver. Given a roadmap entry's `touches` paths (and
+// Craft-time symbol resolver. Given a roadmap entry's `planned_touches` paths
+// (passed on the `--touches` flag / `touches` stdin key, which name the
+// ARGUMENT, not the entry field -- this script takes paths, never entries) (and
 // optionally its `what` prose), emits a per-file map of top-level
 // definitions so an assembled prompt can cite symbols instead of making the
 // handed-off session rediscover what lives in each file.

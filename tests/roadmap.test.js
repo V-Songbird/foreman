@@ -87,11 +87,14 @@ describe('add', () => {
     assert.equal(json.entry.id, '003');
   });
 
-  test('defaults depends_on/touches/notes when omitted', () => {
+  test('defaults depends_on/both touch surfaces/notes when omitted', () => {
     const { json } = run(['add'], { title: 'a', why: 'a', what: 'a', source: 'user' });
     assert.deepEqual(json.entry.depends_on, []);
-    assert.deepEqual(json.entry.touches, []);
+    assert.deepEqual(json.entry.planned_touches, []);
+    assert.deepEqual(json.entry.observed_touches, []);
     assert.equal(json.entry.notes, '');
+    // The old single field is gone from the stored entry, alias or not.
+    assert.equal(json.entry.touches, undefined);
   });
 
   test('rejects missing required fields', () => {
@@ -407,21 +410,22 @@ describe('update-status', () => {
     assert.equal(json.entry.status, 'deferred');
   });
 
-  test('folds add_touches into touches', () => {
+  test('folds add_touches into observed_touches, leaving the prediction alone', () => {
     const { json } = run(['update-status'], {
       id: '001',
       status: 'done',
       add_touches: ['src/api/retry.ts', 'src/api/githubClient.ts'],
     });
-    assert.deepEqual(json.entry.touches, ['src/api/retry.ts', 'src/api/githubClient.ts']);
+    assert.deepEqual(json.entry.observed_touches, ['src/api/retry.ts', 'src/api/githubClient.ts']);
+    assert.deepEqual(json.entry.planned_touches, []);
   });
 
-  test('does not duplicate an already-listed touched path', () => {
+  test('does not duplicate an already-observed path', () => {
     writeRoadmap(project, [
-      { id: '001', title: 'a', why: 'a', what: 'a', status: 'in_progress', source: 'user', depends_on: [], touches: ['src/api/retry.ts'], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '' },
+      { id: '001', title: 'a', why: 'a', what: 'a', status: 'in_progress', source: 'user', depends_on: [], planned_touches: [], observed_touches: ['src/api/retry.ts'], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '' },
     ]);
     const { json } = run(['update-status'], { id: '001', status: 'done', add_touches: ['src/api/retry.ts', 'src/api/new.ts'] });
-    assert.deepEqual(json.entry.touches, ['src/api/retry.ts', 'src/api/new.ts']);
+    assert.deepEqual(json.entry.observed_touches, ['src/api/retry.ts', 'src/api/new.ts']);
   });
 
   test('rejects a non-array add_touches', () => {
@@ -431,7 +435,7 @@ describe('update-status', () => {
   });
 });
 
-describe('update-status auto-derives touches from the commit', () => {
+describe('update-status auto-derives observed_touches from the commit', () => {
   beforeEach(() => {
     writeRoadmap(project, [
       { id: '001', title: 'a', why: 'a', what: 'a', status: 'in_progress', source: 'user', depends_on: [], touches: [], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '' },
@@ -442,8 +446,10 @@ describe('update-status auto-derives touches from the commit', () => {
   test('folds in the files the commit actually changed', () => {
     const sha = commitFile(project, 'src/foo.ts', 'export const x = 1;\n');
     const { json } = run(['update-status'], { id: '001', status: 'done', commit: sha });
-    assert.deepEqual(json.entry.touches, ['src/foo.ts']);
+    assert.deepEqual(json.entry.observed_touches, ['src/foo.ts']);
     assert.deepEqual(json.derived_touches, ['src/foo.ts']);
+    // The derivation is history, never a correction of the forecast.
+    assert.deepEqual(json.entry.planned_touches, []);
   });
 
   test('merges derived files with manual add_touches, deduped', () => {
@@ -454,20 +460,20 @@ describe('update-status auto-derives touches from the commit', () => {
       commit: sha,
       add_touches: ['src/foo.ts', 'docs/migration.md'],
     });
-    assert.deepEqual(json.entry.touches, ['src/foo.ts', 'docs/migration.md']);
+    assert.deepEqual(json.entry.observed_touches, ['src/foo.ts', 'docs/migration.md']);
   });
 
   test('an unknown sha fails soft — write still succeeds, nothing derived', () => {
     const { status, json } = run(['update-status'], { id: '001', status: 'done', commit: 'deadbeef' });
     assert.equal(status, 0);
     assert.equal(json.entry.status, 'done');
-    assert.deepEqual(json.entry.touches, []);
+    assert.deepEqual(json.entry.observed_touches, []);
     assert.equal(json.derived_touches, undefined);
   });
 
   test('no commit given — no derivation attempted, add_touches still works alone', () => {
     const { json } = run(['update-status'], { id: '001', status: 'in_progress', add_touches: ['src/manual.ts'] });
-    assert.deepEqual(json.entry.touches, ['src/manual.ts']);
+    assert.deepEqual(json.entry.observed_touches, ['src/manual.ts']);
     assert.equal(json.derived_touches, undefined);
   });
 });
@@ -495,7 +501,7 @@ describe('update-status derives touches from a commit inside a submodule', () =>
 
     assert.equal(status, 0);
     assert.deepEqual(json.derived_touches, ['sub/scripts/foo.js']);
-    assert.deepEqual(json.entry.touches, ['sub/scripts/foo.js']);
+    assert.deepEqual(json.entry.observed_touches, ['sub/scripts/foo.js']);
   });
 
   test('a submodule commit still scores drift against the prediction', () => {
@@ -1072,7 +1078,7 @@ describe('next-candidates', () => {
 
   test('returns in_progress entries alongside candidates', () => {
     writeRoadmap(project, [
-      { id: '001', title: 'started', status: 'in_progress', why: 'w', what: 'x', touches: ['a.js'], depends_on: [], notes: 'n', updated_at: '2026-07-01' },
+      { id: '001', title: 'started', status: 'in_progress', why: 'w', what: 'x', planned_touches: ['a.js'], observed_touches: ['b.js'], depends_on: [], notes: 'n', updated_at: '2026-07-01' },
       { id: '002', title: 'ready', status: 'planned', why: 'w', what: 'x', depends_on: [] },
     ]);
     const { json } = run(['next-candidates']);
@@ -1080,7 +1086,9 @@ describe('next-candidates', () => {
     const ip = json.in_progress[0];
     assert.equal(ip.id, '001');
     assert.equal(ip.updated_at, '2026-07-01');
-    assert.deepEqual(ip.touches, ['a.js']);
+    // Both surfaces ride along, kept apart.
+    assert.deepEqual(ip.planned_touches, ['a.js']);
+    assert.deepEqual(ip.observed_touches, ['b.js']);
     assert.equal(ip.notes, 'n');
     assert.deepEqual(json.candidates.map((c) => c.id), ['002']);
   });
@@ -1213,7 +1221,8 @@ describe('next-candidates', () => {
     assert.doesNotMatch(json.in_progress[0].why, /\n/);
     for (const row of [...json.candidates, ...json.in_progress]) {
       assert.equal(row.what, undefined);
-      assert.equal(row.touches, undefined);
+      assert.equal(row.planned_touches, undefined);
+      assert.equal(row.observed_touches, undefined);
       assert.equal(row.notes, undefined);
       assert.equal(row.depends_on, undefined);
       assert.equal(row.depends_on_docs, undefined);

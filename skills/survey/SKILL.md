@@ -1,6 +1,6 @@
 ---
 name: survey
-description: Ground-truth the roadmap's near-term candidates against the actual codebase — an Explore agent checks whether each candidate's touches/depends_on still match reality, then proposes a concrete repair for every finding (hidden dependency, already-done, stale description or planned files), applies only the ones you approve, and persists them back into ROADMAP.jsonl so future sessions pick them up automatically.
+description: Ground-truth the roadmap's near-term candidates against the actual codebase — an Explore agent checks whether each candidate's planned_touches/depends_on still match reality, then proposes a concrete repair for every finding (hidden dependency, already-done, stale description or planned files), applies only the ones you approve, and persists them back into ROADMAP.jsonl so future sessions pick them up automatically.
 when_to_use: Trigger when the user explicitly asks to reconcile, audit, double-check, or verify the roadmap's ordering — "survey the roadmap", "audit the next tasks", "double-check what's next", "is the roadmap still accurate", or invokes /foreman:survey. Never trigger automatically from foreman:roadmap's pick-next-task flow, a commit, or any other implicit signal.
 argument-hint: "<optional — a task id or two to focus on, otherwise surveys the top unblocked candidates>"
 allowed-tools: AskUserQuestion, Read, Bash, PowerShell, Agent
@@ -58,16 +58,18 @@ could not find; `has_trailer_match: true` means a commit message names the
 entry, which is the whole evidence a staged close leaves — an entry with
 `commit_count: 0` and a trailer match is recorded, not empty.
 
-Same reasoning applies to `touches`: collect every path named across the
-candidates being surveyed (dedup), and check existence directly —
+Same reasoning applies to `planned_touches`: collect every path named across
+the candidates being surveyed (dedup), and check existence directly —
 `test -e <path>` (Bash) / `Test-Path <path>` (PowerShell), relative to the
 project root, one call per unique path (or a short loop in one call).
 Build a `path_exists: true/false` map from this too — no agent needs a
 `Read`/`Glob` round trip just to learn a file isn't there. A missing path
-is a **question, not a verdict**: `touches` is a forward-looking best guess
-written at `add`/`init` time and routinely names files the task will
+is a **question, not a verdict**: `planned_touches` is a forward-looking best
+guess written at `add`/`init` time and routinely names files the task will
 create, so absence alone is expected on a healthy backlog and proves
-nothing by itself.
+nothing by itself. Survey only ever ranges over that predicted half —
+`observed_touches` is derived from commits that already landed, so there is
+nothing there to ground-truth and nothing `correct` could repair.
 
 ---
 
@@ -79,8 +81,8 @@ it has no memory of this conversation — built from the candidate's own
 fields plus the resolved-dependency and exists-map context gathered in
 step 1:
 
-- The candidate's `id`, `title`, `why`, `what`, `touches`, `depends_on`.
-- For each path in `touches`: the pre-computed `path_exists` flag from step
+- The candidate's `id`, `title`, `why`, `what`, `planned_touches`, `depends_on`.
+- For each path in `planned_touches`: the pre-computed `path_exists` flag from step
   1 — the agent consumes this fact, it does not re-check it with its own
   `Read`/`Glob` call.
 - For each id in `depends_on`: that entry's `title`, `status`, `commits`,
@@ -92,7 +94,7 @@ step 1:
      moved* — `git log --diff-filter=D -- <path>`, or `--follow` showing a
      rename. Nothing found means the task simply hasn't created it yet:
      verdict stays `valid`, nothing to annotate. When a path did move, the
-     agent returns the **whole corrected `touches` array** — the new path
+     agent returns the **whole corrected `planned_touches` array** — the new path
      in place of the old one, every unaffected path kept — because
      `correct` replaces that field wholesale rather than merging a diff
      into it. For paths confirmed to exist, does their current content
@@ -106,11 +108,11 @@ step 1:
      red flag — no further check needed. Otherwise, for commits that resolved,
      do they plausibly implement what that entry's `title`/`what` claims?
      (this half stays semantic — read the commit, judge the match)
-  3. **Hidden dependency?** Reading the code the candidate's `touches`
-     point to, does it already reference/import/call something that
-     another *not-done* task's `touches` claims to own, which isn't in this
-     candidate's `depends_on`? Then the same question in reverse: does
-     anything *outside* this candidate's `touches` consume the code it
+  3. **Hidden dependency?** Reading the code the candidate's
+     `planned_touches` point to, does it already reference/import/call
+     something that another *not-done* task's `planned_touches` claims to own,
+     which isn't in this candidate's `depends_on`? Then the same question in
+     reverse: does anything *outside* this candidate's `planned_touches` consume the code it
      changes, in a way that makes another not-done entry depend on this
      one? Only report either direction with a concrete file:line citation
      — no hunches.
@@ -126,7 +128,7 @@ step 1:
   or it is not reportable as one: the **evidence** — the file paths and
   symbols it actually opened, and what it found there instead — and a
   **concrete proposed replacement value**, a finished `what` string or a
-  complete `touches` array, ready to be written as-is. A vague "this looks
+  complete `planned_touches` array, ready to be written as-is. A vague "this looks
   stale" is not a finding of this kind. When the evidence is real but no
   replacement can be grounded, the agent returns it with
   `confident: false` and says what it could not determine, keeping the
@@ -146,13 +148,13 @@ not an automatic mutation.
 For every finding that carries a concrete proposal, show three things
 before asking: the entry's **id and title**, the **current value →
 proposed value**, and the **evidence line(s)** the agent cited. Show
-`touches` in full on both sides — `correct` replaces the array, so a
+`planned_touches` in full on both sides — `correct` replaces the array, so a
 partial list would read as the entire new one. The user is approving a
 specific string; the specific string has to be on screen.
 
 **Approval is per finding.** One `AskUserQuestion` per entry, using
 `multiSelect` when several fields of the same entry changed together (a
-rewritten `what` and a corrected `touches` — the user may well want one
+rewritten `what` and a corrected `planned_touches` — the user may well want one
 and not the other). Batch at most a handful of entries into one question,
 and only while every option still names its own entry and field. **Never
 offer a single blanket "apply everything"**: an approval that covers
@@ -172,16 +174,16 @@ step exists to collect.
   commit that already did the work).
 - **`stale-description` / `stale-touches`** with a concrete proposal → on
   confirm, apply it with `correct`, the one command that can replace
-  `what`/`touches` on a live entry (`foreman:roadmap`'s "Correct a task"
-  branch uses the same call):
+  `what`/`planned_touches` on a live entry (`foreman:roadmap`'s "Correct a
+  task" branch uses the same call):
   1. `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --ids <candidate>`
      — re-read the entry immediately before writing. Its `updated_at` is
      the value the write is guarded by, the surveying agents ran for a
      while in between, and `next-candidates` does not return that field at
      all.
-  2. `echo '{"id":"<candidate>","expected_updated_at":"<the updated_at that read just returned>","what":"<approved what>","touches":[<approved touches>]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js correct`
+  2. `echo '{"id":"<candidate>","expected_updated_at":"<the updated_at that read just returned>","what":"<approved what>","planned_touches":[<approved paths>]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js correct`
      — only the approved fields go in the payload; a field the user
-     declined is simply absent, and `touches` is sent as the whole
+     declined is simply absent, and `planned_touches` is sent as the whole
      replacement array.
   3. If the script refuses with `was last updated … , not …`, another
      session changed the entry between that read and this write. **Re-read

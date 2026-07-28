@@ -53,7 +53,8 @@ function entryFixture(overrides = {}) {
     status: 'planned',
     source: 'user',
     depends_on: [],
-    touches: ['src/auth/middleware.ts'],
+    planned_touches: ['src/auth/middleware.ts'],
+    observed_touches: [],
     commits: [],
     created_at: '2026-06-22',
     updated_at: '2026-07-01',
@@ -126,15 +127,15 @@ describe('correct — happy path per field', () => {
     assert.equal(onDisk()[0].kind, 'decision');
   });
 
-  test('touches is replaced wholesale', () => {
+  test('planned_touches is replaced wholesale', () => {
     seed();
     const { json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
-      touches: ['src/proxy/refresh.ts', 'tests/proxy.test.ts'],
+      planned_touches: ['src/proxy/refresh.ts', 'tests/proxy.test.ts'],
     });
-    assert.deepEqual(json.entry.touches, ['src/proxy/refresh.ts', 'tests/proxy.test.ts']);
-    assert.deepEqual(json.changed, ['touches']);
+    assert.deepEqual(json.entry.planned_touches, ['src/proxy/refresh.ts', 'tests/proxy.test.ts']);
+    assert.deepEqual(json.changed, ['planned_touches']);
   });
 
   test('updated_at is bumped to today on a real correction', () => {
@@ -171,13 +172,13 @@ describe('correct — multi-field and changed accounting', () => {
       why: 'The middleware never sees the expired token.',
       what: 'Move the refresh into the proxy.',
       kind: 'decision',
-      touches: ['src/proxy/refresh.ts'],
+      planned_touches: ['src/proxy/refresh.ts'],
     });
-    assert.deepEqual(json.changed, ['title', 'why', 'what', 'kind', 'touches']);
+    assert.deepEqual(json.changed, ['title', 'why', 'what', 'kind', 'planned_touches']);
     const [stored] = onDisk();
     assert.equal(stored.title, 'Refresh tokens at the edge proxy');
     assert.equal(stored.kind, 'decision');
-    assert.deepEqual(stored.touches, ['src/proxy/refresh.ts']);
+    assert.deepEqual(stored.planned_touches, ['src/proxy/refresh.ts']);
   });
 
   test('a field passed with its current value is not "changed"', () => {
@@ -186,7 +187,7 @@ describe('correct — multi-field and changed accounting', () => {
       id: '001',
       expected_updated_at: '2026-07-01',
       title: 'Add JWT refresh middleware',
-      touches: ['src/auth/middleware.ts'],
+      planned_touches: ['src/auth/middleware.ts'],
       what: 'Actually corrected.',
     });
     assert.deepEqual(json.changed, ['what']);
@@ -296,7 +297,7 @@ describe('correct — rejections', () => {
     seed();
     const { status, json } = run(['correct'], { id: '001', expected_updated_at: '2026-07-01' });
     assert.equal(status, 1);
-    assert.match(json.error, /at least one of title, why, what, kind, touches/);
+    assert.match(json.error, /at least one of title, why, what, kind, planned_touches/);
   });
 
   test('an empty-string title is refused', () => {
@@ -376,16 +377,16 @@ describe('correct — kind round-trip', () => {
   });
 });
 
-describe('correct — touches is a replacement, not a fold', () => {
+describe('correct — planned_touches is a replacement, not a fold', () => {
   test('the planned surface can shrink', () => {
-    seed([entryFixture({ touches: ['src/a.ts', 'src/b.ts', 'src/c.ts'] })]);
+    seed([entryFixture({ planned_touches: ['src/a.ts', 'src/b.ts', 'src/c.ts'] })]);
     const { json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
-      touches: ['src/b.ts'],
+      planned_touches: ['src/b.ts'],
     });
-    assert.deepEqual(json.entry.touches, ['src/b.ts']);
-    assert.deepEqual(onDisk()[0].touches, ['src/b.ts']);
+    assert.deepEqual(json.entry.planned_touches, ['src/b.ts']);
+    assert.deepEqual(onDisk()[0].planned_touches, ['src/b.ts']);
   });
 
   test('an empty array clears the prediction', () => {
@@ -393,10 +394,23 @@ describe('correct — touches is a replacement, not a fold', () => {
     const { json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
-      touches: [],
+      planned_touches: [],
     });
-    assert.deepEqual(json.entry.touches, []);
-    assert.deepEqual(json.changed, ['touches']);
+    assert.deepEqual(json.entry.planned_touches, []);
+    assert.deepEqual(json.changed, ['planned_touches']);
+  });
+
+  // [Foreman: 130] The observed half is history the entry's own commits
+  // already describe, so it survives a correction of the forecast untouched.
+  test('correcting the prediction leaves the observed surface alone', () => {
+    seed([entryFixture({ status: 'in_progress', observed_touches: ['src/shipped.ts'] })]);
+    const { json } = run(['correct'], {
+      id: '001',
+      expected_updated_at: '2026-07-01',
+      planned_touches: ['src/next.ts'],
+    });
+    assert.deepEqual(json.entry.observed_touches, ['src/shipped.ts']);
+    assert.deepEqual(onDisk()[0].observed_touches, ['src/shipped.ts']);
   });
 });
 

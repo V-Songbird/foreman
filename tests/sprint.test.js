@@ -18,7 +18,9 @@ const {
 
 let project;
 
-function entry(id, title, touches) {
+// [Foreman: 130] A plan's overlap check reads the PREDICTED surface, so that
+// is what the fixture carries.
+function entry(id, title, plannedTouches) {
   return {
     id,
     title,
@@ -27,7 +29,8 @@ function entry(id, title, touches) {
     status: "planned",
     source: "user",
     depends_on: [],
-    touches,
+    planned_touches: plannedTouches,
+    observed_touches: [],
     commits: [],
     created_at: `2026-01-${id}`,
     updated_at: `2026-01-${id}`,

@@ -75,8 +75,9 @@ the code, and never call an entry grounded or verified here.
    ranked (most open work waiting behind it first — `unblocks_total`
    counts the whole dependency chain, not just direct dependents — then
    collision-free before colliding, then oldest), limited to 3 by
-   default, with a `collision` flag per candidate (its `touches` overlaps
-   a currently-`in_progress` task's — folder-aware, so a planned
+   default, with a `collision` flag per candidate (its `planned_touches`
+   overlaps a currently-`in_progress` task's `planned_touches` — predicted
+   surfaces only, never where either has already been — folder-aware, so a planned
    `src/auth/` collides with an in-progress `src/auth/middleware.ts` and
    vice versa) and a `reason` per candidate — the
    ranking key that actually placed that row. This is Foreman's
@@ -148,7 +149,7 @@ non-empty, per the finish-first check above):
   (reworded to fit the sentence is fine, contradicted is not); it already
   carries the collision caution when there is one, so don't restate that
   separately. Never
-  fold `what`/`touches`/`notes`/`unblocks` into the description — none of
+  fold `what`/the file surfaces/`notes`/`unblocks` into the description — none of
   that is a pick-time decision input if the session isn't ground-truthing
   anyway (that's `foreman:survey`'s job); it only bloats the dialog. The
   overlap clause `reason` carries on a `collision:true` row is a caution,
@@ -176,7 +177,7 @@ entry, fetch that entry alone:
 `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --ids <id>`.
 Require exactly one returned row and use that full row as the selected entry
 for every step below. Do not fetch the other menu rows. This is where
-`what`, `touches`, `depends_on`, full `notes`, decision-doc fields, and
+`what`, `planned_touches`/`observed_touches`, `depends_on`, full `notes`, decision-doc fields, and
 `kind` first enter the flow. For this targeted read, the script also derives
 `depends_on_docs` as bounded paths from direct dependencies; it does not
 return those dependency entries.
@@ -277,7 +278,9 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      survey verdict, a defer trigger, a previous session's evidence) — the
      selected-entry read already carries them, so this stops the
      destination re-deriving what someone already wrote down
-   - `relevant_files` seed ← `touches`, run once through
+   - `relevant_files` seed ← `planned_touches` (the entry's own prediction —
+     `observed_touches` is where past closes landed, not what this handoff is
+     about), run once through
      `node ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-symbols.js` (the
      template's step 0b) — the selected entry's paths and its `what` go in, a
      symbol map comes out. This is a mechanical call, not investigation:
@@ -297,10 +300,11 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
        that in the line, so the destination knows to establish it rather
        than infer it. Nothing assertable means the block is omitted; that
        is normal.
-     - `Expected file surface:` ← the selected entry's `touches` as given,
-       followed by the flag-before-writing sentence the template supplies.
-       `touches` is unverified area-level hints, which is precisely why it
-       belongs here as a baseline to flag against rather than as a fact.
+     - `Expected file surface:` ← the selected entry's `planned_touches` as
+       given, followed by the flag-before-writing sentence the template
+       supplies. That field is unverified area-level hints — the entry's
+       prediction — which is precisely why it belongs here as a baseline to
+       flag against rather than as a fact.
      - test-first ordering ← only when the entry describes a failure that
        would pass the existing checks. Omit it otherwise.
    - `depends_on_docs` — when the selected entry carries a non-empty one (the
@@ -337,7 +341,7 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      dispatching destinations, since a dispatch needs a model named, but
      with no recommended default and no `(Recommended)` label. A
      DISPATCH-time recommendation, judged now from this
-     selected entry's own `touches`/`what` (recorded fields only, same
+     selected entry's own `planned_touches`/`what` (recorded fields only, same
      no-investigation rule as the rest of this branch), never at pick time
      or when the entry was created. If `.foreman/config.json` pins a
      concrete `targetModel` (already in hand from the selected-task
@@ -411,7 +415,7 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      `expected` doesn't cover, naming them in `unexpected_files` — show
      those to the user and re-run with `--allow-unexpected` only once they
      approve. Then close with `staged:true` (the script folds the staged
-     files into `touches` and stages ROADMAP.jsonl alongside), then commit
+     files into `observed_touches` and stages ROADMAP.jsonl alongside), then commit
      once with `Foreman: <id>` as the final line of the message — that
      trailer is the durable link between entry and commit, so no sha gets
      recorded and the roadmap never trails uncommitted:
@@ -420,7 +424,7 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      A task that changed nothing (pure investigation) closes without
      staging or trailer. If the commit already landed before the close,
      pass `"commit":"<sha>"` instead of `staged` — that path still works
-     and auto-folds touches from the commit's diff.
+     and auto-folds observed_touches from the commit's diff.
      When this prompt carries a `<decision_log>` block, add `doc` to that
      close call — the decision doc's path, or `"none"` when nothing was
      decided:
@@ -510,7 +514,9 @@ picking `Execute here` above, not this skill deciding on its own.
 ## Branch: Add a task
 
 1. Gather via free text: `title`, `why`, `what`, and optionally
-   `depends_on` (existing ids) and `touches` (path/area hints). Don't force
+   `depends_on` (existing ids) and `planned_touches` (path/area hints — the
+   predicted surface; the observed one is derived at close, never given here).
+   Don't force
    the user through every field if they've already given enough in a
    one-line description (args or a natural request) — ask only for what's
    missing. If the task reads as resolving an open question rather than
@@ -530,7 +536,7 @@ picking `Execute here` above, not this skill deciding on its own.
    undo: the only exit is `update-status dropped`, which leaves the row in
    the file forever. Wording that later turns out wrong is repairable (see
    "Correct a task"); a task that shouldn't exist is not.
-3. `echo '{"title":"...","why":"...","what":"...","source":"user","depends_on":[...],"touches":[...]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js add`
+3. `echo '{"title":"...","why":"...","what":"...","source":"user","depends_on":[...],"planned_touches":[...]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js add`
    — the script computes the id, validates required fields (including that
    every `depends_on` id already exists), and confirms the file is still
    well-formed after writing. An exact replay safely returns the existing
@@ -553,11 +559,12 @@ says what it currently claims.
    entry as stored. If the user named the task by words rather than id, run
    `list --summary` first to resolve it.
 2. Show the current value against the proposed one for each field being
-   corrected (`title`, `why`, `what`, `kind`, `touches` — nothing else is
-   correctable here: status is `update-status`, dependencies are
-   `update-deps`, notes only ever append). Then **one** `AskUserQuestion`:
-   `Apply the correction` / `Never mind`. `touches` is a full replacement,
-   so show the whole new list, not just the additions.
+   corrected (`title`, `why`, `what`, `kind`, `planned_touches` — nothing else
+   is correctable here: status is `update-status`, dependencies are
+   `update-deps`, notes only ever append, and `observed_touches` is mechanical
+   history the command refuses outright). Then **one** `AskUserQuestion`:
+   `Apply the correction` / `Never mind`. `planned_touches` is a full
+   replacement, so show the whole new list, not just the additions.
 3. `echo '{"id":"...","expected_updated_at":"<the updated_at from step 1>","what":"..."}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js correct`
    — pass the fetched `updated_at` verbatim as `expected_updated_at`; it is
    what stops a correction composed against an older version from

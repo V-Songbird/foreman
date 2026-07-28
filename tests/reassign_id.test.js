@@ -30,7 +30,8 @@ function entry(id, extra) {
     status: 'planned',
     source: 'user',
     depends_on: [],
-    touches: [],
+    planned_touches: [],
+    observed_touches: [],
     commits: [],
     created_at: '2026-01-01',
     updated_at: '2026-01-01',
@@ -49,7 +50,9 @@ function writeArchiveFile(entries) {
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(
     path.join(dir, 'archive.jsonl'),
-    entries.map((e) => JSON.stringify(e)).join('\n') + '\n',
+    // Stamped like the roadmap: a two-file mutation refuses an unmigrated
+    // archive before it writes anything. [Foreman: 130]
+    ['{"foreman_roadmap_format":2}', ...entries.map((e) => JSON.stringify(e))].join('\n') + '\n',
     'utf-8'
   );
 }

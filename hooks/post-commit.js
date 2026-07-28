@@ -135,24 +135,32 @@ function readConfig(root) {
 }
 
 // A short tag on each surfaced in_progress task saying whether this commit's
-// changed files intersect the task's recorded `touches`. This is the signal
-// the hook otherwise lacks: under concurrent sessions sharing one working
-// tree, a commit from one workstream surfaces every other workstream's
-// in_progress task with no way to tell them apart. Never suppresses — the tag
-// ranks, it does not filter:
+// changed files intersect the task's PREDICTED file surface. This is the
+// signal the hook otherwise lacks: under concurrent sessions sharing one
+// working tree, a commit from one workstream surfaces every other
+// workstream's in_progress task with no way to tell them apart. Never
+// suppresses — the tag ranks, it does not filter:
 //   - no committed files resolvable (git absent / non-git project) -> no tag
-//   - a task with no `touches` yet -> no tag (nothing to compare against)
-// razor: exact path membership only; an area-level touches hint ("src/auth/")
-// won't match an exact committed path under it. Upgrade to prefix/area
-// matching here if area hints prove common enough to matter — the caveat
-// below already keeps a no-overlap task from being wrongly skipped meanwhile.
+//   - a task with no predicted surface yet -> no tag (nothing to compare)
+// [Foreman: 130] `planned_touches`, deliberately. The question is "is this
+// commit plausibly THIS task's work", and the entry's prediction is the
+// honest answer to it: observed_touches is derived from commits already
+// recorded, so matching against it would mostly re-confirm commits the entry
+// has already been credited with, and every close would widen the net for the
+// next commit. Nothing here relied on the accumulated half — before the split
+// this compared against one array that a close folded into, which is exactly
+// the drift the tag kept getting vaguer from.
+// razor: exact path membership only; an area-level hint ("src/auth/") won't
+// match an exact committed path under it. Upgrade to prefix/area matching
+// here if area hints prove common enough to matter — the caveat below already
+// keeps a no-overlap task from being wrongly skipped meanwhile.
 function touchesTag(entry, committedSet) {
   if (!committedSet.size) return "";
-  const touches = entry.touches || [];
-  if (!touches.length) return "";
-  return touches.some((t) => committedSet.has(t))
-    ? " [files overlap its touches]"
-    : " [no touches overlap]";
+  const planned = entry.planned_touches || [];
+  if (!planned.length) return "";
+  return planned.some((t) => committedSet.has(t))
+    ? " [files overlap its planned files]"
+    : " [no overlap with its planned files]";
 }
 
 // HEAD's commit message, for `Foreman: <id>` trailer detection. Fail-soft
@@ -176,24 +184,24 @@ function headTrailerIds(root) {
 // files it never listed. Without this, precision labeling could induce the
 // one thing the design forbids — a missed real completion (false negative).
 const OVERLAP_CAVEAT =
-  "(The [...touches] tags compare this commit's changed files to each task's " +
-  "recorded touches — a ranking hint, not proof: touches is an append-only " +
-  "guess, so a task tagged no-overlap can still be the one this commit completes.)";
+  "(The [...planned files] tags compare this commit's changed files to each " +
+  "task's planned_touches — a ranking hint, not proof: that field is a " +
+  "prediction, so a task tagged no-overlap can still be the one this commit completes.)";
 
 // Two independent triggers, since a task stops getting any nudge the moment
 // it's marked done — real usage showed a same-day follow-up bugfix commit
 // (found right after finishing a task, before moving on) silently loses its
 // SHA with no signal at all, unlike an in_progress task which still nudges.
 // Passing commit also auto-folds that commit's actual changed files into
-// touches (roadmap.js runs `git show` itself) — touches is set once, from
-// whatever investigation happened before the task started, and nothing
-// updates it once real work reveals a wider (or different) footprint.
+// observed_touches (roadmap.js runs `git show` itself) — the entry's
+// prediction was set once, from whatever investigation happened before the
+// task started, and only the close records what the work actually reached.
 // add_touches remains for the rare case that needs it (git unavailable, or
 // a file touched outside this specific commit) but doesn't need mentioning
 // here — passing commit alone already covers the common case.
 //
 // requireVerification decouples "record the work" from "call it done": data
-// (commit/touches) is never worth gating on a human, only the status label
+// (commit/observed files) is never worth gating on a human, only the status label
 // is — so under the flag, the in_progress branch still records immediately.
 // [Foreman: 131] That recording step now also moves the entry to
 // `awaiting_acceptance`, which is what is actually true at that moment:
@@ -221,8 +229,8 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
           "but requireVerification is on for this project — record the work now, " +
           "don't close it out yet. Run `git rev-parse --short HEAD` for the SHA, then: " +
           `echo '{"id":"<id>","status":"awaiting_acceptance","commit":"<sha>"}' | node ${SCRIPT_PATH} update-status ` +
-          "(keeps commits[]/touches accurate — touches still auto-folds from the " +
-          "commit's diff, same as always — and says what is true: finished, " +
+          "(keeps commits[]/observed_touches accurate — observed_touches still " +
+          "auto-folds from the commit's diff, same as always — and says what is true: finished, " +
           "waiting on the user). Then ask the user (AskUserQuestion) " +
           "whether this is actually verified and working. Only on confirmation, " +
           "close it out: " +
@@ -239,7 +247,7 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
           "If it does, run `git rev-parse --short HEAD` for the commit SHA, then: " +
           `echo '{"id":"<id>","status":"done","commit":"<sha>"}' | node ${SCRIPT_PATH} update-status. ` +
           "The script computes updated_at, appends the SHA, and auto-folds that " +
-          "commit's actual changed files into touches — don't hand-edit the file, " +
+          "commit's actual changed files into observed_touches — don't hand-edit the file, " +
           "and no need to list touched files yourself, the script derives them." +
           caveat
       );
@@ -255,7 +263,7 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
         "letting it go unrecorded: run `git rev-parse --short HEAD`, then " +
         `echo '{"id":"<id>","status":"done","commit":"<sha>"}' | node ${SCRIPT_PATH} update-status ` +
         "(same status — this only adds the SHA, and auto-folds this commit's " +
-        "changed files into touches; commits[] and touches both only grow, never " +
+        "changed files into observed_touches; commits[] and observed_touches both only grow, never " +
         "shrink). Most commits won't relate to an already-done task — say nothing " +
         "if this one doesn't."
     );
@@ -300,7 +308,7 @@ function discoveryBlock() {
     "one, it's already done, so log and close it in the same breath rather " +
     "than leaving it \"planned\": the same `add` call above, then " +
     `echo '{"id":"<new-id>","status":"done","commit":"<sha>"}' | node ${SCRIPT_PATH} update-status ` +
-    "(touches auto-derives from that commit). Ask first (AskUserQuestion: " +
+    "(observed_touches auto-derives from that commit). Ask first (AskUserQuestion: " +
     "Log it / Skip). " +
     "Never call " +
     "mcp__ccd_session__spawn_task — it has a known bug where tasks spawned " +
