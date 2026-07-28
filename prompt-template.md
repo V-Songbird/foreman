@@ -26,7 +26,7 @@ an instruction for the spawned session to act on later):**
    fails soft to defaults when no `.foreman/config.json` exists). One JSON
    object: `{"usePersona": bool, "sections": [{"tag", "xml"}], "omit":
    [...], "targetModel": "haiku"|"sonnet"|"opus"|"fable"|"inherit",
-   "fableEnabled": bool, "modelSuggestions": bool,
+   "fableEnabled": bool, "modelSuggestions": bool, "requireVerification": bool,
    "decisionLog": {"enabled": bool, "dir": string}, "warnings": [...]}`.
    All of it is project **declaration** — foreman never inspects
    which style plugins or model the operator runs.
@@ -183,6 +183,11 @@ an instruction for the spawned session to act on later):**
      selectable executing model in craft-time menus — it never changes
      elaboration by itself, and a `targetModel: "fable"` project pin
      still resolves and elaborates as `fable` regardless of this flag.
+   - `requireVerification` — boolean (default `true` when missing or
+     unparseable). Read by `foreman:roadmap`'s embedded entry paragraph
+     (its "Acceptance hold" note): with it `true`, a close that earned
+     `done` records `awaiting_acceptance` for the user to confirm. The
+     template itself does nothing with it.
    - `decisionLog` — `{enabled, dir}`, the project's declaration of the
      decision-log feature (default `{enabled:false, dir:"docs/foreman"}`).
      Include the `<decision_log>` block below only when `enabled` is `true`

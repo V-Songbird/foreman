@@ -1,0 +1,56 @@
+{
+  "claim": "Foreman's standard handoff profile carries 68 words of fixed guardrail text against the reinforced profile's 567 — 12% of it, 499 words saved on every standard handoff.",
+  "supersedes": "R-001-prompt-overhead",
+  "fixtures": [
+    {
+      "path": "prompt-template.md",
+      "sha256": "5044b0ab16ded026b27e92bdfc2d2e8e831e4635ca0f4832504e1a46736a174b",
+      "role": "the canonical template both profiles are assembled from — the measured text"
+    },
+    {
+      "path": "scripts/check-prompt.js",
+      "sha256": "0f7bf6ca1462732fd8344228adb1a3e2e162b1538da884db10204600a71c0de7",
+      "role": "supplies the required-block definitions, so the measurement cannot drift from the gate that enforces them"
+    },
+    {
+      "path": "benchmarks/health/attention-cost.js",
+      "sha256": "759d7719f27ae95629b7684dafa6a3f045503761915d6d7d554cc11f54ccf4ce",
+      "role": "computes the number; promptOverhead() is the exported entry point"
+    }
+  ],
+  "prompts": [],
+  "model": null,
+  "repetitions": 1,
+  "command": "node -e \"console.log(JSON.stringify(require('./benchmarks/health/attention-cost').promptOverhead()))\"",
+  "runs": [
+    {
+      "run": 1,
+      "standard_fixed_words": 68,
+      "standard_required_blocks": 2,
+      "reinforced_fixed_words": 567,
+      "reinforced_required_blocks": 6,
+      "word_ratio": 0.1199,
+      "words_saved": 499
+    }
+  ],
+  "aggregate": {
+    "statistic": "single deterministic computation (no dispersion — repeating it returns the same values)",
+    "values": {
+      "word_ratio": 0.1199,
+      "words_saved": 499
+    }
+  },
+  "date": "2026-07-28",
+  "environment": {
+    "os": "Windows 11 (Microsoft Windows NT 10.0.26200.0)",
+    "node": "v22.22.2",
+    "foreman_commit": "0b545b22c399ef0bfa687c190474aa9c38c0c3eb"
+  },
+  "limitations": [
+    "This is a static computation over files in the repository, not a model trial. No session ran, no tokens were spent, and nothing here says a shorter handoff produces better or cheaper work.",
+    "Words, not tokens. The ratio is a proxy for context cost, not a measurement of it — tokenization is not proportional to word count.",
+    "Fixed guardrail text only. Per-task content (task context, relevant files, task rules) is the same job described the same way in either profile, so it is excluded from both sides; a real assembled handoff is longer than these numbers on both arms and the ratio between two real handoffs is therefore higher than 0.12.",
+    "The reinforced profile's tone and output-format blocks are not counted: they are required present but their text is per-task, and the template's defaults sit behind bracketed instruction lines that never reach an assembled prompt.",
+    "Valid only for prompt-template.md at the sha256 recorded above. Editing the template changes the number and invalidates this record — validate-records.js fails rather than letting the claim drift."
+  ]
+}

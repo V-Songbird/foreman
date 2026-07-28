@@ -380,6 +380,47 @@ describe('render-sections — modelSuggestions', () => {
   });
 });
 
+// [Foreman: 185] Default ON and fail-toward-true, matching post-commit's
+// reader: the safe reading holds finished work for acceptance.
+describe('render-sections — requireVerification', () => {
+  test('no config.json -> requireVerification defaults to true', () => {
+    const { json } = run();
+    assert.equal(json.requireVerification, true);
+    assert.deepEqual(json.warnings, []);
+  });
+
+  test('config.json without requireVerification -> defaults to true', () => {
+    writeConfig(project, { discoverySuggestions: true });
+    const { json } = run();
+    assert.equal(json.requireVerification, true);
+  });
+
+  for (const value of [true, false]) {
+    test(`requireVerification: ${value} passes through`, () => {
+      writeConfig(project, { requireVerification: value });
+      const { json } = run();
+      assert.equal(json.requireVerification, value);
+      assert.deepEqual(json.warnings, []);
+    });
+  }
+
+  test('a non-boolean requireVerification defaults to true with a warning', () => {
+    writeConfig(project, { requireVerification: 'off' });
+    const { status, json } = run();
+    assert.equal(status, 0);
+    assert.equal(json.requireVerification, true);
+    assert.equal(json.warnings.length, 1);
+    assert.match(json.warnings[0], /requireVerification.*not a boolean/);
+  });
+
+  test('corrupt config.json fails toward true', () => {
+    fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
+    fs.writeFileSync(path.join(project, '.foreman', 'config.json'), '{not json', 'utf-8');
+    const { json } = run();
+    assert.equal(json.requireVerification, true);
+  });
+});
+
 describe('render-sections — reserved custom section tags', () => {
   test('a customSections tag named "decision_log" is reserved and skipped', () => {
     writeConfig(project, { customSections: [{ tag: 'decision_log', content: 'x' }] });

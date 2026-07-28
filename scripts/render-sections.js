@@ -102,6 +102,20 @@ function readModelSuggestions(config) {
   };
 }
 
+// [Foreman: 185] Same polarity as post-commit's reader: default ON, and
+// anything unparseable falls to true — the safe reading holds finished work
+// for acceptance rather than skipping it. Craft time bakes this into the
+// closing paragraph, which is what makes the primary close path honor it.
+function readRequireVerification(config) {
+  const value = config?.requireVerification;
+  if (value === undefined) return { value: true, warning: null };
+  if (typeof value === "boolean") return { value, warning: null };
+  return {
+    value: true,
+    warning: `requireVerification: ${JSON.stringify(value)} is not a boolean — defaulted to true`,
+  };
+}
+
 // Delegates the decision-log settings chain (env override ->
 // .foreman/config.json's `decisionLog` group -> defaults) to the module
 // that owns it for all three consumers, instead of restating the parse
@@ -217,6 +231,7 @@ function render(root) {
   const targetModelResult = readTargetModel(config);
   const fableEnabledResult = readFableEnabled(config);
   const modelSuggestionsResult = readModelSuggestions(config);
+  const requireVerificationResult = readRequireVerification(config);
   const decisionLog = readDecisionLogSection(root);
   return {
     usePersona: readUsePersona(config),
@@ -225,6 +240,7 @@ function render(root) {
     targetModel: targetModelResult.value,
     fableEnabled: fableEnabledResult.value,
     modelSuggestions: modelSuggestionsResult.value,
+    requireVerification: requireVerificationResult.value,
     decisionLog: { enabled: decisionLog.enabled, dir: decisionLog.dir },
     warnings: [
       ...(configWarning ? [configWarning] : []),
@@ -233,6 +249,7 @@ function render(root) {
       ...(targetModelResult.warning ? [targetModelResult.warning] : []),
       ...(fableEnabledResult.warning ? [fableEnabledResult.warning] : []),
       ...(modelSuggestionsResult.warning ? [modelSuggestionsResult.warning] : []),
+      ...(requireVerificationResult.warning ? [requireVerificationResult.warning] : []),
       ...(decisionLog.warning ? [decisionLog.warning] : []),
     ],
   };

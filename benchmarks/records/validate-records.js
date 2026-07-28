@@ -67,7 +67,7 @@ function nonEmptyString(value) {
  * Paths stay inside the repo: a record is only reproducible if everything it
  * names travels with the checkout.
  */
-function checkHashedRef(ref, label, errors) {
+function checkHashedRef(ref, label, errors, verifyBytes) {
   if (!isObject(ref)) {
     errors.push(`${label}: must be an object with path + sha256`);
     return;
@@ -85,6 +85,10 @@ function checkHashedRef(ref, label, errors) {
     errors.push(`${label}: path escapes the repository: ${ref.path}`);
     return;
   }
+  // [Foreman: 185] A superseded record is history, not a live claim: its
+  // fixtures have legitimately moved on (that is usually WHY it was
+  // superseded), so only its successor answers for today's bytes.
+  if (!verifyBytes) return;
   if (!fs.existsSync(absolute)) {
     errors.push(`${label}: file not found: ${ref.path}`);
     return;
@@ -139,9 +143,10 @@ function checkAggregate(aggregate, runs, errors) {
   if (aggregate.values === undefined) errors.push("aggregate.values: missing");
 }
 
-function validateRecord(id, record, ids) {
+function validateRecord(id, record, ids, supersededIds = new Set()) {
   const errors = [];
   if (!isObject(record)) return { id, ok: false, errors: ["record: must be a JSON object"] };
+  const verifyBytes = !supersededIds.has(id);
 
   for (const field of REQUIRED) {
     if (record[field] === undefined) errors.push(`${field}: missing`);
@@ -164,7 +169,7 @@ function validateRecord(id, record, ids) {
         if (!nonEmptyString(ref.text)) errors.push(`prompts[${index}]: text is empty`);
         return;
       }
-      checkHashedRef(ref, `${label}[${index}]`, errors);
+      checkHashedRef(ref, `${label}[${index}]`, errors, verifyBytes);
     });
   }
 
@@ -240,10 +245,15 @@ function readRecords(dir) {
 function validateRecords(dir = RECORDS_DIR) {
   const loaded = readRecords(dir);
   const ids = new Set(loaded.map((entry) => entry.id));
+  const supersededIds = new Set(
+    loaded
+      .map((entry) => entry.record && entry.record.supersedes)
+      .filter((value) => typeof value === "string" && value)
+  );
   const records = loaded.map((entry) =>
     entry.parseError
       ? { id: entry.id, ok: false, errors: [`record: invalid JSON — ${entry.parseError}`] }
-      : validateRecord(entry.id, entry.record, ids)
+      : validateRecord(entry.id, entry.record, ids, supersededIds)
   );
   const errors = records
     .filter((result) => !result.ok)

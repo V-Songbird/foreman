@@ -375,6 +375,17 @@ describe('skill contracts', () => {
     assert.match(skill, /declining sends it back/);
   });
 
+  // [Foreman: 185] The primary close path honors requireVerification: the
+  // embedded paragraph holds an earned done for acceptance, gated at craft
+  // time by the preparation result.
+  test('the embedded closing paragraph holds done for acceptance, config-gated', () => {
+    const skill = readSkill('skills', 'roadmap', 'SKILL.md');
+
+    assert.match(skill, /write\s+`awaiting_acceptance` instead/);
+    assert.match(skill, /\*\*Acceptance hold\*\*/);
+    assert.match(skill, /`requireVerification` \(default `true`\)/);
+  });
+
   test('the sprint fold-back records awaiting acceptance, not in_progress', () => {
     const skill = readSkill('skills', 'sprint', 'SKILL.md');
 

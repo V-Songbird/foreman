@@ -471,7 +471,11 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      tree for them. Never stage around it.
      When the work concludes, close the entry the same way — the status it
      actually earned (`done`, `dropped`, `rejected`) and your full findings
-     in `notes`. If the work changed code, land the close inside the same
+     in `notes`. When that earned status is `done`, write
+     `awaiting_acceptance` instead — this project holds finished work for
+     the user's acceptance, and their confirmation makes it `done`;
+     `dropped` and `rejected` close as themselves. If the work changed
+     code, land the close inside the same
      commit instead of after it. Stage the task's own files with the
      safe-commit primitive — never `git add -A`:
      `echo '{"id":"<id>","expected":["<the files this task owns>"]}' | node
@@ -504,6 +508,11 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      corpus.
      The entry's `notes` is where the depth lives; your final chat message
      states the outcome and points at the entry."
+
+     **Acceptance hold** — the `awaiting_acceptance` sentence above tracks
+     the preparation result's `requireVerification` (default `true`). Keep
+     it when `true`; when the project set `false`, drop that sentence —
+     the earned status lands directly.
 
      **Baking in the model** — on a background-`Agent` dispatch the
      confirmed executing-model answer IS the `Agent` call's `model` value,

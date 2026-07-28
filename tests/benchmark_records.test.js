@@ -89,6 +89,34 @@ describe("record validator — a valid record", () => {
 
     assert.equal(validateRecords(dir).ok, true);
   });
+
+  // [Foreman: 185] Superseded records are history: their fixtures have
+  // usually moved on (that is why they were superseded), so only the
+  // successor answers for today's bytes.
+  test("a superseded record is exempt from the byte check; its successor is not", () => {
+    write("R-920-old", validRecord({
+      fixtures: [{ path: TEMPLATE, sha256: "0".repeat(64) }],
+    }));
+    write("R-921-new", validRecord({ supersedes: "R-920-old" }));
+
+    const result = validateRecords(dir);
+
+    assert.deepEqual(result.errors, []);
+    assert.equal(result.ok, true);
+  });
+
+  test("a stale successor still fails even while it supersedes something", () => {
+    write("R-922-old", validRecord());
+    write("R-923-new", validRecord({
+      supersedes: "R-922-old",
+      fixtures: [{ path: TEMPLATE, sha256: "0".repeat(64) }],
+    }));
+
+    const result = validateRecords(dir);
+
+    assert.equal(result.ok, false);
+    assert.match(errorsFor(result, "R-923-new"), /sha256 mismatch/);
+  });
 });
 
 describe("record validator — violations", () => {

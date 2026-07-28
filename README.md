@@ -118,7 +118,7 @@ number doesn't say. A claim without a record doesn't ship, and
 edited out from under one.
 
 One record is published today:
-[`R-001-prompt-overhead`](benchmarks/records/R-001-prompt-overhead.json).
+[`R-002-prompt-overhead`](benchmarks/records/R-002-prompt-overhead.json).
 A routine handoff carries **68 fixed guardrail words** where the full-strength
 one carries **567** — a static count over
 [`prompt-template.md`](prompt-template.md), which says nothing about session

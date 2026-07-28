@@ -44,7 +44,9 @@ exit if any record is invalid. `--records <dir>` points it elsewhere.
 The hash check is the load-bearing one: it means a fixture cannot be edited out
 from under a claim quietly. Change `prompt-template.md` and the record measured
 against the old one fails, loudly, instead of going on supporting a sentence in
-the README.
+the README. A superseded record is the one exemption: it stays on file as
+history with every field still validated, but only its successor answers for
+today's bytes.
 
 ## Schema
 
@@ -76,7 +78,7 @@ record has to say so rather than letting the two look alike.
 
 | Record | Kind | Claim |
 | --- | --- | --- |
-| [`R-001-prompt-overhead`](R-001-prompt-overhead.json) | static computation | The standard handoff profile carries 12% of the reinforced profile's fixed guardrail text — 499 words saved. |
+| [`R-002-prompt-overhead`](R-002-prompt-overhead.json) | static computation | The standard handoff profile carries 12% of the reinforced profile's fixed guardrail text — 499 words saved. Supersedes `R-001` after a template edit that left the numbers unchanged. |
 
 **No model-run records exist yet.** The harness in [`../`](../README.md) drives
 real sessions and reads real costs out of the API, but its output lands in
