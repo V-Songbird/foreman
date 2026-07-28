@@ -345,7 +345,9 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      with `decision_log`: a decision entry's product is its doc, so when the
      `<decision_log>` block is present (below), the recorded choice lands
      there and the close carries the `doc` path rather than `"none"`. An
-     entry with no `kind` key is an ordinary build — add nothing.
+     entry with no `kind` key is an ordinary build — add nothing, and give
+     it no decision record: `kind: "decision"` is the only thing that earns
+     one.
    - Model fit — **only when the selected-task preparation result has
      `modelSuggestions: true`**; it defaults to `false`, and when it is
      `false` this bullet and the Effort fit bullet below both produce
@@ -391,13 +393,16 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      it is the whole mechanism. Q4 asks whether to run the task where the
      recommendation points, never which effort to use — the recommendation
      itself is not a question.
-   - `decision_log` — when the selected-task preparation result carries
-     `decisionLog.enabled` true, include the template's `<decision_log>`
-     block, substituting its `dir` for `<dir>` and this entry's id for
-     every `<entry-id>`. Omit the block when `enabled` is false (the
-     default). This is the only thing that connects the entry's close to a
-     decision doc, so its `doc` field on the close command (below) is
-     paired with it.
+   - `decision_log` — include the template's `<decision_log>` block only
+     when the selected entry carries `kind: "decision"` **and** the
+     selected-task preparation result carries `decisionLog.enabled` true,
+     substituting its `dir` for `<dir>` and this entry's id for every
+     `<entry-id>`. Omit it when `enabled` is false (the default) and on
+     every ordinary build entry whatever `enabled` says — an
+     implementation task is never asked for a decision record. This is the
+     only thing that connects the entry's close to a decision doc, so its
+     `doc` field on the close command (below) is paired with it, and a
+     build's close simply never carries `doc`.
    - Add one more fixed paragraph right after `scope_discipline`, naming
      this entry's id, so the destination session — not Foreman — is the one
      that flips it to `in_progress`. Write `${CLAUDE_PLUGIN_ROOT}` into it

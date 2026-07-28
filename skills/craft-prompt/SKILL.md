@@ -359,11 +359,14 @@ this skill's gathered fields onto the template's placeholders:
   template's Workflow-stage flavor overrides both (fixed sentence,
   mechanical tone omission, schema-authoring and delivery rules all live
   there) — the schema itself derives from Call 4's Workflow-stage answer
-- `decision_log` ← include the template's `<decision_log>` block when the
-  render-sections result's `decisionLog.enabled` is true, substituting its
-  `dir` for `<dir>`; omit it when false (the template's own craft-time gate
-  says the same). A craft-prompt task carries no roadmap entry, so name the
-  doc after a short kebab slug of the goal in place of `<entry-id>`.
+- `decision_log` ← include the template's `<decision_log>` block only when
+  the render-sections result's `decisionLog.enabled` is true **and** the
+  task being crafted is itself a decision — its deliverable is a choice
+  between real alternatives, not an implementation — substituting its `dir`
+  for `<dir>`; omit it when `enabled` is false, and on every ordinary
+  implementation task whatever `enabled` says (the template's own craft-time
+  gate says the same). A craft-prompt task carries no roadmap entry, so name
+  the doc after a short kebab slug of the goal in place of `<entry-id>`.
 
 Before moving to the next phase, verify the assembled prompt against
 `prompt-template.md`'s own checklist, then run its mechanical gate

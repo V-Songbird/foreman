@@ -176,3 +176,63 @@ describe('decision-log-config', () => {
     assert.equal(result.warning, null);
   });
 });
+
+// --- One rule across every surface (entry 140) --------------------------
+//
+// A decision record is expected only for `kind: "decision"` entries, and
+// only in a project that opted in. Ordinary implementation work never
+// triggers one. The hook half is pinned in task_completed.test.js; these
+// pin the prose surfaces that instruct the sessions.
+
+function docText(...rel) {
+  return fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8').replace(/\s+/g, ' ');
+}
+
+describe('decision records are limited to explicit decision work', () => {
+  test('decision-log.md states what earns a note and what never does', () => {
+    const doc = docText('decision-log.md');
+    assert.match(doc, /## What earns a note/);
+    assert.match(doc, /a roadmap entry marked `kind: "decision"`/);
+    assert.match(doc, /\*\*Ordinary implementation work never earns one\.\*\*/);
+  });
+
+  test('settings.md scopes the decisionLog key to decision tasks', () => {
+    assert.match(
+      docText('settings.md'),
+      /`decisionLog` \|.*Applies to `kind: "decision"` tasks only/
+    );
+  });
+
+  test('roadmap-schema.md scopes the close audit to decision entries', () => {
+    const schema = docText('roadmap-schema.md');
+    assert.match(schema, /audits the `done` close of a `kind: "decision"` entry/);
+    assert.match(schema, /A build entry .* is never audited for a doc/);
+  });
+
+  test('prompt-template.md gates <decision_log> on an explicit decision task', () => {
+    const template = docText('prompt-template.md');
+    assert.match(
+      template,
+      /\[If step 0's `decisionLog\.enabled` is true AND this task is an explicit decision task/
+    );
+    assert.match(template, /a build is not asked to produce a decision record/);
+  });
+
+  test('the prompt-building skills gate the block the same way', () => {
+    assert.match(
+      docText('skills', 'roadmap', 'SKILL.md'),
+      /include the template's `<decision_log>` block only when the selected entry carries `kind: "decision"`/
+    );
+    assert.match(
+      docText('skills', 'craft-prompt', 'SKILL.md'),
+      /the task being crafted is itself a decision/
+    );
+  });
+
+  test('the roadmap skill still asks once at the first decision add (entry 136)', () => {
+    assert.match(
+      docText('skills', 'roadmap', 'SKILL.md'),
+      /if it carries no `decisionLog` key at all, the user has never been asked/
+    );
+  });
+});

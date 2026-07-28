@@ -185,10 +185,13 @@ an instruction for the spawned session to act on later):**
      still resolves and elaborates as `fable` regardless of this flag.
    - `decisionLog` — `{enabled, dir}`, the project's declaration of the
      decision-log feature (default `{enabled:false, dir:"docs/foreman"}`).
-     When `enabled` is `true`, include the `<decision_log>` block below,
-     substituting `dir` for every `<dir>`; when `false`, omit that block
-     entirely. `dir` is a relative path the destination writes ADR docs
-     under.
+     Include the `<decision_log>` block below only when `enabled` is `true`
+     **and this task is an explicit decision task** — a `kind: "decision"`
+     roadmap entry, or a craft-prompt task whose deliverable is the choice
+     itself — substituting `dir` for every `<dir>`. Ordinary implementation
+     work never carries the block, whatever `enabled` says: a build decides
+     nothing the project asked to record. `dir` is a relative path the
+     destination writes ADR docs under.
    - `warnings` — surface briefly to the user (skipped entries from a
      malformed config); never blocks assembly.
 
@@ -297,14 +300,19 @@ scope — only to work that's genuinely a separate concern from
 `task_context` above.
 </scope_discipline>
 
-[If step 0's `decisionLog.enabled` is true, include the `<decision_log>`
+[If step 0's `decisionLog.enabled` is true AND this task is an explicit
+decision task (`kind: "decision"` on its roadmap entry, or a craft-prompt
+task whose deliverable is the choice itself), include the `<decision_log>`
 block below verbatim — substitute the resolved `dir` for every `<dir>`,
 and this task's roadmap entry id for every `<entry-id>` (a craft-prompt
 task with no entry id names the doc after a short kebab slug of the goal
-instead). When `enabled` is false (the default), omit the whole block.]
+instead). Omit the whole block otherwise — when `enabled` is false (the
+default), and on every ordinary implementation task regardless of
+`enabled`: a build is not asked to produce a decision record. Anchors
+already in the code still surface on their own, through the read hook.]
 <decision_log>
 Before editing a file, scan it for `[Foreman: <id>]` anchor comments; when present, read the listed docs under `<dir>/` first.
-When this task decides between real alternatives, write `<dir>/<entry-id>.md` before closing, in this shape:
+This task's deliverable is the decision: write `<dir>/<entry-id>.md` before closing, in this shape:
   ---
   id: <entry-id>
   title: <imperative title>
@@ -612,7 +620,9 @@ A block a standard prompt does keep is still held to the template verbatim —
       verbatim after `task_rules` — never hand-written — and its
       `warnings` were surfaced to the user
 - [ ] `<decision_log>` present iff step 0's `decisionLog.enabled` was
-      `true`, with `dir`/`<entry-id>` substituted (absent by default)
+      `true` **and** this task is an explicit decision task, with
+      `dir`/`<entry-id>` substituted (absent by default, and always absent
+      on ordinary implementation work)
 - [ ] every tag in `omit` is absent from the assembled prompt, overriding
       a conflicting per-prompt selection (exception: an omitted `tone`
       stays for a background-`Agent` destination — step 0's carve-out);

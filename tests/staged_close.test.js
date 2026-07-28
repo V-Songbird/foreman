@@ -205,7 +205,8 @@ describe('task-completed.js decision-log audit resolves trailer commits', () => 
     initGitRepo(project);
     writeConfig(project, { decisionLog: { enabled: true, gate: 'block' } });
     writeFile('docs/foreman/001.md', '# decision\n');
-    writeRoadmap(project, [entry('001', 'done', { doc })]);
+    // kind "decision" is what makes the audit apply at all (entry 140).
+    writeRoadmap(project, [entry('001', 'done', { doc, kind: 'decision' })]);
   }
 
   test('a staged close whose trailer commit carries the anchor is compliant', () => {

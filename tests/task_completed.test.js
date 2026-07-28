@@ -197,15 +197,16 @@ describe('task-completed block-mode reason shape', () => {
   });
 });
 
-// --- Decision-log backstop (entry 092) ----------------------------------
+// --- Decision-log backstop (entry 092, narrowed by 140) -----------------
 //
-// Fires only on a `done` close, only when decisionLog.enabled is true, and
-// only after the open-entry gate above did NOT fire. Its config lives under
-// the `decisionLog` group ({enabled, dir, gate}) -- distinct from the
-// top-level taskCloseGate the open gate reads.
+// Fires only on a `done` close of a `kind: "decision"` entry, only when
+// decisionLog.enabled is true, and only after the open-entry gate above did
+// NOT fire. Its config lives under the `decisionLog` group ({enabled, dir,
+// gate}) -- distinct from the top-level taskCloseGate the open gate reads.
+// Ordinary implementation work (no `kind`) is never audited for a doc.
 
 function doneEntry(id, extra) {
-  return { ...entry(id, 'done'), ...(extra || {}) };
+  return { ...entry(id, 'done'), kind: 'decision', ...(extra || {}) };
 }
 
 function dlConfig(gate, extra) {
@@ -228,6 +229,26 @@ describe('decision-log backstop: enablement', () => {
     writeRoadmap(project, [doneEntry('001')]);
     writeConfig(project, dlConfig('off'));
     assert.equal(run(payload(MARKER)), '');
+  });
+});
+
+describe('decision-log backstop: only explicit decision work', () => {
+  test('a build entry (no kind) closing without a doc is silent', () => {
+    writeRoadmap(project, [{ ...entry('001', 'done') }]);
+    writeConfig(project, dlConfig('block'));
+    assert.equal(run(payload(MARKER)), '');
+  });
+
+  test('a build entry is silent even with commits and no doc', () => {
+    writeRoadmap(project, [{ ...entry('001', 'done'), commits: [] }]);
+    writeConfig(project, dlConfig('block'));
+    assert.equal(run(payload(MARKER)), '');
+  });
+
+  test('the same entry marked kind "decision" is what fires', () => {
+    writeRoadmap(project, [doneEntry('001')]);
+    writeConfig(project, dlConfig('block'));
+    assert.match(JSON.parse(run(payload(MARKER))).reason, /no decision doc/i);
   });
 });
 

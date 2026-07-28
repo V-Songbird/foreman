@@ -146,13 +146,16 @@ function blockReason(id) {
   );
 }
 
-// --- Decision-log backstop (roadmap entry 092) --------------------------
+// --- Decision-log backstop (roadmap entry 092, narrowed by 140) ---------
 //
-// A separate, opt-in gate that fires only on a `done` close, only when the
-// existing open-entry gate above did NOT fire (an entry can't be both open
-// and done, so the two never contend in one run). It checks that a closed
-// task recorded WHERE its decision lives: either an ADR doc under the
-// configured dir, or the forced "none" (decided nothing worth recording).
+// A separate, opt-in gate that fires only on a `done` close of a
+// `kind: "decision"` entry, only when the existing open-entry gate above
+// did NOT fire (an entry can't be both open and done, so the two never
+// contend in one run). Ordinary implementation work is never asked for a
+// decision record -- an entry with no `kind` is a build and closes silently
+// here no matter what the decisionLog config says. It checks that a closed
+// decision task recorded WHERE its decision lives: either an ADR doc under
+// the configured dir, or the forced "none" (decided nothing worth recording).
 // When a doc path is named, it also verifies the code carries an anchor
 // comment `[Foreman: <id>]` in one of the entry's commits, so the doc and
 // the code it governs stay wired together.
@@ -275,6 +278,10 @@ function main() {
   // Decision-log backstop -- only a `done` close is auditable for an ADR
   // (dropped/rejected/deferred decided nothing to record).
   if (entry.status !== "done") return;
+
+  // ...and only an explicit decision task. Ordinary implementation work never
+  // owes a decision record, so no `kind` (a build) means silence here.
+  if (entry.kind !== "decision") return;
 
   const dl = readDecisionLog(root);
   if (!dl.enabled || dl.gate !== "block") return; // opt-in; disabled/off -> silent
