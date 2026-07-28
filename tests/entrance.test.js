@@ -75,4 +75,24 @@ describe("specialized skills present as advanced surfaces", () => {
       /Experimental advanced surface, normally reached through the `foreman` entrance/
     );
   });
+
+  // [Foreman: 139] Generic prompt construction is an advanced surface, not
+  // part of the normal path: the skill must fire only on an explicit ask,
+  // and the manifest must lead with the roadmap job instead of prompting.
+  test("craft-prompt is framed as advanced and fires only on an explicit ask", () => {
+    const skill = read("craft-prompt");
+    assert.match(skill, /description: Advanced surface, separate from Foreman's core roadmap job/);
+    assert.match(skill, /Trigger only on an explicit request to build or refine a standalone prompt/);
+    assert.doesNotMatch(skill, /when_to_use:.*wants to create a task/);
+  });
+
+  test("the manifest no longer leads with prompt engineering", () => {
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(__dirname, "..", ".claude-plugin", "plugin.json"), "utf-8")
+    );
+    assert.match(manifest.description, /^Project continuity and roadmap trust/);
+    assert.doesNotMatch(manifest.description, /[Pp]rompt-engineering/);
+    assert.equal(manifest.keywords[0], "roadmap");
+    assert.ok(!manifest.keywords.includes("prompt-engineering"));
+  });
 });

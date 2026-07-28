@@ -1,12 +1,19 @@
 ---
 name: craft-prompt
-description: Interactive prompt builder. Guides you through assembling a self-contained spawned-session prompt following Foreman's template — asks which optional sections to include, gathers required info via AskUserQuestion, assembles the XML, then runs it here as one or several tracked tasks, hands it to a background Agent, or copies it to the clipboard.
-when_to_use: Trigger when the user wants to create a task, spawn a background agent, craft a prompt for a spawned session, or says "craft a prompt", "build a prompt", "foreman prompt", "new task prompt", or invokes /foreman:craft-prompt.
+description: Advanced surface, separate from Foreman's core roadmap job — a standalone prompt builder for work that has no roadmap entry behind it. Guides you through assembling a self-contained spawned-session prompt following Foreman's template — asks which optional sections to include, gathers required info via AskUserQuestion, assembles the XML, then runs it here as one or several tracked tasks, hands it to a background Agent, or copies it to the clipboard.
+when_to_use: Trigger only on an explicit request to build or refine a standalone prompt — "craft a prompt", "build a prompt", "write me a prompt", "refine this prompt", "foreman prompt", or invokes /foreman:craft-prompt. An ordinary work request is not one of those: wanting something built, tracked, or handed to a background agent is roadmap work — it goes to the `foreman` entrance, which picks or adds the entry and builds the handoff itself.
 argument-hint: "<brief task description — optional seed>"
 allowed-tools: AskUserQuestion, TaskCreate, TaskUpdate, Agent, Read, Write, Bash, PowerShell
 ---
 
 # foreman:craft-prompt — interactive prompt builder
+
+Advanced tool, separate from Foreman's core job of keeping a project's
+roadmap honest and handing off the next task from it. Ordinary work goes
+through the `foreman` entrance, which builds its own handoff out of the
+roadmap entry — nobody has to come here for that. This skill is for the
+case with no roadmap entry behind it: a standalone prompt, asked for
+explicitly.
 
 Assemble a self-contained prompt for a spawned session following Foreman's template. The spawned session has zero memory of this conversation — every field must be filled so it can act cold.
 

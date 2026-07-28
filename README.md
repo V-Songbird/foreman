@@ -30,7 +30,7 @@ Foreman keeps the plan where the code lives: a plain-language roadmap, committed
 ## Why you'd want it
 
 - **Your plan survives you forgetting it.** The roadmap lives in your repo, committed like code. The next session picks up exactly where you left off, not from a shrug.
-- **You don't have to be good at prompting.** Every handoff prompt comes from the same template, guardrails built in. Say what you want in plain language, and Foreman does the rest.
+- **The handoff writes itself.** Every task Foreman hands off comes from the same template, guardrails built in, paths and symbols checked first. Say what you want in plain language, and Foreman does the rest.
 - **It keeps up with your commits.** After each commit, Foreman spots the task that looks finished and asks you to confirm before checking it off. Opt in, and it also flags new work the commit uncovered.
 - **It can clear a short run of work without turning into a process tool.** Ask for a small sprint, approve one plan, and review the finished entries together at the end. Still experimental.
 - **Nothing moves without you.** No task gets added, changed, or checked off behind your back, and a project you haven't set up stays untouched.
@@ -58,7 +58,7 @@ Inside Claude Code, run:
 
 Then, in each project you want a roadmap for, run `/foreman:init` once. It asks a few questions and builds the roadmap for you. That's the whole setup.
 
-Running [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush) too? Good instinct — razor keeps the code lean, hush keeps it quiet, Foreman writes the prompts.
+Running [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush) too? Good instinct — razor keeps the code lean, hush keeps it quiet, Foreman keeps the plan.
 
 ## What you can do
 
@@ -84,8 +84,12 @@ The specialized commands are still there when you'd rather skip the entrance and
 | Set up a roadmap for a project (one-time) | `/foreman:init` |
 | See the recommended next task, add one, correct one, or check status | `/foreman:roadmap` |
 | Work through a few ready tasks with one approval (experimental) | `/foreman:sprint` |
-| Build a handoff prompt for a specific task | `/foreman:craft-prompt` |
 | Double-check the top tasks against your actual code | `/foreman:survey` |
+| Build a standalone prompt for something that isn't a roadmap entry | `/foreman:craft-prompt` |
+
+That last one is a separate tool, not part of the roadmap job: it interviews
+you section by section and hands back one self-contained prompt. Roadmap work
+never needs it — the handoff for a picked task is built for you.
 
 ## Why-notes that find you later
 
@@ -121,7 +125,7 @@ We measured what a good handoff is actually worth: the same real coding jobs, ru
 
 ## Under the hood
 
-The roadmap is a plain file in your repo (field-by-field details in [`roadmap-schema.md`](roadmap-schema.md)), and every prompt Foreman assembles is structurally validated before it ships. Routine bookkeeping happens mechanically, leaving the model for work that needs judgment. Foreman pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush): razor cuts the code, hush cuts the noise, Foreman writes the prompts. Measured together, the three add no overhead to each other.
+The roadmap is a plain file in your repo (field-by-field details in [`roadmap-schema.md`](roadmap-schema.md)), and every prompt Foreman assembles is structurally validated before it ships. Routine bookkeeping happens mechanically, leaving the model for work that needs judgment. Foreman pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush): razor cuts the code, hush cuts the noise, Foreman keeps the plan. Measured together, the three add no overhead to each other.
 
 ## Scope
 
