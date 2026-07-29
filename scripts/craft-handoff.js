@@ -305,7 +305,7 @@ function checkpointEmbedText(cfg, checkCount) {
     ? `the base branch is \`${cfg.baseBranch}\``
     : "detect the base branch with `git symbolic-ref --short refs/remotes/origin/HEAD` (name after `origin/`, fallback `main`)";
   const branchAction = cfg.branch
-    ? "create `foreman/<slug>` only when starting on the base branch, otherwise checkpoint in place"
+    ? "with branch creation on, create `foreman/<slug>` only when starting on the base branch, otherwise checkpoint in place"
     : "checkpoint in place (branch creation is off)";
   const onFinishLine =
     cfg.onFinish === "ask"
@@ -314,7 +314,7 @@ function checkpointEmbedText(cfg, checkCount) {
   return [
     "Checkpoint protocol for this multi-task run (the pasted session has no Foreman scripts to call, so this rides in the prompt itself):",
     `- create one tracked task per Run:/Expected: pair (${checkCount} total) and chain each to the previous one`,
-    `- settle the branch first: ${branchLine}; with branch creation on, ${branchAction}`,
+    `- settle the branch first: ${branchLine}; ${branchAction}`,
     "- before task 1, stop if `git status --porcelain` is non-empty: say so once and make no checkpoint commits at all for this run",
     "- after each task's check passes, stage only the files that task changed (`git add -- <those paths>`, never `git add -A`) and commit `task <n>/<total>: <task subject>`; leave it local, never push",
     `- after the last task (only if this run created the branch): ${onFinishLine}`,
@@ -324,11 +324,10 @@ function checkpointEmbedText(cfg, checkCount) {
 
 // ---- the entry paragraph — id substitution, requireVerification
 // acceptance hold, decision-doc close field, executing model when given,
-// ${CLAUDE_PLUGIN_ROOT} as the literal string. Mirrors
-// skills/roadmap/SKILL.md's step-3 baked paragraph, collapsed to the one
-// concrete variant that applies (the skill's prose shows several
-// illustrative close-call shapes for a human reader; this bakes the single
-// one this handoff actually needs).
+// ${CLAUDE_PLUGIN_ROOT} as the literal string. This is the canonical copy
+// now (skills/roadmap/pick.md calls this script instead of assembling the
+// paragraph itself), collapsed to the one concrete variant that applies for
+// this handoff rather than a human-facing skill's illustrative examples.
 
 function entryParagraphText({ id, resume, requireVerification, decisionLogEnabled, isDecision, destination, model }) {
   const opening = resume
@@ -346,10 +345,18 @@ function entryParagraphText({ id, resume, requireVerification, decisionLogEnable
 
   const fields = ['"status":"<status>"', '"staged":true', '"notes":"<findings>"'];
   if (decisionLogEnabled && isDecision) fields.push('"doc":"<path or none>"');
-  if (destination === "agent" && model) fields.push(`"model":"${model}"`);
+  const modelBaked = destination === "agent" && model;
+  if (modelBaked) fields.push(`"model":"${model}"`);
   const closeCall = `\`echo '{"id":"${id}",${fields.join(",")}}' | node ${PLUGIN_ROOT}/scripts/roadmap.js update-status\``;
 
-  return [opening, beginStep, closeIntro, stageStep, closeCall].join("\n");
+  // roadmap-schema.md:112-113 — model/effort are self-reported at close,
+  // never guessed. A background-Agent dispatch already knows its model (baked
+  // above), so it only still owes effort; every other case owes both.
+  const modelEffortNote = modelBaked
+    ? "Also add `effort` to that close call — the reasoning effort you actually ran at. Omit it if you genuinely don't know rather than guessing — an absent field reads as unrecorded, a wrong one silently poisons the corpus."
+    : "Also add `model` and `effort` to that close call — what actually ran this task, not what was recommended for it. Omit either one you genuinely don't know rather than guessing — an absent field reads as unrecorded, a wrong one silently poisons the corpus.";
+
+  return [opening, beginStep, closeIntro, stageStep, closeCall, modelEffortNote].join("\n");
 }
 
 function decisionLogText(decisionLogInner, dir, entryId) {
@@ -386,6 +393,46 @@ function buildTaskRows(verification, basePrompt, entryParagraph, titleBase) {
   });
 }
 
+// ---- judgment shape — a trust boundary: the caller is a model, and a
+// malformed verification pair or example must fail loudly here rather than
+// ride through as "Run: undefined" / "Expected: undefined" /
+// "undefined → undefined" in a prompt the gate then waves through (the gate
+// checks structure, never field content).
+
+function validateJudgment(judgment) {
+  if (judgment.verification !== undefined) {
+    if (!Array.isArray(judgment.verification)) {
+      throw new Error("judgment.verification must be an array of {run, expected}");
+    }
+    judgment.verification.forEach((pair, i) => {
+      if (
+        !pair ||
+        typeof pair !== "object" ||
+        typeof pair.run !== "string" ||
+        !pair.run.trim() ||
+        typeof pair.expected !== "string" ||
+        !pair.expected.trim()
+      ) {
+        throw new Error(`judgment.verification[${i}] must be {run, expected} with non-empty strings`);
+      }
+    });
+  }
+  if (judgment.example !== undefined) {
+    const ex = judgment.example;
+    if (
+      !ex ||
+      typeof ex !== "object" ||
+      Array.isArray(ex) ||
+      typeof ex.before !== "string" ||
+      !ex.before.trim() ||
+      typeof ex.after !== "string" ||
+      !ex.after.trim()
+    ) {
+      throw new Error("judgment.example must be an object with non-empty before/after strings");
+    }
+  }
+}
+
 // ---- assembly
 
 function assemble(root, input) {
@@ -395,6 +442,7 @@ function assemble(root, input) {
     throw new Error(`destination is required and must be one of ${[...DESTINATIONS].join("|")}`);
   }
   const judgment = input.judgment || {};
+  validateJudgment(judgment);
   const record = loadRecord(root, input);
   const isEntry = Boolean(record.id);
   // [Foreman: 204] Workflow-stage flavor: no <tone>, <output_format> replaced

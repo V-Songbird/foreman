@@ -415,6 +415,108 @@ describe('decision_log and the clipboard checkpoint embed', () => {
     const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
     assert.ok(!json.prompt.includes('Checkpoint protocol for this multi-task run'));
   });
+
+  // Defect 1 (adversarial review): the branch-settling line hardcoded "with
+  // branch creation on, " ahead of branchAction, so branch:false produced
+  // "...with branch creation on, checkpoint in place (branch creation is
+  // off)" — self-contradicting.
+  test('branch:true keeps the "with branch creation on" wording', () => {
+    writeConfig(project, { checkpoints: { branch: true, onFinish: 'squash' } });
+    writeRoadmap(project, [entryFields()]);
+    const { json } = run(project, {
+      entry: '001',
+      destination: 'clipboard',
+      judgment: goodJudgment({
+        verification: [
+          { run: 'npm test -- auth', expected: 'auth tests pass' },
+          { run: 'npm test', expected: 'all tests pass' },
+        ],
+      }),
+    });
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.match(
+      json.prompt,
+      /settle the branch first: detect the base branch.*; with branch creation on, create `foreman\/<slug>`/
+    );
+  });
+
+  test('branch:false drops the "with branch creation on" clause entirely — no contradiction', () => {
+    writeConfig(project, { checkpoints: { baseBranch: 'develop', branch: false, onFinish: 'pr' } });
+    writeRoadmap(project, [entryFields()]);
+    const { json } = run(project, {
+      entry: '001',
+      destination: 'clipboard',
+      judgment: goodJudgment({
+        verification: [
+          { run: 'npm test -- auth', expected: 'auth tests pass' },
+          { run: 'npm test', expected: 'all tests pass' },
+        ],
+      }),
+    });
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.ok(!json.prompt.includes('with branch creation on'), 'branch:false must not carry the on-wording');
+    assert.match(
+      json.prompt,
+      /settle the branch first: the base branch is `develop`; checkpoint in place \(branch creation is off\)/
+    );
+  });
+});
+
+// Defect 2 (adversarial review): the baked entry paragraph dropped the
+// model/effort self-report channel roadmap-schema.md:112-113 documents.
+describe('entry paragraph — model/effort self-report channel', () => {
+  test('task/clipboard destinations get the self-report instruction for both fields', () => {
+    writeRoadmap(project, [entryFields()]);
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.match(json.prompt, /Also add `model` and `effort` to that close call — what actually ran this task/);
+  });
+
+  test('an agent destination with no confirmed model also gets the both-fields instruction', () => {
+    writeRoadmap(project, [entryFields()]);
+    const { json } = run(project, { entry: '001', destination: 'agent', judgment: goodJudgment() });
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.match(json.prompt, /Also add `model` and `effort` to that close call/);
+    assert.ok(!json.prompt.includes('"model":"'));
+  });
+
+  test('an agent destination with a confirmed model bakes it and asks only for effort', () => {
+    writeRoadmap(project, [entryFields()]);
+    const { json } = run(project, { entry: '001', destination: 'agent', model: 'sonnet', judgment: goodJudgment() });
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.match(json.prompt, /"model":"sonnet"/);
+    assert.match(json.prompt, /Also add `effort` to that close call — the reasoning effort you actually ran at/);
+    assert.ok(!json.prompt.includes('Also add `model` and `effort`'));
+  });
+});
+
+// Reviewer style note (a): a malformed judgment field must fail loudly at
+// assembly time, never ride through as "Run: undefined"/"undefined → undefined".
+describe('judgment shape validation', () => {
+  test('a verification pair missing run/expected is a clean error, never reaches the gate', () => {
+    writeRoadmap(project, [entryFields()]);
+    const { status, json } = run(project, {
+      entry: '001',
+      destination: 'clipboard',
+      judgment: goodJudgment({ verification: [{ run: 'npm test' }] }),
+    });
+    assert.equal(status, 1);
+    assert.equal(json.ok, false);
+    assert.match(json.error, /judgment\.verification\[0\]/);
+    assert.ok(!('prompt' in json), 'a validation failure must not assemble/return a prompt at all');
+  });
+
+  test('a non-object judgment.example is a clean error', () => {
+    writeRoadmap(project, [entryFields()]);
+    const { status, json } = run(project, {
+      entry: '001',
+      destination: 'clipboard',
+      judgment: goodJudgment({ example: 'before -> after' }),
+    });
+    assert.equal(status, 1);
+    assert.equal(json.ok, false);
+    assert.match(json.error, /judgment\.example/);
+  });
 });
 
 // entry 204: craft-prompt/SKILL.md's Workflow-stage output flavor needs
