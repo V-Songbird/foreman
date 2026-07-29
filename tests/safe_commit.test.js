@@ -234,6 +234,106 @@ describe('safe-commit finish staging discipline', () => {
   });
 });
 
+describe('safe-commit finish stages renames and deletions cleanly', () => {
+  // [Foreman: 121] git mv/git rm leave the old path in neither tree, so
+  // `git add` must never be asked about it -- only worktree-vs-index
+  // differences need staging; an already-staged rename or deletion rides
+  // into the commit as it sits.
+  test('a staged rename (git mv) finishes and commits cleanly', () => {
+    cleanRepo();
+    writeFile('src/a.js', 'original\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'add src/a.js');
+    const baseline = begin().baseline.head;
+    git('mv', 'src/a.js', 'src/b.js');
+
+    const { json } = run(['finish', '--baseline', baseline], {
+      id: '001',
+      expected: ['src'],
+      message_title: 'rename a to b',
+    });
+
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.deepEqual(json.files, ['src/a.js', 'src/b.js']);
+    assert.equal(git('status', '--porcelain').trim(), '', 'the tree is clean afterwards');
+    assert.equal(fs.existsSync(path.join(project, 'src', 'a.js')), false);
+    assert.equal(fs.existsSync(path.join(project, 'src', 'b.js')), true);
+  });
+
+  test('a git rm finishes cleanly', () => {
+    cleanRepo();
+    writeFile('src/a.js', 'to be removed\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'add src/a.js');
+    const baseline = begin().baseline.head;
+    git('rm', '-q', 'src/a.js');
+
+    const { json } = run(['finish', '--baseline', baseline], {
+      id: '001',
+      expected: ['src'],
+      message_title: 'remove a',
+    });
+
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.deepEqual(json.files, ['src/a.js']);
+    assert.equal(git('status', '--porcelain').trim(), '', 'the tree is clean afterwards');
+    assert.equal(fs.existsSync(path.join(project, 'src', 'a.js')), false);
+  });
+
+  test('an unstaged plain rename (delete + untracked add) still works', () => {
+    cleanRepo();
+    writeFile('src/a.js', 'to be moved\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'add src/a.js');
+    const baseline = begin().baseline.head;
+    fs.unlinkSync(path.join(project, 'src', 'a.js'));
+    writeFile('src/b.js', 'to be moved\n');
+
+    const { json } = run(['finish', '--baseline', baseline], {
+      id: '001',
+      expected: ['src'],
+      message_title: 'move a to b by hand',
+    });
+
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.deepEqual(json.files, ['src/a.js', 'src/b.js']);
+    assert.equal(git('status', '--porcelain').trim(), '', 'the tree is clean afterwards');
+  });
+
+  test('a forced git add failure reports structured ok:false instead of throwing', (t) => {
+    cleanRepo();
+    const cp = require('node:child_process');
+    const realExecFileSync = cp.execFileSync;
+    t.mock.method(cp, 'execFileSync', (file, args, options) => {
+      if (file === 'git' && Array.isArray(args) && args[0] === 'add') {
+        const error = new Error("Command failed: git add -- src/a.js");
+        error.stderr = "fatal: pathspec 'src/a.js' did not match any files\n";
+        throw error;
+      }
+      return realExecFileSync(file, args, options);
+    });
+
+    // First direct require in this file: everything else drives safe-commit.js
+    // through the CLI, so this is the one place the mocked child_process is
+    // actually captured by the module's own `git()` helper.
+    const { beginUnit, finishUnit } = require('../scripts/safe-commit');
+    const baseline = beginUnit(project).baseline.head;
+    writeFile('src/a.js', 'owned\n');
+
+    const result = finishUnit(project, {
+      id: '001',
+      expected: ['src'],
+      baseline,
+      message_title: 'do the thing',
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'staging_failed');
+    assert.match(result.error, /did not match any files/);
+    assert.equal(git('diff', '--cached', '--name-only').trim(), '', 'nothing was left staged');
+  });
+});
+
 describe('safe-commit finish commit and attestation', () => {
   test('commits the owned set with the exact trailer and attests the boundary', () => {
     cleanRepo();

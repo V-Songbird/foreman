@@ -44,8 +44,11 @@ function git(root, args) {
   return execFileSync("git", args, {
     cwd: root,
     encoding: "utf-8",
-    stdio: ["ignore", "pipe", "ignore"],
+    stdio: ["ignore", "pipe", "pipe"],
     maxBuffer: 8 * 1024 * 1024,
+    // finish runs on the close path; a hung git must not hang it -- same
+    // rationale as commit-evidence.js's read timeout.
+    timeout: 30000,
   });
 }
 
@@ -70,6 +73,19 @@ function changedSinceBaseline(root, baseline) {
 
 function stagedSince(root, baseline) {
   return zsplit(git(root, ["diff", "--cached", "--name-only", "--no-renames", "-z", baseline]));
+}
+
+// Paths that still differ between the index and the worktree: unstaged
+// changes to tracked files, plus anything git isn't tracking yet. A `git mv`
+// or `git rm` already leaves both sides agreeing, so its paths drop out of
+// this set -- which is exactly right, because `git add` on a path that lives
+// in neither tree (a rename's old name) hard-fails with "did not match any
+// files". Only this set ever needs `git add`; the rest is already staged.
+function worktreeDirty(root) {
+  return new Set([
+    ...zsplit(git(root, ["diff", "--name-only", "--no-renames", "-z"])),
+    ...zsplit(git(root, ["ls-files", "--others", "--exclude-standard", "-z"])),
+  ]);
 }
 
 // An expected entry is an area hint, exactly as `touches` is: `src/api`
@@ -199,7 +215,24 @@ function finishUnit(root, options) {
     };
   }
 
-  git(root, ["add", "--", ...changed]);
+  // Only the paths that still differ from the index need staging -- a
+  // rename's or deletion's already-staged half rides into the commit as it
+  // sits, and `git add` never has to be asked about a path that no longer
+  // exists in either tree.
+  const dirty = worktreeDirty(root);
+  const toStage = changed.filter((file) => dirty.has(file));
+  if (toStage.length) {
+    try {
+      git(root, ["add", "--", ...toStage]);
+    } catch (error) {
+      return {
+        ok: false,
+        reason: "staging_failed",
+        baseline,
+        error: error.stderr ? String(error.stderr).trim() : error.message,
+      };
+    }
+  }
   const staged = stagedSince(root, baseline);
   const strayStaged = options.allowUnexpected
     ? []
