@@ -76,6 +76,7 @@ field by convention).
 - Fixed an issue where closing a task that renamed or deleted a file (`git mv`, `git rm`) could crash the commit step outright instead of committing normally.
 - Fixed an issue where a project's own `CHANGELOG.md` was treated like Foreman's own bookkeeping files: a task closing with an edited changelog silently left it uncommitted, and a roadmap close that declared it could fail after the commit already landed. A project's changelog now commits normally; only a sprint batch still keeps it out of a worker's own commit.
 - Fixed an issue where the backup file an automatic roadmap upgrade leaves beside the roadmap could stall automated commits, or make a roadmap close refuse outright, on the exact turn the upgrade fired. That backup is now recognized as Foreman's own bookkeeping everywhere the roadmap and archive already are, and it can no longer ride into a close's commit.
+- Fixed an issue where a corrupted archive-offer state file could silence the session-start archive offer permanently instead of just for its usual re-ask window.
 
 ## [0.46.0-alpha] — 2026-07-24
 

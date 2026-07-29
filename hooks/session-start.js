@@ -111,7 +111,12 @@ function shouldOfferArchive(root, todayStr) {
   let lastDate;
   try {
     const parsed = JSON.parse(fs.readFileSync(p, "utf-8"));
-    if (parsed && typeof parsed.date === "string") lastDate = parsed.date;
+    // An unparseable stored date must fail open the same as a missing file —
+    // daysBetween's NaN guard returns 0, and `0 < RENUDGE_DAYS` would
+    // otherwise suppress the offer forever without ever rewriting it.
+    if (parsed && typeof parsed.date === "string" && Number.isFinite(new Date(parsed.date).getTime())) {
+      lastDate = parsed.date;
+    }
   } catch {
     // missing or corrupt state — fail open, offer again
   }

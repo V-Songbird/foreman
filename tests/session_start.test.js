@@ -162,4 +162,19 @@ describe('session-start archive offer', () => {
     const out = run({ source: 'startup' });
     assert.match(out, /20 finished entries/);
   });
+
+  // [Foreman: 202] Valid JSON with an unparseable `date` must not fail closed
+  // forever: daysBetween's NaN guard reads a garbage date as "0 days ago",
+  // which would otherwise suppress the offer without ever rewriting the state.
+  test('a garbage stored date fails open — offers anyway and rewrites the state', () => {
+    writeRoadmap(project, terminalEntries(20));
+    const statePath = archiveOfferStatePath(project);
+    fs.writeFileSync(statePath, JSON.stringify({ date: 'garbage-not-a-date' }), 'utf-8');
+
+    const out = run({ source: 'startup' });
+    assert.match(out, /20 finished entries/);
+
+    const rewritten = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+    assert.equal(rewritten.date, localToday());
+  });
 });
