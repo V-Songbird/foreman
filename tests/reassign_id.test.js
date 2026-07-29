@@ -50,8 +50,9 @@ function writeArchiveFile(entries) {
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(
     path.join(dir, 'archive.jsonl'),
-    // Stamped like the roadmap: a two-file mutation refuses an unmigrated
-    // archive before it writes anything. [Foreman: 130]
+    // Stamped like the roadmap: an unstamped one would auto-migrate on the
+    // first write and add an unrelated "migrated" field these tests don't
+    // assert on. [Foreman: 130]
     ['{"foreman_roadmap_format":2}', ...entries.map((e) => JSON.stringify(e))].join('\n') + '\n',
     'utf-8'
   );

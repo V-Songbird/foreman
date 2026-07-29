@@ -8,6 +8,9 @@
 //   - a stamped file reads fine and survives a mutation with exactly one
 //     marker, still first
 //   - any mutation stamps an implicit file
+//   - a mutation on a file below the current format migrates it first (same
+//     backup-then-rewrite `migrate` performs) and reports it as `migrated`;
+//     a second mutation on the now-current file does not migrate again
 //   - a version newer than this Foreman fails every subcommand with one
 //     clear message naming both versions and the fix
 //   - a malformed marker is a doctor error naming `migrate`, and broken JSON
@@ -122,26 +125,63 @@ describe('an unversioned roadmap is format 1', () => {
     assert.deepEqual(json.findings, []);
   });
 
-  // [Foreman: 130] A mutation no longer stamps an unversioned file: format 2
-  // changed the entry shape, so rewriting one would convert every line with
-  // no backup taken. `migrate` is that rewrite now, and the refusal says so.
-  test('a mutation is refused and names migrate', () => {
+  // [Foreman: 130] A mutation on an unversioned file now migrates it first,
+  // automatically — format 2 changed the entry shape, so applying the
+  // mutation on top means the write has to happen on the current shape
+  // either way, and refusing it only ever meant the caller ran `migrate` by
+  // hand first. The auto-migration takes the same backup `migrate` would.
+  test('a mutation migrates the file first, backup and all, then applies', () => {
     writeV1([v1Entry('001')]);
     const before = fs.readFileSync(roadmapFile(), 'utf-8');
     const { status, json } = run(['update-status'], { id: '001', status: 'in_progress' });
-    assert.equal(status, 1);
-    assert.match(json.error, /roadmap\.js migrate/);
-    assert.equal(fs.readFileSync(roadmapFile(), 'utf-8'), before);
+    assert.equal(status, 0);
+    assert.equal(json.entry.status, 'in_progress');
+    assert.equal(json.migrated.from, 1);
+    assert.equal(json.migrated.to, 2);
+    assert.equal(fs.existsSync(json.migrated.backup), true);
+    assert.equal(fs.readFileSync(json.migrated.backup, 'utf-8'), before);
+    assert.notEqual(fs.readFileSync(roadmapFile(), 'utf-8'), before);
   });
 
-  test('once migrated, every mutation stamps the marker as the first line', () => {
+  test('every mutation on a migrated file stamps the marker as the first line', () => {
     writeV1([v1Entry('001')]);
-    run(['migrate']);
     run(['update-status'], { id: '001', status: 'in_progress' });
     const lines = readLines();
     assert.equal(lines[0], META);
     assert.equal(lines.length, 2);
     assert.equal(JSON.parse(lines[1]).status, 'in_progress');
+  });
+
+  test('a legacy touches entry survives an add, split into planned/observed', () => {
+    writeV1([v1Entry('001', { touches: ['src/a.ts'] })]);
+    const { status, json } = run(['add'], { title: 'next', why: 'w', what: 'x', source: 'user' });
+    assert.equal(status, 0);
+    assert.equal(json.migrated.from, 1);
+    const rows = readLines().slice(1).map((line) => JSON.parse(line));
+    assert.deepEqual(rows[0].planned_touches, ['src/a.ts']);
+    assert.deepEqual(rows[0].observed_touches, []);
+    assert.equal('touches' in rows[0], false);
+    assert.equal(rows[1].id, '002');
+  });
+
+  test('correct on a v1 file migrates first, then applies', () => {
+    writeV1([v1Entry('001')]);
+    const { status, json } = run(['correct'], {
+      id: '001',
+      expected_updated_at: '2026-07-01',
+      what: 'reworded',
+    });
+    assert.equal(status, 0);
+    assert.equal(json.entry.what, 'reworded');
+    assert.equal(json.migrated.from, 1);
+  });
+
+  test('a second mutation does not migrate again', () => {
+    writeV1([v1Entry('001')]);
+    const first = run(['update-status'], { id: '001', status: 'in_progress' }).json;
+    assert.equal(first.migrated.from, 1);
+    const second = run(['annotate'], { id: '001', notes: 'a breadcrumb' }).json;
+    assert.equal('migrated' in second, false);
   });
 });
 

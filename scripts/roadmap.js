@@ -166,8 +166,9 @@ function readEntriesFrom(file, label) {
   // [Foreman: 130] Reading an older format is normalization, not migration:
   // callers always see the current entry shape, and the FILE is untouched.
   // That keeps every read-only command (list, next-candidates, doctor, the
-  // hooks) working on an unmigrated roadmap, while writes still refuse it —
-  // `migrate` stays the only thing that rewrites the file, with a backup.
+  // hooks) working on an unmigrated roadmap. [Foreman: 130] A write is what
+  // finally rewrites the file, migrating it first, with a backup — see
+  // migrateIfNeeded.
   return upgradeEntries(entries, format);
 }
 
@@ -312,52 +313,62 @@ function writeEntriesTo(file, label, entries, read, resolve) {
 
 // [Foreman: 130] The one place a write can tell "this file is still an older
 // format" — every mutation lands in writeEntries/writeArchive. Reading an old
-// file is fine (readEntriesFrom normalizes it); rewriting one is not, because
-// the rewrite would silently convert every line with no backup behind it.
-// `migrate` is that rewrite, and it says so. A file that does not exist yet
-// (or is empty) has nothing to migrate, so a first write is never blocked.
+// file is fine (readEntriesFrom normalizes it). A file that does not exist
+// yet (or is empty) has nothing to migrate, so a first write is never
+// blocked or backed up.
 function fileFormat(file) {
   if (!fs.existsSync(file)) return CURRENT_ROADMAP_FORMAT;
   const text = fs.readFileSync(file, "utf-8");
   return text.trim() ? declaredFormat(text) : CURRENT_ROADMAP_FORMAT;
 }
 
-function migrateRequiredError(file, label) {
-  const err = new Error(
-    `${label} is format version ${fileFormat(file)}, and this Foreman writes format `
-      + `${CURRENT_ROADMAP_FORMAT} — run "roadmap.js migrate" once (it backs the file up first, `
-      + "and is safe to repeat), then re-run this command. Reading an unmigrated file works; "
-      + "writing one does not, so nothing rewrites it behind your back."
-  );
-  err.code = "FOREMAN_ROADMAP_MIGRATE_REQUIRED";
-  err.found = fileFormat(file);
-  err.supported = CURRENT_ROADMAP_FORMAT;
-  return err;
+// [Foreman: 130] Rewriting an older file used to be refused outright, naming
+// `migrate` as the fix — but every roadmap Foreman ever wrote before the
+// marker existed IS format 1, so that refusal fired on the very first
+// mutation after every existing install upgraded, with no skill in the loop
+// to explain it. Writing one now migrates it first instead: the same
+// backup-then-rewrite `migrate` performs (via migrateFile, defined below,
+// which this forward-references — safe, since function declarations are
+// hoisted and nothing calls this before the module has fully loaded), run
+// automatically under the same mutation lock the write already holds. Format
+// 1 covers absence AND a malformed/misplaced marker (both read as 1 — see
+// declaredFormat), so a damaged marker self-heals on the next mutation too,
+// exactly as an explicit `migrate` would fix it. `migrate` stays available
+// for a caller who wants the upgrade done up front, with nothing else
+// changing.
+function migrateIfNeeded(root) {
+  const rp = roadmapPath(root);
+  const ap = archivePath(root);
+  const roadmap = fileFormat(rp) < CURRENT_ROADMAP_FORMAT
+    ? migrateFile(rp, () => readEntries(root), (entries) =>
+        writeEntries(root, entries, archiveResolver(root), { migrating: true }))
+    : null;
+  const archive = fileFormat(ap) < CURRENT_ROADMAP_FORMAT
+    ? migrateFile(ap, () => readArchive(root), (entries) =>
+        writeArchive(root, entries, { migrating: true }))
+    : null;
+  if (!roadmap && !archive) return undefined;
+  return {
+    ...(roadmap ? { from: roadmap.from, to: CURRENT_ROADMAP_FORMAT, backup: roadmap.backup } : {}),
+    ...(archive ? { archive: { from: archive.from, backup: archive.backup } } : {}),
+  };
 }
 
-function assertMigrated(file, label) {
-  if (fileFormat(file) < CURRENT_ROADMAP_FORMAT) throw migrateRequiredError(file, label);
-}
-
-// The two-file mutations (archive/restore, reassign-id) write one file and
-// then the other, so both have to be checked BEFORE the first write — a
-// refusal halfway through would leave the move half-done for a reason that
-// was knowable up front.
-function assertBothMigrated(root) {
-  assertMigrated(roadmapPath(root), "ROADMAP.jsonl");
-  assertMigrated(archivePath(root), ARCHIVE_LABEL);
-}
-
-// `migrating: true` is migrate's own write — the one rewrite allowed to start
-// from an older file, and the only one that took a backup first.
+// `migrating: true` is migrate's (and migrateIfNeeded's) own write — the one
+// rewrite allowed to start from an older file, and the only one that took a
+// backup first. Both return the migration facts (or undefined when the file
+// was already current) so the caller can fold `migrated` into its own
+// result instead of it happening invisibly.
 function writeEntries(root, entries, resolve = archiveResolver(root), options = {}) {
-  if (!options.migrating) assertMigrated(roadmapPath(root), "ROADMAP.jsonl");
+  const migrated = options.migrating ? undefined : migrateIfNeeded(root);
   writeEntriesTo(roadmapPath(root), "ROADMAP.jsonl", entries, () => readEntries(root), resolve);
+  return migrated;
 }
 
 function writeArchive(root, entries, options = {}) {
-  if (!options.migrating) assertMigrated(archivePath(root), ARCHIVE_LABEL);
+  const migrated = options.migrating ? undefined : migrateIfNeeded(root);
   writeEntriesTo(archivePath(root), ARCHIVE_LABEL, entries, () => readArchive(root), activeResolver(root));
+  return migrated;
 }
 
 // The one definition of an id's shape, for every script and hook that parses
@@ -737,12 +748,13 @@ function cmdAddUnlocked(root, payload) {
     ...(kind === "decision" ? { kind } : {}),
   };
   entries.push(entry);
-  writeEntries(root, entries, otherFileResolver(() => archived));
+  const migrated = writeEntries(root, entries, otherFileResolver(() => archived));
   const warnings = fieldWarnings([
     ["why", why, WHY_WARN_CHARS],
     ["what", what, WHAT_WARN_CHARS],
   ]);
-  return warnings.length ? { entry, warnings } : { entry };
+  const result = migrated ? { entry, migrated } : { entry };
+  return warnings.length ? { ...result, warnings } : result;
 }
 
 // Best-effort: git already has the definitive file list for a commit, more
@@ -1071,9 +1083,10 @@ function cmdUpdateStatusUnlocked(root, payload) {
     entry.notes = appendNote(entry.notes, note);
   }
   entry.updated_at = today();
-  writeEntries(root, entries, resolve);
+  const migrated = writeEntries(root, entries, resolve);
   const warnings = notes ? fieldWarnings([["notes", notes, NOTES_APPEND_WARN_CHARS, NOTES_WARN_HINT]]) : [];
   const result = { entry, ...graphFacts(beforeEntries, entries, { omit: [id], resolve }) };
+  if (migrated) result.migrated = migrated;
   if (derivedTouches.length) result.derived_touches = derivedTouches;
   if (drift && (drift.untouched.length || drift.unpredicted.length)) result.scope_drift = drift;
   // A staged close hands back the exact trailer line the commit message
@@ -1101,9 +1114,10 @@ function cmdAnnotateUnlocked(root, payload) {
   // append-only invariant: never replace existing notes
   entry.notes = appendNote(entry.notes, notes);
   entry.updated_at = today();
-  writeEntries(root, entries);
+  const migrated = writeEntries(root, entries);
   const warnings = fieldWarnings([["notes", notes, NOTES_APPEND_WARN_CHARS, NOTES_WARN_HINT]]);
-  return warnings.length ? { entry, warnings } : { entry };
+  const result = migrated ? { entry, migrated } : { entry };
+  return warnings.length ? { ...result, warnings } : result;
 }
 
 // True if starting from startId and walking depends_on chains reaches
@@ -1171,8 +1185,9 @@ function cmdUpdateDepsUnlocked(root, payload) {
     if (!entry.depends_on.includes(dep)) entry.depends_on.push(dep);
   }
   entry.updated_at = today();
-  writeEntries(root, entries, resolve);
-  return { entry, ...graphFacts(beforeEntries, entries, { resolve }) };
+  const migrated = writeEntries(root, entries, resolve);
+  const result = { entry, ...graphFacts(beforeEntries, entries, { resolve }) };
+  return migrated ? { ...result, migrated } : result;
 }
 
 // The fields a stale plan gets wrong that no other command can repair:
@@ -1292,9 +1307,10 @@ function cmdCorrectUnlocked(root, payload) {
   }
   // A correction that changes nothing writes nothing — including updated_at,
   // which is the very value every other session's guard is holding.
+  let migrated;
   if (changed.length) {
     entry.updated_at = today();
-    writeEntries(root, entries, resolve);
+    migrated = writeEntries(root, entries, resolve);
   }
   const warnings = fieldWarnings([
     ["why", text.why, WHY_WARN_CHARS],
@@ -1303,6 +1319,7 @@ function cmdCorrectUnlocked(root, payload) {
   // No correctable field touches status or depends_on, so these are always
   // empty today. Wired anyway so a later correctable field inherits it.
   const result = { entry, changed, ...graphFacts(beforeEntries, entries, { resolve }) };
+  if (migrated) result.migrated = migrated;
   return warnings.length ? { ...result, warnings } : result;
 }
 
@@ -1712,7 +1729,6 @@ function moveEntries(root, payload, direction) {
   if (!Array.isArray(ids) || !ids.length || ids.some((id) => typeof id !== "string" || !id)) {
     throw new Error(`${direction} requires ids: a non-empty array of entry ids`);
   }
-  assertBothMigrated(root);
   const archiving = direction === "archive";
   const source = archiving ? readEntries(root) : readArchive(root);
   const destination = archiving ? readArchive(root) : readEntries(root);
@@ -1755,20 +1771,25 @@ function moveEntries(root, payload, direction) {
   const remaining = source.filter((entry) => !keep.has(entry.id));
   const combined = [...destination, ...moving];
   // Destination first, always — the entry is duplicated for an instant
-  // rather than at risk of existing nowhere.
+  // rather than at risk of existing nowhere. Both writes run migrateIfNeeded,
+  // but only the first ever finds anything left to do — the second sees an
+  // already-current file and reports nothing.
+  let migrated;
   if (archiving) {
-    if (moving.length) writeArchive(root, combined);
-    writeEntries(root, remaining);
+    if (moving.length) migrated = writeArchive(root, combined);
+    migrated = writeEntries(root, remaining) || migrated;
   } else {
-    if (moving.length) writeEntries(root, combined);
-    writeArchive(root, remaining);
+    if (moving.length) migrated = writeEntries(root, combined);
+    migrated = writeArchive(root, remaining) || migrated;
   }
 
-  return {
+  const result = {
     [archiving ? "archived" : "restored"]: wanted,
     active_count: archiving ? remaining.length : combined.length,
     archived_count: archiving ? combined.length : remaining.length,
   };
+  if (migrated) result.migrated = migrated;
+  return result;
 }
 
 function cmdArchive(root, payload) {
@@ -1814,7 +1835,6 @@ function cmdReassignIdUnlocked(root, payload) {
   if (typeof keep !== "string" || !keep) {
     throw new Error("reassign-id requires keep: the exact title of the holder that keeps the id");
   }
-  assertBothMigrated(root);
   const active = readEntries(root);
   const archived = readArchive(root);
   // File order, active file first -- the renumbering has to be reproducible,
@@ -1880,11 +1900,14 @@ function cmdReassignIdUnlocked(root, payload) {
     holder.entry.updated_at = date;
     return { from: id, to, title: holder.entry.title, trailer_commits: trailers };
   });
+  let migrated;
   if (others.some((holder) => !holder.archived)) {
-    writeEntries(root, active, otherFileResolver(() => archived));
+    migrated = writeEntries(root, active, otherFileResolver(() => archived));
   }
-  if (others.some((holder) => holder.archived)) writeArchive(root, archived);
-  return {
+  if (others.some((holder) => holder.archived)) {
+    migrated = writeArchive(root, archived) || migrated;
+  }
+  const result = {
     kept: { id, title: kept.entry.title },
     reassigned,
     // Every entry still pointing at the id -- which now unambiguously means
@@ -1894,6 +1917,8 @@ function cmdReassignIdUnlocked(root, payload) {
       .filter((entry) => entry && Array.isArray(entry.depends_on) && entry.depends_on.includes(id))
       .map((entry) => entry.id),
   };
+  if (migrated) result.migrated = migrated;
+  return result;
 }
 
 function backupStamp(date = new Date()) {
@@ -2003,10 +2028,12 @@ function cmdDoctor(root, flags) {
     const fixed = applyRepairs(entries, validateEntries(entries, { resolve }));
     // The write gate tolerates what the file already had, so a partial
     // repair is never blocked by the damage it cannot fix.
-    if (fixed.length) writeEntries(root, entries, resolve);
+    const migrated = fixed.length ? writeEntries(root, entries, resolve) : undefined;
     // Re-validate from disk, not from memory — the report describes the file
     // that now exists.
-    return { ...summarize(allFindings(root)), fixed };
+    const result = { ...summarize(allFindings(root)), fixed };
+    if (migrated) result.migrated = migrated;
+    return result;
   });
 }
 
@@ -2023,7 +2050,10 @@ function readStdinJSON() {
 
 const USAGE = `roadmap.js -- mechanical CRUD for ROADMAP.jsonl. Every call
 prints one JSON line to stdout: {"ok":true, ...} on success,
-{"ok":false,"error":"..."} (exit 1) on failure.
+{"ok":false,"error":"..."} (exit 1) on failure. Any mutating subcommand run
+against a file below the current format migrates it first (see "migrate"
+below) and adds a "migrated" field ({from, to, backup}) to its own result --
+absent when the file was already current.
 
   add               stdin JSON: {title, why, what, source, depends_on?, planned_touches?, notes?, status?, doc?, kind?}
                     source: "user" | "claude-suggested"
@@ -2260,9 +2290,12 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
                     mechanical and runs no git -- the whole old array becomes
                     planned_touches and observed_touches starts empty.
                     READING an older file still works everywhere (it is
-                    normalized in memory, the file is untouched); WRITING to
-                    one is refused with one error naming migrate, so nothing
-                    converts the file without a backup behind it.
+                    normalized in memory, the file is untouched). WRITING to
+                    one -- any mutation, not just this subcommand -- migrates
+                    it first automatically, same backup and all, and reports
+                    it as a "migrated" field on that mutation's own result;
+                    this subcommand stays the way to do the same upgrade
+                    explicitly, with nothing else changing.
                     When it does change a file it first copies it to
                     <file>.backup-<YYYYMMDD-HHmmss> and returns that
                     path as "backup". Holds the same mutation lock as every

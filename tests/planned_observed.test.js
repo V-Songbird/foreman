@@ -9,7 +9,8 @@
 //     is upgraded with a backup of its own, and the whole thing is repeat-safe
 //   - a format-1 file still READS everywhere (list/next-candidates/doctor),
 //     normalized in memory, with the file left byte-identical
-//   - every WRITE on a format-1 file is refused with one error naming migrate
+//   - every WRITE on a format-1 file migrates it first (same backup, same
+//     rewrite `migrate` performs), reports the migration, then applies
 //   - a close folds derived files into observed_touches only; the prediction
 //     is never touched, and scope drift still measures prediction vs derived
 //     (prefix-aware in both directions)
@@ -218,7 +219,7 @@ describe('a format-1 file still reads, unmigrated', () => {
   });
 });
 
-describe('a format-1 file refuses every write', () => {
+describe('a format-1 file migrates automatically on the first write', () => {
   const mutations = [
     [['add'], { title: 'new', why: 'w', what: 'x', source: 'user' }],
     [['update-status'], { id: '001', status: 'done' }],
@@ -229,41 +230,49 @@ describe('a format-1 file refuses every write', () => {
   ];
 
   for (const [argv, stdinData] of mutations) {
-    test(`${argv[0]} names migrate and writes nothing`, () => {
+    test(`${argv[0]} migrates first, then applies`, () => {
       writeV1([v1Entry('001'), v1Entry('002', { status: 'done', commits: ['a1'] })]);
-      const before = fs.readFileSync(roadmapFile(), 'utf-8');
 
       const { status, json } = run(argv, stdinData);
-      assert.equal(status, 1);
-      assert.equal(json.ok, false);
-      assert.match(json.error, /format version 1/);
-      assert.match(json.error, /roadmap\.js migrate/);
-      assert.equal(fs.readFileSync(roadmapFile(), 'utf-8'), before);
+      assert.equal(status, 0);
+      assert.equal(json.ok, true);
+      assert.equal(json.migrated.from, 1);
+      assert.equal(json.migrated.to, 2);
+      assert.equal(fs.existsSync(json.migrated.backup), true);
+      assert.equal(lines(roadmapFile())[0], META);
     });
   }
 
-  test('an unmigrated ARCHIVE stops a two-file move before either file is written', () => {
-    // The roadmap alone is current, so only the archive is behind. The move
-    // writes the destination first, and a refusal partway would leave the id
-    // in both files.
+  test('an unmigrated ARCHIVE is migrated too, as part of a two-file move', () => {
+    // The roadmap alone is current, so only the archive is behind.
     writeRoadmap(project, [{ ...v1Entry('001', { status: 'done', commits: ['a1'] }) }]);
     writeV1Archive([v1Entry('002', { status: 'done', commits: ['a2'] })]);
-    const before = fs.readFileSync(archiveFile(), 'utf-8');
 
     const { status, json } = run(['archive'], { ids: ['001'] });
-    assert.equal(status, 1);
-    assert.match(json.error, /archive\.jsonl is format version 1/);
-    assert.equal(fs.readFileSync(archiveFile(), 'utf-8'), before);
-    // and the roadmap still holds the entry that never moved
-    assert.deepEqual(run(['list']).json.entries.map((e) => e.id), ['001']);
+    assert.equal(status, 0);
+    assert.equal(json.migrated.archive.from, 1);
+    assert.equal(fs.existsSync(json.migrated.archive.backup), true);
+    assert.equal(lines(archiveFile())[0], META);
+    // the roadmap moved on to the archive, same as any successful archive
+    assert.deepEqual(run(['list']).json.entries, []);
   });
 
-  test('migrate then the same mutation succeeds', () => {
+  test('a second mutation does not migrate again', () => {
+    writeV1([v1Entry('001')]);
+    const first = run(['update-status'], { id: '001', status: 'in_progress' }).json;
+    assert.equal(first.migrated.from, 1);
+
+    const second = run(['annotate'], { id: '001', notes: 'again' }).json;
+    assert.equal('migrated' in second, false);
+  });
+
+  test('migrate then the same mutation succeeds, with nothing left to migrate', () => {
     writeV1([v1Entry('001')]);
     assert.equal(run(['migrate']).json.changed, true);
     const { status, json } = run(['update-status'], { id: '001', status: 'in_progress' });
     assert.equal(status, 0);
     assert.equal(json.entry.status, 'in_progress');
+    assert.equal('migrated' in json, false);
   });
 });
 

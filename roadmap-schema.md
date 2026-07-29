@@ -69,11 +69,12 @@ array becomes `planned_touches`, `observed_touches` starts empty — so `list`,
 `next-candidates`, `doctor` and the hooks all work on an unmigrated roadmap
 and the file on disk is left byte-identical.
 
-**Writing to one is refused.** Any mutation on a file below the current
-format returns a single error (`FOREMAN_ROADMAP_MIGRATE_REQUIRED`) naming
-`migrate` as the fix. Rewriting the file is what converts every line, and
-that only happens where a backup is taken first — which is `migrate`, and
-nothing else.
+**Writing to one migrates it first, automatically.** Any mutation on a file
+below the current format runs the same backup-then-rewrite `migrate`
+performs before applying the change, and folds a `migrated` field
+(`{from, to, backup}`) into that mutation's own result. `migrate` stays
+available for a caller who wants the same upgrade done explicitly, up
+front, with nothing else changing.
 
 `migrate` brings **both** files — `ROADMAP.jsonl` and `.foreman/archive.jsonl`
 when the project has one — up to the current format, each with its own
