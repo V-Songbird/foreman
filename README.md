@@ -71,7 +71,7 @@ Talk to Foreman. That's the whole interface — one entrance, plain language, no
 
 Two ways to get a task, and the cheap one is the default:
 
-- **Fast pick** — ask "what's next" and Foreman orders the roadmap it already has, recommends one, and hands you a ready-to-run prompt. It reads no code, so it costs next to nothing.
+- **Fast pick** — ask "what's next" and Foreman orders the roadmap it already has, recommends one, and hands you a ready-to-run prompt. It reads no code — about 9.7k tokens of instructions before it ranks anything, measured in [`R-004-instruction-load`](benchmarks/records/R-004-instruction-load.json).
 - **Reconcile and pick** — the near-term tasks get checked against your actual code first, you approve each repair one at a time, and the pick then runs on a roadmap that was just corrected. Ask for it and it happens; Foreman never starts it on its own, because it costs real tokens.
 
 Editing the roadmap file by hand defeats the point, so don't.
@@ -113,9 +113,12 @@ number doesn't say. A claim without a record doesn't ship, and
 `node benchmarks/records/validate-records.js` fails if a fixture has been
 edited out from under one.
 
-One record is published today:
-[`R-005-prompt-overhead`](benchmarks/records/R-005-prompt-overhead.json).
-A routine handoff carries **68 fixed guardrail words** where the full-strength
+Two records are published today.
+[`R-004-instruction-load`](benchmarks/records/R-004-instruction-load.json):
+a Fast pick loads about **9.7k est. tokens** of instructions before ranking a
+single entry, a static count over the files that flow reads.
+[`R-005-prompt-overhead`](benchmarks/records/R-005-prompt-overhead.json):
+a routine handoff carries **68 fixed guardrail words** where the full-strength
 one carries **567** — a static count over
 [`prompt-template.md`](prompt-template.md), which says nothing about session
 cost or output quality on its own.
