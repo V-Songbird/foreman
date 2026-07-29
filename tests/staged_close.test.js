@@ -6,9 +6,10 @@
 //     ROADMAP.jsonl itself, returns the trailer line, and records no sha
 //   - staged and commit are mutually exclusive
 //   - trailerIdsIn parses trailer lines, not anchor comments or prose
-//   - post-commit.js: a done-today entry named by HEAD's trailer gets no
-//     follow-up nudge (this commit IS its close); an in_progress entry
-//     named by the trailer is tagged as the one this commit completes
+//   - post-commit.js: a done-today or awaiting_acceptance entry named by
+//     HEAD's trailer gets no follow-up nudge (this commit IS its close, or
+//     its acceptance record); an in_progress entry named by the trailer is
+//     tagged as the one this commit completes
 //   - task-completed.js decision-log audit resolves trailer-linked commits
 //     when commits[] is empty, instead of skipping the anchor check
 
@@ -144,7 +145,7 @@ describe('trailer parsing', () => {
 });
 
 describe('post-commit.js trailer behavior', () => {
-  // [Foreman: 190] The hook resolves which repo scope the commit's own cwd
+  // [Foreman: 193] The hook resolves which repo scope the commit's own cwd
   // belongs to before reading anything — every test here already calls
   // initGitRepo(project) first, so cwd: project lands on the root scope.
   function bashPayload(command) {
@@ -182,6 +183,18 @@ describe('post-commit.js trailer behavior', () => {
     writeFile('src/thing.js', 'x\n');
     commitAllWithMessage('finish it\n\nForeman: 001');
     assert.match(runHook(), /named in this commit's Foreman: trailer/);
+  });
+
+  // [Foreman: 194] Same trailer exclusion as a done-today entry: the
+  // trailer commit IS the acceptance-recording commit, so it needs no
+  // separate follow-up nudge.
+  test('an awaiting_acceptance entry named by HEAD trailer gets no follow-up nudge', () => {
+    initGitRepo(project);
+    writeConfig(project, { discoverySuggestions: false });
+    writeRoadmap(project, [entry('001', 'awaiting_acceptance')]);
+    writeFile('src/thing.js', 'x\n');
+    commitAllWithMessage('record the follow-up\n\nForeman: 001');
+    assert.equal(runHook(), '');
   });
 });
 

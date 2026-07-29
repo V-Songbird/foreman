@@ -71,6 +71,7 @@ field by convention).
 - Fixed an issue where two same-day corrections to the same task could silently overwrite each other: correcting a task now also requires your own view of the current wording for each field you're changing, and a mismatch is refused with the same re-read-and-retry message as a stale correction.
 - Fixed an issue where a `git commit` made outside the current project — in an unrelated repository elsewhere on disk — could still be read against this project's roadmap. The after-commit check now confirms the commit actually landed in the project or one of its submodules before reading anything, and stays silent otherwise.
 - Fixed an issue where a commit made inside a submodule was tagged and trailer-matched against the parent repository's last commit instead of its own — the after-commit check now reads the commit's own repository.
+- Fixed an issue where a follow-up fix committed while a task sat waiting on your acceptance got no nudge and its commit was silently lost — the after-commit check now also watches tasks awaiting acceptance, however long they've been waiting, the same way it already watched tasks finished earlier that day.
 
 ## [0.46.0-alpha] — 2026-07-24
 

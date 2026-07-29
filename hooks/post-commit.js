@@ -221,10 +221,11 @@ const OVERLAP_CAVEAT =
   "prediction, so a task tagged no-overlap can still be the one this commit completes.)";
 
 // Two independent triggers, since a task stops getting any nudge the moment
-// it's marked done — real usage showed a same-day follow-up bugfix commit
-// (found right after finishing a task, before moving on) silently loses its
-// SHA with no signal at all, unlike an in_progress task which still nudges.
-// Passing commit also auto-folds that commit's actual changed files into
+// it leaves in_progress — real usage showed a follow-up bugfix commit
+// (found right after finishing a task, before moving on, or while the task
+// still sits awaiting acceptance) silently loses its SHA with no signal at
+// all, unlike an in_progress task which still nudges. Passing commit also
+// auto-folds that commit's actual changed files into
 // observed_touches (roadmap.js runs `git show` itself) — the entry's
 // prediction was set once, from whatever investigation happened before the
 // task started, and only the close records what the work actually reached.
@@ -286,18 +287,28 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
     }
   }
   if (freshlyDone.length) {
-    const list = freshlyDone.map((e) => `${e.id} ("${e.title}")`).join(", ");
+    // [Foreman: 194] The population mixes two statuses now (done-today and
+    // awaiting_acceptance, which can linger days), so a single blanket
+    // "status":"done" would wrongly close an awaiting entry just for
+    // carrying a follow-up SHA. Each id is tagged with its own current
+    // status so the pairing stays unambiguous — that status is what the
+    // recording command must keep, not overwrite.
+    const list = freshlyDone.map((e) => `${e.id} ("${e.title}", status: ${e.status})`).join(", ");
     parts.push(
-      `This commit might also be a follow-up fix for a task already marked done ` +
-        `earlier today (${list}) — a bugfix right after finishing a task is easy to ` +
-        "lose track of, since nothing nudges about a task once it's done. If this " +
-        "commit actually relates to one of those, append its SHA rather than " +
-        "letting it go unrecorded: run `git rev-parse --short HEAD`, then " +
-        `echo '{"id":"<id>","status":"done","commit":"<sha>"}' | node ${SCRIPT_PATH} update-status ` +
-        "(same status — this only adds the SHA, and auto-folds this commit's " +
-        "changed files into observed_touches; commits[] and observed_touches both only grow, never " +
-        "shrink). Most commits won't relate to an already-done task — say nothing " +
-        "if this one doesn't."
+      `This commit might also be a follow-up fix for a task that recently ` +
+        `finished its work — marked done earlier today, or still waiting on ` +
+        `your acceptance (${list}) — a bugfix right after finishing a task is ` +
+        "easy to lose track of, since nothing else nudges about a task once it " +
+        "leaves in_progress. If this commit actually relates to one of those, " +
+        "append its SHA rather than letting it go unrecorded: run " +
+        "`git rev-parse --short HEAD`, then, keeping the status shown above " +
+        "for that id (an awaiting_acceptance entry must stay " +
+        "awaiting_acceptance — recording a follow-up SHA does not close it): " +
+        `echo '{"id":"<id>","status":"<its status above>","commit":"<sha>"}' | node ${SCRIPT_PATH} update-status ` +
+        "(only adds the SHA, and auto-folds this commit's changed files into " +
+        "observed_touches; commits[] and observed_touches both only grow, never " +
+        "shrink). Most commits won't relate to an already-finished task — say " +
+        "nothing if this one doesn't."
     );
   }
   return "[Foreman] " + parts.join(" ");
@@ -430,17 +441,26 @@ function main() {
   const todayStr = today();
   const inProgress = entries.filter((e) => e.status === "in_progress");
   // A `Foreman: <id>` trailer in the just-landed commit's message is a
-  // staged close's link. A done-today entry it names needs no follow-up
-  // nudge — this commit IS its closing commit, and appending the sha
-  // would re-dirty the roadmap the staged close just kept clean. Later
-  // commits (no trailer for it) still nudge as before.
+  // staged close's link. An entry it names needs no follow-up nudge — this
+  // commit IS its closing (or acceptance-recording) commit, and appending
+  // the sha would re-dirty the roadmap the staged close just kept clean.
+  // Later commits (no trailer for it) still nudge as before.
+  //
+  // [Foreman: 194] `awaiting_acceptance` sits in neither the in_progress nor
+  // the done-today population under the default requireVerification:true
+  // config, so a follow-up fix commit landing while an entry waits on
+  // acceptance got no nudge at all and its SHA was silently lost — exactly
+  // the gap this nudge exists to close. Included regardless of date: unlike
+  // done-today, an entry can sit awaiting acceptance for days.
   const doneTodayAll = entries.filter((e) => e.status === "done" && e.updated_at === todayStr);
-  const trailerIds = inProgress.length || doneTodayAll.length ? headTrailerIds(scope.cwd) : [];
-  const doneToday = doneTodayAll.filter((e) => !trailerIds.includes(e.id));
-  const unnudged = doneToday.length
-    ? filterUnnudged(root, doneToday.map((e) => e.id), todayStr)
+  const awaitingAll = entries.filter((e) => e.status === "awaiting_acceptance");
+  const followUpAll = [...doneTodayAll, ...awaitingAll];
+  const trailerIds = inProgress.length || followUpAll.length ? headTrailerIds(scope.cwd) : [];
+  const followUpUntagged = followUpAll.filter((e) => !trailerIds.includes(e.id));
+  const unnudged = followUpUntagged.length
+    ? filterUnnudged(root, followUpUntagged.map((e) => e.id), todayStr)
     : new Set();
-  const freshlyDone = doneToday.filter((e) => unnudged.has(e.id));
+  const freshlyDone = followUpUntagged.filter((e) => unnudged.has(e.id));
   const config = readConfig(root);
 
   // The just-created commit is HEAD (this hook fires after `git commit`).

@@ -37,7 +37,7 @@ const {
 let project;
 let env;
 
-// [Foreman: 190] The hook now resolves which repo scope the commit's own
+// [Foreman: 193] The hook now resolves which repo scope the commit's own
 // cwd belongs to before reading anything, so every fixture needs a real git
 // repo at `project` for that resolution to land on the root scope — a
 // project with no `.git` at all is no longer distinguishable from "this
@@ -223,6 +223,39 @@ describe('freshly-done follow-up fix', () => {
     const out = run(bashPayload('git commit -m "wip"'));
     assert.match(out, /in-progress ROADMAP/i);
     assert.match(out, /follow-up fix/i);
+  });
+});
+
+// [Foreman: 194] Under the default requireVerification:true, a finished
+// entry sits in awaiting_acceptance — neither in_progress nor done-today —
+// so a follow-up fix commit landing while it waits used to get no nudge at
+// all and its SHA was silently lost. Unlike done-today, no date filter: an
+// awaiting entry can sit for days before the user answers.
+describe('awaiting-acceptance follow-up nudge', () => {
+  function todayStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  test('fires for an awaiting_acceptance entry no matter how long it has waited', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'ship the thing', status: 'awaiting_acceptance', updated_at: '2020-01-01' },
+    ]);
+    const out = run(bashPayload('git commit -m "fix bug found while it waits"'));
+    assert.match(out, /follow-up fix/i);
+    assert.match(out, /001/);
+  });
+
+  test('the recording command keeps each id at its own current status, not a blanket one', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'ship the thing', status: 'done', updated_at: todayStr() },
+      { id: '002', title: 'wait for yes', status: 'awaiting_acceptance' },
+    ]);
+    const out = context(bashPayload('git commit -m "fix bug"'));
+    assert.match(out, /001 \("ship the thing", status: done\)/);
+    assert.match(out, /002 \("wait for yes", status: awaiting_acceptance\)/);
+    // no blanket "status":"done" template that would silently close 002
+    assert.doesNotMatch(out, /"status":"done","commit":"<sha>"/);
   });
 });
 
@@ -479,6 +512,16 @@ describe('freshly-done nudge fires once per entry per day', () => {
     assert.match(out, /in-progress ROADMAP/i);
     assert.doesNotMatch(out, /follow-up fix/);
   });
+
+  // [Foreman: 194] Same dedup state file, same once-per-day key — an
+  // awaiting_acceptance entry is just another id in the same population.
+  test('second commit the same day stays silent for an already-nudged awaiting_acceptance entry', () => {
+    writeRoadmap(project, [{ id: '001', title: 'waiting', status: 'awaiting_acceptance' }]);
+    const first = run(bashPayload('git commit -m "fix 1"'));
+    assert.match(first, /follow-up fix/);
+    const second = run(bashPayload('git commit -m "fix 2"'));
+    assert.equal(second, '');
+  });
 });
 
 describe('exit-code gating (best-effort)', () => {
@@ -664,7 +707,7 @@ describe('planned-files correlation label', () => {
   });
 });
 
-// [Foreman: 190] Nothing used to establish which repository the commit that
+// [Foreman: 193] Nothing used to establish which repository the commit that
 // fired this hook actually landed in — CLAUDE_PROJECT_DIR names the project
 // regardless of where the commit happened, so a commit anywhere else (an
 // unrelated repo, or a submodule inside this project) was read against the
