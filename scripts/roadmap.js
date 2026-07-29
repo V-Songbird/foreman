@@ -556,8 +556,16 @@ function menuExcerpt(text, maxChars = WHY_WARN_CHARS) {
 // The newline survives writeEntries' JSON.stringify as an escape, so the
 // one-line-per-entry invariant holds. Pre-existing "; "-joined history is
 // left alone — no migration.
+// [Foreman: 178] One append is exactly one line, which is what makes the
+// leading date stamp mean "the script wrote this". A caller's own text is
+// free-form and reaches here through JSON, so an embedded `\n` would arrive
+// as a real newline and let one `annotate` smuggle in a second line that
+// looks mechanically written — including a forged `correction applied:` or
+// `id reassigned from ` stamp the health report then counts as real. Folded
+// to spaces here rather than guarded at each reader: the invariant belongs to
+// the writer.
 function appendNote(existing, note) {
-  const line = `${today()} ${note}`;
+  const line = `${today()} ${String(note).replace(/\s*[\r\n]+\s*/g, " ")}`;
   return existing ? `${existing}\n${line}` : line;
 }
 

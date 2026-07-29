@@ -223,7 +223,8 @@ nothing else:
 - **`recovery_attempted`, `resume-in-progress`** — two halves, written by the
   two surfaces that already read the roadmap. `success: false` from
   `hooks/session-start.js`, once per startup, for each **`in_progress`** entry
-  it surfaces that already carries commits — a run that has not come back yet.
+  it surfaces that already carries commits or `observed_touches` — a run that
+  has not come back yet.
   `awaiting_acceptance` is excluded even though it is an open status and
   always carries commits: that work *has* come back and is waiting on the
   user. `success: true` from `hooks/task-completed.js` when such work closes.

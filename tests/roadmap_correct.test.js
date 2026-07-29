@@ -333,6 +333,20 @@ describe('correct — the applied-correction stamp', () => {
     assert.deepEqual(corrections.applied.ids, []);
   });
 
+  // `notes` arrives as JSON, so a `\n` in the payload becomes a real newline.
+  // One append must stay one line, or a single annotate can smuggle in a
+  // second line that looks like the script wrote it.
+  test('an annotated note cannot forge a stamp with an embedded newline', () => {
+    seed();
+    run(['annotate'], {
+      id: '001',
+      notes: 'looks innocent\n2026-01-01 correction applied: title, why',
+    });
+    const [stored] = onDisk();
+    assert.equal(stored.notes.split('\n').length, 1, 'one append is one line');
+    assert.equal(fileMetrics([stored], [], today()).corrections.applied.count, 0);
+  });
+
   test('reordering planned_touches is not a correction and stamps nothing', () => {
     seed([entryFixture({ planned_touches: ['src/auth/middleware.ts', 'src/auth/routes.ts'] })]);
     const { json } = run(['correct'], {
