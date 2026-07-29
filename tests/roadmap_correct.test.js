@@ -487,6 +487,50 @@ describe('correct — kind round-trip', () => {
   });
 });
 
+// [Foreman: 202] The guard compares the same multiset of paths, not the same
+// order, and accepts the same `touches` input alias on the `expected` side
+// the payload side already does.
+describe('correct — expected.planned_touches is compared as a set', () => {
+  test('a reordered expected.planned_touches still passes', () => {
+    seed([entryFixture({ planned_touches: ['src/a.ts', 'src/b.ts', 'src/c.ts'] })]);
+    const { status, json } = run(['correct'], {
+      id: '001',
+      expected_updated_at: '2026-07-01',
+      expected: { planned_touches: ['src/c.ts', 'src/a.ts', 'src/b.ts'] },
+      planned_touches: ['src/b.ts'],
+    });
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.equal(json.ok, true);
+    assert.deepEqual(json.entry.planned_touches, ['src/b.ts']);
+  });
+
+  test('expected.touches is accepted as an alias for expected.planned_touches', () => {
+    seed([entryFixture({ planned_touches: ['src/a.ts', 'src/b.ts'] })]);
+    const { status, json } = run(['correct'], {
+      id: '001',
+      expected_updated_at: '2026-07-01',
+      expected: { touches: ['src/b.ts', 'src/a.ts'] },
+      planned_touches: ['src/next.ts'],
+    });
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.equal(json.ok, true);
+    assert.deepEqual(json.entry.planned_touches, ['src/next.ts']);
+  });
+
+  test('a genuinely different set is still refused', () => {
+    seed([entryFixture({ planned_touches: ['src/a.ts', 'src/b.ts'] })]);
+    const { status, json } = run(['correct'], {
+      id: '001',
+      expected_updated_at: '2026-07-01',
+      expected: { planned_touches: ['src/a.ts', 'src/different.ts'] },
+      planned_touches: ['src/next.ts'],
+    });
+    assert.equal(status, 1);
+    assert.match(json.error, /planned_touches/);
+    assert.deepEqual(onDisk()[0].planned_touches, ['src/a.ts', 'src/b.ts']);
+  });
+});
+
 describe('correct — planned_touches is a replacement, not a fold', () => {
   test('the planned surface can shrink', () => {
     seed([entryFixture({ planned_touches: ['src/a.ts', 'src/b.ts', 'src/c.ts'] })]);

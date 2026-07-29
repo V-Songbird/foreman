@@ -1212,6 +1212,17 @@ const CORRECTABLE_STATUSES = new Set([
   "deferred",
 ]);
 
+// [Foreman: 202] `expected.planned_touches`'s guard compares the same
+// multiset of paths, not the same order — the array is ordered only because
+// JSON has no set type, so a caller who reordered without changing anything
+// must not be refused as if someone else had edited the entry.
+function touchesSetEqual(expectedValue, current) {
+  if (!Array.isArray(expectedValue) || expectedValue.length !== current.length) return false;
+  const sortedExpected = [...expectedValue].sort();
+  const sortedCurrent = [...current].sort();
+  return sortedExpected.every((value, index) => value === sortedCurrent[index]);
+}
+
 function cmdCorrect(root, payload) {
   return withRoadmapLock(root, () => cmdCorrectUnlocked(root, payload));
 }
@@ -1290,15 +1301,24 @@ function cmdCorrectUnlocked(root, payload) {
     ...(planned !== undefined ? [["planned_touches", currentPlanned]] : []),
   ];
   for (const [field, current] of contentChecks) {
-    if (!(field in expected)) {
+    // Same canonical-plus-alias precedence plannedTouchesInput reads on the
+    // input side [Foreman: 130]: expected.touches stands in for
+    // expected.planned_touches when the caller sent the old key, the
+    // canonical one winning when both are given.
+    const usesTouchesAlias = field === "planned_touches" && !("planned_touches" in expected) && "touches" in expected;
+    const expectedKey = usesTouchesAlias ? "touches" : field;
+    if (!(expectedKey in expected)) {
       throw new Error(
         `correct requires expected.${field} (the entry's current ${field}) so a same-day correction cannot overwrite text it never saw`
       );
     }
+    // [Foreman: 202] `planned_touches` is an ordered array only because JSON
+    // has no set type -- the order carries no meaning, so a caller who
+    // reordered the same paths without changing them compares equal instead
+    // of being refused as if someone else had edited the entry.
     const matches = field === "planned_touches"
-      ? Array.isArray(expected[field]) && expected[field].length === current.length
-        && expected[field].every((p, i) => p === current[i])
-      : expected[field] === current;
+      ? touchesSetEqual(expected[expectedKey], current)
+      : expected[expectedKey] === current;
     if (!matches) {
       throw new Error(
         `entry ${id}'s ${field} no longer matches expected.${field} — re-read the entry and re-apply the correction on top of it`
@@ -2181,7 +2201,9 @@ absent when the file was already current.
                     every field this call changes (a no-op counts too),
                     expected.<field> must be the caller's own view of that
                     field's CURRENT value ({"expected":{"what":"..."}} etc,
-                    planned_touches compared element-wise) -- expected_updated_at
+                    planned_touches compared as a set -- order doesn't
+                    matter, and expected.touches is accepted as an alias
+                    for expected.planned_touches) -- expected_updated_at
                     is date-only, so two same-day corrections both pass it;
                     this catches the one it cannot. A field changed without
                     its expected entry is refused, naming the field; a
