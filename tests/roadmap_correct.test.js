@@ -320,6 +320,32 @@ describe('correct — the applied-correction stamp', () => {
     assert.equal(onDisk()[0].notes, '');
   });
 
+  // `annotate` takes free text, so a note that merely quotes the phrase must
+  // not read as a correction. A real stamp starts its own dated line.
+  test('a hand-written note quoting the marker is not counted', () => {
+    seed([
+      entryFixture({
+        notes: '2026-07-02 reviewed by hand -- no correction applied: needed, it all checks out',
+      }),
+    ]);
+    const { corrections } = fileMetrics(onDisk(), [], today());
+    assert.equal(corrections.applied.count, 0);
+    assert.deepEqual(corrections.applied.ids, []);
+  });
+
+  test('reordering planned_touches is not a correction and stamps nothing', () => {
+    seed([entryFixture({ planned_touches: ['src/auth/middleware.ts', 'src/auth/routes.ts'] })]);
+    const { json } = run(['correct'], {
+      id: '001',
+      expected_updated_at: '2026-07-01',
+      expected: { planned_touches: ['src/auth/middleware.ts', 'src/auth/routes.ts'] },
+      planned_touches: ['src/auth/routes.ts', 'src/auth/middleware.ts'],
+    });
+    assert.deepEqual(json.changed, [], 'the same set in a different order is not a change');
+    assert.equal(json.entry.notes, '');
+    assert.equal(onDisk()[0].updated_at, '2026-07-01');
+  });
+
   test('roadmap health counts the stamp this command actually writes', () => {
     seed();
     run(['correct'], {

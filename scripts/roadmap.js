@@ -1364,9 +1364,15 @@ function cmdCorrectUnlocked(root, payload) {
   // Full replacement, unlike update-status' append-only fold into
   // observed_touches: this field is the mutable prediction of the surface the
   // work will touch, and a prediction that was wrong has to be able to shrink.
+  // [Foreman: 202] Compared as a SET, exactly like the expected-value guard
+  // above: the array is ordered only because JSON has no set type. Order-
+  // sensitive here meant a caller who reordered the same paths passed the
+  // guard as unchanged and then had the reorder written, reported in
+  // `changed`, and — since 178 — stamped and counted as an applied
+  // correction. One comparison rule for both halves, so they cannot disagree.
   if (planned !== undefined) {
     const current = Array.isArray(entry.planned_touches) ? entry.planned_touches : [];
-    if (current.length !== planned.length || current.some((p, i) => p !== planned[i])) {
+    if (!touchesSetEqual(planned, current)) {
       entry.planned_touches = planned;
       changed.push("planned_touches");
     }

@@ -64,8 +64,19 @@ function notesOf(entry) {
 // three stamps and is worth three. The breadcrumb metric beside this one
 // counts entries because a survey finding is a state an entry is in, not an
 // event that recurs.
+//
+// Anchored at the line's own date stamp rather than matched anywhere in it.
+// `annotate` takes free text, so a note that merely quotes the phrase — "no
+// correction applied: needed here" — reads as a correction under a bare
+// substring test. appendNote always writes `YYYY-MM-DD <note>`, so a real
+// stamp is the whole start of its line and prose mentioning it is not.
+function stampLine(marker) {
+  return new RegExp(`^\\d{4}-\\d{2}-\\d{2} ${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
+}
+
 function countStamps(entry, marker) {
-  return notesOf(entry).split("\n").filter((line) => line.includes(marker)).length;
+  const pattern = stampLine(marker);
+  return notesOf(entry).split("\n").filter((line) => pattern.test(line.trim())).length;
 }
 
 function idsFrom(findings, codes, keep = () => true) {
