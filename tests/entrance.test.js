@@ -7,7 +7,7 @@ const path = require("path");
 
 const entrancePath = path.join(__dirname, "..", "skills", "foreman", "SKILL.md");
 
-// [Foreman: 137] One natural-language entrance routes to six intents. Its
+// [Foreman: 137] One natural-language entrance routes to seven intents. Its
 // whole value is that it owns no flow: every intent is handed to the skill
 // that already implements it, so these pin the route targets literally and
 // pin the absence of any duplicated flow step.
@@ -18,11 +18,12 @@ describe("entrance skill contract", () => {
 
   const skill = fs.readFileSync(entrancePath, "utf-8");
 
-  test("names all six intents", () => {
+  test("names all seven intents", () => {
     for (const intent of [
       "add work",
       "show status",
       "correct work",
+      "check the roadmap",
       "pick work",
       "reconcile and pick",
       "run a short batch",
@@ -35,6 +36,7 @@ describe("entrance skill contract", () => {
     assert.match(skill, /`foreman:roadmap` → "Branch: Add a task"/);
     assert.match(skill, /`foreman:roadmap` → "Branch: Review status"/);
     assert.match(skill, /`foreman:roadmap` → "Branch: Correct a task"/);
+    assert.match(skill, /`foreman:roadmap` → "Branch: Check the roadmap"/);
     assert.match(skill, /`foreman:roadmap` → "Branch: Pick the next task"/);
     assert.match(
       skill,
@@ -55,7 +57,7 @@ describe("entrance skill contract", () => {
 
   test("one clarifying question on ambiguity, out-of-scope names its owner", () => {
     assert.match(skill, /Ask \*\*one\*\* `AskUserQuestion` naming the closest two intents/);
-    assert.match(skill, /never a menu of all six/);
+    assert.match(skill, /never a menu of all seven/);
     assert.match(skill, /`foreman:init`/);
     assert.match(skill, /`foreman:craft-prompt`/);
   });
