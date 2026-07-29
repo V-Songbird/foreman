@@ -15,7 +15,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
-const { makeTmpProject, writeRoadmap, initGitRepo, runNodeScript, SCRIPTS_DIR } = require('./helpers');
+const { makeTmpProject, writeRoadmap, writeArchiveFile, initGitRepo, runNodeScript, SCRIPTS_DIR } = require('./helpers');
 
 const SAFE_COMMIT = path.join(SCRIPTS_DIR, 'safe-commit.js');
 const TEMPLATE = fs.readFileSync(path.join(__dirname, '..', 'prompt-template.md'), 'utf-8');
@@ -405,21 +405,26 @@ describe('safe-commit finish commit and attestation', () => {
     assert.deepEqual(allowed.attested.forbidden_files, []);
   });
 
+  // [Foreman: 196] ROADMAP.jsonl and .foreman/archive.jsonl are the only
+  // files safe-commit itself treats as a shared ledger; a project's own
+  // CHANGELOG.md is ordinary work here (see the changelog describe block
+  // below) -- keeping it out of a sprint worker's unit is sprint's own
+  // policy, enforced by attestUnit, not this primitive's.
   test('a shared ledger other than the declared roadmap close is still forbidden', () => {
     cleanRepo();
     const baseline = begin().baseline.head;
-    writeFile('CHANGELOG.md', '# changelog\n');
+    writeArchiveFile(project, []);
 
     const { json } = run(['finish', '--baseline', baseline], {
       id: '001',
-      expected: ['CHANGELOG.md'],
+      expected: ['.foreman/archive.jsonl'],
       message_title: 'touch the ledger',
       roadmap_close: true,
     });
 
     assert.equal(json.ok, false);
     assert.equal(json.reason, 'post_commit_attestation_failed');
-    assert.deepEqual(json.attested.forbidden_files, ['CHANGELOG.md']);
+    assert.deepEqual(json.attested.forbidden_files, ['.foreman/archive.jsonl']);
     assert.ok(json.attested.reasons.includes('shared_ledger_committed'));
   });
 
@@ -433,6 +438,76 @@ describe('safe-commit finish commit and attestation', () => {
     });
     assert.equal(status, 1);
     assert.match(json.error, /`expected` must list at least one/);
+  });
+});
+
+// [Foreman: 196] A project's own CHANGELOG.md is not one of Foreman's files:
+// safe-commit stages and commits it like any other declared path, in every
+// mode. Keeping it out of a sprint worker's unit is sprint's own policy
+// (tests/sprint.test.js), not this primitive's.
+describe("safe-commit and the project's own changelog", () => {
+  test('a declared root CHANGELOG.md commits cleanly and attestation agrees', () => {
+    cleanRepo();
+    const baseline = begin().baseline.head;
+    writeFile('CHANGELOG.md', '# changelog\n');
+
+    const { json } = run(['finish', '--baseline', baseline], {
+      id: '001',
+      expected: ['CHANGELOG.md'],
+      message_title: 'note the change',
+    });
+
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.deepEqual(json.files, ['CHANGELOG.md']);
+    assert.deepEqual(json.attested.forbidden_files, []);
+    assert.equal(git('status', '--porcelain').trim(), '');
+  });
+
+  test('a declared root CHANGELOG.md also commits cleanly through roadmap_close', () => {
+    cleanRepo();
+    const baseline = begin().baseline.head;
+    writeFile('CHANGELOG.md', '# changelog\n');
+    writeRoadmap(project, [{ ...entry('001'), status: 'done' }]);
+
+    const { json } = run(['finish', '--baseline', baseline], {
+      id: '001',
+      expected: ['CHANGELOG.md'],
+      message_title: 'close it',
+      roadmap_close: true,
+    });
+
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.deepEqual(json.files, ['CHANGELOG.md', 'ROADMAP.jsonl']);
+    assert.deepEqual(json.attested.forbidden_files, []);
+    assert.equal(git('status', '--porcelain').trim(), '');
+  });
+
+  test('a dirty root changelog alone is real dirt, not ledger-only dirt', () => {
+    cleanRepo();
+    writeFile('CHANGELOG.md', '# changelog\n');
+    const json = begin();
+    assert.equal(json.dirty, true);
+    assert.equal(json.reason, 'working_tree_has_changes');
+    assert.equal(json.baseline, undefined);
+  });
+
+  // [Foreman: 184] Regression check: narrowing isSharedLedger to Foreman's own
+  // files must not accidentally drop the archive out of the carve-out too.
+  // The archive is committed first, same as a real project's, so its dirt is
+  // an ordinary tracked-file modification rather than a whole new untracked
+  // directory (which `git status --porcelain` collapses to the directory
+  // path and would not compare equal to the archive's own path).
+  test('archive-only dirt still gets the ledger_dirty carve-out', () => {
+    cleanRepo();
+    writeArchiveFile(project, [{ ...entry('001'), status: 'done' }]);
+    git('add', '.foreman/archive.jsonl');
+    git('commit', '-q', '-m', 'archive baseline');
+    writeArchiveFile(project, [{ ...entry('001'), status: 'done' }, { ...entry('002'), status: 'done' }]);
+    const json = begin();
+    assert.equal(json.ok, true);
+    assert.equal(json.dirty, false);
+    assert.deepEqual(json.ledger_dirty, ['.foreman/archive.jsonl']);
+    assert.equal(json.baseline.head, git('rev-parse', 'HEAD').trim());
   });
 });
 

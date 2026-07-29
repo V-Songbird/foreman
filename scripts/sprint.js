@@ -155,8 +155,19 @@ function isSharedLedger(file) {
   // [Foreman: 132] The archive is the roadmap's other half — same single
   // writer rule, so a worker must not commit it either. safe-commit's
   // roadmap_close carve-out stays ROADMAP.jsonl only: a close writes the
-  // roadmap, never the archive.
-  if (normalized === "ROADMAP.jsonl" || normalized === ".foreman/archive.jsonl") return true;
+  // roadmap, never the archive. A project's own CHANGELOG.md is NOT one of
+  // Foreman's files — see isSprintChangelog for the narrower, sprint-local
+  // rule that keeps it out of a worker's unit instead.
+  return normalized === "ROADMAP.jsonl" || normalized === ".foreman/archive.jsonl";
+}
+
+// [Foreman: 196] Sprint's own bookkeeping policy, not the shared primitive's:
+// the batch's changelog lines are the coordinator's to append in step 5, so a
+// worker unit that sweeps in the root changelog is attested exactly like one
+// that swept in the roadmap. A project's own changelog outside a sprint is
+// ordinary work — safe-commit no longer treats it as a shared ledger.
+function isSprintChangelog(file) {
+  const normalized = file.replaceAll("\\", "/");
   return !normalized.includes("/") && /^CHANGELOG(?:\.[^/]+)?$/i.test(normalized);
 }
 
@@ -203,7 +214,12 @@ function attestUnit(root, options = {}) {
     : null;
   const reasons = [];
   const files = changedFiles(root, baseline, head);
-  const forbiddenFiles = files.filter(isSharedLedger);
+  // [Foreman: 196] Forbidden here means two different things riding one
+  // reason: Foreman's own shared ledger, and sprint's own bookkeeping file —
+  // the coordinator appends changelog lines once in step 5, so a worker unit
+  // must never carry one, even though the same file outside a sprint is
+  // ordinary project work safe-commit has no opinion about.
+  const forbiddenFiles = files.filter((file) => isSharedLedger(file) || isSprintChangelog(file));
   let commitCount = 0;
   let trailerIds = [];
   let trailerLines = [];

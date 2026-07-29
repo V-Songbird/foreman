@@ -73,6 +73,7 @@ field by convention).
 - Fixed an issue where a commit made inside a submodule was tagged and trailer-matched against the parent repository's last commit instead of its own — the after-commit check now reads the commit's own repository.
 - Fixed an issue where a follow-up fix committed while a task sat waiting on your acceptance got no nudge and its commit was silently lost — the after-commit check now also watches tasks awaiting acceptance, however long they've been waiting, the same way it already watched tasks finished earlier that day.
 - Fixed an issue where closing a task that renamed or deleted a file (`git mv`, `git rm`) could crash the commit step outright instead of committing normally.
+- Fixed an issue where a project's own `CHANGELOG.md` was treated like Foreman's own bookkeeping files: a task closing with an edited changelog silently left it uncommitted, and a roadmap close that declared it could fail after the commit already landed. A project's changelog now commits normally; only a sprint batch still keeps it out of a worker's own commit.
 
 ## [0.46.0-alpha] — 2026-07-24
 
