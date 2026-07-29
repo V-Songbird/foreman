@@ -379,12 +379,33 @@ describe('skill contracts', () => {
   // [Foreman: 185] The primary close path honors requireVerification: the
   // embedded paragraph holds an earned done for acceptance, gated at craft
   // time by the preparation result.
-  test('the embedded closing paragraph holds done for acceptance, config-gated', () => {
-    const skill = readSkill('skills', 'roadmap', 'pick.md');
+  //
+  // entry 203: skills/roadmap/pick.md no longer embeds this paragraph or
+  // explains its gating in prose — craft-handoff.js's entryParagraphText
+  // bakes the hold sentence directly from a `requireVerification` argument,
+  // so this pins the guarantee at its new home (not already covered by
+  // craft-handoff.test.js).
+  test('the entry paragraph (craft-handoff.js) holds done for acceptance, config-gated', () => {
+    const { entryParagraphText } = require('../scripts/craft-handoff.js');
+    const held = entryParagraphText({
+      id: '001',
+      resume: false,
+      requireVerification: true,
+      decisionLogEnabled: false,
+      isDecision: false,
+      destination: 'clipboard',
+    });
+    assert.match(held, /write\s+`awaiting_acceptance` instead/);
 
-    assert.match(skill, /write\s+`awaiting_acceptance` instead/);
-    assert.match(skill, /\*\*Acceptance hold\*\*/);
-    assert.match(skill, /`requireVerification` \(default `true`\)/);
+    const notHeld = entryParagraphText({
+      id: '001',
+      resume: false,
+      requireVerification: false,
+      decisionLogEnabled: false,
+      isDecision: false,
+      destination: 'clipboard',
+    });
+    assert.doesNotMatch(notHeld, /awaiting_acceptance/);
   });
 
   test('the sprint fold-back records awaiting acceptance, not in_progress', () => {

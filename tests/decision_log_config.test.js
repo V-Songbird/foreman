@@ -219,10 +219,12 @@ describe('decision records are limited to explicit decision work', () => {
   });
 
   test('the prompt-building skills gate the block the same way', () => {
-    assert.match(
-      docText('skills', 'roadmap', 'pick.md'),
-      /include the template's `<decision_log>` block only when the selected entry carries `kind: "decision"`/
-    );
+    // entry 203: skills/roadmap/pick.md no longer states this gate in prose
+    // — the whole `<decision_log>` bake (kind:"decision" AND
+    // decisionLog.enabled) moved into craft-handoff.js, pinned by
+    // craft-handoff.test.js's "decision_log and the clipboard checkpoint
+    // embed" describe block. craft-prompt/SKILL.md still assembles by hand,
+    // so it still states its own gate.
     assert.match(
       docText('skills', 'craft-prompt', 'SKILL.md'),
       /the task being crafted is itself a decision/

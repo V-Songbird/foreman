@@ -19,7 +19,7 @@ const { makeTmpProject, writeRoadmap, writeArchiveFile, initGitRepo, runNodeScri
 
 const SAFE_COMMIT = path.join(SCRIPTS_DIR, 'safe-commit.js');
 const TEMPLATE = fs.readFileSync(path.join(__dirname, '..', 'prompt-template.md'), 'utf-8');
-const ROADMAP_SKILL = fs.readFileSync(path.join(__dirname, '..', 'skills', 'roadmap', 'pick.md'), 'utf-8');
+const { entryParagraphText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
 
 let project;
 let env;
@@ -652,11 +652,18 @@ describe('the close and checkpoint choreography is documented without git add -A
     assert.doesNotMatch(embed, /`git add -A` and commit/);
   });
 
-  test('the roadmap skill close paragraph uses the primitive, not git add -A', () => {
-    const paragraph = ROADMAP_SKILL.slice(
-      ROADMAP_SKILL.indexOf('This task is ROADMAP.jsonl entry'),
-      ROADMAP_SKILL.indexOf('**Baking in the model**')
-    );
+  // entry 203: the embedded entry paragraph moved into craft-handoff.js's
+  // entryParagraphText (skills/roadmap/pick.md now only calls the script),
+  // so this pins the primitive-not-git-add-A guarantee at its new home.
+  test('the entry paragraph (craft-handoff.js) uses the primitive, not git add -A', () => {
+    const paragraph = entryParagraphText({
+      id: '001',
+      resume: false,
+      requireVerification: true,
+      decisionLogEnabled: false,
+      isDecision: false,
+      destination: 'clipboard',
+    });
     assert.ok(paragraph.includes('scripts/safe-commit.js begin'));
     assert.ok(paragraph.includes('safe-commit.js finish --baseline <baseline.head> --no-commit'));
     assert.ok(paragraph.includes('never `git add -A`'));

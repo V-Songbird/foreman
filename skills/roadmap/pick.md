@@ -191,8 +191,8 @@ steps below. On success, that *is* the resume — relay what the agent
 reports and stop here; the resumed agent owns closing its own entry the
 same as any other handoff. On any failure (`success:false`, or the tool
 isn't available), fall back **silently** to the flow below exactly as if
-there were no marker — go on to Q2 and craft the re-crafted prompt (Resume
-variant, step 3) from the entry's notes. Never surface the SendMessage
+there were no marker — go on to Q2 and craft the re-crafted prompt (the
+resume case, step 3) from the entry's notes. Never surface the SendMessage
 failure itself; the re-craft path isn't a degraded fallback, it's the
 original design.
 
@@ -206,19 +206,35 @@ Options, in this order:
 - `Execute with a background Agent` — offload it, get notified on completion — best for orchestration, where this session owns the commits
 - `Copy prompt to clipboard` — just get the text, no execution
 
-The `spawn_task` ban applies here — see `prompt-template.md`'s "Delivery
-mechanics" section.
+Never call `mcp__ccd_session__spawn_task` for any of these — it has a known
+bug where tasks spawned through it don't get MCP tools. `TaskCreate`,
+`Agent`, and the clipboard mechanics in step 5 below are the only three
+delivery paths, regardless of Desktop or CLI.
 
 **Q3 — execution mode**, asked only when Q2's answer was `Execute here`.
-The other two destinations skip it entirely. "How should it run here?" —
-options and their free-text rule are `prompt-template.md`'s "Delivery
-mechanics" section, verbatim.
+The other two destinations skip it entirely. "How should it run here?"
+Options, in this order:
+- `Tasks from the checks (Recommended)` — one tracked task per
+  verification command, each finished task checkpointed as a commit on a
+  dedicated branch (the checkpoint protocol in step 5 below)
+- `One task, then work it` — a single tracked task carrying the whole
+  prompt
+- `Run now, no tracking` — start immediately, no task rows
+
+`AskUserQuestion` appends its own free-text option; never author one — a
+user's free text naming the pieces, or a fixed number of tasks, both mean
+"Tasks from the checks" cuts into that many slices at whatever verification
+boundaries exist instead of one-per-check. Don't add a confirmation
+question for either — the created rows are the preview, and a wrong one is
+removed with `TaskUpdate` `status: "deleted"`.
 
 **Selected-task preparation**: after the destination/mode questions and
-before Q4 or prompt assembly, run
-`node ${CLAUDE_PLUGIN_ROOT}/scripts/render-sections.js` exactly once. This
-satisfies the template's craft-time step 0; reuse its output during
-assembly and surface its `warnings` now, if any. Project-section rendering
+before Q4, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/render-sections.js`
+exactly once. Its `modelSuggestions`, `fableEnabled`, and `targetModel`
+fields are what gate Q4 and the executing-model step below —
+`craft-handoff.js` resolves this same config again internally when it
+assembles, so this call is only for those gating decisions, never for reuse
+in assembly. Surface its `warnings` now, if any. Project-section rendering
 is deliberately delayed until a task has been selected.
 
 <!-- [Foreman: 111] -->
@@ -229,12 +245,12 @@ model/effort line anywhere in this branch. Then, and only then, asked when
 Q2's answer was `Execute here`, once per handoff and never once per task
 row, after Q3 and
 **before the first task row is created**. The other two destinations skip
-it — there the model is a dispatch value the Model fit bullet already
-confirms. State BOTH halves of the recommendation in the question's
-context, one line each with the reason behind it: the model per
-`prompt-template.md`'s "Model fit" note, the effort per its "Effort fit"
-note. This is the only place the model half is ever said on this
-destination.
+it — they always ask their own executing-model question instead (step 3
+below), since a dispatch needs a model named. State BOTH halves of the
+recommendation in the question's context, one line each with the reason
+behind it: the model per `prompt-template.md`'s "Model fit" note, the
+effort per its "Effort fit" note. This is the only place the model half is
+ever said on this destination.
 "This task suggests <model> at <effort>. Run it there instead?" — never
 worded as raising, upgrading, or bumping the session. Foreman cannot see
 what this session is running, so it cannot know whether the recommendation
@@ -266,269 +282,172 @@ fall back to the prompt's own embedded instructions, exactly as on the
 clipboard path. Say that in one line when the user picks it, so a project
 running `taskCloseGate: "block"` knows the gate is not in play this time.
 
-3. Craft the handoff prompt using `${CLAUDE_PLUGIN_ROOT}/prompt-template.md`'s
-   XML structure, straight from the selected entry's fields — no verification
-   pass:
-   <!-- [Foreman: 138] -->
-   - **Profile first** — before assembling anything, compute the mechanical
-     signals in `prompt-template.md`'s "Handoff profiles" section from what is
-     already in hand: the candidate row's `collision`, whether the pick came
-     from the `in_progress` array, and the selected entry's `updated_at`,
-     `commits`, `observed_touches`, `depends_on`, `notes`, and `kind` (plus
-     `resolve-symbols.js`'s `lastChanged`, once step 0b has run). Any signal
-     true → `reinforced`; none → `standard`. These are lookups, not
-     judgments — never talk yourself into reinforced because a task "feels"
-     risky. Say which profile and the signal that chose it in one line of the
-     delivery message, then build that shape: the bullets below fill
-     whichever blocks the profile keeps.
-   - `task_context` goal ← `title` + `why`
-   - `background` / `context` ← `what`, plus the selected entry's `notes` when
-     non-empty, attributed as prior recorded findings on this entry (a
-     survey verdict, a defer trigger, a previous session's evidence) — the
-     selected-entry read already carries them, so this stops the
-     destination re-deriving what someone already wrote down
-   - `relevant_files` seed ← `planned_touches` (the entry's own prediction —
-     `observed_touches` is where past closes landed, not what this handoff is
-     about), run once through
-     `node ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-symbols.js` (the
-     template's step 0b) — the selected entry's paths and its `what` go in, a
-     symbol map comes out. This is a mechanical call, not investigation:
-     it reads no file you choose and forms no judgment, so the
-     no-investigation rule at the top of this branch still holds. Cite the
-     returned `files[].symbols` in `relevant_files`; a `missing` path and
-     an `unresolved` name each go into the handoff as a stated
-     discrepancy, since the entry's own fields are all this branch has to
-     correct them with. Don't upgrade the paths any other way.
-   - `invariants`, `Expected file surface:`, and test-first ordering — the
-     template's three optional per-task fields, all derived from the
-     selected entry's own recorded fields, no extra question:
-     - `invariants` ← the assertions already stated in `why`/`what`/`notes`,
-       rewritten as observable assertions. A contract named in those fields
-       goes in as the assertion behind it, never as the name — and when the
-       entry names a contract without saying what it asserts, say exactly
-       that in the line, so the destination knows to establish it rather
-       than infer it. Nothing assertable means the block is omitted; that
-       is normal.
-     - `Expected file surface:` ← the selected entry's `planned_touches` as
-       given, followed by the flag-before-writing sentence the template
-       supplies. That field is unverified area-level hints — the entry's
-       prediction — which is precisely why it belongs here as a baseline to
-       flag against rather than as a fact.
-     - test-first ordering ← only when the entry describes a failure that
-       would pass the existing checks. Omit it otherwise.
-   - `depends_on_docs` — when the selected entry carries a non-empty one (the
-     resolved decision-doc paths of its dependencies), list those paths in
-     the handoff (in `background`/`context`) so the destination reads those
-     decisions before starting, instead of silently re-deciding a settled
-     question. Omit when empty.
-   - `task_rules` carries no read-first bullet: the fixed `<plan>` block
+3. **Gather the judgment fields, then call `craft-handoff.js` once.** Every
+   field below comes from the selected entry's own fields — no
+   investigation, same rule as the top of this branch:
+   - `role`/`goal` ← a role and one goal sentence for what "done" looks
+     like, drawn from the entry's `title`/`why`.
+   - `context` ← the entry's `what`, plus its `notes` when non-empty,
+     attributed as prior recorded findings on this entry (a survey verdict,
+     a defer trigger, a previous session's evidence) — the selected-entry
+     read already carries them, so this stops the destination re-deriving
+     what someone already wrote down. `depends_on_docs` needs no gathering:
+     when the selected entry carries a non-empty one, the script folds
+     those resolved decision-doc paths into `context` on its own.
+   - `steps`/`constraints` ← the entry's own `what`, split into what to
+     implement and any hard limits or patterns to follow. `task_rules` carries no read-first bullet — the fixed `<plan>` block
      states that step once for every handoff, and `truth_grounding` already
-     carries the verify-before-acting mandate — a third copy here would be
-     the same sentence three times. The bullets, tone, and the verification
-     command — ask the same way `craft-prompt` does only if genuinely not
-     inferable from the entry; don't turn this into a second interview.
-     One exception: when Q3 picked `Tasks from the checks`, the
-     verification commands are what the split cuts on, so gather them
+     carries the verify-before-acting mandate, so don't add a third copy
+     here.
+   - `expectedFileSurface` ← the entry's `planned_touches`, when known, as
+     a plain string — the script turns it into the constraint line itself:
+     "Expected file surface: <paths>. Anything beyond this list gets
+     flagged to the user before it is written, not after." Omit the field
+     when the surface genuinely isn't known yet.
+   - `invariants` ← any assertions already stated in `why`/`what`/`notes`,
+     rewritten as observable assertions — never a contract name. Nothing
+     assertable means the field is omitted; that is normal.
+   - `verification` ← the `Run:`/`Expected:` pairs, in running order, one
+     per array entry. When Q3 picked `Tasks from the checks`, gather these
      properly instead of settling for one inferred command — a single
-     check yields a single task.
-   - **Decision entry** — when the selected entry carries `kind: "decision"`
-     (surfaced by `list --ids`), this task resolves an open question,
-     not a build. Make the first `task_rule` (before the explore bullet):
-     "This is a decision, not a build: resolve the open question — state the
-     choice and the reason it wins over the alternatives — and do **not**
-     write implementation code for it. The deliverable is the decision."
-     This is the measured lever — without it, a decision-shaped entry gets
-     implemented straight into code a real fraction of the time. It pairs
-     with `decision_log`: a decision entry's product is its doc, so when the
-     `<decision_log>` block is present (below), the recorded choice lands
-     there and the close carries the `doc` path rather than `"none"`. An
-     entry with no `kind` key is an ordinary build — add nothing, and give
-     it no decision record: `kind: "decision"` is the only thing that earns
-     one.
-   - Model fit — **only when the selected-task preparation result has
-     `modelSuggestions: true`**; it defaults to `false`, and when it is
-     `false` this bullet and the Effort fit bullet below both produce
-     nothing. Call 6's executing-model question still runs on the
-     dispatching destinations, since a dispatch needs a model named, but
-     with no recommended default and no `(Recommended)` label. A
-     DISPATCH-time recommendation, judged now from this
-     selected entry's own `planned_touches`/`what` (recorded fields only, same
-     no-investigation rule as the rest of this branch), never at pick time
-     or when the entry was created. If `.foreman/config.json` pins a
-     concrete `targetModel` (already in hand from the selected-task
-     preparation call), that project declaration is the recommendation;
-     otherwise (`inherit`, the default) recommend a model per
-     `prompt-template.md`'s "Model fit" note — including its grounded
-     caution for a `what` that reconciles stale, conflicting, or renamed
-     references, which hit a real capability cliff on Haiku in every prompt
-     format tested. For a background-`Agent` or clipboard destination,
-     confirm it with `craft-prompt`'s Call 6 question, asked here once the
-     verification checks are known and before assembly — same wording,
-     same slots and substitutions (`Fable` included only when
-     `fableEnabled` is `true`). The answer keeps its two jobs: it
-     tunes the assembled prompt's elaboration, and a background `Agent`
-     dispatch passes it as that
-     call's literal `model` (`haiku`/`sonnet`/`opus`/`fable`, omitted for
-     inherit/varies). An `Execute here` run has no dispatch value to set,
-     so it states the recommendation in Q4 above instead — the work runs
-     in this session, so no model choice exists and the resolved
-     `targetModel` drives elaboration unchanged. The operator's answer is
-     the decision — never an automatic switch, never inside the assembled
-     prompt itself (the target model never sees a description of its own
-     expected failure modes), never a block, never a status or schema
-     change.
-   - Effort fit — gated on `modelSuggestions` exactly as Model fit above
-     is; say nothing about effort when it is `false`. The same
-     recommendation's second half, per
-     `prompt-template.md`'s "Effort fit" note, decided once this task's
-     verification commands are known (they are the input to it). State it
-     in one line of the delivery message — the setting plus the
-     verification-cost reason behind it — on every destination, including
-     `Execute here`, where it applies to this session's own effort and
-     rides Q4's context alongside the model half. Never a dispatch value:
-     the `Agent` tool takes no effort argument, so the operator acting on
-     it is the whole mechanism. Q4 asks whether to run the task where the
-     recommendation points, never which effort to use — the recommendation
-     itself is not a question.
-   - `decision_log` — include the template's `<decision_log>` block only
-     when the selected entry carries `kind: "decision"` **and** the
-     selected-task preparation result carries `decisionLog.enabled` true,
-     substituting its `dir` for `<dir>` and this entry's id for every
-     `<entry-id>`. Omit it when `enabled` is false (the default) and on
-     every ordinary build entry whatever `enabled` says — an
-     implementation task is never asked for a decision record. This is the
-     only thing that connects the entry's close to a decision doc, so its
-     `doc` field on the close command (below) is paired with it, and a
-     build's close simply never carries `doc`.
-   - Add one more fixed paragraph right after `scope_discipline`, naming
-     this entry's id, so the destination session — not Foreman — is the one
-     that flips it to `in_progress`. Write `${CLAUDE_PLUGIN_ROOT}` into it
-     as that literal string — the copy of this skill you are reading has
-     the variable already resolved to a version-pinned cache path, and
-     baking that in breaks the prompt on the next version bump; the gate
-     errors on it:
-     "This task is ROADMAP.jsonl entry `<id>`. Mark it `in_progress` before
-     doing anything else — Foreman's picking flow deliberately leaves it
-     `planned` until you do:
-     `echo '{"id":"<id>","status":"in_progress"}' | node
-     ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
-     Then take the commit boundary before touching any file:
-     `node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js begin`
-     Keep its `baseline.head`. A `dirty:true` result means the tree
-     already carries someone else's changes: tell the user in one line,
-     then do the work and make NO commit at all — leave everything in the
-     tree for them. Never stage around it.
-     When the work concludes, close the entry the same way — the status it
-     actually earned (`done`, `dropped`, `rejected`) and your full findings
-     in `notes`. When that earned status is `done`, write
-     `awaiting_acceptance` instead — this project holds finished work for
-     the user's acceptance, and their confirmation makes it `done`;
-     `dropped` and `rejected` close as themselves. If the work changed
-     code, land the close inside the same
-     commit instead of after it. Stage the task's own files with the
-     safe-commit primitive — never `git add -A`:
-     `echo '{"id":"<id>","expected":["<the files this task owns>"]}' | node
-     ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js finish --baseline <baseline.head> --no-commit`
-     It stages only what changed since the baseline and refuses on any file
-     `expected` doesn't cover, naming them in `unexpected_files` — show
-     those to the user and re-run with `--allow-unexpected` only once they
-     approve. Then close with `staged:true` (the script folds the staged
-     files into `observed_touches` and stages ROADMAP.jsonl alongside), then commit
-     once with `Foreman: <id>` as the final line of the message — that
-     trailer is the durable link between entry and commit, so no sha gets
-     recorded and the roadmap never trails uncommitted:
-     `echo '{"id":"<id>","status":"<status>","staged":true,"notes":"<findings>"}' | node
-     ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
-     If that close returns `roadmap_staged: false`, stage `ROADMAP.jsonl`
-     yourself before committing — otherwise the close misses its own
-     commit.
-     A task that changed nothing (pure investigation) closes without
-     staging or trailer. If the commit already landed before the close,
-     pass `"commit":"<sha>"` instead of `staged` — that path still works
-     and auto-folds observed_touches from the commit's diff.
-     When this prompt carries a `<decision_log>` block, add `doc` to that
-     close call — the decision doc's path, or `"none"` when nothing was
-     decided:
-     `echo '{"id":"<id>","status":"<status>","staged":true,"notes":"<findings>","doc":"<path or none>"}' | node
-     ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
-     Also add `model` and `effort` to that close call — what actually ran
-     this task, not what was recommended for it:
-     `echo '{"id":"<id>","status":"<status>","staged":true,"notes":"<findings>","model":"<haiku|sonnet|opus|fable>","effort":"<low|medium|high|xhigh|max>"}' | node
-     ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
-     Omit either one you genuinely don't know rather than guessing — an
-     absent field reads as unrecorded, a wrong one silently poisons the
-     corpus.
-     The entry's `notes` is where the depth lives; your final chat message
-     states the outcome and points at the entry."
+     check yields a single task, and this array is what the split cuts on
+     (pass `"split":true` below). Set `testFirst: true` for the test-first ordering — write the invariant
+     test first, confirm it passes against the unmodified code, break the
+     invariant on purpose and confirm it goes red, then implement — only
+     for a silent-failure entry, one whose breakage would pass the
+     existing checks; omit it otherwise. An entry
+     with nothing runnable at all omits `verification` and carries
+     `question` instead — the question under investigation, not a
+     prescribed exploration sequence.
+   - `relevant_files` needs no gathering: the script resolves the selected
+     entry's own `planned_touches` through `resolve-symbols.js` internally
+     and cites the symbols it finds — still no investigation, since it
+     reads only files the entry already named. Same for the decision-entry
+     task-rule bullet and the `<decision_log>` block: both are baked
+     automatically from the selected entry's `kind` and the project's
+     `decisionLog` setting, nothing to gather here.
 
-     **Acceptance hold** — the `awaiting_acceptance` sentence above tracks
-     the preparation result's `requireVerification` (default `true`). Keep
-     it when `true`; when the project set `false`, drop that sentence —
-     the earned status lands directly.
+   **Executing model — background Agent and clipboard only**, once
+   `verification` above is known: ask craft-prompt's Call 6 question here,
+   before the call below — same wording, same slots and substitutions
+   (`Fable` included only when `fableEnabled` is `true`). When
+   `modelSuggestions` is `true`, seed the recommended default per
+   `prompt-template.md`'s "Model fit" note; when it's `false`, ask with no
+   seeded default. Either way, also state the effort recommendation in one
+   line of the delivery message, per the "Effort fit" note's
+   verification-cost rule — never a dispatch value: the `Agent` tool takes no effort argument, so the operator acts on it instead of it being set.
+   Pass the confirmed model as `model` below.
 
-     **Baking in the model** — on a background-`Agent` dispatch the
-     confirmed executing-model answer IS the `Agent` call's `model` value,
-     so it's already known here: substitute it into that close call
-     literally, and the closing session reports only its effort. Every
-     other destination leaves both placeholders in place — an `Execute
-     here` run's model was never asked, and a pasted prompt's is whatever
-     the user pasted it into. Never bake in an effort: effort is not a
-     dispatch value, so craft time never learns it.
+   Then, one call:
+   ```
+   echo '{"entry":"<id>","destination":"task|agent|clipboard","resume":<true only if this pick came from in_progress>,"split":<true only when Q3 picked "Tasks from the checks">,"model":"<haiku|sonnet|opus|fable — agent/clipboard only, when gathered above>","judgment":{"role":"<role>","goal":"<goal sentence>","context":"<context prose>","steps":["<what to implement/fix>"],"constraints":["<hard limits, patterns to follow>"],"expectedFileSurface":"<planned_touches, when known>","verification":[{"run":"<exact command>","expected":"<pass/fail signal>"}],"testFirst":<true only for a silent-failure entry>,"invariants":["<one observable assertion per line>"]}}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/craft-handoff.js
+   ```
+   Remember: the copy of this skill you are reading has
+   the variable already resolved to a version-pinned cache path — type
+   `${CLAUDE_PLUGIN_ROOT}` back literally in the stdin JSON above and in
+   the delivery calls below; the gate errors on a resolved plugins-cache
+   path.
 
-     **Resume variant** — when the chosen task came from `in_progress`
-     (the finish-first check), the entry was already started by an earlier
-     session, so swap the paragraph's opening for:
-     "This task is ROADMAP.jsonl entry `<id>`, already marked `in_progress`
-     by an earlier session — don't re-mark it; earlier findings may sit in
-     its `notes` (included below), read them before re-deriving anything."
-     and keep the closing instructions (status earned, findings in `notes`,
-     staged close with the `Foreman: <id>` trailer) unchanged. Include the entry's existing `notes` in
-     `background`/`context` — for a resume they're prior findings, exactly
-     the context the destination shouldn't have to rebuild.
-
-   Then run `prompt-template.md`'s mechanical gate on the assembled prompt
-   (its "Mechanical gate" section has the exact call — pass
-   `--profile <standard|reinforced>` and `--entry <id>`, plus `--resume` for a
-   resumed pick) and fix every error until it passes before delivering.
+   Returns one JSON line: `{ok, prompt, profile, signals, tasks?, gate,
+   warnings}`. `profile` and `signals` come from the same mechanical
+   signals `prompt-template.md`'s "Handoff profiles" section defines —
+   never a judgment call on this branch's part; state them in the delivery
+   message's brief (step 5). When `ok` is `false`, don't retry blind: show
+   `gate.errors` (and any `gate.warnings`) to the user instead — each names
+   the judgment field that's too thin (missing steps, missing
+   verification, an unresolved reference) — gather that field properly and
+   re-call, rather than resending the same stdin hoping it passes.
 4. **Foreman never marks the entry `in_progress` itself.** It stays
    `planned` — even after this prompt is assembled, delivered, or copied —
    until whichever session actually starts the work runs the
    `update-status` call embedded in step 3 above. Picking or copying a task
    is not the same as starting it; only the session that begins acting on
    it should say so.
-5. Deliver via whatever Q2 picked. Each destination's mechanics are
-   `prompt-template.md`'s "Delivery mechanics" section; the `Execute here`
-   sub-mode is Q3's answer, and `subject` derives from the entry's `title`.
-   Whatever the destination, open the delivery message with a brief: one
-   or two sentences in everyday words on what is about to change and why
-   it matters, drawn from the entry's `why` and `what` only, restated for
-   a teammate who has never seen this codebase — never the fields pasted
-   verbatim. The brief is chat-only; the assembled prompt keeps every
-   field dense and untranslated.
-   What this skill layers on top:
-   - **`Execute here`**: on `Run now, no tracking`, nothing mechanizes the
-     entry's status, so the prompt's own embedded instructions carry it end
-     to end. On `Tasks from the checks`, the entry paragraph rides the last
-     row only, per the splitting section.
+5. Deliver via whatever Q2 picked, using the `prompt` (and `tasks[]` when
+   present) craft-handoff just returned — never re-derive, re-split, or
+   re-embed any of it. Open every delivery message with a brief: one or two
+   sentences in everyday words on what is about to change and why it
+   matters, drawn from the entry's `why` and `what` only, restated for a
+   teammate who has never seen this codebase — never the fields pasted
+   verbatim — plus the returned `profile` and which `signals` fired, in
+   plain words. The brief is chat-only; `prompt`/`tasks[]` stay dense and
+   untranslated, and neither is ever pasted or printed into the chat
+   response — they are data for a tool call, not something to show.
+   - **`Execute here`**:
+     - `Run now, no tracking` — work `prompt` directly in this session; no
+       task rows exist, so nothing mechanizes the entry's status — its own
+       embedded instructions carry that end to end.
+     - `One task, then work it` — one `TaskCreate` (`subject` a verb-first
+       imperative ≤60 chars derived from the entry's `title`, `description`
+       = `prompt`, `activeForm` its present-continuous form), then work it
+       in this session with `TaskUpdate` marking it `in_progress` then
+       `completed`.
+     - `Tasks from the checks` — pass `"split":true` in the craft-handoff
+       call above to get `tasks[]` (one row per `Run:`/`Expected:` pair,
+       the full prompt on row 1, the entry paragraph on the last row only —
+       already baked, never re-split by hand); one `TaskCreate` per row, in
+       order (each row's own `subject`/`description`, plus its own
+       present-continuous `activeForm`), each chained to the previous one
+       with `TaskUpdate` `addBlockedBy: ["<previous task's id>"]`; work
+       them in order, `TaskUpdate` per row as you go, and follow the
+       checkpoint protocol below as each task's check passes.
 
      On either tracked mode, Foreman's `task-created` hook marks the entry
      `in_progress` mechanically the moment the row carrying the embedded
      paragraph is created (it reads the entry id out of it) — finding it
      already `in_progress` when the embedded instruction runs is expected,
-     and re-running that update is a harmless no-op. Still use `TaskUpdate`
-     (a separate, session-local tracker) for each row's own `in_progress`/
-     `completed` transitions as you go.
-   - **Background Agent**: the tool result trails with the dispatched
-     agent's id (`agentId: a<16 hex>`). Capture it immediately with one
-     annotate call, so a later session can resume this exact agent instead
-     of re-crafting a prompt from its notes:
+     and re-running that update is a harmless no-op.
+
+     **Checkpoint protocol — `Tasks from the checks` only, two or more
+     tasks.** Read the `checkpoints` block of `.foreman/config.json` first
+     (`branch` `true`, `onFinish` `"ask"`, `baseBranch` unset are the
+     defaults for a missing file/block/key). Before task 1:
+     `node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js begin` — a
+     `dirty:true` result means this run makes no automated commits at all:
+     say so once, work the tasks, and leave every change in the tree for
+     the user. Otherwise settle the branch (create `foreman/<slug>` only
+     when `branch` is `true` and currently on the base branch — `baseBranch`
+     when set, or detect it with
+     `git symbolic-ref --short refs/remotes/origin/HEAD`, name after
+     `origin/`, fallback `main`); then, after each task's check passes:
+     `echo '{"expected":["<files that task changed>"],"message_title":"task <n>/<total>: <task subject>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js finish --baseline <the current baseline>`
+     — never `git add -A`, the primitive owns staging, and its `commit` is
+     the next task's baseline. The last checkpoint carries the
+     roadmap-entry close: stage with `safe-commit.js finish --no-commit`,
+     close with `staged:true`, then commit with `Foreman: <id>` as the
+     message's final line — the entry paragraph and gate rules above are
+     unchanged. After the last task, and only if this run created the
+     branch, `onFinish` decides its fate: `"ask"` (the default) asks
+     `Squash merge (Recommended)` / `Merge` / `Open a PR` / `Keep the
+     branch`; a concrete value acts directly, no question. Skip
+     checkpointing and just work the tasks if git is unavailable.
+   - **Background Agent**: call `Agent` with `prompt` = the returned
+     `prompt`, `description` = a 3-5 word summary, `run_in_background:
+     true`, and `model` = the confirmed executing model from step 3 as its
+     literal string when concrete. The tool result trails with the
+     dispatched agent's id (`agentId: a<16 hex>`). Capture it immediately
+     with one annotate call, so a later session can resume this exact agent
+     instead of re-crafting a prompt from its notes:
      `` echo '{"id":"<id>","notes":"dispatched to background agent `<agent-id>`"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js annotate `` (the
      script date-stamps each appended note itself — don't write one in)
      The phrase "background agent" followed by the backticked id is the
      exact marker grammar the resume flow above parses — the id's own
      charset (`a` + lowercase hex) never needs escaping.
-   - **Clipboard**: the same "Recommended model:" line `craft-prompt`'s
-     Deliver step adds, when the confirmed model is concrete.
+   - **Clipboard**: `Write` the returned `prompt` to a temp file first —
+     never pass it as an inline shell string, a large prompt breaks shell
+     quoting and the copy silently fails. Then pipe the file's content into
+     the clipboard command: `Get-Content -Raw <file> | Set-Clipboard` on
+     Windows, `pbcopy < <file>` on macOS, `xclip -selection clipboard <
+     <file>` (or `wl-copy < <file>`) on Linux. Mention the file path too,
+     in case the clipboard step fails. If no clipboard tool is available at
+     all, show the prompt in a fenced `xml` code block instead — the one
+     exception to never printing it into chat. Add the same "Recommended
+     model: [Haiku/Sonnet/Opus/Fable] — this prompt's elaboration level was
+     calibrated for it." line when step 3's confirmed executing model is
+     concrete; skip the line when it resolved to `inherit` or nothing was
+     named. Any checkpoint protocol a multi-check prompt needs already
+     rides inside `prompt`'s own `task_rules` — craft-handoff baked it in;
+     nothing more to do here.
 
 **Hard rule — state this explicitly if the user pushes back**: this skill
 always asks before doing anything — it never silently executes a task, and

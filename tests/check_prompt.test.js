@@ -388,12 +388,13 @@ describe('drift pins', () => {
     }
   });
 
-  test('the roadmap skill still uses the entry-paragraph grammar the checker expects', () => {
-    const skill = fs.readFileSync(path.join(__dirname, '..', 'skills', 'roadmap', 'pick.md'), 'utf-8');
-    assert.ok(skill.includes('Mark it `in_progress`'));
-    assert.ok(skill.includes('already marked `in_progress`'));
-    assert.ok(skill.includes('ROADMAP.jsonl entry `<id>`'));
-  });
+  // entry 203: the embedded entry paragraph moved into
+  // craft-handoff.js's entryParagraphText (it bakes the exact grammar
+  // check-prompt.js requires) — pick.md no longer writes the paragraph
+  // itself, it only calls the script. craft-handoff.test.js's "entry mode"
+  // and "resumed: also fires on the caller's explicit resume flag" tests
+  // already pin this grammar transitively: either phrase being wrong would
+  // make checkPrompt() reject the assembled prompt and fail `gate.ok`.
 
   test('the template still defines the three optional per-task fields', () => {
     const raw = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
@@ -929,11 +930,18 @@ describe('handoff profiles', () => {
         `${rel.join('/')} lost the signal → profile mapping`
       );
     }
+    // entry 203: pick.md no longer runs the gate itself (craft-handoff.js
+    // does, in-process) — the profile/signals it returns are relayed, not
+    // derived, so the pin moves from "passes --profile to the gate" to
+    // "calls the script and states what came back".
     const roadmap = fs.readFileSync(path.join(__dirname, '..', 'skills', 'roadmap', 'pick.md'), 'utf-8').replace(/\s+/g, ' ');
-    assert.ok(roadmap.includes('--profile <standard|reinforced>'), 'the roadmap skill does not pass the profile to the gate');
     assert.ok(
-      roadmap.includes('Say which profile and the signal that chose it in one line'),
-      'the roadmap skill lost the state-the-profile rule'
+      roadmap.includes('node ${CLAUDE_PLUGIN_ROOT}/scripts/craft-handoff.js'),
+      'the roadmap skill does not call craft-handoff.js'
+    );
+    assert.ok(
+      roadmap.includes('the returned `profile` and which `signals` fired'),
+      'the roadmap skill lost the state-the-profile-and-signals rule'
     );
   });
 });
