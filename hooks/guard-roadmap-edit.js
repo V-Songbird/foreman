@@ -50,8 +50,9 @@ function main() {
       permissionDecisionReason:
         `Foreman: direct ${data.tool_name} of ` +
         `${path.basename(String(data.tool_input.file_path))} is blocked. Use ` +
-        `node ${SCRIPT_PATH} instead (add/update-status/annotate/archive/` +
-        "restore/list/next-candidates/check-duplicate — run with --help for usage). " +
+        `node ${SCRIPT_PATH} instead (add/update-status/annotate/update-deps/` +
+        "correct/reassign-id/archive/restore/list/next-candidates/" +
+        "check-duplicate/doctor/migrate — run with --help for usage). " +
         "It enforces id computation and parse-before/after-write; a hand " +
         "edit bypasses both. If the file is corrupt and the CLI itself " +
         "can't read it, repair it via Bash instead — that path stays open.",

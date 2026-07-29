@@ -67,6 +67,7 @@ field by convention).
 - Closing a task now refuses a recorded commit that is not actually a git sha, instead of storing any text as permanent evidence — and when staging the roadmap alongside a close fails, the handoff now says to stage it by hand so the close doesn't miss its own commit.
 - A task's planned files can no longer name paths outside the project: adding or correcting one refuses absolute or escaping paths, and the symbol preflight reports such a path instead of reading the file it points at — so a roadmap arriving from a branch or merge cannot pull outside file contents into a handoff.
 - Re-initializing over an existing roadmap now continues task ids past the old file's highest one instead of starting at 001 again, so commit trailers and code anchors from the old roadmap can no longer point at unrelated new tasks.
+- Blocking a direct edit of the roadmap file now names every command the CLI actually accepts, including `correct`, `update-deps`, `reassign-id`, `doctor`, and `migrate` — a session fixing a stale entry is no longer handed a list that leaves out the fix it needs.
 
 ## [0.46.0-alpha] — 2026-07-24
 

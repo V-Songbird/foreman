@@ -8,6 +8,8 @@
 //   - Edit/Write of anything else (including .foreman/config.json) is silent
 //   - non-Edit/Write tools (e.g. Bash) are never even inspected — the
 //     escape hatch for genuine corrupt-file repair stays open
+//   - the denial names every mutation command roadmap.js's dispatcher
+//     actually accepts, not a stale subset
 
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
@@ -32,6 +34,24 @@ describe('blocks direct edits to ROADMAP.jsonl', () => {
     const out = run({ tool_name: 'Write', tool_input: { file_path: 'D:/project/ROADMAP.jsonl' } });
     const payload = JSON.parse(out);
     assert.equal(payload.hookSpecificOutput.permissionDecision, 'deny');
+  });
+
+  // roadmap.js's dispatcher (see its `main` switch / "unknown subcommand"
+  // error) accepts: add, update-status, annotate, update-deps, correct,
+  // reassign-id, archive, restore, list, next-candidates, check-duplicate,
+  // doctor, migrate. A session blocked here has to be pointed at all of
+  // them, not a stale subset — a fix for a stale entry needs "correct" in
+  // this list to find its way there at all.
+  test('names every mutation command the CLI actually accepts', () => {
+    const out = run({ tool_name: 'Edit', tool_input: { file_path: 'D:/project/ROADMAP.jsonl' } });
+    const { permissionDecisionReason } = JSON.parse(out).hookSpecificOutput;
+    for (const command of [
+      'add', 'update-status', 'annotate', 'update-deps', 'correct',
+      'reassign-id', 'archive', 'restore', 'list', 'next-candidates',
+      'check-duplicate', 'doctor', 'migrate',
+    ]) {
+      assert.match(permissionDecisionReason, new RegExp(`(^|\\W)${command}(\\W|$)`));
+    }
   });
 
   test('matches regardless of path prefix, only the basename matters', () => {
