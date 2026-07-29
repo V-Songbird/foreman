@@ -22,6 +22,7 @@ const path = require("path");
 const crypto = require("crypto");
 
 const { readEntries, today, TERMINAL_STATUSES } = require("../scripts/roadmap");
+const { record: recordTrial, startSession: startTrialSession } = require("../scripts/trial-log");
 
 const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
   ? path.resolve(process.env.CLAUDE_PLUGIN_ROOT)
@@ -138,6 +139,13 @@ function main() {
   const root = projectDir(data);
   if (!fs.existsSync(path.join(root, "ROADMAP.jsonl"))) return;
 
+  // [Foreman: 208] Mint this session's trial token and record its start
+  // BEFORE any of the silent returns below. This event is the denominator
+  // for sessions_since_init, so it must not depend on whether there happened
+  // to be an open entry worth mentioning — or on the roadmap being readable.
+  // Silent no-op unless the project opted in; never throws.
+  startTrialSession({ root });
+
   let entries;
   try {
     entries = readEntries(root);
@@ -147,6 +155,18 @@ function main() {
   const open = entries.filter(
     (e) => e.status === "in_progress" || e.status === "awaiting_acceptance"
   );
+
+  // [Foreman: 208] The failure half of resume recovery: an open entry that
+  // already carries commits or observed files is work that was interrupted
+  // and has NOT come back yet. One row per such entry per startup, which is
+  // why TRIALS.md calls this a per-day view of recovery rather than a
+  // per-run one. The success half is hooks/task-completed.js's.
+  for (const entry of open) {
+    const started = (entry.commits || []).length > 0 || (entry.observed_touches || []).length > 0;
+    if (started) {
+      recordTrial("recovery_attempted", { kind: "resume-in-progress", success: false }, { root });
+    }
+  }
   const terminalCount = entries.filter((e) => TERMINAL_STATUSES.has(e.status)).length;
 
   const todayStr = today();

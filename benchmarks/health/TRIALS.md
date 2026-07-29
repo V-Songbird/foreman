@@ -14,13 +14,22 @@ whether an interrupted or failed run comes back. The roadmap records what work
 happened, never what it cost the person doing it, so these need the same
 recording.
 
-This document defines that recording so it can be switched on later. **Nothing
-records anything today.** No skill and no hook writes a trial log; entries 142
-and 143 define the measurements, and acting on them is separate work. The
-analysis half is real code and ships now: `roadmap-health.js --trial-log
-<path>` computes the three recommendation rates over a log in this format,
-`attention-cost.js --trial-log <path>` computes the four attention and recovery
-ones, and both report `null` with `"no_trial_log"` when there is none.
+This document defines that recording. The analysis half is real code:
+`roadmap-health.js --trial-log <path>` computes the three recommendation rates
+over a log in this format, `attention-cost.js --trial-log <path>` computes the
+four attention and recovery ones, and both report `null` with
+`"no_trial_log"` when there is none.
+
+<!-- [Foreman: 208] -->
+**Half of it records today.** [`scripts/trial-log.js`](../../scripts/trial-log.js)
+is the writer, and every event a script or hook already sees is wired: it
+costs no skill instruction, because those calls were being made anyway. Not
+yet recorded are the events only the model can see — which menu row a user
+chose, and that a question was asked. Those are the `pick_accepted`,
+`pick_overridden`, `question_asked`, `init_started`, `init_completed`,
+`reinit-snapshot` and `failed-verification-retry` rows below, and they are
+marked ✗ in the tables. Until they are wired, `recommendation_acceptance`,
+`override_rate` and `questions_per_task` stay `null`.
 
 ## What a trial may record
 
@@ -63,12 +72,12 @@ resolution for a rate, and a timestamp is one more identifying signal), and
 
 ### Recommendation events
 
-| `event` | Extra fields | Written when |
-| --- | --- | --- |
-| `menu_shown` | `candidates` (integer, rows offered), `hint` (boolean) | A candidate menu was put in front of the user |
-| `pick_accepted` | `rank` (integer, 1-based position of the recommended row) | The user took the row Foreman recommended |
-| `pick_overridden` | `chosen_rank` (integer, or `null` for an off-menu answer) | The user took a different row, or described something else |
-| `hint_used` | `hit` (boolean) | A pick hint was passed to the ranker |
+| | `event` | Extra fields | Written when |
+| --- | --- | --- | --- |
+| ✓ | `menu_shown` | `candidates` (integer, rows offered), `hint` (boolean) | A candidate menu was put in front of the user |
+| ✗ | `pick_accepted` | `rank` (integer, 1-based position of the recommended row) | The user took the row Foreman recommended |
+| ✗ | `pick_overridden` | `chosen_rank` (integer, or `null` for an off-menu answer) | The user took a different row, or described something else |
+| ✓ | `hint_used` | `hit` (boolean) | A pick hint was passed to the ranker |
 
 ```jsonl
 {"event":"menu_shown","ts":"2026-07-28","session":"k3f9a2","candidates":3,"hint":false}
@@ -86,15 +95,27 @@ assuming it away.
 <!-- [Foreman: 143] -->
 ### Attention and recovery events
 
-| `event` | Extra fields | Written when |
-| --- | --- | --- |
-| `session_start` | — | A main session started on a project that has a roadmap |
-| `init_started` | — | `/foreman:init` began its first question |
-| `init_completed` | `tasks` (integer, entries written) | `/foreman:init`'s write phase finished and committed |
-| `first_pick` | `seconds_since_init` (integer, or `null`), `sessions_since_init` (integer, or `null`) | The first handoff of this project was delivered |
-| `question_asked` | `flow` (one of `init`, `pick`, `add`, `correct`, `status`, `survey`, `sprint`) | One `AskUserQuestion` call was put to the user |
-| `commit_interrupted` | `hook` (one of `safe-commit`, `post-commit`, `task-completed`), `reason_class` (see below) | A Foreman commit path stopped and handed the decision back |
-| `recovery_attempted` | `kind` (one of `reinit-snapshot`, `resume-in-progress`, `failed-verification-retry`), `success` (boolean) | A recovery path ran to a definite outcome |
+| | `event` | Extra fields | Written when |
+| --- | --- | --- | --- |
+| ✓ | `session_start` | — | A main session started on a project that has a roadmap |
+| ✗ | `init_started` | — | `/foreman:init` began its first question |
+| ✗ | `init_completed` | `tasks` (integer, entries written) | `/foreman:init`'s write phase finished and committed |
+| ✓ | `first_pick` | `seconds_since_init` (integer, or `null`), `sessions_since_init` (integer, or `null`) | The first handoff of this project was delivered |
+| ✗ | `question_asked` | `flow` (one of `init`, `pick`, `add`, `correct`, `status`, `survey`, `sprint`) | One `AskUserQuestion` call was put to the user |
+| ✓ | `commit_interrupted` | `hook` (one of `safe-commit`, `post-commit`, `task-completed`), `reason_class` (see below) | A Foreman commit path stopped and handed the decision back |
+| partly | `recovery_attempted` | `kind` (one of `reinit-snapshot`, `resume-in-progress`, `failed-verification-retry`), `success` (boolean) | A recovery path ran to a definite outcome |
+
+`recovery_attempted` records `resume-in-progress` today, both halves.
+`reinit-snapshot` and `failed-verification-retry` both sit inside a skill flow
+and are not written yet.
+
+<!-- [Foreman: 208] -->
+`first_pick`'s `seconds_since_init` is always `null` as recorded today, and
+that is not a placeholder. This log stores dates, never times, so an elapsed
+duration cannot be derived from it — it would have to be measured inside one
+process that saw both ends, and no process sees both. `sessions_since_init`
+is a count of `session_start` rows and is real whenever `init_completed` has
+been recorded.
 
 ```jsonl
 {"event":"session_start","ts":"2026-07-28","session":"m7q1x4"}
@@ -116,9 +137,9 @@ separately. Both are `null` on a project whose init predates the trial.
 `reason_class` is one of the refusal names `scripts/safe-commit.js` already
 returns — `dirty_tree` (its `begin` reporting `dirty: true`),
 `head_moved_since_baseline`, `no_task_changes`, `unexpected_files`,
-`staging_incomplete` — plus `verification_declined` for the
-`requireVerification` hold. Names only: never the count of dirty files, never
-which files were unexpected.
+`staging_incomplete`, `staging_failed`, `post_commit_attestation_failed` —
+plus `verification_declined` for the `requireVerification` hold. Names only:
+never the count of dirty files, never which files were unexpected.
 
 ## Where each event would be recorded
 

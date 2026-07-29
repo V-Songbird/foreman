@@ -27,6 +27,7 @@ const fs = require("fs");
 const { render, projectDir, readConfig } = require("./render-sections.js");
 const { resolve: resolveSymbols } = require("./resolve-symbols.js");
 const { readEntries, cmdList, touchesOverlap, today } = require("./roadmap.js");
+const { recordFirstPick } = require("./trial-log.js");
 const {
   checkPrompt,
   readCanonical,
@@ -566,6 +567,13 @@ function assemble(root, input) {
   }
 
   const warnings = [...config.warnings, ...symbolResult.warnings, ...gateResult.warnings];
+
+  // [Foreman: 208] The first delivered handoff of this project's life. This
+  // is the moment TRIALS.md names — a prompt that never passed the gate is
+  // not a first useful task — and it costs no skill instruction, because
+  // every crafting flow already ends here. Silent no-op unless the project
+  // opted in, no-op again on every later handoff, and never throws.
+  if (gate.ok) recordFirstPick({ root });
 
   return {
     ok: gate.ok,

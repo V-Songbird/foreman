@@ -444,6 +444,8 @@ function oneOf(values) {
 const CONFIG_SPEC = {
   discoverySuggestions: BOOL,
   usePersona: BOOL,
+  // [Foreman: 208] Opt-in, default false. Read by scripts/trial-log.js.
+  trialLog: BOOL,
   requireVerification: BOOL,
   modelSuggestions: BOOL,
   fableEnabled: BOOL,

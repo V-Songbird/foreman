@@ -5,6 +5,10 @@ const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
 const { withRoadmapLock } = require("./roadmap-lock");
+// [Foreman: 208] The opt-in trial log. Its record() is a silent no-op unless
+// the project turned it on, and it never throws — a trial is an observation
+// of the work and must never become a way for the work to fail.
+const { record: recordTrial } = require("./trial-log");
 const {
   validateEntries,
   validateAcrossFiles,
@@ -1719,6 +1723,23 @@ function cmdNextCandidates(root, filters) {
   // ranking, and the caller should say the hint found nothing.
   if (filters && filters.hint !== undefined) {
     result.hint_matched = unblocked.some((c) => (c.hint_score || 0) > 0);
+  }
+  // [Foreman: 208] The menu the user is about to read, recorded where the
+  // facts already are. `--menu` is the projection the pick branch asks for
+  // before a question is put to anyone, so this is the moment TRIALS.md
+  // names — and it costs the skill no instruction tokens, because the skill
+  // was already making this call. `candidates` counts every row the user
+  // will see: the ranked candidates plus the accept/resume rows the
+  // finish-first check promotes above them. Silent no-op unless the project
+  // opted in; never throws.
+  if (filters && filters.menu) {
+    recordTrial("menu_shown", {
+      candidates: result.candidates.length + inProgress.length + awaiting.length,
+      hint: filters.hint !== undefined,
+    }, { root });
+    if (filters.hint !== undefined) {
+      recordTrial("hint_used", { hit: result.hint_matched === true }, { root });
+    }
   }
   return result;
 }

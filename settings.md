@@ -36,6 +36,7 @@ Any of them can also just be set in the file by hand.
 | `modelSuggestions` | Whether each handoff suggests a model and reasoning effort. Off by default and never asked about — set it to `true` here the day you want the advice, which keeps it out of both setup and the common path until then. |
 | `targetModel` | How much detail a prompt spells out. Default `inherit`; a concrete model tunes the handoff for that target. |
 | `fableEnabled` | Whether this project can run Fable 5. Init writes `false`; set it to `true` by hand when your plan can run Fable 5. |
+| `trialLog` | Whether this project keeps a local log of how Foreman is used, so its own health numbers can be measured. Off by default and never asked about. It records counts, booleans, and Foreman's own branch names — never a task title, a file path, an id, or anything you typed. The file is `.foreman/trial-log.jsonl`, it never leaves your machine, and deleting it at any moment is a supported thing to do. See [`benchmarks/health/TRIALS.md`](benchmarks/health/TRIALS.md). |
 
 When another plugin already supplies the session persona and output voice,
 Foreman can stay out of those lanes:

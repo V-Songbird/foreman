@@ -49,6 +49,7 @@ const {
   trailerShasFor,
 } = require("../scripts/commit-evidence");
 const { readDecisionLog } = require("../scripts/decision-log-config");
+const { record: recordTrial, recordResumeRecovered } = require("../scripts/trial-log");
 const { ENTRY_MARKER_RE, entryIdFromDescription } = require("./task-created");
 
 // [Foreman: 131] `awaiting_acceptance` is deliberately NOT gated here, even
@@ -271,8 +272,23 @@ function main() {
   if (OPEN_STATUSES.has(entry.status)) {
     if (readConfig(root) !== "block") return;
     if (baseLatch && !shouldGate(root, baseLatch)) return; // already gated once for this session's task_id
+    // [Foreman: 208] The close was held and the decision handed back — an
+    // interruption from the user's side of the work, which is what
+    // attention-cost.js's commit_interruptions counts. The refusal NAME
+    // only, never the entry or what was in it.
+    recordTrial("commit_interrupted", { hook: "task-completed", reason_class: "verification_declined" }, { root });
     write({ decision: "block", reason: blockReason(id) });
     return;
+  }
+
+  // [Foreman: 208] The success half of resume recovery. A terminal entry
+  // carrying commits or observed files is finished work; whether finishing it
+  // counts as a RECOVERY is decided inside recordResumeRecovered, from
+  // whether the log already saw this project's work sitting un-recovered on
+  // an earlier day. A task that ran start to finish in one go is not a
+  // recovery and must not inflate the rate.
+  if ((entry.commits || []).length > 0 || (entry.observed_touches || []).length > 0) {
+    recordResumeRecovered({ root });
   }
 
   // Decision-log backstop -- only a `done` close is auditable for an ADR

@@ -33,6 +33,7 @@ const {
 const { commitTrailerFor, isValidId } = require("./roadmap");
 // [Foreman: 134] One reading of a commit's Foreman trailer, shared with sprint.
 const { trailerLinesIn, hasExactTrailer } = require("./commit-evidence");
+const { record: recordTrial } = require("./trial-log");
 
 const ROADMAP_FILE = "ROADMAP.jsonl";
 
@@ -350,6 +351,22 @@ Examples:
     | node safe-commit.js finish --baseline 7e720ea --no-commit
 `;
 
+// [Foreman: 208] One insertion point, not six. Every refusal this script can
+// produce leaves through main(), so the trial record is taken here rather
+// than at each `return {ok:false, ...}` — a new refusal added later is
+// counted without anyone remembering to add a second call beside it.
+//
+// A dirty tree is the one refusal that reports `ok: true` (it is a legitimate
+// state, not a failure), so it is matched on `dirty` and translated to the
+// name TRIALS.md uses. Anything whose reason is not in the closed vocabulary
+// is skipped by the writer itself, which is why nothing is filtered here.
+function recordInterruption(result, root) {
+  if (!result || typeof result !== "object") return;
+  const reasonClass = result.dirty === true ? "dirty_tree" : result.ok === false ? result.reason : null;
+  if (!reasonClass) return;
+  recordTrial("commit_interrupted", { hook: "safe-commit", reason_class: reasonClass }, { root });
+}
+
 function main() {
   const [, , subcommand, ...rest] = process.argv;
   const flags = parseFlags(rest);
@@ -367,6 +384,7 @@ function main() {
   } else {
     throw new Error(USAGE);
   }
+  recordInterruption(result, root);
   process.stdout.write(JSON.stringify(result));
 }
 
