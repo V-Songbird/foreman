@@ -220,7 +220,7 @@ describe('decision records are limited to explicit decision work', () => {
 
   test('the prompt-building skills gate the block the same way', () => {
     assert.match(
-      docText('skills', 'roadmap', 'SKILL.md'),
+      docText('skills', 'roadmap', 'pick.md'),
       /include the template's `<decision_log>` block only when the selected entry carries `kind: "decision"`/
     );
     assert.match(
@@ -231,7 +231,7 @@ describe('decision records are limited to explicit decision work', () => {
 
   test('the roadmap skill still asks once at the first decision add (entry 136)', () => {
     assert.match(
-      docText('skills', 'roadmap', 'SKILL.md'),
+      docText('skills', 'roadmap', 'add.md'),
       /if it carries no `decisionLog` key at all, the user has never been asked/
     );
   });

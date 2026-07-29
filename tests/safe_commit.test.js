@@ -19,7 +19,7 @@ const { makeTmpProject, writeRoadmap, writeArchiveFile, initGitRepo, runNodeScri
 
 const SAFE_COMMIT = path.join(SCRIPTS_DIR, 'safe-commit.js');
 const TEMPLATE = fs.readFileSync(path.join(__dirname, '..', 'prompt-template.md'), 'utf-8');
-const ROADMAP_SKILL = fs.readFileSync(path.join(__dirname, '..', 'skills', 'roadmap', 'SKILL.md'), 'utf-8');
+const ROADMAP_SKILL = fs.readFileSync(path.join(__dirname, '..', 'skills', 'roadmap', 'pick.md'), 'utf-8');
 
 let project;
 let env;

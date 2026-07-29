@@ -368,7 +368,7 @@ describe('session-start surfaces awaiting work', () => {
 
 describe('skill contracts', () => {
   test('the roadmap skill offers acceptance and the send-back path', () => {
-    const skill = readSkill('skills', 'roadmap', 'SKILL.md');
+    const skill = readSkill('skills', 'roadmap', 'pick.md');
 
     assert.match(skill, /`Accept: <title> \(<id>\)`/);
     assert.match(skill, /"status":"done"/);
@@ -380,7 +380,7 @@ describe('skill contracts', () => {
   // embedded paragraph holds an earned done for acceptance, gated at craft
   // time by the preparation result.
   test('the embedded closing paragraph holds done for acceptance, config-gated', () => {
-    const skill = readSkill('skills', 'roadmap', 'SKILL.md');
+    const skill = readSkill('skills', 'roadmap', 'pick.md');
 
     assert.match(skill, /write\s+`awaiting_acceptance` instead/);
     assert.match(skill, /\*\*Acceptance hold\*\*/);

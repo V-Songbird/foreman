@@ -379,7 +379,7 @@ describe('drift pins', () => {
   });
 
   test('both skills carry the background-Agent orchestration steering line', () => {
-    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'SKILL.md']]) {
+    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'pick.md']]) {
       const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8');
       assert.ok(
         skill.includes('best for orchestration, where this session owns the commits'),
@@ -389,7 +389,7 @@ describe('drift pins', () => {
   });
 
   test('the roadmap skill still uses the entry-paragraph grammar the checker expects', () => {
-    const skill = fs.readFileSync(path.join(__dirname, '..', 'skills', 'roadmap', 'SKILL.md'), 'utf-8');
+    const skill = fs.readFileSync(path.join(__dirname, '..', 'skills', 'roadmap', 'pick.md'), 'utf-8');
     assert.ok(skill.includes('Mark it `in_progress`'));
     assert.ok(skill.includes('already marked `in_progress`'));
     assert.ok(skill.includes('ROADMAP.jsonl entry `<id>`'));
@@ -403,7 +403,7 @@ describe('drift pins', () => {
   });
 
   test('both skills still gather the three optional per-task fields', () => {
-    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'SKILL.md']]) {
+    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'pick.md']]) {
       const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8');
       assert.ok(skill.includes('`invariants`'), `${rel.join('/')} lost the invariants mapping`);
       assert.ok(skill.includes('Expected file surface:'), `${rel.join('/')} lost the file-surface mapping`);
@@ -422,7 +422,7 @@ describe('drift pins', () => {
   });
 
   test('both skills recommend an effort alongside the model', () => {
-    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'SKILL.md']]) {
+    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'pick.md']]) {
       const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8');
       assert.ok(skill.includes('"Effort fit" note'), `${rel.join('/')} lost the effort-fit reference`);
       assert.ok(
@@ -452,7 +452,7 @@ describe('drift pins', () => {
     const files = [
       TEMPLATE_PATH,
       path.join(__dirname, '..', 'skills', 'craft-prompt', 'SKILL.md'),
-      path.join(__dirname, '..', 'skills', 'roadmap', 'SKILL.md'),
+      path.join(__dirname, '..', 'skills', 'roadmap', 'pick.md'),
     ];
     // The recommendation points down as often as up — a session on Opus told
     // a task suits Sonnet is being asked to lower, not raise.
@@ -463,7 +463,7 @@ describe('drift pins', () => {
         `${path.basename(file)} still words the ask as raising the session`
       );
     }
-    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'SKILL.md']]) {
+    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'pick.md']]) {
       const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8').replace(/\s+/g, ' ');
       assert.ok(
         skill.includes('Run it there instead?'),
@@ -502,7 +502,7 @@ describe('drift pins', () => {
       /`targetModel` is a separate setting and is unaffected/.test(raw),
       'the template lost the targetModel independence rule'
     );
-    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'SKILL.md']]) {
+    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'pick.md']]) {
       const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8').replace(/\s+/g, ' ');
       assert.ok(
         skill.includes('modelSuggestions'),
@@ -523,7 +523,7 @@ describe('drift pins', () => {
     const files = [
       TEMPLATE_PATH,
       path.join(__dirname, '..', 'skills', 'craft-prompt', 'SKILL.md'),
-      path.join(__dirname, '..', 'skills', 'roadmap', 'SKILL.md'),
+      path.join(__dirname, '..', 'skills', 'roadmap', 'pick.md'),
     ];
     for (const file of files) {
       const raw = fs.readFileSync(file, 'utf-8').replace(/\s+/g, ' ');
@@ -540,7 +540,7 @@ describe('drift pins', () => {
         `${path.basename(file)} still offers the mid-session switch option`
       );
     }
-    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'SKILL.md']]) {
+    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'pick.md']]) {
       const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8').replace(/\s+/g, ' ');
       assert.ok(
         skill.includes('Start it in a fresh session'),
@@ -640,12 +640,12 @@ describe('unexpanded plugin root', () => {
     assert.match(template, /travels as the literal, unexpanded/);
     assert.match(template, /every plugin path in the prompt body is the unexpanded/);
     const skills = path.join(__dirname, '..', 'skills');
-    for (const name of ['roadmap', 'craft-prompt']) {
-      const skill = fs.readFileSync(path.join(skills, name, 'SKILL.md'), 'utf-8');
+    for (const [name, file] of [['roadmap', 'pick.md'], ['craft-prompt', 'SKILL.md']]) {
+      const skill = fs.readFileSync(path.join(skills, name, file), 'utf-8');
       assert.match(
         skill,
         /the copy of this skill you are reading has\n?\s*the\s+variable already resolved to a version-pinned cache path/,
-        `${name}/SKILL.md lost the unexpanded-path instruction`
+        `${name}/${file} lost the unexpanded-path instruction`
       );
     }
   });
@@ -680,10 +680,10 @@ describe('the ordered plan block', () => {
     const template = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
     assert.ok(!template.includes('[What to read or explore first]'), 'template still carries the read-first bullet');
     assert.ok(!PLACEHOLDER_FRAGMENTS.includes('[What to read'), 'fragment list still registers the removed bullet');
-    const skill = fs.readFileSync(path.join(__dirname, '..', 'skills', 'roadmap', 'SKILL.md'), 'utf-8');
+    const skill = fs.readFileSync(path.join(__dirname, '..', 'skills', 'roadmap', 'pick.md'), 'utf-8');
     assert.ok(
       /task_rules` carries no read-first bullet/.test(skill),
-      'skills/roadmap/SKILL.md still defaults task_rules to an explore-first bullet'
+      'skills/roadmap/pick.md still defaults task_rules to an explore-first bullet'
     );
   });
 });
@@ -921,7 +921,7 @@ describe('handoff profiles', () => {
   });
 
   test('the prompt-building skills choose a profile from the signals', () => {
-    for (const rel of [['skills', 'roadmap', 'SKILL.md'], ['skills', 'sprint', 'SKILL.md']]) {
+    for (const rel of [['skills', 'roadmap', 'pick.md'], ['skills', 'sprint', 'SKILL.md']]) {
       const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8').replace(/\s+/g, ' ');
       assert.ok(skill.includes('Handoff profiles'), `${rel.join('/')} never reaches the profile section`);
       assert.ok(
@@ -929,7 +929,7 @@ describe('handoff profiles', () => {
         `${rel.join('/')} lost the signal → profile mapping`
       );
     }
-    const roadmap = fs.readFileSync(path.join(__dirname, '..', 'skills', 'roadmap', 'SKILL.md'), 'utf-8').replace(/\s+/g, ' ');
+    const roadmap = fs.readFileSync(path.join(__dirname, '..', 'skills', 'roadmap', 'pick.md'), 'utf-8').replace(/\s+/g, ' ');
     assert.ok(roadmap.includes('--profile <standard|reinforced>'), 'the roadmap skill does not pass the profile to the gate');
     assert.ok(
       roadmap.includes('Say which profile and the signal that chose it in one line'),

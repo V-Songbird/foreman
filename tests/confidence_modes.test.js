@@ -13,7 +13,7 @@ const path = require("path");
 // new mechanism.
 const read = (...rel) => fs.readFileSync(path.join(__dirname, "..", ...rel), "utf-8");
 
-const roadmap = read("skills", "roadmap", "SKILL.md");
+const roadmap = read("skills", "roadmap", "pick.md");
 const survey = read("skills", "survey", "SKILL.md");
 const entrance = read("skills", "foreman", "SKILL.md");
 const readme = read("README.md");
