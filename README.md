@@ -71,7 +71,7 @@ Talk to Foreman. That's the whole interface — one entrance, plain language, no
 
 Two ways to get a task, and the cheap one is the default:
 
-- **Fast pick** — ask "what's next" and Foreman orders the roadmap it already has, recommends one, and hands you a ready-to-run prompt. It reads no code — about 9.7k tokens of instructions before it ranks anything, measured in [`R-004-instruction-load`](benchmarks/records/R-004-instruction-load.json).
+- **Fast pick** — ask "what's next" and Foreman orders the roadmap it already has, recommends one, and hands you a ready-to-run prompt. It reads no code — about 9.7k tokens of instructions before it ranks anything, measured in [`R-006-instruction-load`](benchmarks/records/R-006-instruction-load.json).
 - **Reconcile and pick** — the near-term tasks get checked against your actual code first, you approve each repair one at a time, and the pick then runs on a roadmap that was just corrected. Ask for it and it happens; Foreman never starts it on its own, because it costs real tokens.
 
 Editing the roadmap file by hand defeats the point, so don't.
@@ -114,7 +114,7 @@ number doesn't say. A claim without a record doesn't ship, and
 edited out from under one.
 
 Two records are published today.
-[`R-004-instruction-load`](benchmarks/records/R-004-instruction-load.json):
+[`R-006-instruction-load`](benchmarks/records/R-006-instruction-load.json):
 a Fast pick loads about **9.7k est. tokens** of instructions before ranking a
 single entry, a static count over the files that flow reads.
 [`R-005-prompt-overhead`](benchmarks/records/R-005-prompt-overhead.json):

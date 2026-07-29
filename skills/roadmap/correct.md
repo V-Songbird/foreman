@@ -25,8 +25,9 @@ says what it currently claims.
    this is what catches the case the date alone cannot. On a mismatch (either
    guard) the script names the current value: re-fetch (step 1), re-check
    the correction still makes sense against the newer text, and ask again.
-   Only `planned`/`in_progress`/`deferred` entries are correctable, and a
-   title another entry already has is refused.
+   Correctable statuses: `planned`, `in_progress`, `awaiting_acceptance`,
+   `deferred` — a terminal entry is history its own commits already
+   describe. A title another entry already has is refused.
 4. Confirm back in one line: the id and the response's `changed` list (a
    field the user restated identically will not be in it). Surface any
    `warnings` verbatim. Git holds what the entry used to say — don't copy

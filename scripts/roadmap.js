@@ -2218,9 +2218,12 @@ absent when the file was already current.
                     this catches the one it cannot. A field changed without
                     its expected entry is refused, naming the field; a
                     mismatch says to re-read and re-apply, same as above
-                    only planned/in_progress/deferred entries are
-                    correctable -- done/dropped/rejected is history its
-                    commits already describe
+                    only ${[...CORRECTABLE_STATUSES].join("/")}
+                    entries are correctable -- done/dropped/rejected is
+                    history its commits already describe
+                    an applied correction appends one dated
+                    "correction applied: <fields>" line to notes: the
+                    field names only, never the prose they replaced
                     a title equal to another entry's is refused: titles are
                     add's exact-replay key. Git is the audit trail for what
                     the entry used to say
@@ -2556,6 +2559,10 @@ module.exports = {
   EFFORTS,
   DUPLICATE_THRESHOLD,
   MAX_MATCHES,
+  // [Foreman: 177] The one definition of "still correctable", exported so the
+  // usage text, the skill branch, and their drift test all read it instead of
+  // each keeping a copy that can fall behind.
+  CORRECTABLE_STATUSES,
   DECISION_ANCHOR_RE,
   anchorIdsIn,
   anchorHasId,

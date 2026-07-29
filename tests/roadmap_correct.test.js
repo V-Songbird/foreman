@@ -23,6 +23,8 @@
 //   - an applied correction stamps one dated notes line naming the changed
 //     fields (and only their names), appends rather than overwrites, stamps
 //     nothing on a no-op, and is what roadmap-health counts
+//   - the usage text and the Correct-a-task branch both name exactly
+//     CORRECTABLE_STATUSES, and neither offers a terminal status
 //   - the direct-edit guard hook never sees a CLI write, so `correct` lands
 
 const { test, describe, beforeEach } = require('node:test');
@@ -31,7 +33,12 @@ const fs = require('fs');
 const path = require('path');
 
 const { runRoadmap, runScriptRaw, makeTmpProject, writeRoadmap } = require('./helpers');
-const { today, CORRECTION_MARKER } = require('../scripts/roadmap');
+const {
+  today,
+  CORRECTION_MARKER,
+  CORRECTABLE_STATUSES,
+  TERMINAL_STATUSES,
+} = require('../scripts/roadmap');
 const { fileMetrics } = require('../benchmarks/health/roadmap-health');
 
 let project;
@@ -764,5 +771,46 @@ describe('correct — help', () => {
     assert.equal(result.status, 0);
     assert.match(result.stdout, /\bcorrect\b/);
     assert.match(result.stdout, /expected_updated_at/);
+  });
+});
+
+// [Foreman: 177] Both surfaces said "planned/in_progress/deferred" long after
+// CORRECTABLE_STATUSES had gained awaiting_acceptance, so a user was told an
+// entry could not be corrected that the script corrects fine. The usage text
+// now interpolates the set; the skill file cannot, so this pins it.
+describe('correct — the correctable set is stated the same everywhere', () => {
+  test('the usage text names exactly CORRECTABLE_STATUSES', () => {
+    const result = runRoadmap(['--help'], undefined, env);
+    assert.equal(result.status, 0);
+    assert.ok(
+      result.stdout.includes(`only ${[...CORRECTABLE_STATUSES].join('/')}`),
+      `usage text does not name the correctable set:\n${result.stdout}`
+    );
+  });
+
+  test('the Correct-a-task branch names exactly CORRECTABLE_STATUSES', () => {
+    const branch = fs
+      .readFileSync(path.join(__dirname, '..', 'skills', 'roadmap', 'correct.md'), 'utf-8')
+      .replace(/\s+/g, ' ');
+    const listed = branch.match(/Correctable statuses: ((?:`[a-z_]+`(?:, )?)+)/);
+    assert.ok(listed, 'correct.md must carry a "Correctable statuses:" list');
+    const named = listed[1].match(/`([a-z_]+)`/g).map((token) => token.replace(/`/g, ''));
+    assert.deepEqual(named.sort(), [...CORRECTABLE_STATUSES].sort());
+  });
+
+  test('no terminal status is offered as correctable in either surface', () => {
+    const branch = fs.readFileSync(
+      path.join(__dirname, '..', 'skills', 'roadmap', 'correct.md'),
+      'utf-8'
+    );
+    for (const status of TERMINAL_STATUSES) {
+      assert.ok(!CORRECTABLE_STATUSES.has(status), `${status} must not be correctable`);
+      assert.ok(
+        !branch.includes(`Correctable statuses:`) || !branch.match(
+          new RegExp(`Correctable statuses:[^—]*\`${status}\``)
+        ),
+        `correct.md lists the terminal status ${status} as correctable`
+      );
+    }
   });
 });

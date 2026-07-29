@@ -78,7 +78,7 @@ record has to say so rather than letting the two look alike.
 
 | Record | Kind | Claim |
 | --- | --- | --- |
-| [`R-004-instruction-load`](R-004-instruction-load.json) | static computation | A Fast pick reached through the entrance loads about 9.7k est. tokens of instructions before ranking a single entry — down 62% from the ~25.5k it loaded before prompt assembly moved into a script and the roadmap skill split into branch files. |
+| [`R-006-instruction-load`](R-006-instruction-load.json) | static computation | A Fast pick reached through the entrance loads about 9.7k est. tokens of instructions before ranking a single entry — down 62% from the ~25.5k it loaded before prompt assembly moved into a script and the roadmap skill split into branch files. Supersedes `R-004` after two branch-file edits that left the headline figure unchanged. |
 | [`R-005-prompt-overhead`](R-005-prompt-overhead.json) | static computation | The standard handoff profile carries 12% of the reinforced profile's fixed guardrail text — 499 words saved. Supersedes `R-003` (the tail of a chain back to `R-001`) after template edits that left the numbers unchanged. |
 
 **No model-run records exist yet.** The harness in [`../`](../README.md) drives
