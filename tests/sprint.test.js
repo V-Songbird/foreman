@@ -221,6 +221,43 @@ describe("sprint skill contract", () => {
     assert.match(workflow, /input\.units\.length !== 1/);
     assert.match(workflow, /additionalProperties: false/);
   });
+
+  // [Foreman: 207] sprint was the last flow instructing a session to read
+  // prompt-template.md — 14,182 est. tokens, 82% of it that one file. It now
+  // assembles through the same script every other flow uses.
+  test("assembles the unit handoff through craft-handoff.js, not the template", () => {
+    const skill = fs.readFileSync(path.join(__dirname, "..", "skills", "sprint", "SKILL.md"), "utf-8");
+
+    assert.match(skill, /scripts\/craft-handoff\.js/);
+    assert.match(skill, /"workflowStage":true/);
+    assert.doesNotMatch(
+      skill,
+      /prompt-template\.md/,
+      "sprint must not send a session to read prompt-template.md — craft-handoff.js reads it at run time"
+    );
+  });
+
+  // The entry-less call is what omits the roadmap lifecycle paragraph: with
+  // no `entry`, craft-handoff emits none and the gate does not demand one.
+  // Passing an id would hand a worker the close instructions the coordinator
+  // reserves for itself.
+  test("passes the entry's fields inline so no lifecycle paragraph is emitted", () => {
+    const skill = fs.readFileSync(path.join(__dirname, "..", "skills", "sprint", "SKILL.md"), "utf-8");
+
+    assert.match(skill, /Pass the entry's own fields \*\*inline\*\*, never as `"entry":"<id>"`/);
+    assert.match(skill, /omits the normal roadmap lifecycle paragraph/);
+  });
+
+  // The assembled prompt's <scope_discipline> block tells a worker to log
+  // grown scope to ROADMAP.jsonl itself. Sprint's single-writer invariant
+  // forbids exactly that, so the constraint has to name what it overrides —
+  // an unnamed contradiction inside one prompt is worse than no rule.
+  test("names the scope_discipline block it overrides", () => {
+    const skill = fs.readFileSync(path.join(__dirname, "..", "skills", "sprint", "SKILL.md"), "utf-8");
+
+    assert.match(skill, /overrides the\s+`<scope_discipline>` block/);
+    assert.match(skill, /report it in the returned\s+`notes` and stop instead/);
+  });
 });
 
 describe("sprint unit attestation", () => {

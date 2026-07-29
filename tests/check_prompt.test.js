@@ -927,19 +927,16 @@ describe('handoff profiles', () => {
   });
 
   test('the prompt-building skills choose a profile from the signals', () => {
-    for (const rel of [['skills', 'roadmap', 'pick.md'], ['skills', 'sprint', 'SKILL.md']]) {
-      const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8').replace(/\s+/g, ' ');
-      assert.ok(skill.includes('Handoff profiles'), `${rel.join('/')} never reaches the profile section`);
-      assert.ok(
-        /Any signal true → `reinforced`; none → `standard`|same mechanical signals/.test(skill),
-        `${rel.join('/')} lost the signal → profile mapping`
-      );
-    }
+    const roadmap = fs.readFileSync(path.join(__dirname, '..', 'skills', 'roadmap', 'pick.md'), 'utf-8').replace(/\s+/g, ' ');
+    assert.ok(roadmap.includes('Handoff profiles'), 'pick.md never reaches the profile section');
+    assert.ok(
+      /Any signal true → `reinforced`; none → `standard`|same mechanical signals/.test(roadmap),
+      'pick.md lost the signal → profile mapping'
+    );
     // entry 203: pick.md no longer runs the gate itself (craft-handoff.js
     // does, in-process) — the profile/signals it returns are relayed, not
     // derived, so the pin moves from "passes --profile to the gate" to
     // "calls the script and states what came back".
-    const roadmap = fs.readFileSync(path.join(__dirname, '..', 'skills', 'roadmap', 'pick.md'), 'utf-8').replace(/\s+/g, ' ');
     assert.ok(
       roadmap.includes('node ${CLAUDE_PLUGIN_ROOT}/scripts/craft-handoff.js'),
       'the roadmap skill does not call craft-handoff.js'
@@ -947,6 +944,28 @@ describe('handoff profiles', () => {
     assert.ok(
       roadmap.includes('the returned `profile` and which `signals` fired'),
       'the roadmap skill lost the state-the-profile-and-signals rule'
+    );
+  });
+
+  // [Foreman: 207] sprint used to re-derive the "Handoff profiles" section by
+  // hand out of prompt-template.md. It now delegates to the same assembler, so
+  // the pin is the delegation and the relay — not a second copy of the rule.
+  test('sprint relays the profile instead of re-deriving it', () => {
+    const sprint = fs
+      .readFileSync(path.join(__dirname, '..', 'skills', 'sprint', 'SKILL.md'), 'utf-8')
+      .replace(/\s+/g, ' ');
+
+    assert.ok(
+      sprint.includes('node ${CLAUDE_PLUGIN_ROOT}/scripts/craft-handoff.js'),
+      'the sprint skill does not call craft-handoff.js'
+    );
+    assert.ok(
+      sprint.includes('state `profile` in the plan report'),
+      'the sprint skill lost the state-the-profile rule'
+    );
+    assert.ok(
+      sprint.includes('is never a judgment call here'),
+      'the sprint skill lost the rule that the profile is mechanical, not chosen'
     );
   });
 });

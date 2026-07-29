@@ -61,21 +61,37 @@ Now fetch only that unit's current full entry:
 `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --ids <id>`
 
 Ground its handoff against the latest post-commit tree now, after every
-earlier unit's commit, attestation, verification, and fold-back. Assemble the
-same handoff used by the `foreman:roadmap` pick branch. Reuse its prompt rules and
-`${CLAUDE_PLUGIN_ROOT}/prompt-template.md`, except omit the normal roadmap
-lifecycle paragraph: the sprint coordinator is the only process allowed to
-change or close entries.
+earlier unit's commit, attestation, verification, and fold-back. Then assemble
+it with one call to the same assembler the `foreman:roadmap` pick branch uses,
+so a sprint worker gets the same prompt shape as every other Foreman handoff:
 
-That includes the template's "Handoff profiles" choice — compute the same
-mechanical signals per unit, from that unit's own entry. Step 2's `planned` → `in_progress`
-transition immediately above is **not** the `resumed` signal (the template's
-definition says so): a fresh unit with no other signal gets `standard`.
+```
+echo '{"destination":"agent","workflowStage":true,"title":"<entry title>","why":"<entry why>","what":"<entry what>","notes":"<entry notes, when non-empty>","planned_touches":[<entry planned_touches>],"depends_on":[<entry depends_on>],"judgment":{"role":"<role>","goal":"<goal sentence>","context":"<context prose>","steps":["<what to implement/fix>"],"constraints":["<hard limits, patterns to follow>"],"expectedFileSurface":"<planned_touches>","verification":[{"run":"<exact command>","expected":"<pass/fail signal>"}],"invariants":["<one observable assertion>"]}}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/craft-handoff.js
+```
 
-Add these sprint-only worker rules:
+Pass the entry's own fields **inline**, never as `"entry":"<id>"`. That is
+what omits the normal roadmap lifecycle paragraph: the sprint coordinator is
+the only process allowed to change or close entries, so a worker must not be
+handed the instructions to do it itself. `workflowStage: true` is the
+Workflow-stage flavor — this prompt runs as a stage inside step 3's fixed
+workflow. Type `${CLAUDE_PLUGIN_ROOT}` back literally in that stdin JSON; the
+gate errors on a resolved plugins-cache path.
+
+Gather the `judgment` fields from the entry exactly as the pick branch does:
+`role`/`goal` from `title`/`why`, `context` from `what` plus `notes` when
+non-empty, `steps`/`constraints` from `what`, `expectedFileSurface` from
+`planned_touches`, `verification` as the `Run:`/`Expected:` pairs in running
+order, and `invariants` from anything already asserted in `why`/`what`/`notes`.
+No investigation — every field comes from the entry.
+
+Add these sprint-only worker rules to `constraints`:
 
 - implement and verify only this entry;
-- never edit `ROADMAP.jsonl` or `CHANGELOG.md`;
+- never edit `ROADMAP.jsonl` or `CHANGELOG.md`. **This overrides the
+  `<scope_discipline>` block in the assembled prompt**, which otherwise tells
+  a worker to log grown scope to the roadmap itself: report it in the returned
+  `notes` and stop instead. The coordinator is the only writer of either
+  ledger, and step 3's attestation fails a commit that names one;
 - never run `git add -A`; stage only files this unit changed, then inspect
   `git diff --cached --name-only` and stop if it names either shared ledger
   or an unrelated file;
@@ -83,6 +99,14 @@ Add these sprint-only worker rules:
 - closure notes must cite observed files, commands, commits, or outcomes,
   never the planned `what` as execution evidence;
 - return only the workflow schema fields.
+
+The call returns `{ok, prompt, profile, signals, gate, warnings}`. Use
+`prompt` verbatim as this unit's handoff and state `profile` in the plan
+report. The profile is mechanical and is never a judgment call here: a fresh
+unit carries no commits and no observed files, so step 2's
+`planned` → `in_progress` transition above is not the `resumed` signal and the
+script does not treat it as one. When `ok` is `false`, don't retry blind —
+show `gate.errors`, gather the field each one names, and re-call.
 
 Create this unit's visible task with `TaskCreate` and mark it `in_progress`.
 Do not create later tasks yet. That way a stopped sprint does not mark work
