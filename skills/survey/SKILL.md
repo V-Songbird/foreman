@@ -210,10 +210,12 @@ step exists to collect.
      the value the write is guarded by, the surveying agents ran for a
      while in between, and `next-candidates` does not return that field at
      all.
-  2. `echo '{"id":"<candidate>","expected_updated_at":"<the updated_at that read just returned>","what":"<approved what>","planned_touches":[<approved paths>]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js correct`
-     — only the approved fields go in the payload; a field the user
-     declined is simply absent, and `planned_touches` is sent as the whole
-     replacement array.
+  2. `echo '{"id":"<candidate>","expected_updated_at":"<the updated_at that read just returned>","expected":{"what":"<the what that read just returned>","planned_touches":[<the planned_touches that read just returned>]},"what":"<approved what>","planned_touches":[<approved paths>]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js correct`
+     — only the approved fields go in the payload, each paired with its own
+     `expected.<field>` holding the CURRENT value that same read (1) just
+     returned; a field the user declined is simply absent from both, and
+     `planned_touches` is sent as the whole replacement array in both
+     places.
   3. If the script refuses with `was last updated … , not …`, another
      session changed the entry between that read and this write. **Re-read
      (1), re-show current → proposed against the newer text, and ask

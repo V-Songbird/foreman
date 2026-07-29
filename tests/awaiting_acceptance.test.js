@@ -116,6 +116,7 @@ describe('awaiting_acceptance as a status value', () => {
     const { status, json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: { what: 'work 001' },
       what: 'work 001, restated',
     });
 

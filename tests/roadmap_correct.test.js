@@ -8,6 +8,11 @@
 //   - `changed` lists only the fields that actually differed
 //   - expected_updated_at is required, and a stale one is refused without
 //     touching the file
+//   - expected is the content compare-and-swap `expected_updated_at` cannot
+//     cover on its own: a same-day second correction composed against a
+//     stale `expected.<field>` is refused and the first correction survives,
+//     a changed field with no matching `expected` entry names the field,
+//     and a `planned_touches` mismatch is refused the same way
 //   - a title equal to another entry's is refused (add's exact-replay key)
 //   - done/dropped/rejected entries are refused — that is history rewriting
 //   - kind "build" drops the stored key, round-tripping back to "decision"
@@ -84,6 +89,7 @@ describe('correct — happy path per field', () => {
     const { status, json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: { title: 'Add JWT refresh middleware' },
       title: 'Add JWT refresh middleware to the edge proxy',
     });
     assert.equal(status, 0);
@@ -98,6 +104,7 @@ describe('correct — happy path per field', () => {
     const { json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: { why: 'Sessions expire mid-request under load.' },
       why: 'The refresh only fails behind the proxy, not under load.',
     });
     assert.equal(json.entry.why, 'The refresh only fails behind the proxy, not under load.');
@@ -109,6 +116,7 @@ describe('correct — happy path per field', () => {
     const { json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: { what: 'Refresh the access token before its 15-min expiry.' },
       what: 'Refresh in the proxy layer, not the app middleware.',
     });
     assert.equal(json.entry.what, 'Refresh in the proxy layer, not the app middleware.');
@@ -120,6 +128,7 @@ describe('correct — happy path per field', () => {
     const { json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: { kind: 'build' },
       kind: 'decision',
     });
     assert.equal(json.entry.kind, 'decision');
@@ -132,6 +141,7 @@ describe('correct — happy path per field', () => {
     const { json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: { planned_touches: ['src/auth/middleware.ts'] },
       planned_touches: ['src/proxy/refresh.ts', 'tests/proxy.test.ts'],
     });
     assert.deepEqual(json.entry.planned_touches, ['src/proxy/refresh.ts', 'tests/proxy.test.ts']);
@@ -143,6 +153,7 @@ describe('correct — happy path per field', () => {
     const { json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: { why: 'Sessions expire mid-request under load.' },
       why: 'Different rationale entirely.',
     });
     assert.equal(json.entry.updated_at, today());
@@ -154,6 +165,7 @@ describe('correct — happy path per field', () => {
       const { json } = run(['correct'], {
         id: '001',
         expected_updated_at: '2026-07-01',
+        expected: { what: 'Refresh the access token before its 15-min expiry.' },
         what: `Reworded for the ${status} case.`,
       });
       assert.equal(json.ok, true, `${status} should be correctable`);
@@ -168,6 +180,13 @@ describe('correct — multi-field and changed accounting', () => {
     const { json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: {
+        title: 'Add JWT refresh middleware',
+        why: 'Sessions expire mid-request under load.',
+        what: 'Refresh the access token before its 15-min expiry.',
+        kind: 'build',
+        planned_touches: ['src/auth/middleware.ts'],
+      },
       title: 'Refresh tokens at the edge proxy',
       why: 'The middleware never sees the expired token.',
       what: 'Move the refresh into the proxy.',
@@ -186,6 +205,11 @@ describe('correct — multi-field and changed accounting', () => {
     const { json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: {
+        title: 'Add JWT refresh middleware',
+        planned_touches: ['src/auth/middleware.ts'],
+        what: 'Refresh the access token before its 15-min expiry.',
+      },
       title: 'Add JWT refresh middleware',
       planned_touches: ['src/auth/middleware.ts'],
       what: 'Actually corrected.',
@@ -198,6 +222,7 @@ describe('correct — multi-field and changed accounting', () => {
     const { json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: { title: 'Add JWT refresh middleware', kind: 'build' },
       title: 'Add JWT refresh middleware',
       kind: 'build',
     });
@@ -239,15 +264,95 @@ describe('correct — staleness guard', () => {
     const first = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: { why: 'Sessions expire mid-request under load.' },
       why: 'First correction.',
     });
     const second = run(['correct'], {
       id: '001',
       expected_updated_at: first.json.entry.updated_at,
+      expected: { why: 'First correction.' },
       why: 'Second correction.',
     });
     assert.equal(second.json.ok, true);
     assert.equal(second.json.entry.why, 'Second correction.');
+  });
+});
+
+describe('correct — content compare-and-swap', () => {
+  // expected_updated_at is date-only, so two sessions that both read an
+  // entry today both pass it -- this is the guard that catches the
+  // same-day case the date guard cannot.
+  test('a same-day second correction with a stale expected.what is refused, and the first correction survives', () => {
+    seed([entryFixture({ updated_at: today() })]);
+    const first = run(['correct'], {
+      id: '001',
+      expected_updated_at: today(),
+      expected: { what: 'Refresh the access token before its 15-min expiry.' },
+      what: 'First session rewrote this.',
+    });
+    assert.equal(first.json.ok, true);
+
+    const second = run(['correct'], {
+      id: '001',
+      expected_updated_at: today(),
+      // Composed against the text this session read BEFORE the first
+      // session's write -- stale, even though the date guard still matches.
+      expected: { what: 'Refresh the access token before its 15-min expiry.' },
+      what: 'Second session, composed against text it never saw.',
+    });
+    assert.equal(second.status, 1);
+    assert.equal(second.json.ok, false);
+    assert.equal(onDisk()[0].what, 'First session rewrote this.');
+  });
+
+  test('a correct expected passes and the correction applies', () => {
+    seed([entryFixture({ updated_at: today() })]);
+    const { status, json } = run(['correct'], {
+      id: '001',
+      expected_updated_at: today(),
+      expected: { what: 'Refresh the access token before its 15-min expiry.' },
+      what: 'Reworded against the current text.',
+    });
+    assert.equal(status, 0);
+    assert.equal(json.ok, true);
+    assert.equal(json.entry.what, 'Reworded against the current text.');
+  });
+
+  test('a missing expected for a changed field is an error naming the field', () => {
+    seed();
+    const { status, json } = run(['correct'], {
+      id: '001',
+      expected_updated_at: '2026-07-01',
+      what: 'No expected.what came along with this.',
+    });
+    assert.equal(status, 1);
+    assert.equal(json.ok, false);
+    assert.match(json.error, /expected\.what/);
+    assert.equal(onDisk()[0].what, 'Refresh the access token before its 15-min expiry.');
+  });
+
+  test('a planned_touches expected-mismatch is refused', () => {
+    seed();
+    const { status, json } = run(['correct'], {
+      id: '001',
+      expected_updated_at: '2026-07-01',
+      expected: { planned_touches: ['src/a-stale-view.ts'] },
+      planned_touches: ['src/new.ts'],
+    });
+    assert.equal(status, 1);
+    assert.match(json.error, /planned_touches/);
+    assert.deepEqual(onDisk()[0].planned_touches, ['src/auth/middleware.ts']);
+  });
+
+  test('the refusal message tells the caller to re-read and re-apply', () => {
+    seed();
+    const { json } = run(['correct'], {
+      id: '001',
+      expected_updated_at: '2026-07-01',
+      expected: { why: 'Someone else already corrected this.' },
+      why: 'Composed against stale text.',
+    });
+    assert.match(json.error, /re-read the entry and re-apply the correction/);
   });
 });
 
@@ -260,6 +365,7 @@ describe('correct — rejections', () => {
     const { status, json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: { title: 'Add JWT refresh middleware' },
       title: 'Add refresh-token revocation endpoint',
     });
     assert.equal(status, 1);
@@ -273,6 +379,7 @@ describe('correct — rejections', () => {
     const { json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: { title: 'Add JWT refresh middleware', why: 'Sessions expire mid-request under load.' },
       title: 'Add JWT refresh middleware',
       why: 'Reworded.',
     });
@@ -351,6 +458,7 @@ describe('correct — kind round-trip', () => {
     const toBuild = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: { kind: 'decision' },
       kind: 'build',
     });
     assert.deepEqual(toBuild.json.changed, ['kind']);
@@ -360,6 +468,7 @@ describe('correct — kind round-trip', () => {
     const back = run(['correct'], {
       id: '001',
       expected_updated_at: toBuild.json.entry.updated_at,
+      expected: { kind: 'build' },
       kind: 'decision',
     });
     assert.deepEqual(back.json.changed, ['kind']);
@@ -371,6 +480,7 @@ describe('correct — kind round-trip', () => {
     const { json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: { kind: 'build' },
       kind: 'build',
     });
     assert.deepEqual(json.changed, []);
@@ -383,6 +493,7 @@ describe('correct — planned_touches is a replacement, not a fold', () => {
     const { json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: { planned_touches: ['src/a.ts', 'src/b.ts', 'src/c.ts'] },
       planned_touches: ['src/b.ts'],
     });
     assert.deepEqual(json.entry.planned_touches, ['src/b.ts']);
@@ -394,6 +505,7 @@ describe('correct — planned_touches is a replacement, not a fold', () => {
     const { json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: { planned_touches: ['src/auth/middleware.ts'] },
       planned_touches: [],
     });
     assert.deepEqual(json.entry.planned_touches, []);
@@ -407,6 +519,7 @@ describe('correct — planned_touches is a replacement, not a fold', () => {
     const { json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: { planned_touches: ['src/auth/middleware.ts'] },
       planned_touches: ['src/next.ts'],
     });
     assert.deepEqual(json.entry.observed_touches, ['src/shipped.ts']);
@@ -420,6 +533,10 @@ describe('correct — warnings', () => {
     const { json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: {
+        why: 'Sessions expire mid-request under load.',
+        what: 'Refresh the access token before its 15-min expiry.',
+      },
       why: 'w'.repeat(300),
       what: 'x'.repeat(500),
     });
@@ -435,6 +552,7 @@ describe('correct — warnings', () => {
     const { json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: { why: 'Sessions expire mid-request under load.' },
       why: 'Short and specific.',
     });
     assert.equal('warnings' in json, false);
@@ -450,6 +568,11 @@ describe('correct — graph facts', () => {
     const { json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: {
+        title: 'Add JWT refresh middleware',
+        planned_touches: ['src/auth/middleware.ts'],
+        kind: 'build',
+      },
       title: 'Reworded blocker',
       touches: ['src/whatever.ts'],
       kind: 'decision',
@@ -478,6 +601,7 @@ describe('correct — the direct-edit guard', () => {
     const { json } = run(['correct'], {
       id: '001',
       expected_updated_at: '2026-07-01',
+      expected: { why: 'Sessions expire mid-request under load.' },
       why: 'Corrected through the CLI the guard points at.',
     });
     assert.equal(json.ok, true);

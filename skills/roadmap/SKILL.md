@@ -651,14 +651,18 @@ says what it currently claims.
    history the command refuses outright). Then **one** `AskUserQuestion`:
    `Apply the correction` / `Never mind`. `planned_touches` is a full
    replacement, so show the whole new list, not just the additions.
-3. `echo '{"id":"...","expected_updated_at":"<the updated_at from step 1>","what":"..."}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js correct`
+3. `echo '{"id":"...","expected_updated_at":"<the updated_at from step 1>","expected":{"what":"<the what step 1 just returned>"},"what":"..."}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js correct`
    — pass the fetched `updated_at` verbatim as `expected_updated_at`; it is
    what stops a correction composed against an older version from
-   overwriting a newer one. On a mismatch the script names the current
-   value: re-fetch (step 1), re-check the correction still makes sense
-   against the newer text, and ask again. Only `planned`/`in_progress`/
-   `deferred` entries are correctable, and a title another entry already
-   has is refused.
+   overwriting a newer one. `expected_updated_at` is date-only, so a second
+   same-day correction still needs `expected`: one entry per field being
+   corrected, each holding the CURRENT value step 1 just read back (`kind`
+   and `planned_touches` need one too, the latter the whole current array) —
+   this is what catches the case the date alone cannot. On a mismatch (either
+   guard) the script names the current value: re-fetch (step 1), re-check
+   the correction still makes sense against the newer text, and ask again.
+   Only `planned`/`in_progress`/`deferred` entries are correctable, and a
+   title another entry already has is refused.
 4. Confirm back in one line: the id and the response's `changed` list (a
    field the user restated identically will not be in it). Surface any
    `warnings` verbatim. Git holds what the entry used to say — don't copy

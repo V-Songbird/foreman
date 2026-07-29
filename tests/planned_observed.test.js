@@ -225,7 +225,7 @@ describe('a format-1 file migrates automatically on the first write', () => {
     [['update-status'], { id: '001', status: 'done' }],
     [['annotate'], { id: '001', notes: 'a breadcrumb' }],
     [['update-deps'], { id: '001', add_depends_on: ['002'] }],
-    [['correct'], { id: '001', expected_updated_at: '2026-07-01', what: 'reworded' }],
+    [['correct'], { id: '001', expected_updated_at: '2026-07-01', expected: { what: 'work 001' }, what: 'reworded' }],
     [['archive'], { ids: ['002'] }],
   ];
 
@@ -470,6 +470,7 @@ describe('add and correct: the prediction is the editable half', () => {
     const { json } = run(['correct'], {
       id: added.id,
       expected_updated_at: added.updated_at,
+      expected: { planned_touches: ['src/a.ts', 'src/b.ts'] },
       planned_touches: ['src/b.ts'],
     });
     assert.deepEqual(json.entry.planned_touches, ['src/b.ts']);

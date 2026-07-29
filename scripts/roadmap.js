@@ -1271,6 +1271,40 @@ function cmdCorrectUnlocked(root, payload) {
       `entry ${id} was last updated ${entry.updated_at}, not ${expected_updated_at} — re-read the entry and re-apply the correction on top of it`
     );
   }
+  // Content compare-and-swap: `updated_at` is date-only, so two sessions
+  // that both read an entry today both pass the guard above -- the second
+  // one composes its correction against text the first already replaced,
+  // and nothing stops it from silently winning. Every field this call is
+  // changing (a no-op counts too: the requirement is what the caller SAW,
+  // not what ends up different, so there is no field-shaped way around it)
+  // must come with the caller's own view of that field's CURRENT value in
+  // `expected`. Missing it names the field outright, so the guard cannot be
+  // skipped by omission; a mismatch means someone moved it since this
+  // session read it.
+  const expected = (payload || {}).expected || {};
+  const currentKind = entry.kind === "decision" ? "decision" : "build";
+  const currentPlanned = Array.isArray(entry.planned_touches) ? entry.planned_touches : [];
+  const contentChecks = [
+    ...Object.keys(text).map((field) => [field, entry[field]]),
+    ...(kind !== undefined ? [["kind", currentKind]] : []),
+    ...(planned !== undefined ? [["planned_touches", currentPlanned]] : []),
+  ];
+  for (const [field, current] of contentChecks) {
+    if (!(field in expected)) {
+      throw new Error(
+        `correct requires expected.${field} (the entry's current ${field}) so a same-day correction cannot overwrite text it never saw`
+      );
+    }
+    const matches = field === "planned_touches"
+      ? Array.isArray(expected[field]) && expected[field].length === current.length
+        && expected[field].every((p, i) => p === current[i])
+      : expected[field] === current;
+    if (!matches) {
+      throw new Error(
+        `entry ${id}'s ${field} no longer matches expected.${field} — re-read the entry and re-apply the correction on top of it`
+      );
+    }
+  }
   // add's exact-title replay dedup is only safe while titles stay unique —
   // and it now matches archived titles too, so those count as taken.
   if (text.title !== undefined) {
@@ -2128,7 +2162,7 @@ absent when the file was already current.
                     was later dropped; removing an id that isn't there is a
                     no-op; returns the same compact graph-fact fields when
                     the edge change makes them non-empty
-  correct           stdin JSON: {id, expected_updated_at, title?, why?, what?, kind?, planned_touches?}
+  correct           stdin JSON: {id, expected_updated_at, expected?, title?, why?, what?, kind?, planned_touches?}
                     the supported repair for an entry whose description or
                     planned files went stale -- at least one correctable
                     field is required, each is a full replacement (title/why/
@@ -2143,6 +2177,15 @@ absent when the file was already current.
                     entry's current updated_at, so a stale session cannot
                     overwrite a newer correction; a mismatch names the
                     current value and writes nothing
+                    expected is a required content compare-and-swap: for
+                    every field this call changes (a no-op counts too),
+                    expected.<field> must be the caller's own view of that
+                    field's CURRENT value ({"expected":{"what":"..."}} etc,
+                    planned_touches compared element-wise) -- expected_updated_at
+                    is date-only, so two same-day corrections both pass it;
+                    this catches the one it cannot. A field changed without
+                    its expected entry is refused, naming the field; a
+                    mismatch says to re-read and re-apply, same as above
                     only planned/in_progress/deferred entries are
                     correctable -- done/dropped/rejected is history its
                     commits already describe
@@ -2317,7 +2360,7 @@ Examples:
     | node roadmap.js update-status   # then commit with "Foreman: 003" as the last line
   echo '{"id":"004","add_depends_on":["002"]}' \\
     | node roadmap.js update-deps
-  echo '{"id":"004","expected_updated_at":"2026-07-28","what":"...","planned_touches":["src/api/retry.ts"]}' \\
+  echo '{"id":"004","expected_updated_at":"2026-07-28","expected":{"what":"old what","planned_touches":["src/api"]},"what":"...","planned_touches":["src/api/retry.ts"]}' \\
     | node roadmap.js correct
   echo '{"id":"130","keep":"Cache the rate lookup"}' \\
     | node roadmap.js reassign-id
