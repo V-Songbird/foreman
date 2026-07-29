@@ -1212,6 +1212,14 @@ const CORRECTABLE_STATUSES = new Set([
   "deferred",
 ]);
 
+// [Foreman: 178] An applied correction stamps one CLI-authored line naming the
+// fields it changed — the same shape as reassign-id's. Field NAMES only: the
+// prose a correction replaced is git's job, and copying it here would rebuild
+// in `notes` exactly the museum of obsolete wording this command exists to
+// avoid. Without the stamp an applied correction left no trace at all, so
+// benchmarks/health/roadmap-health.js had nothing to count.
+const CORRECTION_MARKER = "correction applied: ";
+
 // [Foreman: 202] `expected.planned_touches`'s guard compares the same
 // multiset of paths, not the same order — the array is ordered only because
 // JSON has no set type, so a caller who reordered without changing anything
@@ -1360,9 +1368,11 @@ function cmdCorrectUnlocked(root, payload) {
     }
   }
   // A correction that changes nothing writes nothing — including updated_at,
-  // which is the very value every other session's guard is holding.
+  // which is the very value every other session's guard is holding, and
+  // including the stamp: a no-op correction is not a correction.
   let migrated;
   if (changed.length) {
+    entry.notes = appendNote(entry.notes, `${CORRECTION_MARKER}${changed.join(", ")}`);
     entry.updated_at = today();
     migrated = writeEntries(root, entries, resolve);
   }
@@ -2552,6 +2562,10 @@ module.exports = {
   COMMIT_TRAILER_RE,
   commitTrailerFor,
   trailerIdsIn,
+  // [Foreman: 178] The stamp cmdCorrect writes, exported so
+  // benchmarks/health/roadmap-health.js counts the string this script
+  // actually writes rather than a second copy of it.
+  CORRECTION_MARKER,
   USAGE,
 };
 

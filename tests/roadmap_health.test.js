@@ -17,6 +17,7 @@ const {
 const {
   STALE_DAYS,
   SURVEY_MARKER,
+  CORRECTION_MARKER,
   fileMetrics,
   loadTrialLog,
   trialMetrics,
@@ -73,7 +74,7 @@ describe("roadmap health — metrics from the files alone", () => {
     assert.deepEqual(fileMetrics([at, past], [], DATE).stale_entries.ids, ["002"]);
   });
 
-  test("counts survey breadcrumbs and refuses to guess at applied corrections", () => {
+  test("counts survey breadcrumbs separately from applied corrections", () => {
     const entries = [
       entry("001", { notes: `2026-07-02 ${SURVEY_MARKER} the named module has no such export` }),
       entry("002", { notes: "2026-07-02 handed off to a background agent" }),
@@ -82,7 +83,39 @@ describe("roadmap health — metrics from the files alone", () => {
 
     assert.equal(metrics.corrections.count, 1);
     assert.deepEqual(metrics.corrections.ids, ["001"]);
-    assert.deepEqual(metrics.corrections.applied, { count: null, reason: "not_derivable" });
+    assert.deepEqual(metrics.corrections.applied, {
+      count: 0,
+      ids: [],
+      marker: CORRECTION_MARKER,
+    });
+  });
+
+  // [Foreman: 178] The stamp is one dated line per applied correction, so an
+  // entry corrected twice is worth two — the metric is corrections, not
+  // corrected entries.
+  test("counts one applied correction per stamped line, not per entry", () => {
+    const entries = [
+      entry("001", {
+        notes: `2026-07-02 ${CORRECTION_MARKER}what\n2026-07-05 ${CORRECTION_MARKER}title, planned_touches`,
+      }),
+      entry("002", { notes: `2026-07-05 ${CORRECTION_MARKER}why` }),
+      entry("003", { notes: "2026-07-05 nothing was corrected here" }),
+    ];
+    const metrics = fileMetrics(entries, [], DATE);
+
+    assert.equal(metrics.corrections.applied.count, 3);
+    assert.deepEqual(metrics.corrections.applied.ids, ["001", "002"]);
+  });
+
+  test("an archived entry's corrections belong to its own period, not today's plan", () => {
+    const active = [entry("001", { notes: `2026-07-05 ${CORRECTION_MARKER}what` })];
+    const archived = [
+      entry("002", { status: "done", notes: `2026-06-01 ${CORRECTION_MARKER}title` }),
+    ];
+    const metrics = fileMetrics(active, archived, DATE);
+
+    assert.equal(metrics.corrections.applied.count, 1);
+    assert.deepEqual(metrics.corrections.applied.ids, ["001"]);
   });
 
   test("counts open entries waiting on dropped and missing ids", () => {

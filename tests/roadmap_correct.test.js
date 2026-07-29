@@ -20,6 +20,9 @@
 //   - a call naming no correctable field is refused
 //   - long why/what still warn, same soft caps as add
 //   - graph-fact fields stay absent: no correctable field moves the graph
+//   - an applied correction stamps one dated notes line naming the changed
+//     fields (and only their names), appends rather than overwrites, stamps
+//     nothing on a no-op, and is what roadmap-health counts
 //   - the direct-edit guard hook never sees a CLI write, so `correct` lands
 
 const { test, describe, beforeEach } = require('node:test');
@@ -28,7 +31,8 @@ const fs = require('fs');
 const path = require('path');
 
 const { runRoadmap, runScriptRaw, makeTmpProject, writeRoadmap } = require('./helpers');
-const { today } = require('../scripts/roadmap');
+const { today, CORRECTION_MARKER } = require('../scripts/roadmap');
+const { fileMetrics } = require('../benchmarks/health/roadmap-health');
 
 let project;
 let env;
@@ -230,6 +234,97 @@ describe('correct — multi-field and changed accounting', () => {
     assert.deepEqual(json.changed, []);
     assert.equal(json.entry.updated_at, '2026-07-01');
     assert.equal(onDisk()[0].updated_at, '2026-07-01');
+  });
+});
+
+// [Foreman: 178] Before this, an applied correction left no trace at all and
+// the health report's applied-corrections count had nothing to read.
+describe('correct — the applied-correction stamp', () => {
+  test('a correction appends one dated line naming the changed fields', () => {
+    seed();
+    const { json } = run(['correct'], {
+      id: '001',
+      expected_updated_at: '2026-07-01',
+      expected: { what: 'Refresh the access token before its 15-min expiry.' },
+      what: 'Refresh in the proxy layer, not the app middleware.',
+    });
+    assert.equal(json.entry.notes, `${today()} ${CORRECTION_MARKER}what`);
+    assert.equal(onDisk()[0].notes, `${today()} ${CORRECTION_MARKER}what`);
+  });
+
+  test('the stamp names every changed field, in the same order as changed', () => {
+    seed();
+    const { json } = run(['correct'], {
+      id: '001',
+      expected_updated_at: '2026-07-01',
+      expected: {
+        title: 'Add JWT refresh middleware',
+        what: 'Refresh the access token before its 15-min expiry.',
+        planned_touches: ['src/auth/middleware.ts'],
+      },
+      title: 'Refresh tokens at the edge proxy',
+      what: 'Move the refresh into the proxy.',
+      planned_touches: ['src/proxy/refresh.ts'],
+    });
+    assert.deepEqual(json.changed, ['title', 'what', 'planned_touches']);
+    assert.equal(
+      json.entry.notes,
+      `${today()} ${CORRECTION_MARKER}${json.changed.join(', ')}`
+    );
+  });
+
+  test('the stamp appends, it never overwrites an existing note', () => {
+    seed([entryFixture({ notes: '2026-06-30 survey (unconfirmed): the helper moved' })]);
+    const { json } = run(['correct'], {
+      id: '001',
+      expected_updated_at: '2026-07-01',
+      expected: { why: 'Sessions expire mid-request under load.' },
+      why: 'The refresh only fails behind the proxy.',
+    });
+    assert.deepEqual(json.entry.notes.split('\n'), [
+      '2026-06-30 survey (unconfirmed): the helper moved',
+      `${today()} ${CORRECTION_MARKER}why`,
+    ]);
+  });
+
+  test('the stamp carries the field names only, never the prose it replaced', () => {
+    seed();
+    const { json } = run(['correct'], {
+      id: '001',
+      expected_updated_at: '2026-07-01',
+      expected: { what: 'Refresh the access token before its 15-min expiry.' },
+      what: 'Refresh in the proxy layer, not the app middleware.',
+    });
+    assert.ok(!json.entry.notes.includes('15-min expiry'), 'old prose belongs to git, not notes');
+    assert.ok(!json.entry.notes.includes('proxy layer'), 'new prose is already in `what`');
+  });
+
+  test('an all-no-op correction stamps nothing', () => {
+    seed();
+    const { json } = run(['correct'], {
+      id: '001',
+      expected_updated_at: '2026-07-01',
+      expected: { title: 'Add JWT refresh middleware', kind: 'build' },
+      title: 'Add JWT refresh middleware',
+      kind: 'build',
+    });
+    assert.deepEqual(json.changed, []);
+    assert.equal(json.entry.notes, '');
+    assert.equal(onDisk()[0].notes, '');
+  });
+
+  test('roadmap health counts the stamp this command actually writes', () => {
+    seed();
+    run(['correct'], {
+      id: '001',
+      expected_updated_at: '2026-07-01',
+      expected: { what: 'Refresh the access token before its 15-min expiry.' },
+      what: 'Refresh in the proxy layer, not the app middleware.',
+    });
+    const [stored] = onDisk();
+    const { corrections } = fileMetrics([stored], [], today());
+    assert.equal(corrections.applied.count, 1);
+    assert.deepEqual(corrections.applied.ids, ['001']);
   });
 });
 

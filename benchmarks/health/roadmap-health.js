@@ -27,6 +27,7 @@ const {
   archivePath,
   today,
   TERMINAL_STATUSES,
+  CORRECTION_MARKER,
 } = require("../../scripts/roadmap");
 const { validateEntries, validateAcrossFiles } = require("../../scripts/roadmap-doctor");
 
@@ -34,12 +35,12 @@ const { validateEntries, validateAcrossFiles } = require("../../scripts/roadmap-
 // staleness signal and the handoff profile check already use.
 const STALE_DAYS = 30;
 
-// The two note stamps that survive as machine-readable traces. `survey
+// The note stamps that survive as machine-readable traces. `survey
 // (unconfirmed): ` is written by foreman:survey for a finding it could not
-// ground; the reassignment line is written by roadmap.js reassign-id. An
-// APPLIED correction leaves no trace at all — `correct` rewrites the fields
-// in place and stamps nothing — so that half is reported as not_derivable
-// rather than guessed at.
+// ground; the reassignment line is written by roadmap.js reassign-id.
+// [Foreman: 178] `correction applied: ` is roadmap.js's own stamp on an
+// applied correction — imported rather than restated, so this counts the
+// string that script actually writes.
 const SURVEY_MARKER = "survey (unconfirmed):";
 const REASSIGN_MARKER = "id reassigned from ";
 
@@ -56,6 +57,15 @@ function isOpen(entry) {
 
 function notesOf(entry) {
   return typeof entry.notes === "string" ? entry.notes : "";
+}
+
+// [Foreman: 178] Corrections are counted per LINE, not per entry: `notes`
+// appends one dated line per write, so an entry corrected three times carries
+// three stamps and is worth three. The breadcrumb metric beside this one
+// counts entries because a survey finding is a state an entry is in, not an
+// event that recurs.
+function countStamps(entry, marker) {
+  return notesOf(entry).split("\n").filter((line) => line.includes(marker)).length;
 }
 
 function idsFrom(findings, codes, keep = () => true) {
@@ -94,6 +104,13 @@ function fileMetrics(entries, archived, date) {
 
   const breadcrumbs = entries.filter((e) => notesOf(e).includes(SURVEY_MARKER)).map((e) => e.id).sort();
 
+  // Active entries only, matching the breadcrumb half above and the
+  // "corrections per active task" the strategy asks for — an archived entry's
+  // corrections belong to the period it was worked in, not to today's plan.
+  const correctionStamps = entries.map((e) => [e.id, countStamps(e, CORRECTION_MARKER)]);
+  const appliedCount = correctionStamps.reduce((sum, [, n]) => sum + n, 0);
+  const appliedIds = correctionStamps.filter(([, n]) => n > 0).map(([id]) => id).sort();
+
   const duplicatePairs = findings
     .filter((f) => f.code === "similar_titles")
     .map((f) => ({ a: f.ids[0], b: f.ids[1] }));
@@ -116,11 +133,12 @@ function fileMetrics(entries, archived, date) {
       count: breadcrumbs.length,
       ids: breadcrumbs,
       marker: SURVEY_MARKER,
-      // `correct` rewrites title/why/what/kind/planned_touches in place and
-      // writes no note, so the count of applied corrections exists only in
-      // git history. Reported as absent rather than approximated by the
-      // breadcrumb count, which measures something else entirely.
-      applied: { count: null, reason: "not_derivable" },
+      // [Foreman: 178] `correct` now stamps one dated line per applied
+      // correction, so this is a real count instead of the not_derivable it
+      // used to be. It counts stamps written since that change: an entry
+      // corrected before it shipped carries none, and this reads as a floor
+      // on any roadmap older than the stamp.
+      applied: { count: appliedCount, ids: appliedIds, marker: CORRECTION_MARKER },
     },
     stranded_dependencies: {
       count: idsFrom(findings, STRANDED_CODES, (id) => open.has(id)).length,
@@ -211,7 +229,7 @@ function health(root, options = {}) {
   const notes = [
     "defines measurements only — nothing in skills/ or hooks/ records any of this",
     "archived_per_month buckets each archived entry by its last updated_at: archiving stamps no date of its own",
-    "corrections.applied needs git history — `correct` rewrites fields in place and writes no note",
+    "corrections.applied counts `correct`'s own note stamp, so it is a floor on any roadmap corrected before that stamp shipped",
   ];
   if (log && log.malformed) notes.push(`${log.malformed} trial-log line(s) were unreadable and skipped`);
   return {
@@ -279,6 +297,7 @@ module.exports = {
   STALE_DAYS,
   SURVEY_MARKER,
   REASSIGN_MARKER,
+  CORRECTION_MARKER,
   daysBetween,
   fileMetrics,
   loadTrialLog,
