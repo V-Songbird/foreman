@@ -1521,6 +1521,13 @@ function touchesOverlap(left, right) {
 // staleness-prone priority field. unblocks (how much open work depends on
 // this entry, directly and down the chain) is a derived proxy for
 // importance instead.
+// [Foreman: 208] How many accept/resume rows the finish-first check puts in
+// front of the ranked candidates, per skills/roadmap/pick.md ("at most 2 of
+// each; oldest updated_at first"). Only the trial log's menu-size count reads
+// it — the arrays themselves are returned whole, since the branch needs the
+// full list to pick its two from.
+const MENU_SETTLE_ROWS = 2;
+
 function cmdNextCandidates(root, filters) {
   const limit = filters && filters.limit ? parseInt(filters.limit, 10) : 3;
   const hintWords = normalizeWords(filters && typeof filters.hint === "string" ? filters.hint : "");
@@ -1728,13 +1735,20 @@ function cmdNextCandidates(root, filters) {
   // facts already are. `--menu` is the projection the pick branch asks for
   // before a question is put to anyone, so this is the moment TRIALS.md
   // names — and it costs the skill no instruction tokens, because the skill
-  // was already making this call. `candidates` counts every row the user
-  // will see: the ranked candidates plus the accept/resume rows the
-  // finish-first check promotes above them. Silent no-op unless the project
-  // opted in; never throws.
+  // was already making this call. Silent no-op unless the project opted in;
+  // never throws.
+  //
+  // `candidates` is rows the user is OFFERED, not rows this call returned.
+  // The finish-first check in skills/roadmap/pick.md promotes "at most 2 of
+  // each" accept/resume row above the ranked candidates, so the arrays are
+  // capped the same way here — a project sitting on five in-progress entries
+  // still only ever shows two of them, and counting all five would report a
+  // menu nobody saw.
   if (filters && filters.menu) {
     recordTrial("menu_shown", {
-      candidates: result.candidates.length + inProgress.length + awaiting.length,
+      candidates: result.candidates.length
+        + Math.min(inProgress.length, MENU_SETTLE_ROWS)
+        + Math.min(awaiting.length, MENU_SETTLE_ROWS),
       hint: filters.hint !== undefined,
     }, { root });
     if (filters.hint !== undefined) {

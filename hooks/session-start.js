@@ -156,12 +156,18 @@ function main() {
     (e) => e.status === "in_progress" || e.status === "awaiting_acceptance"
   );
 
-  // [Foreman: 208] The failure half of resume recovery: an open entry that
-  // already carries commits or observed files is work that was interrupted
-  // and has NOT come back yet. One row per such entry per startup, which is
-  // why TRIALS.md calls this a per-day view of recovery rather than a
-  // per-run one. The success half is hooks/task-completed.js's.
+  // [Foreman: 208] The failure half of resume recovery: an `in_progress`
+  // entry that already carries commits or observed files is work that was
+  // interrupted and has NOT come back yet. One row per such entry per
+  // startup, which is why TRIALS.md calls this a per-day view of recovery
+  // rather than a per-run one. The success half is task-completed.js's.
+  //
+  // `awaiting_acceptance` is deliberately excluded even though it is an open
+  // status here and always carries commits: that work HAS come back and is
+  // waiting on the user's yes. Counting it would report an un-recovered run
+  // on every session start of a project that simply has something to accept.
   for (const entry of open) {
+    if (entry.status !== "in_progress") continue;
     const started = (entry.commits || []).length > 0 || (entry.observed_touches || []).length > 0;
     if (started) {
       recordTrial("recovery_attempted", { kind: "resume-in-progress", success: false }, { root });

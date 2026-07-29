@@ -151,9 +151,12 @@ whenever Reconcile and pick composes it):
 - **`menu_shown`** — step 1, immediately after
   `roadmap.js next-candidates --menu` returns and before Q1 is asked.
   `candidates` counts every row the user will see: `candidates[]` plus the
-  accept/resume rows the finish-first check promotes. The **single-option
-  skip** takes this path too (`candidates: 1`), even though no question is
-  asked — a menu of one is still a recommendation the user accepted or didn't.
+  accept/resume rows the finish-first check promotes — **capped at 2 of each**,
+  the same cap the branch itself applies, so a project sitting on five
+  in-progress entries does not report a menu nobody was offered. The
+  **single-option skip** takes this path too (`candidates: 1`), even though no
+  question is asked — a menu of one is still a recommendation the user
+  accepted or didn't.
   Reconcile and pick's step 3 re-runs the menu, so it emits a second
   `menu_shown` and its pick events belong to that one.
 - **`pick_accepted`** — Q1's answer branch, when the chosen option is the row
@@ -218,17 +221,26 @@ nothing else:
   `Continue without a snapshot` and for `Cancel`. One event per resolution, not
   per retry loop.
 - **`recovery_attempted`, `resume-in-progress`** — two halves, written by the
-  two surfaces that already read the roadmap. `success: true` from
-  `hooks/task-completed.js` when an entry that carried commits or
-  `observed_touches` *before* this session reaches a terminal status — an
-  interrupted run that came back. `success: false` from
-  `hooks/session-start.js`, once per startup, for each open entry it surfaces
-  that already carries commits — a run that has not come back yet. A resume
-  that takes three days is therefore three failures and one success: the rate
-  is a per-day view of recovery, not a per-run one, and `attempts` is reported
-  beside it so that stays visible. Pairing the halves per run would need an
-  entry identifier in the log, and no privacy-safe version of that is worth the
-  number.
+  two surfaces that already read the roadmap. `success: false` from
+  `hooks/session-start.js`, once per startup, for each **`in_progress`** entry
+  it surfaces that already carries commits — a run that has not come back yet.
+  `awaiting_acceptance` is excluded even though it is an open status and
+  always carries commits: that work *has* come back and is waiting on the
+  user. `success: true` from `hooks/task-completed.js` when such work closes.
+  A resume that takes three days is therefore three failures and one success:
+  the rate is a per-day view of recovery, not a per-run one, and `attempts` is
+  reported beside it so that stays visible.
+
+  <!-- [Foreman: 208] -->
+  Pairing the halves per run would need an entry identifier in the log, and no
+  privacy-safe version of that is worth the number — so the halves pair by
+  **alternation** instead, on the log's own order. A success is written only
+  when the most recent `resume-in-progress` row is a failure, and writing it
+  makes the most recent row a success, so the next close records nothing until
+  a session start observes still-un-recovered work again. Consuming the
+  failure is what stops one old interruption from turning every later close on
+  the project — including tasks that ran start to finish — into a recorded
+  recovery.
 - **`recovery_attempted`, `failed-verification-retry`** — the destination
   session, at the bounded fix loop `prompt-template.md`'s verification block
   fixes ("after two failed fix attempts, stop and report"): `success: true`

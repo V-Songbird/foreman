@@ -260,31 +260,33 @@ function recordFirstPick(options = {}) {
  *
  * The honest problem TRIALS.md already names: pairing a recovery to the run
  * it recovered "would need an entry identifier in the log, and no
- * privacy-safe version of that is worth the number". So this does not pair.
- * It records a success only when the log already carries a
- * resume-in-progress FAILURE from an earlier day — interrupted work that was
- * still un-recovered when some previous session started, and a close has now
- * happened. Without that earlier row, a close is just a task finishing, and
- * counting it would inflate the rate with work that was never interrupted.
+ * privacy-safe version of that is worth the number". So this does not pair
+ * by identity — it pairs by ALTERNATION, which the log's own order already
+ * carries. A success is recorded only when the most recent
+ * resume-in-progress row is a failure, and writing the success makes the
+ * most recent row a success, so the next close is refused until a session
+ * start observes still-un-recovered work and writes another failure.
  *
- * Same-day interruption-and-recovery is therefore invisible, which makes the
- * number a floor. That is the per-day view of recovery TRIALS.md describes,
- * not a per-run one.
+ * Consuming the failure is the whole point. A rule that merely asked
+ * "does any failure exist" would turn every later close on the project —
+ * including tasks that ran start to finish and were never interrupted — into
+ * a recorded recovery, permanently, from the first interruption onward.
+ * Session start writes one failure per still-open interrupted entry, so a
+ * project with three of them and one close reports one success against four
+ * attempts: the per-day view of recovery TRIALS.md describes, not a per-run
+ * one.
  */
 function recordResumeRecovered(options = {}) {
   const root = options.root || projectDir();
   try {
     if (!enabled(root)) return { recorded: false, reason: "disabled" };
-    const now = today();
-    const wasInterrupted = readEvents(root).some(
-      (e) =>
-        e.event === "recovery_attempted"
-        && e.kind === "resume-in-progress"
-        && e.success === false
-        && typeof e.ts === "string"
-        && e.ts < now
+    const resumes = readEvents(root).filter(
+      (e) => e.event === "recovery_attempted" && e.kind === "resume-in-progress"
     );
-    if (!wasInterrupted) return { recorded: false, reason: "no_prior_interruption" };
+    const last = resumes[resumes.length - 1];
+    if (!last || last.success !== false) {
+      return { recorded: false, reason: "no_unrecovered_interruption" };
+    }
     return record("recovery_attempted", { kind: "resume-in-progress", success: true }, { root });
   } catch (err) {
     return { recorded: false, reason: "write_failed", error: err.message };

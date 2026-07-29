@@ -220,29 +220,49 @@ describe('trial log — resume recovery', () => {
 
   // The failure rows session-start writes are what make a later close a
   // recovery. Without one, a close is just a task finishing.
-  test('a close with no earlier interruption is not a recovery', () => {
+  test('a close with no interruption behind it is not a recovery', () => {
     const result = trial.recordResumeRecovered({ root: project });
     assert.equal(result.recorded, false);
-    assert.equal(result.reason, 'no_prior_interruption');
+    assert.equal(result.reason, 'no_unrecovered_interruption');
     assert.deepEqual(lines(), []);
   });
 
-  test('a same-day interruption does not count — the view is per-day', () => {
+  test('an un-recovered interruption makes the next close a recovery', () => {
     record('recovery_attempted', { kind: 'resume-in-progress', success: false });
-    assert.equal(trial.recordResumeRecovered({ root: project }).reason, 'no_prior_interruption');
+    assert.equal(trial.recordResumeRecovered({ root: project }).recorded, true);
+
+    const resumes = lines().filter((l) => l.event === 'recovery_attempted');
+    assert.deepEqual(resumes.map((r) => r.success), [false, true]);
   });
 
-  test('an interruption seen on an earlier day makes the close a recovery', () => {
+  // The defect this replaced: "does any failure exist" turned every later
+  // close on the project — tasks that ran start to finish and were never
+  // interrupted — into a recorded recovery, permanently.
+  test('one interruption yields exactly one recovery, not one per later close', () => {
     record('recovery_attempted', { kind: 'resume-in-progress', success: false });
-    // Rewrite that row's date to an earlier day — the only thing this test
-    // cannot do is wait until tomorrow.
-    const rows = lines();
-    rows[0].ts = '2026-01-01';
-    fs.writeFileSync(trial.logPath(project), rows.map((r) => JSON.stringify(r)).join('\n') + '\n');
 
     assert.equal(trial.recordResumeRecovered({ root: project }).recorded, true);
-    const recovered = lines().filter((l) => l.event === 'recovery_attempted' && l.success === true);
-    assert.equal(recovered.length, 1);
+    assert.equal(trial.recordResumeRecovered({ root: project }).reason, 'no_unrecovered_interruption');
+    assert.equal(trial.recordResumeRecovered({ root: project }).reason, 'no_unrecovered_interruption');
+
+    const successes = lines().filter((l) => l.event === 'recovery_attempted' && l.success === true);
+    assert.equal(successes.length, 1);
+  });
+
+  test('a fresh interruption re-arms it', () => {
+    record('recovery_attempted', { kind: 'resume-in-progress', success: false });
+    trial.recordResumeRecovered({ root: project });
+    record('recovery_attempted', { kind: 'resume-in-progress', success: false });
+
+    assert.equal(trial.recordResumeRecovered({ root: project }).recorded, true);
+    const resumes = lines().filter((l) => l.event === 'recovery_attempted');
+    assert.deepEqual(resumes.map((r) => r.success), [false, true, false, true]);
+  });
+
+  // Other recovery kinds share the event name but not the state machine.
+  test('a different recovery kind does not arm resume recovery', () => {
+    record('recovery_attempted', { kind: 'reinit-snapshot', success: false });
+    assert.equal(trial.recordResumeRecovered({ root: project }).reason, 'no_unrecovered_interruption');
   });
 });
 
@@ -279,6 +299,30 @@ describe('trial log — wired surfaces', () => {
     assert.equal(lines().filter((l) => l.event === 'hint_used').length, 0);
   });
 
+  // pick.md's finish-first check shows "at most 2 of each". Counting the
+  // whole array would report a menu nobody was offered.
+  test('the menu size counts offered rows, capped like the branch caps them', () => {
+    on();
+    writeRoadmap(project, [
+      entry('001'),
+      entry('002'),
+      entry('003', { status: 'in_progress' }),
+      entry('004', { status: 'in_progress' }),
+      entry('005', { status: 'in_progress' }),
+      entry('006', { status: 'awaiting_acceptance', commits: ['abc1234'] }),
+      entry('007', { status: 'awaiting_acceptance', commits: ['bcd2345'] }),
+      entry('008', { status: 'awaiting_acceptance', commits: ['cde3456'] }),
+    ]);
+    const raw = JSON.parse(
+      runRoadmap(['next-candidates', '--menu'], undefined, { CLAUDE_PROJECT_DIR: project }).stdout
+    );
+    assert.equal(raw.in_progress.length, 3);
+    assert.equal(raw.awaiting_acceptance.length, 3);
+
+    // 2 ranked candidates + 2 resume rows + 2 accept rows.
+    assert.equal(lines().find((l) => l.event === 'menu_shown').candidates, 6);
+  });
+
   test('a hinted menu also records whether the hint found anything', () => {
     on();
     writeRoadmap(project, [entry('001', { title: 'Add JWT refresh middleware' })]);
@@ -312,6 +356,10 @@ describe('trial log — wired surfaces', () => {
       // Open but never started — not an interruption.
       entry('002', { status: 'in_progress' }),
       entry('003'),
+      // Finished and waiting on the user. It always carries commits, and it
+      // has come back — counting it would report an un-recovered run on
+      // every session start of a project with something to accept.
+      entry('004', { status: 'awaiting_acceptance', commits: ['bcd2345'] }),
     ]);
     runNodeScript(path.join(HOOKS_DIR, 'session-start.js'), [], { source: 'startup', cwd: project }, {
       CLAUDE_PROJECT_DIR: project,
