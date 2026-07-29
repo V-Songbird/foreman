@@ -153,7 +153,7 @@ ships a clearly labeled proxy — how much interrupted work is sitting open —
 which is not the same thing and never stands in for the rate.
 
 One of `attention-cost.js`'s numbers is published as a record:
-[`records/R-003-prompt-overhead.json`](records/R-003-prompt-overhead.json) —
+[`records/R-005-prompt-overhead.json`](records/R-005-prompt-overhead.json) —
 **the standard handoff profile carries 68 words of fixed guardrail text against
 the reinforced profile's 567, 12% of it, 499 words saved on every standard
 handoff.** That is a static computation over `prompt-template.md`, not a model

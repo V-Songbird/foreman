@@ -133,22 +133,39 @@ For each section selected in Call 1 Q2, ask its detail question(s). Batch up to 
 - "What should come back? Describe the fields the schema should capture."
   Options: `I'll describe them`
 
+  This flavor mechanically drops `Tone` and replaces the default output
+  format with a fixed enforcement sentence — `craft-handoff.js` bakes both
+  of those when the call below carries `"workflowStage":true`. What it does
+  NOT do is author the schema: assemble a second artifact yourself, a
+  fenced `json` JSON Schema built from this answer. Authoring rules: object
+  root with a `required` array; a `description` on every property
+  (descriptions double as instructions to the StructuredOutput layer);
+  enums for verdict-like fields; for evidence-bearing claims use the
+  cited-pair shape `{"cite": "file:line or doc URL", "note": string}`; keep
+  schemas small — every validation retry costs a full subagent turn.
+  Delivery: both artifacts travel together to the chosen destination — a
+  clipboard temp file carries the prompt then the schema; a `TaskCreate`
+  description carries both. The never-print-into-chat rule in Deliver below
+  covers both.
+
 ---
 
 ## Resolve project config (craft-time, once)
 
 Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/render-sections.js` now — the one
-mechanical call that resolves `usePersona`/`sections`/`omit`/
-`targetModel`/`decisionLog`. Every step below (Call 6's default, Assemble
-the prompt's elaboration scoping and its `<decision_log>` block, Deliver's
-clipboard recommendation) reads this same result. Nothing past this point
-calls it again.
+mechanical call that resolves `usePersona`/`sections`/`omit`/`targetModel`/
+`modelSuggestions`/`fableEnabled`/`decisionLog`. Its `modelSuggestions` and
+`fableEnabled` fields are what gate Call 5c and Call 6 below. `craft-handoff.js`
+resolves this same config again internally when it assembles, so this call
+is only for those craft-time gating decisions, never for reuse in assembly.
+Surface its `warnings` now, if any.
 
 Once the file paths are known, run
 `node ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-symbols.js` in the same slot —
-the template's step 0b has its arguments and output shape. Its
-`files[].symbols` are what `relevant_files` cites; a `missing` path or an
-`unresolved` name is fixed here, before assembly, not handed on.
+for the same reason: `craft-handoff.js` resolves the touched paths again on
+its own when it assembles (from the `touches` field in the call below), so
+this call exists only for the preflight next — catching a problem now,
+before the interview continues, instead of discovering it after assembly.
 
 <!-- [Foreman: 109] -->
 Call 3 has already gathered the verification commands by this point, so
@@ -179,8 +196,10 @@ Options:
 - `Execute with a background Agent` — offload it, get notified on completion — best for orchestration, where this session owns the commits
 - `Copy prompt to clipboard` — just get the text, no execution
 
-The `spawn_task` ban applies here — see `prompt-template.md`'s "Delivery
-mechanics" section.
+Never call `mcp__ccd_session__spawn_task` for any of these — it has a
+known bug where tasks spawned through it don't get MCP tools. `TaskCreate`,
+`Agent`, and the clipboard mechanics in Deliver below are the only three
+delivery paths, regardless of Desktop or CLI.
 
 ---
 
@@ -191,8 +210,20 @@ destinations skip it and go to Call 6 instead — the two questions are
 mutually exclusive.
 
 **Q1** — "How should it run here?"
-Options and their free-text rule: `prompt-template.md`'s "Delivery
-mechanics" section, verbatim.
+Options, in this order:
+- `Tasks from the checks (Recommended)` — one tracked task per
+  verification command, each finished task checkpointed as a commit on a
+  dedicated branch
+- `One task, then work it` — a single tracked task carrying the whole
+  prompt
+- `Run now, no tracking` — start immediately, no task rows
+
+`AskUserQuestion` appends its own free-text option; never author one — a
+user's free text naming the pieces, or a fixed number of tasks, both mean
+"Tasks from the checks" cuts into that many slices at whatever verification
+boundaries exist instead of one-per-check. Don't add a confirmation
+question for either — the created rows are the preview, and a wrong one is
+removed with `TaskUpdate` `status: "deleted"`.
 
 ---
 
@@ -212,10 +243,12 @@ and never once per task row, after Call 5b and **before the first task row
 is created**. The other two destinations skip it — there the model is a
 dispatch value Call 6 already asks for.
 
-State BOTH halves of the recommendation in the question's context, in one
-line each: the model per `prompt-template.md`'s "Model fit" note, and the
-effort per its "Effort fit" note, each with the reason it follows from.
-This is the only place the model half is ever said on this destination.
+When this call does fire, read `${CLAUDE_PLUGIN_ROOT}/model-fit.md` once —
+its "Model fit" and "Effort fit" notes are what both halves below judge
+from. State BOTH halves of the recommendation in the question's context, in
+one line each: the model per its "Model fit" note, and the effort per its
+"Effort fit" note, each with the reason it follows from. This is the only
+place the model half is ever said on this destination.
 
 **Q1** — "This task suggests <model> at <effort>. Run it there instead?"
 
@@ -273,9 +306,11 @@ The rest of this call applies only when `modelSuggestions` is `true`.
 Reordered so the
 **recommended** model leads, with `(Recommended)` appended to its label —
 same convention `foreman:roadmap`'s Q1 uses for its top-ranked candidate.
-The recommendation is the resolved `targetModel` when the project pinned
+Read `${CLAUDE_PLUGIN_ROOT}/model-fit.md` once here (skip the read when
+`modelSuggestions` is `false` — there is nothing in it for that case). The
+recommendation is the resolved `targetModel` when the project pinned
 a concrete one; otherwise (`inherit`) judge it from the task the user
-described against `prompt-template.md`'s "Model fit" note. A `targetModel:
+described against its "Model fit" note. A `targetModel:
 "fable"` project pin still recommends `Fable` even when `fableEnabled` is
 `false` — a direct pin is its own declaration, independent of the
 interactive-menu gate.
@@ -291,11 +326,11 @@ Haiku cliff"), plus this hint so the user knows the escape hatch exists:
 leave it blank or say so."
 
 The user can always override the default. The answer does two jobs:
-- **Elaboration**: a concrete model becomes the effective target model
-  for the template's elaboration scoping, overriding `targetModel` — the
-  model actually running the task wins over the project declaration. An
-  `Other` answer that doesn't name a concrete model keeps the resolved
-  `targetModel` instead.
+- **Confirmation**: this is the model actually running the task, on record
+  for the delivery message even when it differs from the project's
+  declared `targetModel` — `craft-handoff.js` still assembles at the level
+  the resolved `targetModel` implies (full default shape when `inherit`);
+  it does not yet retune elaboration to a confirmed dispatch model.
 - **Dispatch** (background Agent only): a concrete model becomes the
   `Agent` call's literal `model` value (`haiku`/`sonnet`/`opus`/`fable`);
   an `Other` answer that doesn't name a concrete model means leaving
@@ -304,7 +339,7 @@ The user can always override the default. The answer does two jobs:
 **Effort** — stated only when `modelSuggestions` is `true`; say nothing
 about effort at all when it is `false`. Recommended, never asked and never
 dispatched. Judge it from
-`prompt-template.md`'s "Effort fit" note — the verification commands
+`${CLAUDE_PLUGIN_ROOT}/model-fit.md`'s "Effort fit" note — the verification commands
 gathered above are the input, so this is decided after them, not before —
 and state it in one line of the delivery message: the setting and the
 verification-cost reason it follows from ("two runnable checks — medium,
@@ -316,83 +351,159 @@ one it applies to there, and Call 5c is where it gets said and answered.
 
 ---
 
-## Assemble the prompt
+## Assemble the handoff — one call to craft-handoff.js
 
-Follow `${CLAUDE_PLUGIN_ROOT}/prompt-template.md` exactly for its XML
-template, verbatim. Its craft-time environment check (`render-sections.js`)
-already ran above, before Call 5 — use that same result, don't invoke it
-again. Elaboration scoping uses the effective target model: Call 6's
-concrete answer when one was gathered, otherwise the result's
-`targetModel`. Never re-derive or duplicate the per-model elaboration
-guidance itself; if the template changes, this skill picks up the change
-automatically by reading it fresh each time. Every plugin path that lands
-in the assembled prompt goes in as the literal string
-`${CLAUDE_PLUGIN_ROOT}` — the copy of this skill you are reading has the
-variable already resolved to a version-pinned cache path, and baking that
-in breaks the prompt on the next version bump; the gate errors on it. Map
-this skill's gathered fields onto the template's placeholders:
+No hand assembly and no reading `prompt-template.md` — gather the judgment
+fields below, entirely from this interview (no investigation, same rule as
+every other step here), then call
+`${CLAUDE_PLUGIN_ROOT}/scripts/craft-handoff.js` entry-less: no `"entry"`
+key, every field given inline instead. `craft-handoff.js` resolves the
+touched paths, computes the handoff profile from the same five mechanical
+signals `foreman:roadmap` uses, assembles the XML from the canonical
+blocks, bakes the checkpoint/split delivery artifacts, and runs the
+mechanical gate in-process — nothing left here to re-derive or re-list.
+`tone`, `example`, `invariants`, and the default `output_format` are
+included only when the returned `profile` comes back `reinforced` (a
+decision-kind or no-verification task always qualifies; most fresh
+craft-prompt tasks don't) — say so if the user picked one of those
+optional sections and the returned `profile` is `standard`, rather than
+acting as if it made it into the prompt.
 
-- `task_context`: role ← Call 2 Q1, goal ← Call 2 Q2
-- `relevant_files` ← Call 2 Q3 (including any `Pattern:` reference line)
-- observed failure ← Call 3 Q3, when gathered and not `None observed`:
-  into `<context>` under an `Observed failure:` line, verbatim
-- `task_rules`: steps ← Call 2 Q4; Constraints ← Call 4's Constraints
-  answers, if selected; Verification ← Call 3, if gathered
-- `invariants` ← Call 3 Q4, when gathered and not `Nothing in particular`;
-  omit the block entirely otherwise
-- `Expected file surface:` constraint line ← Call 2 Q3's paths, as given;
-  omit the line when no paths were named
-- test-first ordering in the verification block ← only for a silent
-  failure (see Call 3 Q4's note); omit it for a loud one
-- review-flavored tasks (the `Security audit` task type, or the
-  `Code reviewer` role): add one constraint bullet to `task_rules` —
-  "Flag only gaps that affect correctness or security — reporting that
-  the work is sound is a valid outcome."
-- `tone` ← Call 4's Tone answer, if selected (overrides the template's
-  default entirely, same as the template already says); otherwise the
-  template's own craft-time gate applies unchanged
-- `background`/`context` ← Call 4's Background-context answer, if selected
-- `example` ← Call 4's Example answer, if selected
-- `output_format` ← Call 4's Custom-output-format answer, if selected;
-  otherwise the template's own default applies
-- `output_format`/`tone` ← if `Workflow stage` was selected instead: the
-  template's Workflow-stage flavor overrides both (fixed sentence,
-  mechanical tone omission, schema-authoring and delivery rules all live
-  there) — the schema itself derives from Call 4's Workflow-stage answer
-- `decision_log` ← include the template's `<decision_log>` block only when
-  the render-sections result's `decisionLog.enabled` is true **and** the
-  task being crafted is itself a decision — its deliverable is a choice
-  between real alternatives, not an implementation — substituting its `dir`
-  for `<dir>`; omit it when `enabled` is false, and on every ordinary
-  implementation task whatever `enabled` says (the template's own craft-time
-  gate says the same). A craft-prompt task carries no roadmap entry, so name
-  the doc after a short kebab slug of the goal in place of `<entry-id>`.
+- `title` ← a short verb-first name for the task; `what` ← Call 2 Q4's
+  answer (also what `resolve-symbols.js` scanned above for unresolved
+  identifiers, so keep it the same text)
+- `touches` ← Call 2 Q3's paths, as a plain array
+- `request` ← one imperative sentence combining Call 1 Q1's task type and
+  Call 2 Q2's done state
+- `kind` ← `"decision"` only when the task being crafted is itself a
+  decision — its deliverable is a choice between real alternatives, not an
+  implementation; omit otherwise. `craft-handoff.js` bakes the
+  `<decision_log>` block and the decision `task_rules` bullet from it
+  automatically, exactly as `foreman:roadmap`'s pick branch does, when the
+  render-sections result's `decisionLog.enabled` is also true. Name the doc
+  after a short kebab slug of the goal — this task carries no roadmap entry
+  id for `craft-handoff.js` to substitute.
+- `destination` ← `"task"` for `Execute here`, `"agent"` for background
+  Agent, `"clipboard"` for clipboard
+- `split` ← `true` only when Call 5b picked `Tasks from the checks`
+- `workflowStage` ← `true` only when Call 1 Q2 selected `Workflow stage`
+- `customTone` ← Call 4's Tone answer, if selected (top-level field,
+  outside `judgment`)
+- `judgment.role`/`judgment.goal` ← Call 2 Q1/Q2
+- `judgment.context` ← Call 4's Background-context answer, if selected,
+  plus Call 3 Q3's observed failure, when gathered and not
+  `None observed`, under an `Observed failure:` line, verbatim
+- `judgment.steps` ← Call 2 Q4's answer, split into implement/fix bullets
+- `judgment.constraints` ← Call 4's Constraints answers, if selected, plus
+  one more line for a review-flavored task (the `Security audit` task
+  type, or the `Code reviewer` role): "Flag only gaps that affect
+  correctness or security — reporting that the work is sound is a valid
+  outcome."
+- `judgment.expectedFileSurface` ← Call 2 Q3's paths, as given; omit when
+  no paths were named
+- `judgment.verification` ← Call 3's `Run:`/`Expected:` pairs, in running
+  order; a pure-investigation task omits this and carries `judgment.question`
+  instead — the question under investigation, not a prescribed sequence
+- `judgment.testFirst` ← `true` only for a silent-failure task — one whose
+  breakage would pass the verification just gathered (see Call 3 Q4's
+  note); omit it for a loud one
+- `judgment.invariants` ← Call 3 Q4, when gathered and not
+  `Nothing in particular`; omit otherwise
+- `judgment.example` ← Call 4's Example answer, if selected, split into
+  `{"before": "...", "after": "..."}`
+- `output_format` ← no field on this call carries a custom XML tag; the
+  returned prompt uses the default (present only when `profile` comes back
+  `reinforced`) regardless of Call 4's Custom-output-format answer — say so
+  to the user rather than silently substituting the default. `Workflow
+  stage` is different: `workflowStage` above is wired all the way through.
 
-Before moving to the next phase, verify the assembled prompt against
-`prompt-template.md`'s own checklist, then run its mechanical gate
-(`scripts/check-prompt.js` — the template's "Mechanical gate" section has
-the exact call) and fix every error until it passes — don't re-list
-either here. Carry the fixed closing paragraph's closure-evidence rule
-verbatim: closure notes and findings describe only observed work and cite
-supporting files, commands, commits, or outcomes; planned scope is never
-evidence that it was executed.
+Every plugin path this call's stdin JSON carries — and every path in the
+returned `prompt` — is the literal string `${CLAUDE_PLUGIN_ROOT}`. Remember:
+the copy of this skill you are reading has
+the variable already resolved to a version-pinned cache path, and baking
+that in breaks the prompt on the next version bump; the gate errors on it.
+Type it back literally.
+
+Returns one JSON line: `{ok, prompt, profile, signals, tasks?, gate,
+warnings}`. When `ok` is `false`, don't retry blind: show `gate.errors`
+(and any `gate.warnings`) to the user — each names the judgment field
+that's too thin — gather that field properly and re-call, rather than
+resending the same stdin hoping it passes. `craft-handoff.js` bakes the
+fixed closing paragraph's closure-evidence rule automatically — closure
+notes and findings describe only observed work and cite supporting files,
+commands, commits, or outcomes; planned scope is never evidence that it
+was executed.
 
 ---
 
 ## Deliver
 
-Deliver via whatever Calls 5 and 5b picked — no further question. Each
-destination's mechanics are `prompt-template.md`'s "Delivery mechanics"
-section; the `Execute here` sub-mode is Call 5b's answer. Two additions
-this skill layers on top:
+Deliver via whatever Calls 5 and 5b picked, using the `prompt` (and
+`tasks[]` when present) craft-handoff just returned — never re-derive,
+re-split, or re-embed any of it; the checkpoint protocol for a multi-check
+clipboard prompt and the task-split rows are already baked in.
 
-- **Background Agent** — pass `model` = Call 6's answer as its literal
-  string (`haiku`/`sonnet`/`opus`/`fable`); omit the `model` parameter
-  entirely when the answer was an `Other` that didn't name a concrete
-  model.
-- **Clipboard** — if the effective target model (Call 6's answer, else
-  `targetModel`) is concrete, add one more line alongside the file path:
-  "Recommended model: [Haiku/Sonnet/Opus/Fable] — this prompt's
-  elaboration level was calibrated for it." Skip that line when it
-  resolved to `inherit` or no concrete model was named — no fixed target,
-  so there's nothing to recommend.
+- **`Execute here`**:
+  - `Run now, no tracking` — work `prompt` directly in this session; no
+    task rows.
+  - `One task, then work it` — one `TaskCreate` (`subject` a verb-first
+    imperative ≤60 chars, `description` = `prompt`, `activeForm` its
+    present-continuous form), then work it with `TaskUpdate` marking it
+    `in_progress` then `completed`.
+  - `Tasks from the checks` — pass `"split":true` in the call above to get
+    `tasks[]` (one row per `Run:`/`Expected:` pair, full prompt on row 1,
+    already split); one `TaskCreate` per row, in order, each chained to the
+    previous one with `TaskUpdate` `addBlockedBy: ["<previous task's id>"]`;
+    work them in order. Follow the checkpoint protocol below as each task's
+    check passes — there is no roadmap entry here, so nothing hooks into
+    the task lifecycle the way `foreman:roadmap` handoffs do.
+
+    **Checkpoint protocol — two or more tasks only.** Read the
+    `checkpoints` block of `.foreman/config.json` first (`branch` `true`,
+    `onFinish` `"ask"`, `baseBranch` unset are the defaults for a missing
+    file/block/key). Before task 1:
+    `node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js begin` — a
+    `dirty:true` result means this run makes no automated commits at all:
+    say so once, work the tasks, and leave every change in the tree for
+    the user. Otherwise settle the branch (create `foreman/<slug>` only
+    when `branch` is `true` and currently on the base branch — `baseBranch`
+    when set, or detect it with
+    `git symbolic-ref --short refs/remotes/origin/HEAD`, name after
+    `origin/`, fallback `main`); then, after each task's check passes:
+    `echo '{"expected":["<files that task changed>"],"message_title":"task <n>/<total>: <task subject>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js finish --baseline <the current baseline>`
+    — never `git add -A`, the primitive owns staging, and its `commit` is
+    the next task's baseline. After the last task, and only if this run
+    created the branch, `onFinish` decides its fate: `"ask"` (the default)
+    asks `Squash merge (Recommended)` / `Merge` / `Open a PR` / `Keep the
+    branch`; a concrete value acts directly, no question. Skip
+    checkpointing and just work the tasks if git is unavailable.
+- **Background Agent** — call `Agent` with `prompt` = the returned
+  `prompt`, `description` = a 3-5 word summary, `run_in_background: true`,
+  and `model` = Call 6's answer as its literal string
+  (`haiku`/`sonnet`/`opus`/`fable`) when concrete; omit the `model`
+  parameter entirely when the answer was an `Other` that didn't name a
+  concrete model.
+- **Clipboard** — `Write` the returned `prompt` to a temp file first —
+  never pass it as an inline shell string, a large prompt breaks shell
+  quoting and the copy silently fails. Then pipe the file's content into
+  the clipboard command: `Get-Content -Raw <file> | Set-Clipboard` on
+  Windows, `pbcopy < <file>` on macOS, `xclip -selection clipboard <
+  <file>` (or `wl-copy < <file>`) on Linux. Mention the file path too, in
+  case the clipboard step fails. If no clipboard tool is available at all,
+  show the prompt in a fenced `xml` code block instead — the one exception
+  to never printing it into chat. If the effective target model (Call 6's
+  answer, else `targetModel`) is concrete, add one more line: "Recommended
+  model: [Haiku/Sonnet/Opus/Fable] — this prompt's elaboration level was
+  calibrated for it." Skip that line when it resolved to `inherit` or no
+  concrete model was named. Any checkpoint protocol a multi-check prompt
+  needs already rides inside `prompt`'s own `task_rules` — craft-handoff
+  baked it in; nothing more to do here. A `Workflow stage` task also
+  carries the JSON Schema artifact assembled in Call 4 — deliver it
+  alongside `prompt` the same way (temp file + clipboard, or the second
+  half of a `TaskCreate` description); it is never printed into chat
+  either.
+
+**Never paste or print the assembled XML prompt (or a Workflow-stage
+schema) into your response text** — they are data for a tool call or a
+temp file, not something to show the user, except the one clipboard
+fallback above.

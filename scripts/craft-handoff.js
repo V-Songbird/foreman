@@ -12,12 +12,16 @@
 // paragraph and the checkpoint/split delivery artifacts, and runs
 // check-prompt.js's gate in-process as the last step.
 //
-// No flow routes to this yet (wave2-design-2026-07-28.md, entry 1 of 6) —
-// skills/roadmap/SKILL.md and skills/craft-prompt/SKILL.md keep assembling
-// by hand until later entries in that wave wire them to this script.
+// Both crafting flows route here now (wave2-design-2026-07-28.md, entries
+// 3-4 of 6): skills/roadmap/pick.md calls it with an `entry` id, and
+// skills/craft-prompt/SKILL.md calls it entry-less, with the same
+// title/why/what/judgment fields given inline on stdin instead.
 //
 // stdin JSON in, one JSON line out: {ok, prompt, profile, signals, tasks?,
 // gate, warnings} — same house style as every sibling script.
+// `workflowStage: true` drops <tone>, replaces <output_format> with the
+// fixed enforcement sentence, and is passed through to check-prompt.js's
+// gate as --workflow-stage would be on the CLI (entry 204).
 
 const fs = require("fs");
 const { render, projectDir, readConfig } = require("./render-sections.js");
@@ -31,6 +35,7 @@ const {
   CLOSURE_EVIDENCE_SENTENCE,
   NO_INVENTION_SENTENCE,
   FIX_CEILING_SENTENCE,
+  WORKFLOW_STAGE_SENTENCE,
 } = require("./check-prompt.js");
 
 const DESTINATIONS = new Set(["task", "agent", "clipboard"]);
@@ -392,6 +397,11 @@ function assemble(root, input) {
   const judgment = input.judgment || {};
   const record = loadRecord(root, input);
   const isEntry = Boolean(record.id);
+  // [Foreman: 204] Workflow-stage flavor: no <tone>, <output_format> replaced
+  // by the fixed enforcement sentence, wired through to check-prompt.js's own
+  // --workflow-stage-equivalent gate option below so a mismatch is caught
+  // rather than silently assembled wrong.
+  const workflowStage = Boolean(input.workflowStage);
 
   const hasVerification = Array.isArray(judgment.verification) && judgment.verification.length > 0;
   const verifyCmd = hasVerification ? judgment.verification[0].run : input.verify;
@@ -437,9 +447,9 @@ function assemble(root, input) {
   const taskContextBlock = taskContextText(config.usePersona, judgment);
   const backgroundInner = relevantFilesText(symbolResult.files, symbolResult.references, symbolResult.unresolved);
   const ctxText = contextText(judgment.context, record.depends_on_docs);
-  const includeTone = reinforced && (destination === "agent" || !omit.has("tone"));
+  const includeTone = !workflowStage && reinforced && (destination === "agent" || !omit.has("tone"));
   const includeBackground = !omit.has("background");
-  const includeOutputFormat = reinforced && !omit.has("output_format");
+  const includeOutputFormat = !workflowStage && reinforced && !omit.has("output_format");
   const rulesBlock = taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkpointEmbed);
   const customSectionsText = config.sections.map((s) => s.xml).join("\n\n");
   const requestSentence = input.request || `Implement: ${record.title || judgment.goal || "the task described above"}.`;
@@ -482,7 +492,8 @@ function assemble(root, input) {
     if (reinforced) parts.push(canonical.closing);
     else parts.push(CLOSURE_EVIDENCE_SENTENCE);
     if (reinforced) parts.push(`<plan>\n${canonical.plan}\n</plan>`);
-    if (includeOutputFormat) parts.push(`<output_format>\n${defaultOutputFormat}\n</output_format>`);
+    if (workflowStage) parts.push(WORKFLOW_STAGE_SENTENCE);
+    else if (includeOutputFormat) parts.push(`<output_format>\n${defaultOutputFormat}\n</output_format>`);
     return parts.filter(Boolean).join("\n\n") + "\n";
   }
 
@@ -494,6 +505,7 @@ function assemble(root, input) {
     profile,
     destination,
     research: !hasVerification,
+    ...(workflowStage ? { workflowStage: true } : {}),
     ...(isEntry ? { entry: entryId, resume: Boolean(input.resume) } : {}),
   };
   const gateResult = checkPrompt(prompt, gateOpts);

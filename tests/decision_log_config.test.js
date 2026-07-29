@@ -219,12 +219,13 @@ describe('decision records are limited to explicit decision work', () => {
   });
 
   test('the prompt-building skills gate the block the same way', () => {
-    // entry 203: skills/roadmap/pick.md no longer states this gate in prose
-    // — the whole `<decision_log>` bake (kind:"decision" AND
+    // entries 203/204: neither skill states this gate in prose anymore —
+    // the whole `<decision_log>` bake (kind:"decision" AND
     // decisionLog.enabled) moved into craft-handoff.js, pinned by
     // craft-handoff.test.js's "decision_log and the clipboard checkpoint
-    // embed" describe block. craft-prompt/SKILL.md still assembles by hand,
-    // so it still states its own gate.
+    // embed" describe block. craft-prompt/SKILL.md now only states the
+    // `kind` field's own gate ("the task being crafted is itself a
+    // decision") when mapping its interview onto the craft-handoff call.
     assert.match(
       docText('skills', 'craft-prompt', 'SKILL.md'),
       /the task being crafted is itself a decision/

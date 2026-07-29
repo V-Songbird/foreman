@@ -246,11 +246,13 @@ Q2's answer was `Execute here`, once per handoff and never once per task
 row, after Q3 and
 **before the first task row is created**. The other two destinations skip
 it — they always ask their own executing-model question instead (step 3
-below), since a dispatch needs a model named. State BOTH halves of the
+below), since a dispatch needs a model named. When this fires, read
+`${CLAUDE_PLUGIN_ROOT}/model-fit.md` once — its "Model fit" and "Effort
+fit" notes are what both halves below judge from. State BOTH halves of the
 recommendation in the question's context, one line each with the reason
-behind it: the model per `prompt-template.md`'s "Model fit" note, the
-effort per its "Effort fit" note. This is the only place the model half is
-ever said on this destination.
+behind it: the model per its "Model fit" note, the effort per its "Effort
+fit" note. This is the only place the model half is ever said on this
+destination.
 "This task suggests <model> at <effort>. Run it there instead?" — never
 worded as raising, upgrading, or bumping the session. Foreman cannot see
 what this session is running, so it cannot know whether the recommendation
@@ -331,9 +333,10 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
    `verification` above is known: ask craft-prompt's Call 6 question here,
    before the call below — same wording, same slots and substitutions
    (`Fable` included only when `fableEnabled` is `true`). When
-   `modelSuggestions` is `true`, seed the recommended default per
-   `prompt-template.md`'s "Model fit" note; when it's `false`, ask with no
-   seeded default. Either way, also state the effort recommendation in one
+   `modelSuggestions` is `true`, read `${CLAUDE_PLUGIN_ROOT}/model-fit.md`
+   once, then seed the recommended default per its "Model fit" note; when
+   it's `false`, ask with no seeded default (skip the read — model-fit.md
+   has nothing to add there). Either way, also state the effort recommendation in one
    line of the delivery message, per the "Effort fit" note's
    verification-cost rule — never a dispatch value: the `Agent` tool takes no effort argument, so the operator acts on it instead of it being set.
    Pass the confirmed model as `model` below.

@@ -26,7 +26,7 @@ const path = require('path');
 
 const { runNodeScript, makeTmpProject, writeRoadmap, writeConfig, initGitRepo, commitFile, SCRIPTS_DIR } = require('./helpers.js');
 const { today } = require(path.join(SCRIPTS_DIR, 'roadmap.js'));
-const { TEMPLATE_PATH } = require(path.join(SCRIPTS_DIR, 'check-prompt.js'));
+const { TEMPLATE_PATH, WORKFLOW_STAGE_SENTENCE } = require(path.join(SCRIPTS_DIR, 'check-prompt.js'));
 const { assemble } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
 
 const CRAFT = path.join(SCRIPTS_DIR, 'craft-handoff.js');
@@ -414,5 +414,51 @@ describe('decision_log and the clipboard checkpoint embed', () => {
     writeRoadmap(project, [entryFields()]);
     const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
     assert.ok(!json.prompt.includes('Checkpoint protocol for this multi-task run'));
+  });
+});
+
+// entry 204: craft-prompt/SKILL.md's Workflow-stage output flavor needs
+// this wired through — the gap flagged in entry 201's own header comment.
+describe('workflow-stage flavor', () => {
+  test('drops tone, replaces output_format with the fixed sentence, and passes the flag through to the gate', () => {
+    // kind:"decision" forces `reinforced`, so tone/output_format would
+    // otherwise both be included — proving workflowStage overrides that.
+    writeRoadmap(project, [entryFields({ kind: 'decision' })]);
+    const { json } = run(project, {
+      entry: '001',
+      destination: 'clipboard',
+      workflowStage: true,
+      judgment: goodJudgment(),
+    });
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+    assert.deepEqual(json.gate.errors, []);
+    assert.ok(!json.prompt.includes('<tone>'));
+    assert.ok(!json.prompt.includes('<output_format>'));
+    assert.ok(json.prompt.includes(WORKFLOW_STAGE_SENTENCE));
+  });
+
+  test('entry-less mode carries the flag the same way', () => {
+    const { json } = run(project, {
+      title: 'Ad-hoc research task',
+      what: 'Investigate the retry bug.',
+      planned_touches: ['src/auth/middleware.js'],
+      destination: 'clipboard',
+      workflowStage: true,
+      request: 'Investigate the retry bug.',
+      judgment: { role: 'a senior engineer', goal: 'to investigate', context: '', question: 'Does the retry path double-count?' },
+    });
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.ok(!json.prompt.includes('<output_format>'));
+    assert.ok(json.prompt.includes(WORKFLOW_STAGE_SENTENCE));
+  });
+
+  test('without the flag, the same reinforced handoff carries tone and output_format as usual', () => {
+    writeRoadmap(project, [entryFields({ kind: 'decision' })]);
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+    assert.ok(json.prompt.includes('<tone>'));
+    assert.ok(json.prompt.includes('<output_format>'));
+    assert.ok(!json.prompt.includes(WORKFLOW_STAGE_SENTENCE));
   });
 });

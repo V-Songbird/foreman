@@ -13,6 +13,13 @@ background `Agent`, or copy-pasted elsewhere — has **zero memory** of this
 conversation. Fill every required section. A self-contained prompt is not
 optional — it is the only way the handed-off work can act correctly.
 
+This file is the canonical source scripts read at run time, not something
+a crafting session loads: `check-prompt.js` and `craft-handoff.js` both
+parse the fixed blocks below, so there is exactly one copy of every
+guardrail. `foreman:roadmap`'s pick branch and `foreman:craft-prompt` call
+`craft-handoff.js` and relay what it returns; neither reads this file
+directly.
+
 ---
 
 ## Template
@@ -85,94 +92,10 @@ an instruction for the spawned session to act on later):**
        all three trap fixtures: equal correctness and trap compliance,
        lower cost in every cell, turns never higher.
 
-     <!-- [Foreman: 116] -->
-     **All three notes below — Model fit, Effort fit, and Raise the
-     session — are gated on `modelSuggestions`, which defaults to
-     `false`.** When it is `false`, none of them produce anything: no model
-     is recommended, no effort line is said, and the `Execute here`
-     question is not asked. The executing-model question still runs on the
-     dispatching destinations, because a background `Agent` and a clipboard
-     paste both need a model named — it just offers the list with no
-     task-derived default. `targetModel` is a separate setting and is
-     unaffected either way: a concrete pin still drives elaboration, and
-     `inherit` still elaborates at the standard level.
-
-     **Model fit** — how to seed the recommended default when `targetModel`
-     is `inherit` and `modelSuggestions` is `true`; a recommendation the
-     operator confirms or overrides, never an automatic switch. Judge from
-     the task's own `what`/`planned_touches`, recorded fields only:
-       - `haiku` for mechanical, well-scoped work — a single file or a
-         bounded change with an unambiguous spec. Cheapest, and per the
-         elaboration note above a fully-spelled-out Haiku prompt cut its
-         own exploration overhead at equal correctness.
-       - `sonnet` or `opus` when the task turns on judgment — design
-         decisions, ambiguity, a cross-cutting predicted file surface, or logic no spec
-         pins down.
-       - one caution: a `what` that reconciles stale, renamed, or
-         conflicting references hit a proven capability cliff on Haiku in
-         every prompt format tested — recommend Sonnet/Opus there whatever
-         the scope. Never bake this into the assembled prompt: the target
-         model never sees a description of its own expected failure modes.
-
-     <!-- [Foreman: 101] -->
-     **Effort fit** — the second half of the same recommendation, seeded
-     the same way and confirmed in the same breath. This prompt tells the
-     destination to think rather than narrate, which makes reasoning
-     budget the only deliberation channel it has left — so effort moves
-     the outcome at least as much as the model does. Judge it by what
-     happens when the work goes wrong, not by how hard the work looks on
-     average:
-       - a runnable check already sitting in `task_rules` makes a wrong
-         attempt cheap and visible — `low` or `medium`, and escalate on a
-         failure rather than pre-paying for one. One caveat on that
-         escalation: re-running the same prompt at the same setting mostly
-         re-buys the same failure (the samples are correlated), so a retry
-         only earns its place when something structural changes between
-         attempts — a corrected file path, a sharpened constraint, a
-         higher effort.
-       - a silent failure mode — breakage the existing checks would pass —
-         has no cheap signal to escalate on, so pay up front: `high`.
-       - no verification at all (a `--research` handoff, a judgment call
-         with nothing runnable behind it) leaves nothing to catch a bad
-         first pass: `max`.
-     Effort is a per-call parameter, never project config — there is no
-     `targetEffort` key and none should be added. It is also always
-     advisory: the `Agent` tool takes no effort argument, so a background
-     dispatch cannot set it even when the operator names one. Say the
-     recommendation out loud at craft time and let the operator act on
-     it — same rule as the model, and for the same reason. Never bake the
-     effort reasoning into the assembled prompt.
-
-     <!-- [Foreman: 111] -->
-     **Match the recommendation** — asked only when `modelSuggestions` is
-     `true`, and on the `Execute here` destination only. Both
-     halves above are stated together and followed by one question, asked
-     once per handoff and before the first task row exists: proceed as-is,
-     or take the prompt to a fresh session already set to the
-     recommendation. That destination has no dispatch value to carry
-     either half, so a line alone is the one thing a reader skims past.
-     Foreman never makes the comparison itself and must not try —
-     hook input carries no model at all, and effort is readable only
-     inside a hook, never by a skill — so the operator's answer IS the
-     comparison and the switch is theirs. It never sets a model, never
-     blocks, and never records anything. The other two destinations keep
-     asking exactly what they ask today.
-
-     **The wording must not assume a direction.** Foreman cannot see what
-     the session is running, so it cannot know whether the recommendation
-     is a step up, a step down, or already matched — a session on Opus told
-     a task suits Sonnet is being asked to go down. Never "raise", "upgrade",
-     "bump", or any other word that names a direction; word it as running
-     the task where the recommendation points, and let the operator supply
-     the comparison.
-
-     Switching this session's model or effort in place is deliberately
-     **not** an option. Either change invalidates the prompt cache, so
-     every remaining turn re-reads the whole conversation from scratch;
-     a fresh session pays that cost once, at the shortest history it will
-     ever have. A background `Agent` is not the substitute either — that
-     call takes a `model` but no effort argument, so it can only ever
-     close half the gap.
+     Model fit, Effort fit, and Match-the-recommendation guidance — all
+     three gated on `modelSuggestions`, default `false` — moved to
+     `${CLAUDE_PLUGIN_ROOT}/model-fit.md`; load it only when that flag is
+     `true`.
    - `modelSuggestions` — boolean (default `false`) turning the per-task
      model and effort recommendation on. See the gating note above the
      "Model fit" bullet for exactly what stops when it is `false`.
@@ -699,31 +622,13 @@ tasks spawned through it don't get MCP tools. Use one of the three
 destinations below instead, regardless of Desktop or CLI.
 
 **Execution-mode options** — asked only when the destination is `Execute
-here`, and asked separately: it decides how the work is tracked, not what
-the prompt says, so it can't batch into the destination question. The other
-two destinations skip it entirely.
-- `Tasks from the checks (Recommended)` — one tracked task per
-  verification command, each finished task checkpointed as a commit on a
-  dedicated branch
-- `One task, then work it` — a single tracked task carrying the whole
-  prompt
-- `Run now, no tracking` — start immediately, no task rows
-
-`AskUserQuestion` appends its own free-text option; never author one. That
-free text is where a user names the pieces, or gives a fixed number of
-tasks — the splitting section below says what to do with a bare number.
-
-**`Execute here`** — the execution-mode answer picks which of these runs.
-- `Run now, no tracking` — no task rows at all. Work the assembled prompt
-  in this session directly.
-- `One task, then work it` — call `TaskCreate` with `subject` = a verb-first
-  imperative ≤60 chars, `description` = the assembled XML prompt,
-  `activeForm` = its present-continuous form. Then work the task in this
-  session, using `TaskUpdate` to mark it `in_progress` then `completed`.
-- `Tasks from the checks` — the same `TaskCreate` shape per row, split and
-  chained exactly as the splitting section below describes. Then work them
-  in order, `TaskUpdate` per row as you go, committing each finished task
-  as the checkpointing section below describes.
+here`, deciding how the work is tracked, not what the prompt says:
+`Tasks from the checks (Recommended)`, `One task, then work it`, or
+`Run now, no tracking`. The crafting skill asks this directly and owns
+the `TaskCreate`/`TaskUpdate` mechanics per mode; `AskUserQuestion`'s own
+free-text option is where a user names the pieces or gives a fixed number
+instead of one-per-check (the splitting section below says what a bare
+number does).
 
 **Background Agent** — call `Agent` with `prompt` = the assembled XML
 prompt, `description` = a 3-5 word summary, `run_in_background: true`.
@@ -777,40 +682,26 @@ exists.
 
 ## Splitting an `Execute here` handoff into several tasks
 
-Only for the `Execute here` destination, and only when its execution-mode
-question asked for several tasks. Every other destination, and the
-single-task mode, skips this section entirely.
+Only for the `Execute here` destination, `Tasks from the checks` mode.
+`craft-handoff.js` already computes the row shapes and returns them as
+`tasks[]`: one task per runnable check (never by file, never by the
+analyze/implement bullets — a single check is a single task, full stop),
+the first row carrying the whole assembled prompt, and a roadmap entry
+paragraph — when the handoff carries one — on the last row only, never
+repeated (`hooks/task-completed.js` gates every completing task whose
+description names an entry, so repeating it would demand the entry close
+while siblings are still pending; `hooks/task-created.js` still opens the
+entry the moment that last row is created, before any work starts). A
+fixed number (the execution-mode question's free-text answer) cuts into
+that many slices the same way.
 
-- **Slice at verification boundaries** — one task per runnable check. Never
-  slice the analyze/implement bullets: a `sonnet`, `opus`, or `fable`
-  target doesn't carry them at all, so there is nothing there to cut. Never
-  slice by file either — predicted-file-surface groupings are unverified guesses,
-  not a schedule. One check means one task; say so and move on rather than
-  inventing slices to reach a number.
-- **The first task carries the whole assembled prompt** in its
-  `description`. Every later task's `description` is short: its own goal,
-  the files it touches, and its own verification command with the expected
-  result. They run in this same session and share its context —
-  `truth_grounding` guards a cold start, which a sibling task is not.
-- **Chain them.** Once the rows exist, one `TaskUpdate` per task from the
-  second onward with `addBlockedBy: ["<the previous task's id>"]`. The
-  harness then refuses to start a task before its predecessor resolves,
-  which is what makes "the last task" mean anything.
-- **A roadmap entry paragraph goes on the last task only**
-  (`foreman:roadmap` handoffs — `craft-prompt` assembles no such
-  paragraph). `hooks/task-completed.js` gates every completing task whose
-  description names an entry, so repeating that paragraph on each row would
-  demand the entry be closed `done` while its siblings are still pending.
-  Hold it out of the first task's description and put it verbatim in the
-  last one's — `hooks/task-created.js` still opens the entry the moment
-  that last row is created, which is before any of the work starts.
-- **A fixed number** (the execution-mode question's free-text answer) cuts
-  into that many slices at whatever verification boundaries exist. Don't add
-  a confirmation question — the created rows are the preview, and a wrong
-  one is removed with `TaskUpdate` `status: "deleted"`.
-- The mechanical gate above runs **once**, on the assembled prompt, with
-  `--destination task`. Splitting is a delivery-layer choice and changes
-  nothing the checker inspects.
+The crafting skill's own job is only to turn each returned row into a
+`TaskCreate`, in order, chaining every task from the second onward with
+one `TaskUpdate` `addBlockedBy: ["<the previous task's id>"]` — the
+harness then refuses to start a task before its predecessor resolves. The
+mechanical gate above runs **once**, on the full assembled prompt, with
+`--destination task`; splitting is a delivery-layer choice and changes
+nothing the checker inspects.
 
 ## Checkpointing a task-split run
 

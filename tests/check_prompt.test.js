@@ -41,6 +41,10 @@ const {
 } = require(path.join(SCRIPTS_DIR, 'check-prompt.js'));
 
 const CHECK = path.join(SCRIPTS_DIR, 'check-prompt.js');
+// entry 204: Model fit / Effort fit / Match-the-recommendation moved out of
+// prompt-template.md into model-fit.md, loaded only when modelSuggestions
+// is true — the pins below moved with the text they cover.
+const MODEL_FIT_PATH = path.join(__dirname, '..', 'model-fit.md');
 const canonical = readCanonical();
 const AUTONOMY = 'You are operating autonomously. The user is not watching in real time and cannot answer questions mid-task. End your turn only when the task is complete or you are blocked on input only the user can provide.';
 const PLUGIN_ROOT = '/plugins/foreman';
@@ -412,10 +416,10 @@ describe('drift pins', () => {
     }
   });
 
-  test('the template still defines effort fit and its verification-cost rule', () => {
-    const raw = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
+  test('model-fit.md still defines effort fit and its verification-cost rule', () => {
+    const raw = fs.readFileSync(MODEL_FIT_PATH, 'utf-8');
     assert.ok(raw.includes('**Effort fit**'));
-    assert.ok(raw.includes('there is no\n     `targetEffort` key'));
+    assert.ok(raw.includes('there is no\n`targetEffort` key'));
     assert.ok(raw.includes('the `Agent` tool takes no effort argument'));
     for (const level of ['`low` or `medium`', '`high`', '`max`']) {
       assert.ok(raw.includes(level), `the effort-fit note lost its ${level} branch`);
@@ -433,25 +437,26 @@ describe('drift pins', () => {
     }
   });
 
-  test('the template still defines the Execute-here match-the-recommendation ask', () => {
-    const raw = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
+  test('model-fit.md still defines the Execute-here match-the-recommendation ask', () => {
+    const raw = fs.readFileSync(MODEL_FIT_PATH, 'utf-8');
     assert.ok(
       raw.includes('**Match the recommendation**'),
-      'the template lost the match-the-recommendation note'
+      'model-fit.md lost the match-the-recommendation note'
     );
     assert.ok(
       /once per handoff and before the first task row exists/.test(raw.replace(/\s+/g, ' ')),
-      'the template lost the once-per-handoff, before-the-first-row timing'
+      'model-fit.md lost the once-per-handoff, before-the-first-row timing'
     );
     assert.ok(
       /hook input carries no model at all/.test(raw),
-      'the template lost the reason foreman must not make the comparison itself'
+      'model-fit.md lost the reason foreman must not make the comparison itself'
     );
   });
 
   test('both skills ask where the task fits on Execute here, with no direction implied', () => {
     const files = [
       TEMPLATE_PATH,
+      MODEL_FIT_PATH,
       path.join(__dirname, '..', 'skills', 'craft-prompt', 'SKILL.md'),
       path.join(__dirname, '..', 'skills', 'roadmap', 'pick.md'),
     ];
@@ -494,14 +499,14 @@ describe('drift pins', () => {
   });
 
   test('the model and effort recommendations are gated on modelSuggestions, default off', () => {
-    const raw = fs.readFileSync(TEMPLATE_PATH, 'utf-8').replace(/\s+/g, ' ');
+    const raw = fs.readFileSync(MODEL_FIT_PATH, 'utf-8').replace(/\s+/g, ' ');
     assert.ok(
       /gated on `modelSuggestions`, which defaults to `false`/.test(raw),
-      'the template lost the modelSuggestions gate on the model/effort notes'
+      'model-fit.md lost the modelSuggestions gate on the model/effort notes'
     );
     assert.ok(
       /`targetModel` is a separate setting and is unaffected/.test(raw),
-      'the template lost the targetModel independence rule'
+      'model-fit.md lost the targetModel independence rule'
     );
     for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'pick.md']]) {
       const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8').replace(/\s+/g, ' ');
@@ -522,7 +527,7 @@ describe('drift pins', () => {
 
   test('the match-the-recommendation ask sends the work to a fresh session, never a mid-session switch', () => {
     const files = [
-      TEMPLATE_PATH,
+      MODEL_FIT_PATH,
       path.join(__dirname, '..', 'skills', 'craft-prompt', 'SKILL.md'),
       path.join(__dirname, '..', 'skills', 'roadmap', 'pick.md'),
     ];
