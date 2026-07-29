@@ -368,9 +368,9 @@ function discoveryBlock() {
 //
 // razor: rides along with a block already being emitted; it never makes the
 // hook speak on a commit it would otherwise stay silent on. Upgrade to a
-// standalone block (reusing filterUnnudged's once-per-day dedup, or the
-// invitation becomes an every-commit nag) if projects that never mark work
-// in_progress turn out to need the ask too.
+// standalone block (still behind shouldInviteDiscovery's once-a-day dedup
+// below) if projects that never mark work in_progress turn out to need the
+// ask too.
 const DISCOVERY_INVITE =
   "[Foreman] This project has never answered whether it wants commit-time roadmap " +
   "discovery (no `discoverySuggestions` key in `.foreman/config.json`). Ask the user " +
@@ -380,6 +380,37 @@ const DISCOVERY_INVITE =
   '`"discoverySuggestions": true` or `false`, either way, preserving every other key — ' +
   "since recording it is what stops this from being raised again. If this session has no " +
   "user to ask (a background agent), skip it silently and leave the config alone.";
+
+// [Foreman: 200] A session with no user to ask (a background agent) skips
+// the invite silently and never writes the config key, so without a rate
+// limit it re-asks on every single qualifying commit forever. Same tmpdir
+// state-file pattern as the freshly-done dedup above, one file per project;
+// best-effort both ways: unreadable state means invite again (fail open),
+// unwritable state means the dedup just doesn't stick.
+function discoveryInviteStatePath(root) {
+  const safe = crypto.createHash("sha1").update(String(root)).digest("hex").slice(0, 12);
+  return path.join(os.tmpdir(), `foreman-discoveryinvite-${safe}.json`);
+}
+
+// razor: fixed ceiling (at most once a day), no config key — add one only
+// once a user asks for it.
+function shouldInviteDiscovery(root, todayStr) {
+  const p = discoveryInviteStatePath(root);
+  let lastDate;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(p, "utf-8"));
+    if (parsed && typeof parsed.date === "string") lastDate = parsed.date;
+  } catch {
+    // missing or corrupt state — fail open, invite again
+  }
+  if (lastDate === todayStr) return false;
+  try {
+    fs.writeFileSync(p, JSON.stringify({ date: todayStr }));
+  } catch {
+    // best effort
+  }
+  return true;
+}
 
 // The emit path shared by every branch that talks — the corrupt-file branch
 // below now uses it too, instead of duplicating the JSON envelope.
@@ -475,7 +506,7 @@ function main() {
   }
   if (config.discoverySuggestions) {
     blocks.push(discoveryBlock());
-  } else if (config.discoveryUnanswered && blocks.length) {
+  } else if (config.discoveryUnanswered && blocks.length && shouldInviteDiscovery(root, todayStr)) {
     blocks.push(DISCOVERY_INVITE);
   }
   if (!blocks.length) return;
@@ -506,6 +537,8 @@ module.exports = {
   scopeTouchedFiles,
   discoveryBlock,
   DISCOVERY_INVITE,
+  discoveryInviteStatePath,
+  shouldInviteDiscovery,
   CORRUPT_ROADMAP_MESSAGE,
   SCRIPT_PATH,
 };

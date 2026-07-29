@@ -17,7 +17,9 @@
 // matcher gates to startup|clear — resumed context already knows).
 
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
+const crypto = require("crypto");
 
 const { readEntries, today, TERMINAL_STATUSES } = require("../scripts/roadmap");
 
@@ -89,6 +91,39 @@ function buildArchiveOffer(count) {
   );
 }
 
+// [Foreman: 200] Nothing observes whether the user acted on the archive
+// offer in chat — a decline or an ignore looks identical to Foreman, so
+// without this it re-asks every single session forever once the threshold
+// is crossed. A tmpdir state file (same sha1-of-root keying as
+// post-commit.js's freshly-done dedup) remembers the last date it fired;
+// best-effort both ways: unreadable state means offer again (fail open),
+// unwritable state means the dedup just doesn't stick.
+function archiveOfferStatePath(root) {
+  const safe = crypto.createHash("sha1").update(String(root)).digest("hex").slice(0, 12);
+  return path.join(os.tmpdir(), `foreman-archiveoffer-${safe}.json`);
+}
+
+// razor: fixed ceiling, no config key — add one only once a user asks for it.
+const ARCHIVE_OFFER_RENUDGE_DAYS = 7;
+
+function shouldOfferArchive(root, todayStr) {
+  const p = archiveOfferStatePath(root);
+  let lastDate;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(p, "utf-8"));
+    if (parsed && typeof parsed.date === "string") lastDate = parsed.date;
+  } catch {
+    // missing or corrupt state — fail open, offer again
+  }
+  if (lastDate && daysBetween(lastDate, todayStr) < ARCHIVE_OFFER_RENUDGE_DAYS) return false;
+  try {
+    fs.writeFileSync(p, JSON.stringify({ date: todayStr }));
+  } catch {
+    // best effort
+  }
+  return true;
+}
+
 function main() {
   const data = readInput();
   // The matcher already gates to startup|clear; keep a defensive check so a
@@ -109,9 +144,12 @@ function main() {
   );
   const terminalCount = entries.filter((e) => TERMINAL_STATUSES.has(e.status)).length;
 
+  const todayStr = today();
   const parts = [];
-  if (open.length) parts.push(buildMessage(open, today()));
-  if (terminalCount >= ARCHIVE_OFFER_THRESHOLD) parts.push(buildArchiveOffer(terminalCount));
+  if (open.length) parts.push(buildMessage(open, todayStr));
+  if (terminalCount >= ARCHIVE_OFFER_THRESHOLD && shouldOfferArchive(root, todayStr)) {
+    parts.push(buildArchiveOffer(terminalCount));
+  }
   if (!parts.length) return;
 
   // SessionStart accepts raw stdout as context — no JSON envelope needed.
@@ -137,4 +175,7 @@ module.exports = {
   daysBetween,
   STALE_DAYS,
   ARCHIVE_OFFER_THRESHOLD,
+  archiveOfferStatePath,
+  shouldOfferArchive,
+  ARCHIVE_OFFER_RENUDGE_DAYS,
 };

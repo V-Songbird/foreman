@@ -57,6 +57,7 @@ field by convention).
 
 ### Fixed
 
+- The session-start archive offer and the after-commit discovery invite no longer repeat every single time they'd otherwise fire — the archive offer waits at least 7 days between offers, and the discovery invite waits at least a day, per project.
 - Re-initializing a project can no longer discard an existing roadmap after a failed snapshot: Foreman stops before clearing anything and offers to retry the snapshot, save a timestamped backup beside the roadmap, continue without one after you say so explicitly, or cancel.
 - A roadmap can now pass 999 tasks safely: task ids of four or more digits are created, validated, ordered, committed, and closed the same way three-digit ones always were, instead of being silently unreadable to commit trailers, decision anchors, sprint checks, and hooks.
 - Closing a task with a commit that lives in a submodule now records the files that commit changed, instead of recording nothing.

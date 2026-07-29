@@ -33,6 +33,7 @@ const {
   initGitRepo,
   commitFile,
 } = require('./helpers');
+const { discoveryInviteStatePath } = require('../hooks/post-commit');
 
 let project;
 let env;
@@ -472,6 +473,25 @@ describe('discovery first-relevant invitation', () => {
     writeRoadmap(project, [{ id: '001', status: 'planned' }]);
     const out = run(bashPayload('git commit -m "wip"'));
     assert.equal(out, '');
+  });
+});
+
+describe('discovery invite rate limit', () => {
+  test('is absent on the next qualifying commit the same day', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    const first = run(bashPayload('git commit -m "wip 1"'));
+    assert.match(first, /never answered whether it wants/);
+    const second = run(bashPayload('git commit -m "wip 2"'));
+    assert.doesNotMatch(second, /never answered whether it wants/);
+    // the block it rides along with is unaffected by the invite's own dedup
+    assert.match(second, /in-progress ROADMAP/i);
+  });
+
+  test('a corrupt state file fails open — invites anyway', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    fs.writeFileSync(discoveryInviteStatePath(project), 'not json', 'utf-8');
+    const out = run(bashPayload('git commit -m "wip"'));
+    assert.match(out, /never answered whether it wants/);
   });
 });
 

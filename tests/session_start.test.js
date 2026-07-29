@@ -12,6 +12,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { runScriptRaw, makeTmpProject, writeRoadmap } = require('./helpers');
+const { archiveOfferStatePath } = require('../hooks/session-start');
 
 let project;
 let env;
@@ -29,6 +30,13 @@ function run(payload) {
 
 function localToday() {
   const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Local date math, not toISOString() — avoids the UTC-day drift near midnight.
+function daysAgoStr(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
@@ -127,5 +135,31 @@ describe('session-start archive offer', () => {
   test('stays silent on this line for a corrupt roadmap', () => {
     fs.writeFileSync(path.join(project, 'ROADMAP.jsonl'), '{not json\n', 'utf-8');
     assert.equal(run({ source: 'startup' }), '');
+  });
+
+  test('does not repeat on a second session the same day', () => {
+    writeRoadmap(project, terminalEntries(20));
+    const first = run({ source: 'startup' });
+    assert.match(first, /20 finished entries/);
+    const second = run({ source: 'startup' });
+    assert.equal(second, '');
+  });
+
+  test('offers again once the state file says it last fired 8 days ago', () => {
+    writeRoadmap(project, terminalEntries(20));
+    fs.writeFileSync(
+      archiveOfferStatePath(project),
+      JSON.stringify({ date: daysAgoStr(8) }),
+      'utf-8'
+    );
+    const out = run({ source: 'startup' });
+    assert.match(out, /20 finished entries/);
+  });
+
+  test('a corrupt state file fails open — offers anyway', () => {
+    writeRoadmap(project, terminalEntries(20));
+    fs.writeFileSync(archiveOfferStatePath(project), 'not json', 'utf-8');
+    const out = run({ source: 'startup' });
+    assert.match(out, /20 finished entries/);
   });
 });
