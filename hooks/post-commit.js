@@ -8,7 +8,8 @@ const crypto = require("crypto");
 
 const { execFileSync } = require("child_process");
 
-const { readEntries, today, filesTouchedByCommit, trailerIdsIn } = require("../scripts/roadmap");
+const { readEntries, today, trailerIdsIn } = require("../scripts/roadmap");
+const { resolveHookScope } = require("../scripts/commit-evidence");
 
 const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
   ? path.resolve(process.env.CLAUDE_PLUGIN_ROOT)
@@ -19,8 +20,8 @@ const WATCHED_TOOLS = new Set(["Bash", "PowerShell"]);
 const SEP = /\s*(?:&&|\|\||[;|\n])\s*/;
 const COMMIT_RE = /^\s*git\s+(?:-\S+\s+)*commit\b/i;
 
-function projectDir() {
-  return path.resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
+function projectDir(data) {
+  return path.resolve(process.env.CLAUDE_PROJECT_DIR || data.cwd || process.cwd());
 }
 
 function readInput() {
@@ -169,16 +170,41 @@ function touchesTag(entry, committedSet) {
     : " [no overlap with its planned files]";
 }
 
-// HEAD's commit message, for `Foreman: <id>` trailer detection. Fail-soft
-// like every other git read here: no repo / no git -> no trailer ids.
-function headTrailerIds(root) {
+// HEAD's commit message, for `Foreman: <id>` trailer detection -- read from
+// whichever repo the resolved scope points at (the root, or the submodule
+// the commit actually landed in), not always root, so a submodule commit's
+// own trailer is seen instead of the parent's last message. Fail-soft like
+// every other git read here: no repo / no git -> no trailer ids.
+function headTrailerIds(cwd) {
   try {
     const msg = execFileSync("git", ["log", "-1", "--format=%B"], {
-      cwd: root,
+      cwd,
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"],
     });
     return trailerIdsIn(msg);
+  } catch {
+    return [];
+  }
+}
+
+// HEAD's changed files, read from the resolved scope's own repo rather than
+// always the root. filesTouchedByCommit/filesFromGit walk root-then-
+// submodules and return the FIRST scope with files -- correct for a
+// concrete sha, wrong for the symbolic ref HEAD, which resolves in every
+// scope: that walk always returned the root's HEAD even when the commit
+// that fired this hook landed inside a submodule. Prefixed like `touches`
+// so a submodule's paths read the way planned_touches does. Fail-soft like
+// every other git read here.
+function scopeTouchedFiles(scope) {
+  try {
+    const out = execFileSync(
+      "git",
+      ["show", "--pretty=format:", "--name-only", "--relative", "HEAD"],
+      { cwd: scope.cwd, encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] }
+    );
+    const files = out.split("\n").map((line) => line.trim()).filter(Boolean);
+    return scope.prefix ? files.map((file) => `${scope.prefix}/${file}`) : files;
   } catch {
     return [];
   }
@@ -380,7 +406,15 @@ function main() {
   if (!command || !isGitCommit(command)) return;
   if (commitFailed(data)) return;
 
-  const root = projectDir();
+  const root = projectDir(data);
+  // Which repo this specific commit landed in -- the root project, a
+  // declared submodule, or (a commit made in some unrelated repository
+  // elsewhere on disk) neither. Only the first two are this hook's
+  // business; a commit fired from an unrelated repo must not read or
+  // annotate this project's roadmap.
+  const scope = resolveHookScope(root, path.resolve(data.cwd || process.cwd()));
+  if (!scope) return;
+
   if (!fs.existsSync(path.join(root, "ROADMAP.jsonl"))) return;
 
   let entries;
@@ -401,7 +435,7 @@ function main() {
   // would re-dirty the roadmap the staged close just kept clean. Later
   // commits (no trailer for it) still nudge as before.
   const doneTodayAll = entries.filter((e) => e.status === "done" && e.updated_at === todayStr);
-  const trailerIds = inProgress.length || doneTodayAll.length ? headTrailerIds(root) : [];
+  const trailerIds = inProgress.length || doneTodayAll.length ? headTrailerIds(scope.cwd) : [];
   const doneToday = doneTodayAll.filter((e) => !trailerIds.includes(e.id));
   const unnudged = doneToday.length
     ? filterUnnudged(root, doneToday.map((e) => e.id), todayStr)
@@ -413,7 +447,7 @@ function main() {
   // Best-effort — [] when git can't name the files — so the tag degrades to
   // no-tag rather than a misleading "no overlap". Only fetched when it can
   // matter (an in_progress task to tag).
-  const committedFiles = inProgress.length ? filesTouchedByCommit(root, "HEAD") : [];
+  const committedFiles = inProgress.length ? scopeTouchedFiles(scope) : [];
 
   const blocks = [];
   if (inProgress.length || freshlyDone.length) {
@@ -449,6 +483,7 @@ module.exports = {
   statusSyncBlock,
   touchesTag,
   headTrailerIds,
+  scopeTouchedFiles,
   discoveryBlock,
   DISCOVERY_INVITE,
   CORRUPT_ROADMAP_MESSAGE,

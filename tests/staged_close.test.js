@@ -144,8 +144,11 @@ describe('trailer parsing', () => {
 });
 
 describe('post-commit.js trailer behavior', () => {
+  // [Foreman: 190] The hook resolves which repo scope the commit's own cwd
+  // belongs to before reading anything — every test here already calls
+  // initGitRepo(project) first, so cwd: project lands on the root scope.
   function bashPayload(command) {
-    return { tool_name: 'Bash', tool_input: { command } };
+    return { tool_name: 'Bash', tool_input: { command }, cwd: project };
   }
 
   function runHook() {

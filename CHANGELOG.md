@@ -69,6 +69,8 @@ field by convention).
 - Re-initializing over an existing roadmap now continues task ids past the old file's highest one instead of starting at 001 again, so commit trailers and code anchors from the old roadmap can no longer point at unrelated new tasks.
 - Blocking a direct edit of the roadmap file now names every command the CLI actually accepts, including `correct`, `update-deps`, `reassign-id`, `doctor`, and `migrate` — a session fixing a stale entry is no longer handed a list that leaves out the fix it needs.
 - Fixed an issue where two same-day corrections to the same task could silently overwrite each other: correcting a task now also requires your own view of the current wording for each field you're changing, and a mismatch is refused with the same re-read-and-retry message as a stale correction.
+- Fixed an issue where a `git commit` made outside the current project — in an unrelated repository elsewhere on disk — could still be read against this project's roadmap. The after-commit check now confirms the commit actually landed in the project or one of its submodules before reading anything, and stays silent otherwise.
+- Fixed an issue where a commit made inside a submodule was tagged and trailer-matched against the parent repository's last commit instead of its own — the after-commit check now reads the commit's own repository.
 
 ## [0.46.0-alpha] — 2026-07-24
 

@@ -18,6 +18,7 @@
 // resolvable from here", NOT "deleted" -- a reader that reports it as missing
 // evidence is over-reading it.
 
+const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
 
@@ -88,6 +89,35 @@ function filesFromGit(root, args, keep) {
     if (files.length) return prefix ? files.map((file) => `${prefix}/${file}`) : files;
   }
   return [];
+}
+
+// Windows path comparison needs realpath + case-insensitive compare, same
+// normalization spirit as roadmap-lock.js's resolvedProjectPath -- kept
+// local since nothing else here needs that module's lock-file machinery.
+function normalizedPath(p) {
+  let resolved = path.resolve(p);
+  try {
+    resolved = fs.realpathSync.native(resolved);
+  } catch {
+    // best effort -- a path git could not confirm still compares by string
+  }
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+}
+
+/**
+ * Which repoScopes(root) entry a hook event's own cwd belongs to -- the
+ * answer to "did the commit that fired this hook even land in a repo this
+ * project owns". `cwd` (the hook input's own working directory) is resolved
+ * to its git toplevel -- fail-soft, no git / not a repo -> null -- and
+ * matched against the root and every declared submodule. null either way
+ * means the commit is some other repository's business, not this project's:
+ * a caller that gets null should stay silent rather than assume the root.
+ */
+function resolveHookScope(root, cwd) {
+  const toplevel = gitRead(cwd, ["rev-parse", "--show-toplevel"]);
+  if (!toplevel || !toplevel.trim()) return null;
+  const target = normalizedPath(toplevel.trim());
+  return repoScopes(root).find((scope) => normalizedPath(scope.cwd) === target) || null;
 }
 
 // The sha shape git can be asked to look up. Same 7..64 hex window sprint's
@@ -252,6 +282,7 @@ function evidenceSummary(root, entry) {
 module.exports = {
   repoScopes,
   filesFromGit,
+  resolveHookScope,
   resolveSha,
   recordedCommits,
   trailerLinesIn,

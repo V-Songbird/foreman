@@ -22,6 +22,9 @@
 const { test, describe, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 
+const fs = require('fs');
+const path = require('path');
+const { spawnSync } = require('child_process');
 const {
   runScriptRaw,
   makeTmpProject,
@@ -34,13 +37,50 @@ const {
 let project;
 let env;
 
+// [Foreman: 190] The hook now resolves which repo scope the commit's own
+// cwd belongs to before reading anything, so every fixture needs a real git
+// repo at `project` for that resolution to land on the root scope — a
+// project with no `.git` at all is no longer distinguishable from "this
+// commit happened in some unrelated repository" and goes silent (see the
+// dedicated 'commit scope resolution' suite below).
 beforeEach(() => {
   project = makeTmpProject();
+  initGitRepo(project);
   env = { CLAUDE_PROJECT_DIR: project };
 });
 
+// cwd mirrors the hook input's own field — the resolver matches it against
+// `project`'s git toplevel to confirm the commit landed in this project's
+// repo, not an unrelated one elsewhere on disk.
 function bashPayload(command, extra) {
-  return { tool_name: 'Bash', tool_input: { command }, ...(extra || {}) };
+  return { tool_name: 'Bash', tool_input: { command }, cwd: project, ...(extra || {}) };
+}
+
+/** Commit with an explicit message, in `cwd`. Returns the short sha. */
+function commitWithMessage(cwd, relPath, content, message) {
+  const full = path.join(cwd, relPath);
+  fs.mkdirSync(path.dirname(full), { recursive: true });
+  fs.writeFileSync(full, content, 'utf-8');
+  spawnSync('git', ['add', relPath], { cwd });
+  spawnSync('git', ['commit', '-q', '-m', message], { cwd });
+  return spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd, encoding: 'utf-8' }).stdout.trim();
+}
+
+/**
+ * A submodule the way the resolver actually finds one: `.gitmodules` names
+ * the path and a real git repo sits there. Same pattern as
+ * tests/commit_evidence.test.js's addSubmodule.
+ */
+function addSubmodule(root, name) {
+  fs.appendFileSync(
+    path.join(root, '.gitmodules'),
+    `[submodule "${name}"]\n\tpath = ${name}\n\turl = ./${name}\n`,
+    'utf-8'
+  );
+  const sub = path.join(root, name);
+  fs.mkdirSync(sub, { recursive: true });
+  initGitRepo(sub);
+  return sub;
 }
 
 function run(payload) {
@@ -140,7 +180,7 @@ describe('status-sync block', () => {
     writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
     const result = runScriptRaw(
       'post-commit.js',
-      { tool_name: 'PowerShell', tool_input: { command: 'git commit -m "wip"' } },
+      { tool_name: 'PowerShell', tool_input: { command: 'git commit -m "wip"' }, cwd: project },
       env
     );
     assert.notEqual(result.stdout, '');
@@ -599,8 +639,10 @@ describe('planned-files correlation label', () => {
     assert.doesNotMatch(out, /ranking hint, not proof/);
   });
 
-  test('non-git project: degrades to no tags, block otherwise unchanged', () => {
-    // no initGitRepo — git can't name HEAD's files, so tagging stays inert
+  test('no commits yet: degrades to no tags, block otherwise unchanged', () => {
+    // beforeEach already gives `project` a repo (the resolver needs one to
+    // land on the root scope) but nothing is committed — HEAD doesn't
+    // resolve, so git can't name any files and tagging stays inert.
     writeRoadmap(project, [
       { id: '001', title: 'x', status: 'in_progress', planned_touches: ['plugins/other/src.js'] },
     ]);
@@ -619,5 +661,47 @@ describe('planned-files correlation label', () => {
     assert.match(out, /requireVerification is on/);
     assert.match(out, /\[no overlap with its planned files\]/);
     assert.match(out, /ranking hint, not proof/);
+  });
+});
+
+// [Foreman: 190] Nothing used to establish which repository the commit that
+// fired this hook actually landed in — CLAUDE_PROJECT_DIR names the project
+// regardless of where the commit happened, so a commit anywhere else (an
+// unrelated repo, or a submodule inside this project) was read against the
+// wrong git history entirely.
+describe('commit scope resolution', () => {
+  test('a cwd outside every repo scope produces no output at all', () => {
+    const outsideRepo = makeTmpProject();
+    initGitRepo(outsideRepo);
+    commitFile(outsideRepo, 'unrelated.js', 'unrelated');
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    const out = run(bashPayload('git commit -m "wip"', { cwd: outsideRepo }));
+    assert.equal(out, '');
+  });
+
+  test('a commit inside a submodule reads that submodule\'s own files and trailer, not the parent\'s', () => {
+    commitFile(project, 'root.js', 'root content');
+    const sub = addSubmodule(project, 'lib');
+    commitWithMessage(sub, 'inner.js', 'inner content', 'work in submodule\n\nForeman: 001');
+    writeRoadmap(project, [
+      { id: '001', title: 'the submodule task', status: 'in_progress', planned_touches: ['lib/inner.js'] },
+    ]);
+    const out = run(bashPayload('git commit -m "work in submodule"', { cwd: sub }));
+    // the submodule's own trailer names this entry directly...
+    assert.match(out, /named in this commit's Foreman: trailer/);
+    // ...and the submodule's changed file, prefixed, overlaps its planned
+    // files — neither would be true reading the parent's last commit
+    // ("root.js", no trailer at all).
+    assert.doesNotMatch(out, /\[no overlap with its planned files\]/);
+  });
+
+  test('a root-repo commit resolves to the root scope and behaves exactly as before', () => {
+    commitFile(project, 'src/a.js', 'content');
+    writeRoadmap(project, [
+      { id: '001', title: 'root work', status: 'in_progress', planned_touches: ['src/a.js'] },
+    ]);
+    const out = run(bashPayload('git commit -m "finish root work"'));
+    assert.match(out, /may complete an in-progress/i);
+    assert.match(out, /\[files overlap its planned files\]/);
   });
 });
