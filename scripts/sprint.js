@@ -150,6 +150,14 @@ function foremanTrailerIds(root, commit) {
   return { ids: trailerIdsIn(message), lines: trailerLinesIn(message), message };
 }
 
+// [Foreman: 202] The two backup shapes roadmap.js's migrateFile writes as
+// sibling, untracked files right before an automatic format upgrade. They
+// are not the ledger itself, but they are still Foreman's own bookkeeping —
+// the user-visible recovery copy of a ledger write — so they get every
+// consequence isSharedLedger already carries: carved out of dirt at begin,
+// excluded from a unit's staging, forbidden in a worker's own commit.
+const LEDGER_BACKUP_RE = /^(?:ROADMAP\.jsonl\.backup-|\.foreman\/archive\.jsonl\.backup-)/;
+
 function isSharedLedger(file) {
   const normalized = file.replaceAll("\\", "/");
   // [Foreman: 132] The archive is the roadmap's other half — same single
@@ -158,7 +166,11 @@ function isSharedLedger(file) {
   // roadmap, never the archive. A project's own CHANGELOG.md is NOT one of
   // Foreman's files — see isSprintChangelog for the narrower, sprint-local
   // rule that keeps it out of a worker's unit instead.
-  return normalized === "ROADMAP.jsonl" || normalized === ".foreman/archive.jsonl";
+  return (
+    normalized === "ROADMAP.jsonl"
+    || normalized === ".foreman/archive.jsonl"
+    || LEDGER_BACKUP_RE.test(normalized)
+  );
 }
 
 // [Foreman: 196] Sprint's own bookkeeping policy, not the shared primitive's:

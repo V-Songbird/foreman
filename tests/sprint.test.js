@@ -308,6 +308,28 @@ describe("sprint unit attestation", () => {
     assert.ok(result.reasons.includes("shared_ledger_committed_by_worker"));
   });
 
+  // [Foreman: 202] An auto-migration backup is Foreman's own bookkeeping, not
+  // this unit's to commit -- same consequence as sweeping in the ledger it
+  // backs up.
+  test("rejects a worker commit that sweeps in a migration backup file", () => {
+    const snapshot = baselineProject();
+    const commit = commitUnit([
+      ["src/unit.js", "module.exports = true;\n"],
+      ["ROADMAP.jsonl.backup-20260101-000000", "stray backup\n"],
+    ]);
+
+    const result = attestUnit(project, {
+      entryId: "001",
+      baseline: snapshot.head,
+      stateHash: snapshot.state_hash,
+      commit,
+    });
+
+    assert.equal(result.ok, false);
+    assert.deepEqual(result.forbidden_files, ["ROADMAP.jsonl.backup-20260101-000000"]);
+    assert.ok(result.reasons.includes("shared_ledger_committed_by_worker"));
+  });
+
   test("rejects a worker commit that renames ROADMAP.jsonl", () => {
     const snapshot = baselineProject();
     const moved = git("mv", "ROADMAP.jsonl", "ledger-renamed.jsonl");

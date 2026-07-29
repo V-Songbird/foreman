@@ -190,13 +190,18 @@ function finishUnit(root, options) {
   }
 
   const changedAll = changedSinceBaseline(root, baseline);
-  // [Foreman: 184] Ledger files are never this unit's to stage. Unless this
-  // finish IS the declared roadmap close, they are left out entirely — not
-  // staged, not counted as unexpected — so the coordinator's in_progress
-  // flip (or any other ledger dirt) stays in the tree for the close that
-  // owns it.
-  const changed = roadmapClose ? changedAll : changedAll.filter((file) => !isSharedLedger(file));
-  const ledgerExcluded = roadmapClose ? [] : changedAll.filter(isSharedLedger);
+  // [Foreman: 184] Ledger files are never this unit's to stage, with one
+  // declared exception: ROADMAP.jsonl itself, on the roadmap close that owns
+  // it. Everything else shared-ledger — the archive, and [Foreman: 202] the
+  // untracked backup an auto-migration may have left sitting in the tree —
+  // is left out in EVERY mode, so a close never rides bookkeeping dirt into
+  // its own commit and a plain unit leaves it for whoever owns it.
+  const changed = changedAll.filter(
+    (file) => !isSharedLedger(file) || (roadmapClose && file === ROADMAP_FILE)
+  );
+  const ledgerExcluded = changedAll.filter(
+    (file) => isSharedLedger(file) && !(roadmapClose && file === ROADMAP_FILE)
+  );
   if (!changed.length) return { ok: false, reason: "no_task_changes", baseline };
 
   const allowed = roadmapClose ? [...expected, ROADMAP_FILE] : expected;

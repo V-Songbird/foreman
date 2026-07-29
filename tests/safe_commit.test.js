@@ -15,7 +15,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
-const { makeTmpProject, writeRoadmap, writeArchiveFile, initGitRepo, runNodeScript, SCRIPTS_DIR } = require('./helpers');
+const { makeTmpProject, writeRoadmap, writeArchiveFile, initGitRepo, runNodeScript, runRoadmap, SCRIPTS_DIR } = require('./helpers');
 
 const SAFE_COMMIT = path.join(SCRIPTS_DIR, 'safe-commit.js');
 const TEMPLATE = fs.readFileSync(path.join(__dirname, '..', 'prompt-template.md'), 'utf-8');
@@ -410,7 +410,10 @@ describe('safe-commit finish commit and attestation', () => {
   // CHANGELOG.md is ordinary work here (see the changelog describe block
   // below) -- keeping it out of a sprint worker's unit is sprint's own
   // policy, enforced by attestUnit, not this primitive's.
-  test('a shared ledger other than the declared roadmap close is still forbidden', () => {
+  // [Foreman: 202] A shared ledger other than the declared roadmap close is
+  // excluded from `changed` before anything is staged, in every mode -- it
+  // never rides into the commit for post-commit attestation to catch.
+  test('a shared ledger other than the declared roadmap close never reaches the commit', () => {
     cleanRepo();
     const baseline = begin().baseline.head;
     writeArchiveFile(project, []);
@@ -423,9 +426,29 @@ describe('safe-commit finish commit and attestation', () => {
     });
 
     assert.equal(json.ok, false);
-    assert.equal(json.reason, 'post_commit_attestation_failed');
-    assert.deepEqual(json.attested.forbidden_files, ['.foreman/archive.jsonl']);
-    assert.ok(json.attested.reasons.includes('shared_ledger_committed'));
+    assert.equal(json.reason, 'no_task_changes');
+    assert.equal(git('rev-parse', 'HEAD').trim(), baseline, 'no commit was made');
+  });
+
+  test('archive dirt alongside a real change is excluded, not committed, even declared', () => {
+    cleanRepo();
+    const baseline = begin().baseline.head;
+    writeFile('src/a.js', 'owned\n');
+    writeRoadmap(project, [{ ...entry('001'), status: 'done' }]);
+    writeArchiveFile(project, []);
+
+    const { json } = run(['finish', '--baseline', baseline], {
+      id: '001',
+      expected: ['src', '.foreman/archive.jsonl'],
+      message_title: 'close it',
+      roadmap_close: true,
+    });
+
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.deepEqual(json.files, ['ROADMAP.jsonl', 'src/a.js']);
+    assert.deepEqual(json.ledger_excluded, ['.foreman/archive.jsonl']);
+    assert.deepEqual(json.attested.forbidden_files, []);
+    assert.equal(git('diff', '--name-only', 'HEAD~1', 'HEAD').trim().includes('archive'), false);
   });
 
   test('an undeclared expected surface is a usage error, not a wide-open stage', () => {
@@ -508,6 +531,103 @@ describe("safe-commit and the project's own changelog", () => {
     assert.equal(json.dirty, false);
     assert.deepEqual(json.ledger_dirty, ['.foreman/archive.jsonl']);
     assert.equal(json.baseline.head, git('rev-parse', 'HEAD').trim());
+  });
+});
+
+// [Foreman: 202] An auto-migration (roadmap.js's migrateFile) writes
+// `<file>.backup-<stamp>` as an untracked sibling right before the rewrite --
+// on the exact turn it fires, that backup must not read as foreign dirt.
+describe('safe-commit and an auto-migration backup mid-task', () => {
+  /** A format-1 entry: one `touches` array, the shape every old roadmap has. */
+  function v1Entry(id, overrides = {}) {
+    return {
+      id,
+      title: `task ${id}`,
+      why: 'w',
+      what: 'x',
+      status: 'planned',
+      source: 'user',
+      depends_on: [],
+      touches: [],
+      commits: [],
+      created_at: '2026-07-01',
+      updated_at: '2026-07-01',
+      notes: '',
+      ...overrides,
+    };
+  }
+
+  function writeV1Roadmap(rows) {
+    fs.writeFileSync(path.join(project, 'ROADMAP.jsonl'), rows.map((r) => JSON.stringify(r)).join('\n') + '\n', 'utf-8');
+  }
+
+  function writeV1Archive(rows) {
+    const dir = path.join(project, '.foreman');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'archive.jsonl'), rows.map((r) => JSON.stringify(r)).join('\n') + '\n', 'utf-8');
+  }
+
+  function cleanV1Repo() {
+    initGitRepo(project);
+    writeV1Roadmap([v1Entry('001')]);
+    writeV1Archive([v1Entry('002', { status: 'done', commits: ['a1'] })]);
+    git('add', '-A');
+    git('commit', '-q', '-m', 'v1 baseline');
+  }
+
+  function updateStatus(payload) {
+    const r = runRoadmap(['update-status'], payload, env);
+    const json = JSON.parse(r.stdout);
+    assert.equal(json.ok, true, JSON.stringify(json));
+    return json;
+  }
+
+  function backupsIn(dir, prefix) {
+    return fs.readdirSync(dir).filter((name) => name.startsWith(prefix));
+  }
+
+  test('reproduces (a): begin still returns a baseline once auto-migration drops backups in the tree', () => {
+    cleanV1Repo();
+    // The entry's own in_progress flip -- ordinary flow, not a migrate call --
+    // is what triggers migrateIfNeeded on both files in the same write.
+    const updated = updateStatus({ id: '001', status: 'in_progress' });
+    assert.equal(updated.migrated.from, 1);
+    assert.equal(updated.migrated.archive.from, 1);
+
+    const json = begin();
+    assert.equal(json.ok, true);
+    assert.equal(json.dirty, false, JSON.stringify(json));
+    assert.equal(json.baseline.head, git('rev-parse', 'HEAD').trim());
+    const names = [...json.ledger_dirty].sort();
+    assert.equal(names.length, 4);
+    assert.ok(names.includes('ROADMAP.jsonl'));
+    assert.ok(names.includes('.foreman/archive.jsonl'));
+    assert.ok(names.some((n) => /^ROADMAP\.jsonl\.backup-\d{8}-\d{6}$/.test(n)));
+    assert.ok(names.some((n) => /^\.foreman\/archive\.jsonl\.backup-\d{8}-\d{6}$/.test(n)));
+  });
+
+  test('reproduces (b): a staged close commits cleanly with no backup staged', () => {
+    cleanV1Repo();
+    const baseline = begin().baseline.head;
+    writeFile('src/a.js', 'owned\n');
+    const staged = updateStatus({ id: '001', status: 'done', staged: true });
+    assert.equal(staged.migrated.from, 1);
+    assert.equal(backupsIn(project, 'ROADMAP.jsonl.backup-').length, 1);
+
+    const { json } = run(['finish', '--baseline', baseline], {
+      id: '001',
+      expected: ['src'],
+      message_title: 'close it',
+      roadmap_close: true,
+    });
+
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.deepEqual(json.files, ['ROADMAP.jsonl', 'src/a.js']);
+    assert.ok(json.ledger_excluded.some((f) => f.startsWith('ROADMAP.jsonl.backup-')));
+    assert.deepEqual(json.attested.forbidden_files, []);
+    const backups = backupsIn(project, 'ROADMAP.jsonl.backup-');
+    assert.equal(backups.length, 1, 'the backup is still on disk');
+    assert.equal(git('status', '--porcelain', '--', backups[0]).trim()[0], '?', 'and stayed untracked, never staged');
   });
 });
 
