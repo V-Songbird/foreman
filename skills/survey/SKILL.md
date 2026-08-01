@@ -18,7 +18,8 @@ actually asks for it.
 
 All reads/writes to `ROADMAP.jsonl` go through
 `${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js` — never `Read`/`Edit` the file
-directly. Skim `${CLAUDE_PLUGIN_ROOT}/roadmap-schema.md` for field semantics.
+directly — run it with `--help` for the command shapes. Read the **Fields**
+section of `${CLAUDE_PLUGIN_ROOT}/roadmap-schema.md` for field semantics.
 
 **Pre-check**: if `ROADMAP.jsonl` doesn't exist at the project root, tell
 the user to run `/foreman:init` first and stop here.
@@ -244,7 +245,7 @@ step exists to collect.
   it as context, but ranking itself (`unblocks_total`, then `unblocks`,
   then no-collision, then `created_at`) doesn't change. Say this explicitly if the user expects a guaranteed reorder —
   that would need a stored priority field this schema deliberately doesn't
-  have (see `roadmap-schema.md`'s comment on why not).
+  have (see `roadmap-schema.md`'s **Fields** section).
 - **A declined proposal writes nothing.** No note, no "Claude proposed
   this and the user said no" breadcrumb, no status change. The user read
   the evidence and answered; recording the refusal on the entry would

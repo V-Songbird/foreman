@@ -10,7 +10,6 @@
 //   - update-status / annotate / update-deps / doctor all accept a 4-digit id
 //   - doctor's invalid_id still rejects 07, 7, abc, and the over-padded 01000
 //   - the commit trailer round-trips 1000 without truncating it to 100
-//   - sprint attest accepts --entry 1000 and matches its trailer exactly
 //   - the task-created hook marks a 1000 entry from its handoff marker
 //   - next-candidates ranks a mixed 3/4-digit roadmap by score, not by string
 
@@ -28,7 +27,6 @@ const {
   initGitRepo,
 } = require('./helpers');
 const { commitTrailerFor, trailerIdsIn, isValidId, nextId } = require('../scripts/roadmap');
-const { repositorySnapshot, attestUnit } = require('../scripts/sprint');
 
 let project;
 let env;
@@ -216,51 +214,6 @@ describe('commit trailer round-trip past 999', () => {
     assert.equal(status, 0);
     assert.equal(json.trailer, 'Foreman: 1000');
     assert.deepEqual(trailerIdsIn(`close it\n\n${json.trailer}`), ['1000']);
-  });
-});
-
-describe('sprint attest on a 4-digit entry', () => {
-  test('accepts --entry 1000 and proves its exact trailer', () => {
-    writeRoadmap(project, [entry('1000', { touches: ['src/unit.js'] })]);
-    initGitRepo(project);
-    spawnSync('git', ['add', 'ROADMAP.jsonl'], { cwd: project });
-    spawnSync('git', ['commit', '-q', '-m', 'roadmap'], { cwd: project });
-    const snapshot = repositorySnapshot(project);
-
-    const unitPath = path.join(project, 'src', 'unit.js');
-    fs.mkdirSync(path.dirname(unitPath), { recursive: true });
-    fs.writeFileSync(unitPath, 'module.exports = true;\n', 'utf8');
-    spawnSync('git', ['add', '--', 'src/unit.js'], { cwd: project });
-    spawnSync('git', ['commit', '-q', '-m', 'Implement unit', '-m', 'Foreman: 1000'], { cwd: project });
-    const commit = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: project, encoding: 'utf-8' }).stdout.trim();
-
-    const result = attestUnit(project, {
-      entryId: '1000',
-      baseline: snapshot.head,
-      stateHash: snapshot.state_hash,
-      commit,
-    });
-
-    assert.equal(result.ok, true, JSON.stringify(result.reasons));
-    assert.deepEqual(result.trailer_ids, ['1000']);
-    assert.deepEqual(result.trailer_lines, ['Foreman: 1000']);
-  });
-
-  test('still refuses an entry id under three digits', () => {
-    writeRoadmap(project, [entry('1000')]);
-    initGitRepo(project);
-    spawnSync('git', ['add', 'ROADMAP.jsonl'], { cwd: project });
-    spawnSync('git', ['commit', '-q', '-m', 'roadmap'], { cwd: project });
-    const snapshot = repositorySnapshot(project);
-
-    assert.throws(
-      () => attestUnit(project, {
-        entryId: '99',
-        baseline: snapshot.head,
-        stateHash: snapshot.state_hash,
-      }),
-      /--entry must be a Foreman id/
-    );
   });
 });
 

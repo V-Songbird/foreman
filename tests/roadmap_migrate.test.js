@@ -122,7 +122,7 @@ describe('an unversioned roadmap is format 1', () => {
   test('doctor reports nothing about the version', () => {
     writeV1([v1Entry('001')]);
     const { json } = run(['doctor']);
-    assert.deepEqual(json.findings, []);
+    assert.deepEqual(json.findings.filter((f) => f.severity !== 'info'), []);
   });
 
   // [Foreman: 130] A mutation on an unversioned file now migrates it first,
@@ -270,7 +270,10 @@ describe('a malformed marker', () => {
   test('the marker line does not also report a dozen missing entry fields', () => {
     writeRaw(['{"foreman_roadmap_format":"one"}', JSON.stringify(entry('001'))]);
     const { json } = run(['doctor']);
-    assert.deepEqual(json.findings.map((f) => f.code), ['unsupported_schema_version']);
+    assert.deepEqual(
+      json.findings.filter((f) => f.severity !== 'info').map((f) => f.code),
+      ['unsupported_schema_version']
+    );
   });
 
   test('a marker line that is not valid JSON is still the plain parse error', () => {
@@ -285,7 +288,7 @@ describe('a malformed marker', () => {
     const { json } = run(['migrate']);
     assert.equal(json.changed, true);
     assert.deepEqual(readLines(), [META, JSON.stringify(entry('001'))]);
-    assert.deepEqual(run(['doctor']).json.findings, []);
+    assert.deepEqual(run(['doctor']).json.findings.filter((f) => f.severity !== 'info'), []);
   });
 });
 
@@ -316,7 +319,7 @@ describe('a marker below an entry', () => {
       JSON.stringify(entry('001')),
       JSON.stringify(entry('002')),
     ]);
-    assert.deepEqual(run(['doctor']).json.findings, []);
+    assert.deepEqual(run(['doctor']).json.findings.filter((f) => f.severity !== 'info'), []);
   });
 });
 

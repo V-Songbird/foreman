@@ -59,7 +59,7 @@ const { ENTRY_MARKER_RE, entryIdFromDescription } = require("./task-created");
 // `awaiting_acceptance` exists to withhold until the user says yes. An
 // awaiting entry is already recorded (status, commit, notes), so blocking
 // would demand an unauthorized close, and would deadlock every session with
-// no user to ask — background agents and the sprint coordinator's own
+// no user to ask — background agents and any unattended runner's own
 // fold-back, both of which leave entries awaiting on purpose. The doctor's
 // `awaiting_without_evidence` warning covers the one case this gate would
 // otherwise catch: an awaiting entry with nothing recorded at all.

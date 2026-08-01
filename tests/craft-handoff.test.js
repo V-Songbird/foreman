@@ -564,3 +564,191 @@ describe('workflow-stage flavor', () => {
     assert.ok(!json.prompt.includes(WORKFLOW_STAGE_SENTENCE));
   });
 });
+
+// Prior-work recall: a planned path only a handful of finished entries ever
+// reached is a lead, so the handoff names them and what each recorded.
+describe('prior-work recall', () => {
+  const { priorWorkText, recallExcerpt } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
+
+  function finished(id, observed, overrides = {}) {
+    return entryFields({
+      id,
+      title: `Earlier work ${id}`,
+      status: 'done',
+      planned_touches: observed,
+      observed_touches: observed,
+      commits: ['abc1234'],
+      ...overrides,
+    });
+  }
+
+  // 20 finished entries so the 20% ceiling sits at 4: a path 2 entries
+  // reached survives, one 9 reached does not.
+  // Padding: finished entries touching nothing the picked task plans, there
+  // only to give the 20% ceiling a corpus to be 20% of.
+  function pad(count, base) {
+    return Array.from({ length: count }, (_, i) => finished(String(base + i), [`src/pad-${base + i}.js`]));
+  }
+
+  function corpus() {
+    const rows = [];
+    for (let i = 0; i < 20; i += 1) {
+      const id = String(200 + i);
+      const observed = i < 9 ? ['src/common.js'] : [`src/other-${i}.js`];
+      if (i === 0 || i === 1) observed.push('src/auth/middleware.js');
+      rows.push(finished(id, observed, { notes: `${today()} Entry ${id} rewrote the retry loop.` }));
+    }
+    return rows;
+  }
+
+  test('a rare path names the finished entries that touched it', () => {
+    const text = priorWorkText(corpus(), { id: '001', planned_touches: ['src/auth/middleware.js'] });
+    assert.match(text, /Finished work that already touched these files:/);
+    assert.match(text, /- 200 Earlier work 200 — Entry 200 rewrote the retry loop\./);
+    assert.match(text, /- 201 Earlier work 201/);
+  });
+
+  test('a path above the 20% ceiling is dropped as a query term', () => {
+    const text = priorWorkText(corpus(), { id: '001', planned_touches: ['src/common.js'] });
+    assert.equal(text, '');
+  });
+
+  test('a path nothing has touched recalls nothing', () => {
+    const text = priorWorkText(corpus(), { id: '001', planned_touches: ['src/brand-new.js'] });
+    assert.equal(text, '');
+  });
+
+  test('open entries and evidence-less closes are not corpus', () => {
+    const rows = [
+      finished('300', ['src/auth/middleware.js'], { status: 'planned' }),
+      finished('301', ['src/auth/middleware.js'], { status: 'in_progress' }),
+      finished('302', [], { observed_touches: [] }),
+    ];
+    assert.equal(priorWorkText(rows, { id: '001', planned_touches: ['src/auth/middleware.js'] }), '');
+  });
+
+  test('awaiting_acceptance counts — it is finished work waiting on a yes', () => {
+    const rows = [finished('303', ['src/auth/middleware.js'], { status: 'awaiting_acceptance' }), ...pad(4, 700)];
+    assert.match(
+      priorWorkText(rows, { id: '001', planned_touches: ['src/auth/middleware.js'] }),
+      /- 303 Earlier work 303/
+    );
+  });
+
+  test('at most three entries, rarest path first', () => {
+    const rows = [];
+    for (let i = 0; i < 5; i += 1) rows.push(finished(String(400 + i), ['src/wide.js']));
+    rows.push(finished('500', ['src/narrow.js']));
+    for (let i = 0; i < 24; i += 1) rows.push(finished(String(600 + i), [`src/pad-${i}.js`]));
+    const text = priorWorkText(rows, { id: '001', planned_touches: ['src/narrow.js', 'src/wide.js'] });
+    const named = text.split('\n').filter((line) => line.startsWith('- '));
+    assert.equal(named.length, 3);
+    assert.match(named[0], /- 500 /);
+  });
+
+  test('the excerpt strips the date stamp and every machine-written line', () => {
+    const notes = [
+      `${today()} scope drift — untouched: src/a.js`,
+      `${today()} correction applied: what`,
+      `${today()} The retry loop double-counted attempts after a 429.`,
+      `${today()} short`,
+    ].join('\n');
+    assert.equal(recallExcerpt(notes), 'The retry loop double-counted attempts after a 429.');
+  });
+
+  test('an excerpt is capped at 240 characters', () => {
+    const long = `${today()} ${'x'.repeat(400)}`;
+    assert.equal(recallExcerpt(long).length, 240);
+  });
+
+  test('notes that are entirely machine-written excerpt to nothing', () => {
+    assert.equal(recallExcerpt(`${today()} scope drift — unpredicted: src/b.js`), null);
+  });
+
+  // Titles here are deliberately long. A real roadmap's titles run well past
+  // 60 characters, and a short-title fixture passes the length assertion
+  // below for the wrong reason.
+  const LONG_TITLE = 'Rework the auth middleware refresh path and its expiry accounting end to end';
+
+  test('it lands inside <background>, never inside <context>, and stays under 1000 chars', () => {
+    writeRoadmap(project, [
+      entryFields(),
+      finished('300', ['src/auth/middleware.js'], {
+        title: `${LONG_TITLE} (first pass)`,
+        notes: `${today()} ${'The earlier pass moved the refresh call above the expiry check. '.repeat(6)}`,
+      }),
+      finished('301', ['src/auth/middleware.js'], {
+        title: `${LONG_TITLE} (second pass)`,
+        notes: `${today()} ${'It also renamed verifySession and left one caller behind. '.repeat(6)}`,
+      }),
+      finished('302', ['src/auth/middleware.js'], {
+        title: `${LONG_TITLE} (third pass)`,
+        notes: `${today()} ${'A third pass rewrote the cookie flags and nothing else. '.repeat(6)}`,
+      }),
+      ...pad(17, 800),
+    ]);
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+
+    const background = json.prompt.slice(
+      json.prompt.indexOf('<background>'),
+      json.prompt.indexOf('</background>')
+    );
+    const recallAt = background.indexOf('Finished work that already touched these files:');
+    assert.ok(recallAt > -1, 'recall never made it into <background>');
+    const contextAt = background.indexOf('<context>');
+    if (contextAt > -1) assert.ok(recallAt < contextAt, 'recall must sit outside <context>');
+
+    const block = background.slice(recallAt).replace(/<context>[\s\S]*$/, '').trim();
+    assert.ok(block.length < 1000, `recall payload was ${block.length} chars`);
+  });
+
+  // The 1000-character ceiling is the feature's contract, so it is enforced
+  // rather than argued: maximal title, maximal excerpt, maximal entry count,
+  // and a four-digit id on every row.
+  test('the worst case a roadmap can produce still fits under 1000 chars', () => {
+    const rows = [];
+    for (let i = 0; i < 3; i += 1) {
+      rows.push(finished(String(1000 + i), ['src/auth/middleware.js'], {
+        title: 'T'.repeat(200),
+        notes: `${today()} ${'N'.repeat(600)}`,
+      }));
+    }
+    rows.push(...pad(17, 2000));
+    const text = priorWorkText(rows, { id: '001', planned_touches: ['src/auth/middleware.js'] });
+    assert.ok(text.length > 0, 'the worst case must still recall something');
+    assert.ok(text.length < 1000, `worst-case payload was ${text.length} chars`);
+    for (const line of text.split('\n').slice(1)) {
+      assert.ok(line.includes('T'.repeat(60)), 'the title is cut at 60, not dropped');
+      assert.ok(!line.includes('T'.repeat(61)), 'the title must be cut at 60');
+    }
+  });
+
+  test('a lead that would overflow the ceiling is dropped whole, never halved', () => {
+    const rows = [
+      finished('300', ['src/auth/middleware.js'], { title: 'A'.repeat(60), notes: `${today()} ${'a'.repeat(240)}` }),
+      finished('301', ['src/auth/middleware.js'], { title: 'B'.repeat(60), notes: `${today()} ${'b'.repeat(240)}` }),
+      finished('302', ['src/auth/middleware.js'], { title: 'C'.repeat(60), notes: `${today()} ${'c'.repeat(240)}` }),
+      ...pad(17, 3000),
+    ];
+    const text = priorWorkText(rows, { id: '001', planned_touches: ['src/auth/middleware.js'] });
+    assert.ok(text.length < 1000);
+    // Whatever survived is whole: every kept line still ends in its own
+    // excerpt rather than a truncation of one.
+    for (const line of text.split('\n').slice(1)) {
+      assert.match(line, /^- \d+ [ABC]{60} — [abc]{240}$/);
+    }
+  });
+
+  test('recall never promotes a handoff to the reinforced profile', () => {
+    writeRoadmap(project, [
+      entryFields(),
+      finished('300', ['src/auth/middleware.js'], { notes: `${today()} A real finding.` }),
+      ...pad(4, 900),
+    ]);
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.equal(json.profile, 'standard');
+    assert.equal(Object.keys(json.signals).length, 5);
+    assert.ok(json.prompt.includes('Finished work that already touched these files:'));
+  });
+});

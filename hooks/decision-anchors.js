@@ -128,6 +128,9 @@ function main() {
   if (!filePath) return;
 
   const root = projectDir(data);
+  // A project that never ran init is not Foreman's to talk in.
+  if (!fs.existsSync(path.join(root, "ROADMAP.jsonl"))) return;
+
   const target = path.isAbsolute(filePath) ? filePath : path.resolve(root, filePath);
 
   const content = readCapped(target);

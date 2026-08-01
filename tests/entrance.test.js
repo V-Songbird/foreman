@@ -7,7 +7,7 @@ const path = require("path");
 
 const entrancePath = path.join(__dirname, "..", "skills", "foreman", "SKILL.md");
 
-// [Foreman: 137] One natural-language entrance routes to seven intents. Its
+// [Foreman: 137] One natural-language entrance routes to six intents. Its
 // whole value is that it owns no flow: every intent is handed to the skill
 // that already implements it, so these pin the route targets literally and
 // pin the absence of any duplicated flow step.
@@ -18,7 +18,7 @@ describe("entrance skill contract", () => {
 
   const skill = fs.readFileSync(entrancePath, "utf-8");
 
-  test("names all seven intents", () => {
+  test("names all six intents", () => {
     for (const intent of [
       "add work",
       "show status",
@@ -26,7 +26,6 @@ describe("entrance skill contract", () => {
       "check the roadmap",
       "pick work",
       "reconcile and pick",
-      "run a short batch",
     ]) {
       assert.match(skill, new RegExp(`\\*\\*${intent}\\*\\*`), `intent not named: ${intent}`);
     }
@@ -42,13 +41,11 @@ describe("entrance skill contract", () => {
       skill,
       /`foreman:survey` first, then `foreman:roadmap` → "Branch: Pick the next task"/
     );
-    assert.match(skill, /`foreman:sprint` \(experimental\)/);
   });
 
   test("defers instead of duplicating — no flow mechanics live here", () => {
-    assert.match(skill, /This skill routes\. It does not add, pick, correct, survey, or batch\s+anything itself/);
+    assert.match(skill, /This skill routes\. It does not add, pick, correct, or survey anything\s+itself/);
     assert.doesNotMatch(skill, /scripts\/roadmap\.js/);
-    assert.doesNotMatch(skill, /scripts\/sprint\.js/);
     assert.doesNotMatch(skill, /next-candidates/);
     assert.doesNotMatch(skill, /check-duplicate/);
     assert.doesNotMatch(skill, /expected_updated_at/);
@@ -57,7 +54,7 @@ describe("entrance skill contract", () => {
 
   test("one clarifying question on ambiguity, out-of-scope names its owner", () => {
     assert.match(skill, /Ask \*\*one\*\* `AskUserQuestion` naming the closest two intents/);
-    assert.match(skill, /never a menu of all seven/);
+    assert.match(skill, /never a menu of all six/);
     assert.match(skill, /`foreman:init`/);
     assert.match(skill, /`foreman:craft-prompt`/);
   });
@@ -69,13 +66,6 @@ describe("specialized skills present as advanced surfaces", () => {
 
   test("survey is advanced and reached through the entrance", () => {
     assert.match(read("survey"), /Advanced surface, normally reached through the `foreman` entrance/);
-  });
-
-  test("sprint keeps its experimental label as an advanced surface", () => {
-    assert.match(
-      read("sprint"),
-      /Experimental advanced surface, normally reached through the `foreman` entrance/
-    );
   });
 
   // [Foreman: 139] Generic prompt construction is an advanced surface, not

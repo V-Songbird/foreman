@@ -122,29 +122,9 @@ off. Once an anchor exists in a codebase, it stays findable.
 
 ## Settings
 
-All under `decisionLog` in `.foreman/config.json`.
-
-| Key | What it does |
-| --- | --- |
-| `enabled` | Whether `kind: "decision"` tasks write notes and anchors at all. Default `false`. Never affects build tasks — they write neither, either way. |
-| `dir` | Where notes are written, relative to the project root. Default `docs/foreman`. |
-| `gate` | `off` (default) lets a decision task close without recording a note. `block` holds that completion until it does. Build tasks are never held. |
-
-Spelled out in full, with every key set away from its default:
-
-```json
-{
-  "decisionLog": {
-    "enabled": true,
-    "dir": "docs/decisions",
-    "gate": "block"
-  }
-}
-```
-
-Two environment variables override the file, for a one-off run:
-`FOREMAN_DECISION_LOG` accepts `1`, `true`, `0`, or `false`, and
-`FOREMAN_DECISION_LOG_DIR` takes a relative path.
+Three keys under `decisionLog` in `.foreman/config.json`. `enabled` turns
+authoring on, `dir` says where notes go (default `docs/foreman`), and
+`gate: "block"` refuses to close a decision task until it records one.
 
 > [!NOTE]
 > `gate: "block"` is worth thinking about before you set it. Refusing to
@@ -152,9 +132,7 @@ Two environment variables override the file, for a one-off run:
 > type `"none"` without reading the question — and a reflexive `"none"` is
 > worse than an empty field, because it looks like a decision.
 
-## Turning it off
-
-Set `"enabled": false`, or drop the `decisionLog` block entirely. Nothing
-new gets written. Notes and anchors already in the repo stay right where
-they are, and still surface when you open the files they tag — they're your
-files now, not Foreman's state.
+Set `"enabled": false`, or drop the block entirely, and nothing new gets
+written. Notes and anchors already in the repo stay where they are, and
+still surface when you open the files they tag — they're your files now,
+not Foreman's state.

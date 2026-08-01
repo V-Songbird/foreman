@@ -3,7 +3,7 @@
 
 // [Foreman: 121]
 // The one commit routine every Foreman execution mode shares — single-task
-// closes, task-split checkpoints, and sprint bookkeeping. It exists so no
+// closes and task-split checkpoints. It exists so no
 // Foreman flow ever runs `git add -A` again: staging is the primitive's job,
 // and the primitive only ever stages what changed after the task started.
 //
@@ -31,7 +31,7 @@ const {
   touchesOverlap,
 } = require("./sprint");
 const { commitTrailerFor, isValidId } = require("./roadmap");
-// [Foreman: 134] One reading of a commit's Foreman trailer, shared with sprint.
+// [Foreman: 134] One reading of a commit's Foreman trailer.
 const { trailerLinesIn, hasExactTrailer } = require("./commit-evidence");
 const { record: recordTrial } = require("./trial-log");
 
@@ -91,7 +91,7 @@ function worktreeDirty(root) {
 
 // An expected entry is an area hint, exactly as `touches` is: `src/api`
 // owns every file beneath it. Same normalized, prefix-aware comparison
-// sprint planning uses for collisions, so one rule covers both.
+// next-candidates uses for collisions, so one rule covers both.
 function isOwned(file, expected) {
   return expected.some((area) => touchesOverlap(file, area));
 }
@@ -133,7 +133,7 @@ function attestCommit(root, options) {
   const message = git(root, ["log", "-1", "--format=%B", commit]);
   const trailerLines = trailerLinesIn(message);
   if (id) {
-    // [Foreman: 134] Same strict rule sprint's attestUnit applies, from the one
+    // [Foreman: 134] The strict reading, from the one
     // definition — an attested unit commit names exactly one entry, its own.
     if (!hasExactTrailer(message, id)) {
       reasons.push("exact_foreman_trailer_missing");

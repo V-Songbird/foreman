@@ -14,11 +14,12 @@ const {
   validateAcrossFiles,
   enrichDuplicates,
   validateConfig,
+  hookDependencies,
   applyRepairs,
   summarize,
 } = require("./roadmap-doctor");
 // [Foreman: 134] One interpreter for entry-to-commit facts, shared with the
-// doctor, the close gate, sprint, safe-commit and the survey flow.
+// doctor, the close gate, safe-commit and the survey flow.
 const {
   filesFromGit,
   recordedCommits,
@@ -1507,8 +1508,8 @@ function hintScore(hintWords, entry) {
 }
 
 // [Foreman: 125]
-// The one collision rule, shared by next-candidates, sprint planning
-// (scripts/sprint.js re-exports both) and safe-commit's ownership check.
+// The one collision rule, shared by next-candidates and safe-commit's
+// ownership check (scripts/sprint.js re-exports both).
 // `touches` is an area hint, so `src/auth` owns everything beneath it —
 // matching has to be folder-aware in both directions, and forgiving about
 // the shapes a human types: Windows separators, `./` prefixes, trailing
@@ -2126,6 +2127,7 @@ function allFindings(root) {
     })),
     ...validateAcrossFiles(active, archived),
     ...validateConfig(root),
+    ...hookDependencies(),
   ], active, archived);
 }
 

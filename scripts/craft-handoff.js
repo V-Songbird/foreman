@@ -216,6 +216,98 @@ function relevantFilesText(files, references, unresolved) {
   return lines.join("\n");
 }
 
+// ---- prior-work recall — when a planned path is one only a handful of
+// finished entries ever reached, name those entries and what each recorded.
+// Deliberately NOT a computeSignals key: that object's every value feeds
+// `Object.values(signals).some(Boolean)`, so adding one here would silently
+// promote every recalling handoff to the reinforced profile.
+
+// Only closed work counts as prior work, and only work that recorded where
+// it actually went. `awaiting_acceptance` is included: it is finished, it
+// carries a real diff, and the user's yes is all that separates it.
+const RECALL_STATUSES = new Set(["done", "awaiting_acceptance"]);
+
+// A path so common that everything overlaps it teaches nothing, and a path
+// nothing has touched has no prior work to recall. Both drop out.
+const RECALL_MAX_REACH = 0.2;
+const RECALL_KEEP = 3;
+const RECALL_EXCERPT = 240;
+// The excerpt was capped from the start; the title was not, and a real
+// roadmap's titles run past 60 characters often enough to push the whole
+// block over the 1000-character ceiling this feature is held to. Same 60
+// buildTaskRows already cuts a task subject at, for the same reason.
+const RECALL_TITLE = 60;
+// Belt and braces: header + RECALL_KEEP × (id + title + excerpt + framing)
+// lands under 1000 for any id length worth having, but the ceiling is the
+// contract, so it is enforced rather than argued.
+const RECALL_MAX_CHARS = 1000;
+
+// Lines the scripts write into `notes` themselves. Each one is bookkeeping
+// about the entry, never a finding from the work, so none of them is worth
+// carrying into a handoff.
+const MACHINE_NOTE_RE =
+  /^(scope drift —|correction applied:|id reassigned from |dispatched to background agent|survey \(unconfirmed\):|deferred:|orchestrator:)/;
+
+// The longest line of `notes` that a human (or a closing session) actually
+// wrote: date stamp stripped, machine lines dropped, capped.
+function recallExcerpt(notes) {
+  const lines = String(notes || "")
+    .split("\n")
+    .map((line) => line.replace(/^\d{4}-\d{2}-\d{2}\s+/, "").trim())
+    .filter((line) => line && !MACHINE_NOTE_RE.test(line));
+  if (!lines.length) return null;
+  const longest = lines.reduce((a, b) => (b.length > a.length ? b : a));
+  return longest.length > RECALL_EXCERPT ? `${longest.slice(0, RECALL_EXCERPT - 1)}…` : longest;
+}
+
+function priorWorkText(entries, record) {
+  const corpus = entries.filter(
+    (e) =>
+      RECALL_STATUSES.has(e.status)
+      && (!record.id || e.id !== record.id)
+      && (e.observed_touches || []).length > 0
+  );
+  if (!corpus.length) return "";
+
+  const ceiling = corpus.length * RECALL_MAX_REACH;
+  const byEntry = new Map(); // id -> smallest reach any of its matching paths had
+  for (const planned of record.planned_touches || []) {
+    const matches = corpus.filter((e) =>
+      (e.observed_touches || []).some((seen) => touchesOverlap(planned, seen))
+    );
+    // Reach zero is nothing to recall; reach above the ceiling is a path so
+    // busy that naming its history is noise rather than a lead.
+    if (!matches.length || matches.length > ceiling) continue;
+    for (const match of matches) {
+      const previous = byEntry.get(match.id);
+      if (previous === undefined || matches.length < previous.reach) {
+        byEntry.set(match.id, { entry: match, reach: matches.length });
+      }
+    }
+  }
+  if (!byEntry.size) return "";
+
+  const ranked = [...byEntry.values()]
+    .sort((a, b) => a.reach - b.reach || String(a.entry.id).localeCompare(String(b.entry.id)))
+    .slice(0, RECALL_KEEP);
+
+  const header = "Finished work that already touched these files:";
+  const lines = [];
+  let total = header.length;
+  for (const { entry } of ranked) {
+    const excerpt = recallExcerpt(entry.notes);
+    const title = String(entry.title || "").slice(0, RECALL_TITLE);
+    const line = `- ${entry.id} ${title}${excerpt ? ` — ${excerpt}` : ""}`;
+    // A lead that would push the block past the ceiling is dropped whole:
+    // half a recalled finding is worse than one fewer.
+    if (total + 1 + line.length > RECALL_MAX_CHARS) break;
+    lines.push(line);
+    total += 1 + line.length;
+  }
+  if (!lines.length) return "";
+  return `${header}\n${lines.join("\n")}`;
+}
+
 function contextText(judgmentContext, dependsOnDocs) {
   let text = judgmentContext || "";
   if (dependsOnDocs && dependsOnDocs.length) {
@@ -495,12 +587,12 @@ function assemble(root, input) {
 
   const taskContextBlock = taskContextText(config.usePersona, judgment);
   const backgroundInner = relevantFilesText(symbolResult.files, symbolResult.references, symbolResult.unresolved);
+  const priorWork = priorWorkText(readEntries(root), record);
   const ctxText = contextText(judgment.context, record.depends_on_docs);
   const includeTone = !workflowStage && reinforced && (destination === "agent" || !omit.has("tone"));
   const includeBackground = !omit.has("background");
   const includeOutputFormat = !workflowStage && reinforced && !omit.has("output_format");
   const rulesBlock = taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkpointEmbed);
-  const customSectionsText = config.sections.map((s) => s.xml).join("\n\n");
   const requestSentence = input.request || `Implement: ${record.title || judgment.goal || "the task described above"}.`;
   const invariantsText =
     reinforced && judgment.invariants && judgment.invariants.length
@@ -529,12 +621,15 @@ function assemble(root, input) {
     }
     if (includeBackground) {
       const ctxBlock = reinforced && ctxText ? `<context>\n${ctxText}\n</context>\n` : "";
-      parts.push(`<background>\n<relevant_files>\n${backgroundInner}\n</relevant_files>\n${ctxBlock}</background>`);
+      // Prior work rides in the background block itself, never in <context>:
+      // that block is emitted only on a reinforced profile, so anything put
+      // there is dropped from every standard handoff.
+      const recallBlock = priorWork ? `${priorWork}\n` : "";
+      parts.push(`<background>\n<relevant_files>\n${backgroundInner}\n</relevant_files>\n${recallBlock}${ctxBlock}</background>`);
     }
     if (reinforced) parts.push(noInventionLine);
     if (invariantsText) parts.push(invariantsText);
     parts.push(rulesBlock);
-    if (customSectionsText) parts.push(customSectionsText);
     if (exampleText) parts.push(exampleText);
     parts.push(requestSentence);
     if (destination === "agent" && autonomyParagraph) parts.push(autonomyParagraph);
@@ -612,6 +707,8 @@ module.exports = {
   loadRecord,
   computeSignals,
   relevantFilesText,
+  priorWorkText,
+  recallExcerpt,
   taskContextText,
   taskRulesText,
   entryParagraphText,

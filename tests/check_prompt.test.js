@@ -41,10 +41,6 @@ const {
 } = require(path.join(SCRIPTS_DIR, 'check-prompt.js'));
 
 const CHECK = path.join(SCRIPTS_DIR, 'check-prompt.js');
-// entry 204: Model fit / Effort fit / Match-the-recommendation moved out of
-// prompt-template.md into model-fit.md, loaded only when modelSuggestions
-// is true — the pins below moved with the text they cover.
-const MODEL_FIT_PATH = path.join(__dirname, '..', 'model-fit.md');
 const canonical = readCanonical();
 const AUTONOMY = 'You are operating autonomously. The user is not watching in real time and cannot answer questions mid-task. End your turn only when the task is complete or you are blocked on input only the user can provide.';
 const PLUGIN_ROOT = '/plugins/foreman';
@@ -235,19 +231,6 @@ describe('omitSections compliance', () => {
   });
 });
 
-describe('custom sections', () => {
-  test('a configured custom section must be inlined verbatim', () => {
-    const project = makeTmpProject();
-    writeConfig(project, { customSections: [{ tag: 'compliance', content: 'All changes need a ticket reference.' }] });
-    const missing = check(project, goodPrompt(), ['--destination', 'clipboard']);
-    assert.ok(missing.json.errors.some((e) => e.includes('<compliance>')));
-    const present = goodPrompt({
-      custom_sections: '<compliance>\nAll changes need a ticket reference.\n</compliance>',
-    });
-    assert.equal(check(project, present, ['--destination', 'clipboard']).json.ok, true);
-  });
-});
-
 describe('roadmap entry paragraph', () => {
   const paragraph =
     'This task is ROADMAP.jsonl entry `007`. Mark it `in_progress` before doing anything else — Foreman\'s picking flow deliberately leaves it `planned` until you do:\n' +
@@ -416,148 +399,6 @@ describe('drift pins', () => {
     }
   });
 
-  test('model-fit.md still defines effort fit and its verification-cost rule', () => {
-    const raw = fs.readFileSync(MODEL_FIT_PATH, 'utf-8');
-    assert.ok(raw.includes('**Effort fit**'));
-    assert.ok(raw.includes('there is no\n`targetEffort` key'));
-    assert.ok(raw.includes('the `Agent` tool takes no effort argument'));
-    for (const level of ['`low` or `medium`', '`high`', '`max`']) {
-      assert.ok(raw.includes(level), `the effort-fit note lost its ${level} branch`);
-    }
-  });
-
-  test('both skills recommend an effort alongside the model', () => {
-    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'pick.md']]) {
-      const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8');
-      assert.ok(skill.includes('"Effort fit" note'), `${rel.join('/')} lost the effort-fit reference`);
-      assert.ok(
-        /takes no\s+effort argument/.test(skill),
-        `${rel.join('/')} lost the never-dispatched rule`
-      );
-    }
-  });
-
-  test('model-fit.md still defines the Execute-here match-the-recommendation ask', () => {
-    const raw = fs.readFileSync(MODEL_FIT_PATH, 'utf-8');
-    assert.ok(
-      raw.includes('**Match the recommendation**'),
-      'model-fit.md lost the match-the-recommendation note'
-    );
-    assert.ok(
-      /once per handoff and before the first task row exists/.test(raw.replace(/\s+/g, ' ')),
-      'model-fit.md lost the once-per-handoff, before-the-first-row timing'
-    );
-    assert.ok(
-      /hook input carries no model at all/.test(raw),
-      'model-fit.md lost the reason foreman must not make the comparison itself'
-    );
-  });
-
-  test('both skills ask where the task fits on Execute here, with no direction implied', () => {
-    const files = [
-      TEMPLATE_PATH,
-      MODEL_FIT_PATH,
-      path.join(__dirname, '..', 'skills', 'craft-prompt', 'SKILL.md'),
-      path.join(__dirname, '..', 'skills', 'roadmap', 'pick.md'),
-    ];
-    // The recommendation points down as often as up — a session on Opus told
-    // a task suits Sonnet is being asked to lower, not raise.
-    for (const file of files) {
-      const raw = fs.readFileSync(file, 'utf-8');
-      assert.ok(
-        !/[Rr]aise the session to it\?/.test(raw),
-        `${path.basename(file)} still words the ask as raising the session`
-      );
-    }
-    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'pick.md']]) {
-      const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8').replace(/\s+/g, ' ');
-      assert.ok(
-        skill.includes('Run it there instead?'),
-        `${rel.join('/')} lost the direction-neutral question`
-      );
-      assert.ok(
-        /never worded as raising, upgrading, or bumping|Never word this as raising, upgrading, or bumping/.test(skill),
-        `${rel.join('/')} lost the no-direction rule`
-      );
-      assert.ok(
-        /a step up, a step down, or already matched/.test(skill),
-        `${rel.join('/')} lost the reason the direction is unknowable`
-      );
-      assert.ok(
-        skill.includes('once per handoff'),
-        `${rel.join('/')} lost the once-per-handoff rule`
-      );
-      assert.ok(
-        skill.includes('before the first task row is created'),
-        `${rel.join('/')} lost the before-the-first-row timing`
-      );
-      assert.ok(
-        skill.includes('never blocks'),
-        `${rel.join('/')} lost the never-a-gate rule`
-      );
-    }
-  });
-
-  test('the model and effort recommendations are gated on modelSuggestions, default off', () => {
-    const raw = fs.readFileSync(MODEL_FIT_PATH, 'utf-8').replace(/\s+/g, ' ');
-    assert.ok(
-      /gated on `modelSuggestions`, which defaults to `false`/.test(raw),
-      'model-fit.md lost the modelSuggestions gate on the model/effort notes'
-    );
-    assert.ok(
-      /`targetModel` is a separate setting and is unaffected/.test(raw),
-      'model-fit.md lost the targetModel independence rule'
-    );
-    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'pick.md']]) {
-      const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8').replace(/\s+/g, ' ');
-      assert.ok(
-        skill.includes('modelSuggestions'),
-        `${rel.join('/')} lost the modelSuggestions gate`
-      );
-      assert.ok(
-        /defaults to `false`|`modelSuggestions: true`/.test(skill),
-        `${rel.join('/')} lost the default-off statement`
-      );
-      assert.ok(
-        /a dispatch needs a model named/.test(skill),
-        `${rel.join('/')} lost the rule that the executing-model question still runs`
-      );
-    }
-  });
-
-  test('the match-the-recommendation ask sends the work to a fresh session, never a mid-session switch', () => {
-    const files = [
-      MODEL_FIT_PATH,
-      path.join(__dirname, '..', 'skills', 'craft-prompt', 'SKILL.md'),
-      path.join(__dirname, '..', 'skills', 'roadmap', 'pick.md'),
-    ];
-    for (const file of files) {
-      const raw = fs.readFileSync(file, 'utf-8').replace(/\s+/g, ' ');
-      assert.ok(
-        /invalidates the prompt cache/.test(raw),
-        `${path.basename(file)} lost the reason a mid-session switch is not offered`
-      );
-      assert.ok(
-        /takes a `model` but no effort argument/.test(raw),
-        `${path.basename(file)} lost the reason a background Agent only half-closes the gap`
-      );
-      assert.ok(
-        !/I'll switch first/.test(raw),
-        `${path.basename(file)} still offers the mid-session switch option`
-      );
-    }
-    for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'pick.md']]) {
-      const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8').replace(/\s+/g, ' ');
-      assert.ok(
-        skill.includes('Start it in a fresh session'),
-        `${rel.join('/')} lost the fresh-session option`
-      );
-      assert.ok(
-        /delivered exactly as the `Copy prompt to clipboard` destination does|deliver exactly as the `Copy prompt to clipboard` destination does/.test(skill),
-        `${rel.join('/')} lost the clipboard delivery rule for the fresh-session option`
-      );
-    }
-  });
 });
 
 describe('symbols-first relevant_files', () => {
@@ -650,7 +491,7 @@ describe('unexpanded plugin root', () => {
       const skill = fs.readFileSync(path.join(skills, name, file), 'utf-8');
       assert.match(
         skill,
-        /the copy of this skill you are reading has\n?\s*the\s+variable already resolved to a version-pinned cache path/,
+        /the\s+variable already resolved to a version-pinned\s*\n?\s*cache path/,
         `${name}/${file} lost the unexpanded-path instruction`
       );
     }
@@ -700,11 +541,6 @@ describe('durable handoff guardrails', () => {
       canonical.closing.includes(CLOSURE_EVIDENCE_SENTENCE),
       'the canonical closing paragraph lost the closure-evidence rule'
     );
-    const skill = fs.readFileSync(path.join(__dirname, '..', 'skills', 'craft-prompt', 'SKILL.md'), 'utf-8');
-    const normalized = skill.replace(/\s+/g, ' ');
-    assert.match(normalized, /closure notes and findings describe only observed work/);
-    assert.match(normalized, /cite supporting files, commands, commits, or outcomes/);
-    assert.match(normalized, /planned scope is never evidence that it was executed/);
   });
 
   test('the precedence rule rides inside the canonical truth_grounding block', () => {
@@ -926,46 +762,21 @@ describe('handoff profiles', () => {
     );
   });
 
-  test('the prompt-building skills choose a profile from the signals', () => {
-    const roadmap = fs.readFileSync(path.join(__dirname, '..', 'skills', 'roadmap', 'pick.md'), 'utf-8').replace(/\s+/g, ' ');
-    assert.ok(roadmap.includes('Handoff profiles'), 'pick.md never reaches the profile section');
-    assert.ok(
-      /Any signal true → `reinforced`; none → `standard`|same mechanical signals/.test(roadmap),
-      'pick.md lost the signal → profile mapping'
-    );
-    // entry 203: pick.md no longer runs the gate itself (craft-handoff.js
-    // does, in-process) — the profile/signals it returns are relayed, not
-    // derived, so the pin moves from "passes --profile to the gate" to
-    // "calls the script and states what came back".
-    assert.ok(
-      roadmap.includes('node ${CLAUDE_PLUGIN_ROOT}/scripts/craft-handoff.js'),
-      'the roadmap skill does not call craft-handoff.js'
-    );
-    assert.ok(
-      roadmap.includes('the returned `profile` and which `signals` fired'),
-      'the roadmap skill lost the state-the-profile-and-signals rule'
-    );
+  // The profile is craft-handoff.js's to compute and nobody's to say out
+  // loud: 1.0 stopped reciting it in the delivery message, so the pin is
+  // that the skill calls the assembler and keeps the score to itself.
+  test('the prompt-building skills delegate the profile and never recite it', () => {
+    for (const rel of [['skills', 'roadmap', 'pick.md'], ['skills', 'craft-prompt', 'SKILL.md']]) {
+      const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8').replace(/\s+/g, ' ');
+      assert.ok(
+        skill.includes('node ${CLAUDE_PLUGIN_ROOT}/scripts/craft-handoff.js'),
+        `${rel.join('/')} does not call craft-handoff.js`
+      );
+      assert.ok(
+        /`profile` and `signals` are internal bookkeeping/.test(skill),
+        `${rel.join('/')} lost the never-say-the-profile rule`
+      );
+    }
   });
 
-  // [Foreman: 207] sprint used to re-derive the "Handoff profiles" section by
-  // hand out of prompt-template.md. It now delegates to the same assembler, so
-  // the pin is the delegation and the relay — not a second copy of the rule.
-  test('sprint relays the profile instead of re-deriving it', () => {
-    const sprint = fs
-      .readFileSync(path.join(__dirname, '..', 'skills', 'sprint', 'SKILL.md'), 'utf-8')
-      .replace(/\s+/g, ' ');
-
-    assert.ok(
-      sprint.includes('node ${CLAUDE_PLUGIN_ROOT}/scripts/craft-handoff.js'),
-      'the sprint skill does not call craft-handoff.js'
-    );
-    assert.ok(
-      sprint.includes('state `profile` in the plan report'),
-      'the sprint skill lost the state-the-profile rule'
-    );
-    assert.ok(
-      sprint.includes('is never a judgment call here'),
-      'the sprint skill lost the rule that the profile is mechanical, not chosen'
-    );
-  });
 });

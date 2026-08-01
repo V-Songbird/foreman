@@ -53,7 +53,7 @@ const oneOf = (...names) => {
   return (v) => typeof v === "string" && set.has(v);
 };
 
-const FLOWS = ["init", "pick", "add", "correct", "status", "survey", "sprint"];
+const FLOWS = ["init", "pick", "add", "correct", "status", "survey"];
 const HOOKS = ["safe-commit", "post-commit", "task-completed"];
 // The five refusal names scripts/safe-commit.js already returns, plus the
 // requireVerification hold. Names only: never a count of dirty files, never

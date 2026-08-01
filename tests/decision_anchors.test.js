@@ -13,19 +13,21 @@
 //   - custom decisionLog.dir from config is honored
 //   - repeat Read of the same unchanged anchor set, same session -> latched silent
 //   - a different session id still emits
+//   - a project with no ROADMAP.jsonl -> silence, anchors or not
 
 const { test, describe, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
-const { runScriptRaw, makeTmpProject, writeConfig } = require('./helpers');
+const { runScriptRaw, makeTmpProject, writeConfig, writeRoadmap } = require('./helpers');
 
 let project;
 let env;
 
 beforeEach(() => {
   project = makeTmpProject();
+  writeRoadmap(project, []);
   env = { CLAUDE_PROJECT_DIR: project };
 });
 
@@ -101,5 +103,12 @@ describe('decision-anchors hook', () => {
     run(payload(target, { session_id: 's-a' }));
     const out = run(payload(target, { session_id: 's-b' }));
     assert.match(out, /023\.md/);
+  });
+
+  test('a project with no ROADMAP.jsonl writes zero bytes', () => {
+    const target = writeFile('src/thing.js', '// [Foreman: 024]\n');
+    writeFile('docs/foreman/024.md', '# decision');
+    fs.rmSync(path.join(project, 'ROADMAP.jsonl'));
+    assert.equal(run(payload(target, { session_id: 's-bare' })), '');
   });
 });

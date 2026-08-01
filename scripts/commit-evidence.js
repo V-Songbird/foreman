@@ -7,7 +7,7 @@
 // the shas an entry records in `commits[]`, and the `Foreman: <id>` trailer a
 // commit message carries (how a staged close links, where `commits[]` stays
 // empty on purpose). Every status view -- roadmap list, the doctor, the close
-// gate, sprint, survey -- used to read those two facts with its own git call,
+// gate, survey -- used to read those two facts with its own git call,
 // so the same entry could be "has evidence" in one view and "missing" in
 // another. The divergence that motivated this: a recorded sha living inside a
 // submodule resolves for `update-status`'s touches derivation (which walks
@@ -120,7 +120,7 @@ function resolveHookScope(root, cwd) {
   return repoScopes(root).find((scope) => normalizedPath(scope.cwd) === target) || null;
 }
 
-// The sha shape git can be asked to look up. Same 7..64 hex window sprint's
+// The sha shape git can be asked to look up. Same 7..64 hex window
 // --baseline guard uses, so there is one answer to "is that even a sha".
 const SHA_RE = /^[0-9a-fA-F]{7,64}$/;
 

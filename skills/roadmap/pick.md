@@ -16,14 +16,11 @@ mechanical menu, one question, then one detailed read of the selected entry
 only.
 
 Say it that way whenever the flow explains itself, and never more than it
-does: the entry is **preflighted at craft time** — its paths and symbols
-get checked mechanically by `resolve-symbols.js`, nothing else does — and
-**the handoff verifies the claims during work**. A task is only
-**grounded** when something actually investigated its substance
-(`foreman:survey`, or the handoff's own truth-grounding once the work
-starts), and only **verified** once the finished work passed its checks
-and the user accepted it. Never tell the user a pick was checked against
-the code, and never call an entry grounded or verified here.
+does: the entry's paths and symbols get checked mechanically by
+`resolve-symbols.js` while the prompt is built, and the handoff checks the
+rest of its claims once the work starts. Never tell the user a pick was
+checked against the code, and never say the work has been confirmed —
+nothing here has read the code, and nothing here has run.
 
 <!-- [Foreman: 141] -->
 ### Reconcile and pick — the deeper mode, only when the user asks
@@ -196,13 +193,23 @@ resume case, step 3) from the entry's notes. Never surface the SendMessage
 failure itself; the re-craft path isn't a degraded fallback, it's the
 original design.
 
-**Q2** — "How do you want to run this?" — ask this now, before the prompt
-exists, not after. There is nothing to preview yet; the destination decides
-how the prompt gets built and delivered, not the other way around.
-Options, in this order:
-- `Execute here (Recommended)` — run it in this session. Leads because
-  it's the common case: pick a task, work it, done — no extra hop through
-  a clipboard or a second agent.
+**Gather the checks before asking.** Q2's options depend on how many
+`Run:`/`Expected:` pairs this entry actually yields, so work out the
+`verification` array (step 3's bullet says how) *before* the question. One
+check or none means there is nothing to split, and the split option below
+simply does not appear.
+
+**Q2** — "How do you want to run this?" — destination and execution mode in
+one question, asked now, before the prompt exists. There is nothing to
+preview yet; the answer decides how the prompt gets built and delivered,
+not the other way around. Options, in this order:
+- `Execute here (Recommended)` — one tracked task carrying the whole
+  prompt, worked in this session. Leads because it's the common case, and
+  because it changes nothing about your branches.
+- `Execute here, split by check` — one tracked task per verification
+  command, each finished task committed on a `foreman/<slug>` branch (the
+  checkpoint protocol in step 5 below). **Offer this option only when the
+  gathered `verification` array holds two or more pairs.**
 - `Execute with a background Agent` — offload it, get notified on completion — best for orchestration, where this session owns the commits
 - `Copy prompt to clipboard` — just get the text, no execution
 
@@ -211,78 +218,20 @@ bug where tasks spawned through it don't get MCP tools. `TaskCreate`,
 `Agent`, and the clipboard mechanics in step 5 below are the only three
 delivery paths, regardless of Desktop or CLI.
 
-**Q3 — execution mode**, asked only when Q2's answer was `Execute here`.
-The other two destinations skip it entirely. "How should it run here?"
-Options, in this order:
-- `Tasks from the checks (Recommended)` — one tracked task per
-  verification command, each finished task checkpointed as a commit on a
-  dedicated branch (the checkpoint protocol in step 5 below)
-- `One task, then work it` — a single tracked task carrying the whole
-  prompt
-- `Run now, no tracking` — start immediately, no task rows
-
 `AskUserQuestion` appends its own free-text option; never author one — a
 user's free text naming the pieces, or a fixed number of tasks, both mean
-"Tasks from the checks" cuts into that many slices at whatever verification
-boundaries exist instead of one-per-check. Don't add a confirmation
-question for either — the created rows are the preview, and a wrong one is
-removed with `TaskUpdate` `status: "deleted"`.
+the split cuts into that many slices at whatever verification boundaries
+exist instead of one-per-check. Don't add a confirmation question — the
+created rows are the preview, and a wrong one is removed with `TaskUpdate`
+`status: "deleted"`.
 
-**Selected-task preparation**: after the destination/mode questions and
-before Q4, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/render-sections.js`
-exactly once. Its `modelSuggestions`, `fableEnabled`, and `targetModel`
-fields are what gate Q4 and the executing-model step below —
-`craft-handoff.js` resolves this same config again internally when it
-assembles, so this call is only for those gating decisions, never for reuse
-in assembly. Surface its `warnings` now, if any. Project-section rendering
-is deliberately delayed until a task has been selected.
-
-<!-- [Foreman: 111] -->
-**Q4 — match the recommendation**, asked only when the selected-task
-preparation result has `modelSuggestions: true` — it defaults to `false`,
-and a project that leaves it off never sees this question or any
-model/effort line anywhere in this branch. Then, and only then, asked when
-Q2's answer was `Execute here`, once per handoff and never once per task
-row, after Q3 and
-**before the first task row is created**. The other two destinations skip
-it — they always ask their own executing-model question instead (step 3
-below), since a dispatch needs a model named. When this fires, read
-`${CLAUDE_PLUGIN_ROOT}/model-fit.md` once — its "Model fit" and "Effort
-fit" notes are what both halves below judge from. State BOTH halves of the
-recommendation in the question's context, one line each with the reason
-behind it: the model per its "Model fit" note, the effort per its "Effort
-fit" note. This is the only place the model half is ever said on this
-destination.
-"This task suggests <model> at <effort>. Run it there instead?" — never
-worded as raising, upgrading, or bumping the session. Foreman cannot see
-what this session is running, so it cannot know whether the recommendation
-is a step up, a step down, or already matched — a session on Opus told a
-task suits Sonnet is being asked to go *down*. The question names where the
-task fits and nothing about the distance to it.
-
-`Proceed as-is (Recommended)` runs at whatever this session already has;
-`Start it in a fresh session` puts the prompt on the clipboard for a session
-already set to <model> at <effort>, delivered exactly as the `Copy prompt to
-clipboard` destination does and stopping there — nothing runs here and no
-task row is created.
-
-Changing this session's model or effort in place is deliberately not on the
-list: either change invalidates the prompt cache, so every remaining turn
-re-reads the whole conversation. A fresh session pays that once, at the
-shortest history it will ever have. A background `Agent` is not the
-substitute either — that call takes a `model` but no effort argument.
-
-Foreman cannot compare the two itself and must not try: hook input
-carries no model at all, and effort is readable only inside a hook, never
-by a skill. The user's answer IS the comparison, and the switch is theirs
-to make — this never sets a model, never blocks, never records anything,
-and neither recommendation is ever written into the assembled prompt.
-
-`Run now, no tracking` creates no task row, so neither `task-created.js`
-nor `task-completed.js` fires: the entry's opening and its close gate both
-fall back to the prompt's own embedded instructions, exactly as on the
-clipboard path. Say that in one line when the user picks it, so a project
-running `taskCloseGate: "block"` knows the gate is not in play this time.
+**Selected-task preparation**: after Q2, run
+`node ${CLAUDE_PLUGIN_ROOT}/scripts/render-sections.js` exactly once. Only
+its `fableEnabled` field is read here — it decides whether `Fable` appears
+in the executing-model question below. `craft-handoff.js` resolves the same
+config again internally when it assembles, so this call is only for that
+one gating decision, never for reuse in assembly. Surface its `warnings`
+now, if any.
 
 3. **Gather the judgment fields, then call `craft-handoff.js` once.** Every
    field below comes from the selected entry's own fields — no
@@ -310,10 +259,10 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      rewritten as observable assertions — never a contract name. Nothing
      assertable means the field is omitted; that is normal.
    - `verification` ← the `Run:`/`Expected:` pairs, in running order, one
-     per array entry. When Q3 picked `Tasks from the checks`, gather these
-     properly instead of settling for one inferred command — a single
-     check yields a single task, and this array is what the split cuts on
-     (pass `"split":true` below). Set `testFirst: true` for the test-first ordering — write the invariant
+     per array entry. Gather these before Q2, properly, instead of settling
+     for one inferred command: how many pairs there are is what decides
+     whether Q2 offers the split at all, and this array is what the split
+     cuts on (pass `"split":true` below). Set `testFirst: true` for the test-first ordering — write the invariant
      test first, confirm it passes against the unmodified code, break the
      invariant on purpose and confirm it goes red, then implement — only
      for a silent-failure entry, one whose breakage would pass the
@@ -329,21 +278,9 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      automatically from the selected entry's `kind` and the project's
      `decisionLog` setting, nothing to gather here.
 
-   **Executing model — background Agent and clipboard only**, once
-   `verification` above is known: ask craft-prompt's Call 6 question here,
-   before the call below — same wording, same slots and substitutions
-   (`Fable` included only when `fableEnabled` is `true`). When
-   `modelSuggestions` is `true`, read `${CLAUDE_PLUGIN_ROOT}/model-fit.md`
-   once, then seed the recommended default per its "Model fit" note; when
-   it's `false`, ask with no seeded default (skip the read — model-fit.md
-   has nothing to add there). Either way, also state the effort recommendation in one
-   line of the delivery message, per the "Effort fit" note's
-   verification-cost rule — never a dispatch value: the `Agent` tool takes no effort argument, so the operator acts on it instead of it being set.
-   Pass the confirmed model as `model` below.
-
    Then, one call:
    ```
-   echo '{"entry":"<id>","destination":"task|agent|clipboard","resume":<true only if this pick came from in_progress>,"split":<true only when Q3 picked "Tasks from the checks">,"model":"<haiku|sonnet|opus|fable — agent/clipboard only, when gathered above>","judgment":{"role":"<role>","goal":"<goal sentence>","context":"<context prose>","steps":["<what to implement/fix>"],"constraints":["<hard limits, patterns to follow>"],"expectedFileSurface":"<planned_touches, when known>","verification":[{"run":"<exact command>","expected":"<pass/fail signal>"}],"testFirst":<true only for a silent-failure entry>,"invariants":["<one observable assertion per line>"]}}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/craft-handoff.js
+   echo '{"entry":"<id>","destination":"task|agent|clipboard","resume":<true only if this pick came from in_progress>,"split":<true only when Q2 picked "Execute here, split by check">,"judgment":{"role":"<role>","goal":"<goal sentence>","context":"<context prose>","steps":["<what to implement/fix>"],"constraints":["<hard limits, patterns to follow>"],"expectedFileSurface":"<planned_touches, when known>","verification":[{"run":"<exact command>","expected":"<pass/fail signal>"}],"testFirst":<true only for a silent-failure entry>,"invariants":["<one observable assertion per line>"]}}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/craft-handoff.js
    ```
    Remember: the copy of this skill you are reading has
    the variable already resolved to a version-pinned cache path — type
@@ -352,10 +289,8 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
    path.
 
    Returns one JSON line: `{ok, prompt, profile, signals, tasks?, gate,
-   warnings}`. `profile` and `signals` come from the same mechanical
-   signals `prompt-template.md`'s "Handoff profiles" section defines —
-   never a judgment call on this branch's part; state them in the delivery
-   message's brief (step 5). When `ok` is `false`, don't retry blind: show
+   warnings}`. `profile` and `signals` are internal bookkeeping — never
+   name either in anything the user reads. When `ok` is `false`, don't retry blind: show
    `gate.errors` (and any `gate.warnings`) to the user instead — each names
    the judgment field that's too thin (missing steps, missing
    verification, an unresolved reference) — gather that field properly and
@@ -366,43 +301,45 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
    `update-status` call embedded in step 3 above. Picking or copying a task
    is not the same as starting it; only the session that begins acting on
    it should say so.
+   **Executing model — background Agent and clipboard only.** Now that the
+   prompt exists, ask craft-prompt's Call 6 question — same wording, same
+   slots and substitutions (`Fable` included only when `fableEnabled` is
+   `true`), asked with no seeded default. This is the one question that
+   comes after the prompt: the `Agent` tool needs a model named, and a
+   clipboard prompt is about to be pasted into a session the user chooses.
+   `Execute here` never asks it — the session already has a model.
 5. Deliver via whatever Q2 picked, using the `prompt` (and `tasks[]` when
    present) craft-handoff just returned — never re-derive, re-split, or
    re-embed any of it. Open every delivery message with a brief: one or two
    sentences in everyday words on what is about to change and why it
    matters, drawn from the entry's `why` and `what` only, restated for a
    teammate who has never seen this codebase — never the fields pasted
-   verbatim — plus the returned `profile` and which `signals` fired, in
-   plain words. The brief is chat-only; `prompt`/`tasks[]` stay dense and
+   verbatim. The brief is chat-only; `prompt`/`tasks[]` stay dense and
    untranslated, and neither is ever pasted or printed into the chat
    response — they are data for a tool call, not something to show.
-   - **`Execute here`**:
-     - `Run now, no tracking` — work `prompt` directly in this session; no
-       task rows exist, so nothing mechanizes the entry's status — its own
-       embedded instructions carry that end to end.
-     - `One task, then work it` — one `TaskCreate` (`subject` a verb-first
-       imperative ≤60 chars derived from the entry's `title`, `description`
-       = `prompt`, `activeForm` its present-continuous form), then work it
-       in this session with `TaskUpdate` marking it `in_progress` then
-       `completed`.
-     - `Tasks from the checks` — pass `"split":true` in the craft-handoff
-       call above to get `tasks[]` (one row per `Run:`/`Expected:` pair,
-       the full prompt on row 1, the entry paragraph on the last row only —
-       already baked, never re-split by hand); one `TaskCreate` per row, in
-       order (each row's own `subject`/`description`, plus its own
-       present-continuous `activeForm`), each chained to the previous one
-       with `TaskUpdate` `addBlockedBy: ["<previous task's id>"]`; work
-       them in order, `TaskUpdate` per row as you go, and follow the
-       checkpoint protocol below as each task's check passes.
+   - **`Execute here`** — one `TaskCreate` (`subject` a verb-first
+     imperative ≤60 chars derived from the entry's `title`, `description`
+     = `prompt`, `activeForm` its present-continuous form), then work it
+     in this session with `TaskUpdate` marking it `in_progress` then
+     `completed`.
+   - **`Execute here, split by check`** — pass `"split":true` in the
+     craft-handoff call above to get `tasks[]` (one row per
+     `Run:`/`Expected:` pair, the full prompt on row 1, the entry paragraph
+     on the last row only — already baked, never re-split by hand); one
+     `TaskCreate` per row, in order (each row's own `subject`/`description`,
+     plus its own present-continuous `activeForm`), each chained to the
+     previous one with `TaskUpdate` `addBlockedBy: ["<previous task's
+     id>"]`; work them in order, `TaskUpdate` per row as you go, and follow
+     the checkpoint protocol below as each task's check passes.
 
-     On either tracked mode, Foreman's `task-created` hook marks the entry
+     On either `Execute here` option, Foreman's `task-created` hook marks the entry
      `in_progress` mechanically the moment the row carrying the embedded
      paragraph is created (it reads the entry id out of it) — finding it
      already `in_progress` when the embedded instruction runs is expected,
      and re-running that update is a harmless no-op.
 
-     **Checkpoint protocol — `Tasks from the checks` only, two or more
-     tasks.** Read the `checkpoints` block of `.foreman/config.json` first
+     **Checkpoint protocol — `Execute here, split by check` only.**
+     Read the `checkpoints` block of `.foreman/config.json` first
      (`branch` `true`, `onFinish` `"ask"`, `baseBranch` unset are the
      defaults for a missing file/block/key). Before task 1:
      `node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js begin` — a
@@ -422,12 +359,16 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      unchanged. After the last task, and only if this run created the
      branch, `onFinish` decides its fate: `"ask"` (the default) asks
      `Squash merge (Recommended)` / `Merge` / `Open a PR` / `Keep the
-     branch`; a concrete value acts directly, no question. Skip
+     branch`; a concrete value acts directly, no question. **When it was
+     asked, write the answer back** — `Read` `.foreman/config.json`, set
+     `checkpoints.onFinish` to `squash`/`merge`/`pr`/`keep` with every
+     other key untouched, write it, and say in one line that later runs
+     act on it without asking. Skip
      checkpointing and just work the tasks if git is unavailable.
    - **Background Agent**: call `Agent` with `prompt` = the returned
      `prompt`, `description` = a 3-5 word summary, `run_in_background:
-     true`, and `model` = the confirmed executing model from step 3 as its
-     literal string when concrete. The tool result trails with the
+     true`, and `model` = the executing model just confirmed above, as its
+     literal string. The tool result trails with the
      dispatched agent's id (`agentId: a<16 hex>`). Capture it immediately
      with one annotate call, so a later session can resume this exact agent
      instead of re-crafting a prompt from its notes:
@@ -444,11 +385,9 @@ running `taskCloseGate: "block"` knows the gate is not in play this time.
      <file>` (or `wl-copy < <file>`) on Linux. Mention the file path too,
      in case the clipboard step fails. If no clipboard tool is available at
      all, show the prompt in a fenced `xml` code block instead — the one
-     exception to never printing it into chat. Add the same "Recommended
-     model: [Haiku/Sonnet/Opus/Fable] — this prompt's elaboration level was
-     calibrated for it." line when step 3's confirmed executing model is
-     concrete; skip the line when it resolved to `inherit` or nothing was
-     named. Any checkpoint protocol a multi-check prompt needs already
+     exception to never printing it into chat. Name the executing model
+     confirmed above in one line, so the user pastes it into the right kind
+     of session. Any checkpoint protocol a multi-check prompt needs already
      rides inside `prompt`'s own `task_rules` — craft-handoff baked it in;
      nothing more to do here.
 

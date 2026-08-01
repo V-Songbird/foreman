@@ -795,10 +795,11 @@ describe('correct — the direct-edit guard', () => {
   });
 
   test('a direct Edit of ROADMAP.jsonl is still denied — correct is the repair path', () => {
+    seed();
     const hook = runScriptRaw(
       'guard-roadmap-edit.js',
       { tool_name: 'Edit', tool_input: { file_path: path.join(project, 'ROADMAP.jsonl') } },
-      {}
+      { CLAUDE_PROJECT_DIR: project }
     );
     const payload = JSON.parse(hook.stdout);
     assert.equal(payload.hookSpecificOutput.permissionDecision, 'deny');

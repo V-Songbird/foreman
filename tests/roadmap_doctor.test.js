@@ -45,6 +45,13 @@ function doctor(flags = []) {
   return run(['doctor', ...flags]).json;
 }
 
+// doctor always closes with one severity:'info' disclosure naming the hook
+// events Foreman depends on. It is not a defect and counts toward neither
+// summary total, so every "nothing wrong here" assertion reads past it.
+function defects(findings) {
+  return findings.filter((item) => item.severity !== 'info');
+}
+
 // Distinct wording per id on purpose: entries built from one shared
 // template score high enough on the duplicate heuristic to add a
 // similar_titles warning to every fixture.
@@ -96,14 +103,14 @@ describe('doctor on a healthy roadmap', () => {
     const { status, json } = run(['doctor']);
     assert.equal(status, 0);
     assert.equal(json.ok, true);
-    assert.deepEqual(json.findings, []);
+    assert.deepEqual(defects(json.findings), []);
     assert.deepEqual(json.summary, { errors: 0, warnings: 0 });
   });
 
   test('a missing roadmap is the uninitialized case, not a finding', () => {
     const { json } = run(['doctor']);
     assert.equal(json.ok, true);
-    assert.deepEqual(json.findings, []);
+    assert.deepEqual(defects(json.findings), []);
   });
 
   test('a valid config produces no findings', () => {
@@ -113,12 +120,13 @@ describe('doctor on a healthy roadmap', () => {
       usePersona: false,
       omitSections: ['tone', 'output_format'],
       taskCloseGate: 'block',
-      targetModel: 'opus',
+      trialLog: true,
+      fableEnabled: true,
+      requireVerification: false,
       decisionLog: { enabled: true, dir: 'docs/foreman', gate: 'off' },
       checkpoints: { branch: true, onFinish: 'squash', baseBranch: 'main' },
-      customSections: [{ tag: 'house_rules', content: 'no new deps' }],
     });
-    assert.deepEqual(doctor().findings, []);
+    assert.deepEqual(defects(doctor().findings), []);
   });
 
   test('ok reports roadmap health, and the call itself still exits 0', () => {
@@ -362,7 +370,7 @@ describe('doctor --fix', () => {
 
     const report = doctor(['--fix']);
     assert.equal(report.fixed.length, 4);
-    assert.deepEqual(report.findings, []);
+    assert.deepEqual(defects(report.findings), []);
 
     const stored = storedEntries()[0];
     assert.deepEqual(stored.planned_touches, []);
@@ -390,7 +398,7 @@ describe('doctor --fix', () => {
 
     const report = doctor(['--fix']);
     assert.deepEqual(report.fixed.map((f) => f.code), ['missing_field']);
-    const codes = report.findings.map((f) => f.code).sort();
+    const codes = defects(report.findings).map((f) => f.code).sort();
     assert.deepEqual(codes, ['missing_dependency', 'unknown_status']);
     assert.equal(report.ok, false);
   });

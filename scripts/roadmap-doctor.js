@@ -29,13 +29,7 @@ const { VALID_GATES, isValidDir } = require("./decision-log-config");
 // <id>" for a duplicate finding -- fail-soft, and only ever called when a
 // duplicate is actually present.
 const { recordedCommits, trailerShasFor } = require("./commit-evidence");
-const {
-  configPath,
-  VALID_TARGET_MODELS,
-  OMITTABLE_TAGS,
-  RESERVED_TAGS,
-  TAG_RE,
-} = require("./render-sections");
+const { configPath, OMITTABLE_TAGS } = require("./render-sections");
 
 // roadmap.js requires this module at load time, so requiring it back up here
 // would capture a half-built exports object. Node's module cache makes the
@@ -447,27 +441,11 @@ const CONFIG_SPEC = {
   // [Foreman: 208] Opt-in, default false. Read by scripts/trial-log.js.
   trialLog: BOOL,
   requireVerification: BOOL,
-  modelSuggestions: BOOL,
   fableEnabled: BOOL,
   taskCloseGate: oneOf(VALID_GATES),
-  targetModel: oneOf(VALID_TARGET_MODELS),
   omitSections: {
     ok: (value) => Array.isArray(value) && value.every((tag) => OMITTABLE_TAGS.has(tag)),
     expected: `an array of ${[...OMITTABLE_TAGS].join(" | ")}`,
-  },
-  customSections: {
-    ok: (value) =>
-      Array.isArray(value)
-      && value.every(
-        (section) =>
-          isObject(section)
-          && typeof section.tag === "string"
-          && TAG_RE.test(section.tag)
-          && !RESERVED_TAGS.has(section.tag)
-          && typeof section.content === "string"
-          && section.content.trim() !== ""
-      ),
-    expected: "an array of {tag, content} sections with unreserved lowercase tags",
   },
   decisionLog: {
     spec: {
@@ -563,6 +541,37 @@ function applyRepairs(entries, findings) {
   return applied;
 }
 
+// The host events Foreman's hooks are registered against, read from the
+// manifest that registers them so the list cannot drift. TaskCreated and
+// TaskCompleted are not in Claude Code's public hook documentation: if a
+// future host stops delivering one, Foreman goes quiet rather than failing,
+// and nothing else would ever say why. So doctor says it, every run, at a
+// severity that counts toward neither errors nor warnings — this is a
+// disclosure, not a defect.
+function hookDependencies() {
+  let events;
+  try {
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(__dirname, "..", "hooks", "hooks.json"), "utf-8")
+    );
+    events = Object.keys(manifest.hooks || {}).sort();
+  } catch {
+    return [];
+  }
+  if (!events.length) return [];
+  return [
+    finding(
+      "hook_dependencies",
+      "info",
+      [],
+      `Foreman's automatic behavior depends on these Claude Code hook events: ${events.join(", ")}. `
+        + "TaskCreated and TaskCompleted are not publicly documented — if a host stops "
+        + "delivering one, tasks stop opening and closing their roadmap entries on their "
+        + "own, and every command here keeps working by hand."
+    ),
+  ];
+}
+
 function summarize(findings) {
   return {
     ok: !findings.some((item) => item.severity === "error"),
@@ -575,6 +584,7 @@ function summarize(findings) {
 }
 
 module.exports = {
+  hookDependencies,
   validateEntries,
   validateAcrossFiles,
   enrichDuplicates,

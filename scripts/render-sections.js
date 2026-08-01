@@ -25,7 +25,7 @@ function readUsePersona(config) {
 
 // Fail-soft, same spirit as post-commit.js's readConfig: a missing or
 // corrupt config.json never blocks prompt assembly, it just means no
-// custom sections/omissions this time. Fail-soft is not fail-silent
+// omissions this time. Fail-soft is not fail-silent
 // though: a file that exists but won't parse loses every setting to its
 // default — including usePersona, which reverts to true, so a persona
 // opener would pass the gate in a usePersona:false project (check-prompt.js
@@ -49,25 +49,6 @@ function readConfig(root) {
   }
 }
 
-const VALID_TARGET_MODELS = new Set(["haiku", "sonnet", "opus", "fable", "inherit"]);
-
-// Declaration, not detection, same spirit as readUsePersona: the project
-// states which model crafted prompts/handoffs should assume runs them.
-// Default "inherit" (today's behavior, unchanged) applies whenever the
-// field is missing, unparseable, or not one of the five valid strings —
-// that last case also gets a warning instead of silently coercing.
-function readTargetModel(config) {
-  const value = config?.targetModel;
-  if (value === undefined) return { value: "inherit", warning: null };
-  if (typeof value === "string" && VALID_TARGET_MODELS.has(value)) {
-    return { value, warning: null };
-  }
-  return {
-    value: "inherit",
-    warning: `targetModel: ${JSON.stringify(value)} is not one of ${[...VALID_TARGET_MODELS].join(", ")} — defaulted to "inherit"`,
-  };
-}
-
 // Declaration, not detection: the project states whether it can run
 // Fable 5 at all (Max plan or API — other plans can't). Set once via
 // foreman:init's Call 2b, or hand-edited later. Default false. Gates
@@ -81,24 +62,6 @@ function readFableEnabled(config) {
   return {
     value: false,
     warning: `fableEnabled: ${JSON.stringify(value)} is not a boolean — defaulted to false`,
-  };
-}
-
-// Whether Foreman offers a per-task model and reasoning-effort
-// recommendation at all. Default false: a project that has already settled
-// its model policy shouldn't pay for the advice on every pick. When false,
-// prompt-template.md's Model fit and Effort fit notes state nothing, the
-// Execute-here match-the-recommendation question is skipped, and the executing-model
-// question still runs (a dispatch needs a model) but carries no task-derived
-// recommendation. `targetModel` is unaffected — a concrete pin still drives
-// elaboration whether or not recommendations are on.
-function readModelSuggestions(config) {
-  const value = config?.modelSuggestions;
-  if (value === undefined) return { value: false, warning: null };
-  if (typeof value === "boolean") return { value, warning: null };
-  return {
-    value: false,
-    warning: `modelSuggestions: ${JSON.stringify(value)} is not a boolean — defaulted to false`,
   };
 }
 
@@ -131,68 +94,10 @@ function readDecisionLogSection(root) {
   return { enabled, dir, warning };
 }
 
-const TAG_RE = /^[a-z][a-z0-9_]*$/;
-
-// Every tag the fixed template already owns — a custom section can never
-// shadow a guardrail block like scope_discipline or truth_grounding.
-const RESERVED_TAGS = new Set([
-  "task_context",
-  "truth_grounding",
-  "scope_discipline",
-  "tone",
-  "background",
-  "relevant_files",
-  "context",
-  "task_rules",
-  "invariants",
-  "plan",
-  "example",
-  "output_format",
-  "decision_log",
-]);
-
 // Only these template tags are ever conditional in the first place — the
 // rest (task_context, truth_grounding, scope_discipline, task_rules) are
 // the guardrails/core structure omitSections can never touch.
 const OMITTABLE_TAGS = new Set(["tone", "example", "background", "output_format"]);
-
-function escapeXml(text) {
-  return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-// Validates and renders customSections into inline XML. Never throws —
-// each malformed entry is skipped with a warning instead of failing the
-// whole prompt assembly.
-function renderSections(raw) {
-  const sections = [];
-  const warnings = [];
-  const seenTags = new Set();
-
-  (Array.isArray(raw) ? raw : []).forEach((entry, i) => {
-    const tag = entry?.tag;
-    const content = entry?.content;
-    if (typeof tag !== "string" || !TAG_RE.test(tag)) {
-      warnings.push(`customSections[${i}]: tag ${JSON.stringify(tag)} must match ^[a-z][a-z0-9_]*$ — skipped`);
-      return;
-    }
-    if (RESERVED_TAGS.has(tag)) {
-      warnings.push(`customSections[${i}]: tag "${tag}" is reserved by the template — skipped`);
-      return;
-    }
-    if (seenTags.has(tag)) {
-      warnings.push(`customSections[${i}]: tag "${tag}" duplicates an earlier entry — skipped`);
-      return;
-    }
-    if (typeof content !== "string" || !content.trim()) {
-      warnings.push(`customSections[${i}] ("${tag}"): content must be a non-empty string — skipped`);
-      return;
-    }
-    seenTags.add(tag);
-    sections.push({ tag, xml: `<${tag}>\n${escapeXml(content.trim())}\n</${tag}>` });
-  });
-
-  return { sections, warnings };
-}
 
 // Validates omitSections — only the template's already-conditional tags
 // can ever be listed; anything else (a guardrail, a typo, core structure)
@@ -226,29 +131,20 @@ function renderOmit(raw) {
 
 function render(root) {
   const { config, warning: configWarning } = readConfig(root);
-  const sectionsResult = renderSections(config.customSections);
   const omitResult = renderOmit(config.omitSections);
-  const targetModelResult = readTargetModel(config);
   const fableEnabledResult = readFableEnabled(config);
-  const modelSuggestionsResult = readModelSuggestions(config);
   const requireVerificationResult = readRequireVerification(config);
   const decisionLog = readDecisionLogSection(root);
   return {
     usePersona: readUsePersona(config),
-    sections: sectionsResult.sections,
     omit: omitResult.omit,
-    targetModel: targetModelResult.value,
     fableEnabled: fableEnabledResult.value,
-    modelSuggestions: modelSuggestionsResult.value,
     requireVerification: requireVerificationResult.value,
     decisionLog: { enabled: decisionLog.enabled, dir: decisionLog.dir },
     warnings: [
       ...(configWarning ? [configWarning] : []),
-      ...sectionsResult.warnings,
       ...omitResult.warnings,
-      ...(targetModelResult.warning ? [targetModelResult.warning] : []),
       ...(fableEnabledResult.warning ? [fableEnabledResult.warning] : []),
-      ...(modelSuggestionsResult.warning ? [modelSuggestionsResult.warning] : []),
       ...(requireVerificationResult.warning ? [requireVerificationResult.warning] : []),
       ...(decisionLog.warning ? [decisionLog.warning] : []),
     ],
@@ -269,16 +165,9 @@ module.exports = {
   configPath,
   readConfig,
   readUsePersona,
-  readTargetModel,
   readFableEnabled,
-  readModelSuggestions,
   readDecisionLogSection,
-  escapeXml,
-  renderSections,
   renderOmit,
   render,
-  TAG_RE,
-  RESERVED_TAGS,
   OMITTABLE_TAGS,
-  VALID_TARGET_MODELS,
 };

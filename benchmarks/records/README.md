@@ -78,8 +78,8 @@ record has to say so rather than letting the two look alike.
 
 | Record | Kind | Claim |
 | --- | --- | --- |
-| [`R-007-instruction-load`](R-007-instruction-load.json) | static computation | A Fast pick reached through the entrance loads about 9.7k est. tokens of instructions before ranking a single entry — down 62% from the ~25.5k it loaded before prompt assembly moved into a script and the roadmap skill split into branch files. Supersedes `R-006` (itself the successor to `R-004`) after the sprint flow stopped reading `prompt-template.md`. |
-| [`R-005-prompt-overhead`](R-005-prompt-overhead.json) | static computation | The standard handoff profile carries 12% of the reinforced profile's fixed guardrail text — 499 words saved. Supersedes `R-003` (the tail of a chain back to `R-001`) after template edits that left the numbers unchanged. |
+| [`R-010-instruction-load`](R-010-instruction-load.json) | static computation | A Fast pick reached through the entrance loads about 8.6k est. tokens of instructions before ranking a single entry — down 66% from the ~25.5k it loaded before prompt assembly moved into a script. Supersedes `R-008` (the tail of a chain back to `R-004`) after the Check-the-roadmap branch gained two sentences. |
+| [`R-009-prompt-overhead`](R-009-prompt-overhead.json) | static computation | The standard handoff profile carries 12% of the reinforced profile's fixed guardrail text — 499 words saved. Supersedes `R-005` (the tail of a chain back to `R-001`) after template edits that left the numbers unchanged. |
 
 **No model-run records exist yet.** The harness in [`../`](../README.md) drives
 real sessions and reads real costs out of the API, but its output lands in

@@ -1,6 +1,6 @@
 ---
 name: init
-description: Bootstraps a project's ROADMAP.jsonl and .foreman/config.json. Asks three things — what the project is, its near-term goals, and whether the drafted roadmap looks right — then writes and commits both files using safe defaults for every optional behavior. Discovery, decision notes, model advice, and checkpoint policy are never asked here; each one is asked the first time it could actually matter.
+description: Bootstraps a project's ROADMAP.jsonl and .foreman/config.json. Asks three things — what the project is, its near-term goals, and whether the drafted roadmap looks right — then writes and commits both files, leaving every optional behavior at its built-in default. Discovery, decision notes, and checkpoint policy are never asked here; each one is asked the first time it could actually matter.
 when_to_use: Trigger when the user wants to set up Foreman's roadmap for a project, says "init foreman", "set up the roadmap", "initialize foreman", "start a roadmap", or invokes /foreman:init. Usually a one-time-per-project action.
 argument-hint: "<brief project description — optional seed>"
 allowed-tools: AskUserQuestion, Read, Write, Bash
@@ -13,7 +13,8 @@ are committed to git — they're a shared project artifact, not personal
 state. All reads/writes go through
 `${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js` (see "Write phase" below) — it
 enforces the write invariants (id computation, parse-before/after-write)
-mechanically, so you don't have to. Skim
+mechanically, so you don't have to. Run it with `--help` for the command
+shapes; read the **Fields** section of
 `${CLAUDE_PLUGIN_ROOT}/roadmap-schema.md` if you need field semantics
 beyond what's obvious from the names (`why`/`what`/`depends_on`/`planned_touches`).
 
@@ -51,30 +52,24 @@ they want to get done soon)
 
 ---
 
-## Defaults — written, never asked
+## Defaults — never asked, never written
 
-There is no policy interview. Everything except the project, its goals, and
-the draft approval is a safe default, written verbatim:
+There is no policy interview, and there is no settings file to compose.
+Every optional behavior already has a safe default in the code that reads
+it, so init writes `.foreman/config.json` as an empty object `{}` and lets
+those defaults stand: finished work waits for the user's confirmation,
+nothing blocks a task's completion, handoffs open with a persona sentence,
+no prompt section is omitted, and Fable 5 is assumed unavailable.
 
-| Key | Value | Why this is the safe reading |
-| --- | --- | --- |
-| `requireVerification` | `true` | a commit that looks like it finishes a task isn't evidence the task holds up — the entry lands in `awaiting_acceptance` and waits for the user |
-| `taskCloseGate` | `"off"` | nothing blocks on a roadmap entry being closed |
-| `usePersona` | `true` | the prompt template's own default |
-| `omitSections` | `[]` | the same |
-| `fableEnabled` | `false` | most plans can't run Fable 5 |
+Writing those values out would only create a second copy that can drift
+from the readers. `discoverySuggestions` and `decisionLog` stay absent for
+a second reason too: an absent key is the record that the user was never
+asked, so each gets asked once, the first time it could matter — discovery
+by the post-commit hook after a commit it would have run on, decision notes
+by `foreman:roadmap` when the first `kind: "decision"` entry is added, and
+checkpoint policy at the first split run.
 
-`discoverySuggestions`, `decisionLog`, and `modelSuggestions` are
-deliberately **not written**. An absent key already reads as off
-everywhere, and its absence is also the record that the user was never
-asked — so each gets asked once, the first time it could matter, and the
-answer is written then: discovery by the post-commit hook after a commit
-that discovery would have run on, decision notes by `foreman:roadmap` when
-the first `kind: "decision"` entry is added, checkpoint policy at the first
-split run, and model advice whenever the user asks for it. Writing any of
-those three here would spend a question now *and* silence the later ask.
-
-Any of the defaults above can be changed by hand later — see
+Any of it can be set by hand later — see
 [`settings.md`](../../settings.md).
 
 ---
@@ -167,24 +162,15 @@ the updated draft, ask again. Repeat until approved.
    `depends_on` a task drafted above it: entries are written in this
    order, and `add` rejects an id that doesn't exist yet. If any call
    returns `warnings`, mention them once at the end rather than per entry.
-3. Write `.foreman/config.json` —
-   `{"usePersona": true, "omitSections": [], "requireVerification": true, "taskCloseGate": "off", "fableEnabled": false}`
-   — those five keys exactly, at those values, from the defaults table
-   above (skip this file write if the pre-check "keep, add to it" branch
-   found an existing config already).
-   **If the file already exists, `Read` it first and set those five keys on
-   the parsed object — any other key present must survive untouched.** This
-   applies whenever the file exists, not only on the Overwrite branch: the
-   pre-check only fires when `ROADMAP.jsonl` exists, so a project with a
-   config but no roadmap is never asked anything and would otherwise have
-   its config replaced silently. Today the keys at risk are
-   `discoverySuggestions`, `decisionLog`, `modelSuggestions`,
-   `customSections`, `targetModel`, and `checkpoints` — init writes none of
-   them, and the first three are answers to first-relevant asks that a
-   re-init must not throw away — but the rule is "everything else
-   survives", not a list, so the next key is covered without another edit.
-   If the file exists but won't parse, write the five keys alone and say
-   so in the report-back.
+3. Write `.foreman/config.json` as `{}` — an empty object, per the defaults
+   section above (skip this file write if the pre-check "keep, add to it"
+   branch found an existing config already).
+   **If the file already exists, leave it exactly as it is.** There is
+   nothing for init to put in it, and everything already in it is either a
+   deliberate hand edit or the recorded answer to a first-relevant ask
+   (`discoverySuggestions`, `decisionLog`, `checkpoints`) that a re-init
+   must not throw away. If the file exists but won't parse, say so in the
+   report-back and change nothing.
 4. Stage and commit just these two files:
    `git add ROADMAP.jsonl .foreman/config.json && git commit -m "chore: init foreman roadmap"`
    (Only the files this skill wrote — never a broader `git add`.)

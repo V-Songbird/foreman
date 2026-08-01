@@ -25,23 +25,39 @@ function readInput() {
   }
 }
 
-// Basename-only match, deliberately not path-aware — a project having some
-// unrelated file literally named ROADMAP.jsonl elsewhere isn't worth
-// distinguishing from the real one at this scale.
+function projectDir(data) {
+  return path.resolve(process.env.CLAUDE_PROJECT_DIR || data.cwd || process.cwd());
+}
+
+// ROADMAP.jsonl is a basename-only match, deliberately not path-aware — a
+// project having some unrelated file literally named ROADMAP.jsonl elsewhere
+// isn't worth distinguishing from the real one at this scale.
 // [Foreman: 132] archive.jsonl is the same file in a later life: the archived
 // half of the roadmap, written by the same CLI (archive/restore), so a hand
-// edit bypasses the same invariants.
-const GUARDED_BASENAMES = new Set(["roadmap.jsonl", "archive.jsonl"]);
+// edit bypasses the same invariants. Unlike the roadmap, though, the name is
+// generic — so only this project's own copy counts, and some other tool's
+// archive.jsonl is not Foreman's to deny.
+const PROJECT_ARCHIVE = ".foreman/archive.jsonl";
 
-function targetsRoadmap(filePath) {
+function targetsRoadmap(filePath, root) {
   if (!filePath) return false;
-  return GUARDED_BASENAMES.has(path.basename(String(filePath)).toLowerCase());
+  const base = path.basename(String(filePath)).toLowerCase();
+  if (base === "roadmap.jsonl") return true;
+  if (base !== "archive.jsonl") return false;
+  const rel = path.relative(root, path.resolve(root, String(filePath)));
+  return rel.replaceAll("\\", "/").toLowerCase() === PROJECT_ARCHIVE;
 }
 
 function main() {
   const data = readInput();
   if (!WATCHED_TOOLS.has(data.tool_name)) return;
-  if (!targetsRoadmap(data.tool_input?.file_path)) return;
+
+  const root = projectDir(data);
+  // A project that never ran init has no roadmap to guard, and nothing
+  // Foreman is entitled to say about it.
+  if (!fs.existsSync(path.join(root, "ROADMAP.jsonl"))) return;
+
+  if (!targetsRoadmap(data.tool_input?.file_path, root)) return;
 
   const payload = {
     hookSpecificOutput: {

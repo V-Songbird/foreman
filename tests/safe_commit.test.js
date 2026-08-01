@@ -15,7 +15,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
-const { makeTmpProject, writeRoadmap, writeArchiveFile, initGitRepo, runNodeScript, runRoadmap, SCRIPTS_DIR } = require('./helpers');
+const { makeTmpProject, writeRoadmap, writeArchiveFile, writeConfig, initGitRepo, runNodeScript, runRoadmap, SCRIPTS_DIR } = require('./helpers');
 
 const SAFE_COMMIT = path.join(SCRIPTS_DIR, 'safe-commit.js');
 const TEMPLATE = fs.readFileSync(path.join(__dirname, '..', 'prompt-template.md'), 'utf-8');
@@ -120,6 +120,27 @@ describe('safe-commit begin', () => {
     const json = begin();
     assert.equal(json.dirty, true);
     assert.equal(json.baseline, undefined);
+  });
+
+  // The trial log is Foreman's own write into .foreman, not someone else's
+  // work: a flow that records an event must not cost the run its baseline.
+  test('a recorded trial event still yields the baseline', () => {
+    cleanRepo();
+    writeConfig(project, { trialLog: true });
+    git('add', '-A');
+    git('commit', '-q', '-m', 'trial log on');
+
+    const trial = require(path.join(SCRIPTS_DIR, 'trial-log'));
+    assert.equal(trial.record('session_start', {}, { root: project }).recorded, true);
+
+    const json = begin();
+    assert.equal(json.ok, true);
+    assert.equal(json.dirty, false);
+    assert.deepEqual(
+      json.ledger_dirty.slice().sort(),
+      ['.foreman/trial-log.jsonl', '.foreman/trial-session'],
+    );
+    assert.equal(json.baseline.head, git('rev-parse', 'HEAD').trim());
   });
 
   test('without a baseline, finish refuses outright', () => {
@@ -408,8 +429,7 @@ describe('safe-commit finish commit and attestation', () => {
   // [Foreman: 196] ROADMAP.jsonl and .foreman/archive.jsonl are the only
   // files safe-commit itself treats as a shared ledger; a project's own
   // CHANGELOG.md is ordinary work here (see the changelog describe block
-  // below) -- keeping it out of a sprint worker's unit is sprint's own
-  // policy, enforced by attestUnit, not this primitive's.
+  // below).
   // [Foreman: 202] A shared ledger other than the declared roadmap close is
   // excluded from `changed` before anything is staged, in every mode -- it
   // never rides into the commit for post-commit attestation to catch.
@@ -466,8 +486,7 @@ describe('safe-commit finish commit and attestation', () => {
 
 // [Foreman: 196] A project's own CHANGELOG.md is not one of Foreman's files:
 // safe-commit stages and commits it like any other declared path, in every
-// mode. Keeping it out of a sprint worker's unit is sprint's own policy
-// (tests/sprint.test.js), not this primitive's.
+// mode.
 describe("safe-commit and the project's own changelog", () => {
   test('a declared root CHANGELOG.md commits cleanly and attestation agrees', () => {
     cleanRepo();

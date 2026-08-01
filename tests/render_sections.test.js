@@ -57,26 +57,19 @@ function run() {
 }
 
 describe('render-sections', () => {
-  test('no config.json -> empty sections, no warnings', () => {
+  test('no config.json -> no warnings', () => {
     const { status, json } = run();
     assert.equal(status, 0);
     assert.equal(json.ok, true);
-    assert.deepEqual(json.sections, []);
     assert.deepEqual(json.warnings, []);
   });
 
-  test('config.json without customSections -> empty sections', () => {
-    writeConfig(project, { discoverySuggestions: true });
-    const { json } = run();
-    assert.deepEqual(json.sections, []);
-  });
-
-  test('corrupt config.json fails soft -> empty sections, no throw', () => {
+  test('corrupt config.json fails soft, no throw', () => {
     fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
     fs.writeFileSync(path.join(project, '.foreman', 'config.json'), '{not json', 'utf-8');
     const { status, json } = run();
     assert.equal(status, 0);
-    assert.deepEqual(json.sections, []);
+    assert.equal(json.ok, true);
   });
 
   test('corrupt config.json warns rather than failing silently', () => {
@@ -92,77 +85,13 @@ describe('render-sections', () => {
     assert.deepEqual(json.warnings, []);
   });
 
-  test('valid entry renders as <tag>\\ncontent\\n</tag>', () => {
-    writeConfig(project, {
-      customSections: [{ tag: 'compliance_notice', content: 'Needs sign-off.' }],
-    });
+  // customSections was removed in 1.0. A leftover key is forward-compatible
+  // noise here (doctor is what reports it), never a rendered section.
+  test('a leftover customSections key renders nothing at all', () => {
+    writeConfig(project, { customSections: [{ tag: 'note', content: 'x' }] });
     const { json } = run();
-    assert.equal(json.sections.length, 1);
-    assert.equal(json.sections[0].tag, 'compliance_notice');
-    assert.equal(json.sections[0].xml, '<compliance_notice>\nNeeds sign-off.\n</compliance_notice>');
+    assert.equal('sections' in json, false);
     assert.deepEqual(json.warnings, []);
-  });
-
-  test('content is XML-escaped', () => {
-    writeConfig(project, {
-      customSections: [{ tag: 'note', content: 'A & B <are> "fine" > C' }],
-    });
-    const { json } = run();
-    assert.equal(json.sections[0].xml, '<note>\nA &amp; B &lt;are&gt; "fine" &gt; C\n</note>');
-  });
-
-  test('bad tag format is skipped with a warning', () => {
-    writeConfig(project, {
-      customSections: [{ tag: 'Not Valid', content: 'x' }],
-    });
-    const { json } = run();
-    assert.deepEqual(json.sections, []);
-    assert.equal(json.warnings.length, 1);
-    assert.match(json.warnings[0], /must match/);
-  });
-
-  test('reserved tag is skipped with a warning', () => {
-    writeConfig(project, {
-      customSections: [{ tag: 'scope_discipline', content: 'override attempt' }],
-    });
-    const { json } = run();
-    assert.deepEqual(json.sections, []);
-    assert.match(json.warnings[0], /reserved/);
-  });
-
-  test('duplicate tag is skipped with a warning, first one wins', () => {
-    writeConfig(project, {
-      customSections: [
-        { tag: 'note', content: 'first' },
-        { tag: 'note', content: 'second' },
-      ],
-    });
-    const { json } = run();
-    assert.equal(json.sections.length, 1);
-    assert.match(json.sections[0].xml, /first/);
-    assert.match(json.warnings[0], /duplicates/);
-  });
-
-  test('empty content is skipped with a warning', () => {
-    writeConfig(project, {
-      customSections: [{ tag: 'note', content: '   ' }],
-    });
-    const { json } = run();
-    assert.deepEqual(json.sections, []);
-    assert.match(json.warnings[0], /non-empty/);
-  });
-
-  test('one bad entry does not block a good one', () => {
-    writeConfig(project, {
-      customSections: [
-        { tag: 'task_rules', content: 'reserved, skipped' },
-        { tag: 'house_style', content: 'Use tabs.' },
-      ],
-    });
-    const { json } = run();
-    assert.equal(json.sections.length, 1);
-    assert.equal(json.sections[0].tag, 'house_style');
-    assert.equal(json.warnings.length, 1);
   });
 });
 
@@ -214,15 +143,12 @@ describe('render-sections — omitSections', () => {
     assert.match(json.warnings[0], /duplicates/);
   });
 
-  test('customSections and omitSections warnings both surface together', () => {
-    writeConfig(project, {
-      customSections: [{ tag: 'scope_discipline', content: 'x' }],
-      omitSections: ['scope_discipline'],
-    });
+  test('omitSections warnings surface alongside a config-level one', () => {
+    fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
+    fs.writeFileSync(path.join(project, '.foreman', 'config.json'), '{not json', 'utf-8');
     const { json } = run();
-    assert.equal(json.sections.length, 0);
-    assert.equal(json.omit.length, 0);
-    assert.equal(json.warnings.length, 2);
+    assert.deepEqual(json.omit, []);
+    assert.ok(json.warnings.length >= 1);
   });
 });
 
@@ -262,53 +188,6 @@ describe('render-sections — usePersona', () => {
   });
 });
 
-describe('render-sections — targetModel', () => {
-  test('no config.json -> targetModel defaults to "inherit"', () => {
-    const { json } = run();
-    assert.equal(json.targetModel, 'inherit');
-    assert.deepEqual(json.warnings, []);
-  });
-
-  test('config.json without targetModel -> defaults to "inherit"', () => {
-    writeConfig(project, { discoverySuggestions: true });
-    const { json } = run();
-    assert.equal(json.targetModel, 'inherit');
-  });
-
-  for (const value of ['haiku', 'sonnet', 'opus', 'fable', 'inherit']) {
-    test(`targetModel: "${value}" passes through`, () => {
-      writeConfig(project, { targetModel: value });
-      const { json } = run();
-      assert.equal(json.targetModel, value);
-      assert.deepEqual(json.warnings, []);
-    });
-  }
-
-  test('an invalid targetModel defaults to "inherit" with a warning, no throw', () => {
-    writeConfig(project, { targetModel: 'gpt4' });
-    const { status, json } = run();
-    assert.equal(status, 0);
-    assert.equal(json.targetModel, 'inherit');
-    assert.equal(json.warnings.length, 1);
-    assert.match(json.warnings[0], /not one of/);
-  });
-
-  test('a non-string targetModel defaults to "inherit" with a warning', () => {
-    writeConfig(project, { targetModel: 42 });
-    const { json } = run();
-    assert.equal(json.targetModel, 'inherit');
-    assert.match(json.warnings[0], /not one of/);
-  });
-
-  test('corrupt config.json fails soft -> targetModel "inherit", no throw', () => {
-    fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
-    fs.writeFileSync(path.join(project, '.foreman', 'config.json'), '{not json', 'utf-8');
-    const { status, json } = run();
-    assert.equal(status, 0);
-    assert.equal(json.targetModel, 'inherit');
-  });
-});
-
 describe('render-sections — fableEnabled', () => {
   test('no config.json -> fableEnabled defaults to false', () => {
     const { json } = run();
@@ -338,45 +217,6 @@ describe('render-sections — fableEnabled', () => {
     assert.equal(json.fableEnabled, false);
     assert.equal(json.warnings.length, 1);
     assert.match(json.warnings[0], /not a boolean/);
-  });
-});
-
-describe('render-sections — modelSuggestions', () => {
-  test('no config.json -> modelSuggestions defaults to false', () => {
-    const { json } = run();
-    assert.equal(json.modelSuggestions, false);
-    assert.deepEqual(json.warnings, []);
-  });
-
-  test('config.json without modelSuggestions -> defaults to false', () => {
-    writeConfig(project, { discoverySuggestions: true });
-    const { json } = run();
-    assert.equal(json.modelSuggestions, false);
-  });
-
-  for (const value of [true, false]) {
-    test(`modelSuggestions: ${value} passes through`, () => {
-      writeConfig(project, { modelSuggestions: value });
-      const { json } = run();
-      assert.equal(json.modelSuggestions, value);
-      assert.deepEqual(json.warnings, []);
-    });
-  }
-
-  test('a non-boolean modelSuggestions defaults to false with a warning, no throw', () => {
-    writeConfig(project, { modelSuggestions: 'yes' });
-    const { status, json } = run();
-    assert.equal(status, 0);
-    assert.equal(json.modelSuggestions, false);
-    assert.equal(json.warnings.length, 1);
-    assert.match(json.warnings[0], /modelSuggestions.*not a boolean/);
-  });
-
-  test('it is independent of targetModel — a concrete pin leaves it off', () => {
-    writeConfig(project, { targetModel: 'sonnet' });
-    const { json } = run();
-    assert.equal(json.targetModel, 'sonnet');
-    assert.equal(json.modelSuggestions, false);
   });
 });
 
@@ -418,24 +258,6 @@ describe('render-sections — requireVerification', () => {
     fs.writeFileSync(path.join(project, '.foreman', 'config.json'), '{not json', 'utf-8');
     const { json } = run();
     assert.equal(json.requireVerification, true);
-  });
-});
-
-describe('render-sections — reserved custom section tags', () => {
-  test('a customSections tag named "decision_log" is reserved and skipped', () => {
-    writeConfig(project, { customSections: [{ tag: 'decision_log', content: 'x' }] });
-    const { json } = run();
-    assert.deepEqual(json.sections, []);
-    assert.match(json.warnings[0], /reserved/);
-  });
-
-  test('"plan" and "invariants" are reserved too — both are template-owned tags', () => {
-    for (const tag of ['plan', 'invariants']) {
-      writeConfig(project, { customSections: [{ tag, content: 'x' }] });
-      const { json } = run();
-      assert.deepEqual(json.sections, [], `<${tag}> was allowed to shadow the template block`);
-      assert.match(json.warnings[0], /reserved/);
-    }
   });
 });
 

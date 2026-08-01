@@ -408,15 +408,16 @@ describe('mutations refuse an archived id', () => {
 
 describe('the guard hook covers archive.jsonl', () => {
   function guard(payload) {
-    const result = runScriptRaw('guard-roadmap-edit.js', payload, {});
+    const result = runScriptRaw('guard-roadmap-edit.js', payload, { CLAUDE_PROJECT_DIR: project });
     assert.equal(result.status, 0, result.stderr);
     return result.stdout;
   }
 
   test('Edit of .foreman/archive.jsonl is denied', () => {
+    writeRoadmap(project, []);
     const out = guard({
       tool_name: 'Edit',
-      tool_input: { file_path: 'D:/project/.foreman/archive.jsonl' },
+      tool_input: { file_path: path.join(project, '.foreman', 'archive.jsonl') },
     });
     const payload = JSON.parse(out);
     assert.equal(payload.hookSpecificOutput.permissionDecision, 'deny');
@@ -424,12 +425,18 @@ describe('the guard hook covers archive.jsonl', () => {
     assert.match(payload.hookSpecificOutput.permissionDecisionReason, /roadmap\.js/);
   });
 
-  test('Write of archive.jsonl is denied regardless of path prefix', () => {
-    const out = guard({
-      tool_name: 'Write',
-      tool_input: { file_path: '/deep/nested/ARCHIVE.JSONL' },
-    });
-    assert.equal(JSON.parse(out).hookSpecificOutput.permissionDecision, 'deny');
+  // The name is generic. Only this project's own copy is Foreman's file —
+  // some other tool's archive.jsonl elsewhere is not ours to deny.
+  test('an archive.jsonl outside this project\'s .foreman is left alone', () => {
+    writeRoadmap(project, []);
+    assert.equal(
+      guard({ tool_name: 'Write', tool_input: { file_path: '/deep/nested/ARCHIVE.JSONL' } }),
+      ''
+    );
+    assert.equal(
+      guard({ tool_name: 'Write', tool_input: { file_path: path.join(project, 'archive.jsonl') } }),
+      ''
+    );
   });
 
   test('Bash still repairs a corrupt archive — the escape hatch stays open', () => {

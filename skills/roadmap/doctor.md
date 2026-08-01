@@ -6,10 +6,14 @@ is its own named `roadmap.js` subcommand, run separately once the user
 picks one.
 
 1. `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js doctor` — no stdin, no
-   required flags. Returns `{ok, findings, summary:{errors,warnings}}`;
-   `errors: 0` and no findings: say the roadmap is healthy and stop.
-2. Render findings in plain words, grouped by what's wrong — never dump the
-   raw JSON. Read out each finding's id(s) and its one-line `message`, then
+   required flags. Returns `{ok, findings, summary:{errors,warnings}}`.
+   Every run closes with one `severity: "info"` finding naming the Claude
+   Code hook events Foreman depends on. It is a disclosure, not a defect,
+   and it counts toward neither summary total — so read health off
+   `summary`, never off whether `findings` is empty. Both totals zero: say
+   the roadmap is healthy, pass on the disclosure in one line, and stop.
+2. Render the remaining findings in plain words, grouped by what's wrong —
+   never dump the raw JSON. Read out each finding's id(s) and its one-line `message`, then
    name the repair by what it's about:
    - format version wrong (`unsupported_schema_version`) → `migrate`
    - an id claimed twice (`duplicate_id`) → `reassign-id`; the same id in

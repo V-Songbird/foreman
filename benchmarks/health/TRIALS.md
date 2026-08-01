@@ -101,7 +101,7 @@ assuming it away.
 | ✗ | `init_started` | — | `/foreman:init` began its first question |
 | ✗ | `init_completed` | `tasks` (integer, entries written) | `/foreman:init`'s write phase finished and committed |
 | ✓ | `first_pick` | `seconds_since_init` (integer, or `null`), `sessions_since_init` (integer, or `null`) | The first handoff of this project was delivered |
-| ✗ | `question_asked` | `flow` (one of `init`, `pick`, `add`, `correct`, `status`, `survey`, `sprint`) | One `AskUserQuestion` call was put to the user |
+| ✗ | `question_asked` | `flow` (one of `init`, `pick`, `add`, `correct`, `status`, `survey`) | One `AskUserQuestion` call was put to the user |
 | ✓ | `commit_interrupted` | `hook` (one of `safe-commit`, `post-commit`, `task-completed`), `reason_class` (see below) | A Foreman commit path stopped and handed the decision back |
 | partly | `recovery_attempted` | `kind` (one of `reinit-snapshot`, `resume-in-progress`, `failed-verification-retry`), `success` (boolean) | A recovery path ran to a definite outcome |
 
@@ -205,7 +205,7 @@ nothing else:
   `init` for all three of `skills/init/SKILL.md`'s calls, `pick` / `add` /
   `correct` / `status` for `skills/roadmap/SKILL.md`'s four branches (Call 1's
   menu and the archive-finished-work ask belong to the branch the user ends up
-  in), `survey`, and `sprint` for the experimental skill. A question batched
+  in), and `survey`. A question batched
   into one call with others is one event — the cost being measured is the
   interruption, not the number of fields in it.
 - **`commit_interrupted`** — every `ok:false` return from

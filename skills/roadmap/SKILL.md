@@ -11,7 +11,8 @@ allowed-tools: AskUserQuestion, Read, Write, Bash, PowerShell, TaskCreate, TaskU
 All reads/writes to `ROADMAP.jsonl` at the project root go through
 `${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js` — never `Read`/`Edit` the file
 directly, the script enforces id computation and parse-before/after-write
-mechanically. Skim `${CLAUDE_PLUGIN_ROOT}/roadmap-schema.md` if you need
+mechanically — run it with `--help` for the command shapes. Read the
+**Fields** section of `${CLAUDE_PLUGIN_ROOT}/roadmap-schema.md` if you need
 field semantics beyond what's obvious from the names.
 
 **Pre-check**: if `ROADMAP.jsonl` doesn't exist at the project root, tell

@@ -27,23 +27,18 @@ directly.
 **Craft-time environment check (do this now, once, while assembling — not
 an instruction for the spawned session to act on later):**
 
-0. **One mechanical call covers persona/custom-sections/omissions/model-
-   scoping.** Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/render-sections.js`
+0. **One mechanical call covers persona and omissions.** Run `node
+   ${CLAUDE_PLUGIN_ROOT}/scripts/render-sections.js`
    — always (it resolves a project root from `$CLAUDE_PROJECT_DIR`/cwd and
    fails soft to defaults when no `.foreman/config.json` exists). One JSON
-   object: `{"usePersona": bool, "sections": [{"tag", "xml"}], "omit":
-   [...], "targetModel": "haiku"|"sonnet"|"opus"|"fable"|"inherit",
-   "fableEnabled": bool, "modelSuggestions": bool, "requireVerification": bool,
+   object: `{"usePersona": bool, "omit": [...],
+   "fableEnabled": bool, "requireVerification": bool,
    "decisionLog": {"enabled": bool, "dir": string}, "warnings": [...]}`.
    All of it is project **declaration** — foreman never inspects
    which style plugins or model the operator runs.
    - `usePersona` — default `true` when missing/unparseable. Controls only
      the opening of `task_context` below: persona sentence vs domain
      framing.
-   - `sections` — the config's validated `customSections`. Inline every
-     `sections[].xml` value verbatim, in order, at the `[CUSTOM SECTIONS]`
-     placeholder below — never invent, edit, or reorder; remove the
-     placeholder line if empty.
    - `omit` — the config's validated `omitSections` (only `tone`/
      `example`/`background`/`output_format` are ever valid; guardrail tags
      can't appear). Drop each listed block from the assembled prompt — a
@@ -54,58 +49,11 @@ an instruction for the spawned session to act on later):**
      run), never a background agent's, so the omission's premise fails
      there; the kept default still self-yields if a style does govern. The
      other three tags have no destination dependence.
-   - `targetModel` — default `"inherit"` whenever the field is missing,
-     unparseable, or not one of the five valid strings (that last case
-     also adds a `warnings` entry). It sets only how much elaboration
-     `relevant_files`/`context`/`task_rules` below carry, never a claim
-     about what the target model will actually manage. The effective model
-     is always the executing-model answer confirmed at craft time
-     (`craft-prompt`'s Call 6, `foreman:roadmap`'s dispatch step). Foreman
-     seeds that answer's recommended default only when `modelSuggestions`
-     is `true`: a concrete `targetModel` pin in config when the project set
-     one, otherwise a per-task recommendation judged from the task's own fit
-     (see "Model fit" below). With `modelSuggestions` `false` — the
-     default — the question is asked with no seeded default at all, and the
-     resolved `targetModel` alone drives elaboration. A confirmed
-     concrete answer tunes elaboration to that model; an inherit/unknown
-     answer keeps the full default shape:
-     - `haiku` — elaborate fully: name the exact symbol or behavior at
-       stake in `context`, not just the file; write the verification
-       block's `Expected:` line as the literal output or exit code, not a
-       category; one concrete action per `task_rules` bullet, nothing
-       compounded. Grounded in Foreman's own handoff benchmark: on Haiku,
-       the most-detailed of the structured prompt formats tested posted
-       the lowest reads-before-first-edit of the three on every fixture
-       measured, at equal-or-better correctness — thoroughness measurably
-       cut this model's exploratory overhead, never added to it.
-     - `inherit` — assemble exactly as already described above; do not
-       add elaboration beyond what the gathered answers actually
-       supplied. No declared target to tune for, so the full default
-       shape stays.
-     - `sonnet`, `opus`, `fable` — assemble at the default level, and
-       leave the read-first/run-first micro-step bullets out of
-       `task_rules`: state what to change, the constraints, and the
-       verification block — the model sequences its own exploration.
-       Grounded for `fable` in the official Fable prompting guide
-       (source-d, brief steering beats enumerating) plus Foreman's own
-       probe, and for `sonnet` and `opus` in first-party probes across
-       all three trap fixtures: equal correctness and trap compliance,
-       lower cost in every cell, turns never higher.
-
-     Model fit, Effort fit, and Match-the-recommendation guidance — all
-     three gated on `modelSuggestions`, default `false` — moved to
-     `${CLAUDE_PLUGIN_ROOT}/model-fit.md`; load it only when that flag is
-     `true`.
-   - `modelSuggestions` — boolean (default `false`) turning the per-task
-     model and effort recommendation on. See the gating note above the
-     "Model fit" bullet for exactly what stops when it is `false`.
    - `fableEnabled` — boolean declaration (default `false`) that the
      operator can run Fable 5 at all (Max plan or API — other plans
      can't). Written `false` by `foreman:init`, and set by hand in
      `.foreman/config.json` by a project that can. Gates whether `Fable` appears at all as a
-     selectable executing model in craft-time menus — it never changes
-     elaboration by itself, and a `targetModel: "fable"` project pin
-     still resolves and elaborates as `fable` regardless of this flag.
+     selectable executing model in craft-time menus, and nothing else.
    - `requireVerification` — boolean (default `true` when missing or
      unparseable). Read by `foreman:roadmap`'s embedded entry paragraph
      (its "Acceptance hold" note): with it `true`, a close that earned
@@ -281,8 +229,7 @@ it — this tone applies only in its absence."]
 </tone>
 
 [If `"background"` is in `omit`, drop this whole `<background>` block
-unconditionally. Otherwise, step 0's `targetModel` sets how much
-elaboration `relevant_files` and `context` below carry — see its bullet.]
+unconditionally.]
 <background>
 <relevant_files>
 [Exact file paths for every file the task touches, each with the symbols
@@ -323,8 +270,6 @@ normal and the gate says nothing about it.]
 [One observable assertion per line.]
 </invariants>
 
-[Step 0's `targetModel` also sets how much elaboration these bullets and
-the verification block carry — see its bullet.]
 <task_rules>
 [Pure-investigation handoff: replace the three step bullets below with the
 question under investigation plus any exact commands worth running — hand
@@ -359,9 +304,6 @@ implementation instead of the contract and will pass a broken change.
 Omit the ordering for a task whose failure is loud.]
 Do NOT claim success without running this. If it fails, fix and re-run — but after two failed fix attempts, stop and report what is still failing instead of widening the change to make the check pass.
 </task_rules>
-
-[CUSTOM SECTIONS — inline each `sections[].xml` from `render-sections.js` here,
-verbatim, in order; omit this whole line if `sections` was empty]
 
 [OPTIONAL — include only when the task has a clear before/after pattern.
 If `"example"` is in `omit`, drop this whole block unconditionally, even
@@ -442,8 +384,9 @@ using them:
 
 Two profiles, `standard` and `reinforced`. Ordinary fresh work does not need
 the same weight as work that is stale, conflicting, risky, resumed, or highly
-constrained, so decide the profile **before** assembling and say which one and
-why in one line of the delivery message.
+constrained, so the profile is decided **before** assembling. It is internal
+bookkeeping: never name the profile, or which signals fired, in anything the
+user reads. They asked for a task, not for Foreman's own scoring.
 
 **The signals — all mechanical, computed from the roadmap/git facts already in
 hand at craft time. Never a judgment call.** Any one of them true →
@@ -451,7 +394,7 @@ hand at craft time. Never a judgment call.** Any one of them true →
 
 - **resumed** — the pick came from the `next-candidates` `in_progress` array
   (the finish-first resume path), or the selected entry's `commits` /
-  `observed_touches` is non-empty. A sprint coordinator's own
+  `observed_touches` is non-empty. A coordinator's own
   `planned` → `in_progress` transition immediately before dispatch does not
   count: the entry had no earlier session.
 - **conflicting** — the candidate row's `collision` is `true`.
@@ -494,9 +437,9 @@ A block a standard prompt does keep is still held to the template verbatim —
 ## Checklist (verify before handoff)
 
 - [ ] the profile was decided from the mechanical signals above, before
-      assembly, and stated in one line with the signal that chose it — every
-      item below applies to a `reinforced` handoff; a `standard` one keeps
-      only the blocks the "Handoff profiles" section lists
+      assembly, and never said out loud — every item below applies to a
+      `reinforced` handoff; a `standard` one keeps only the blocks the
+      "Handoff profiles" section lists
 - [ ] `task_context` names a specific role (domain framing when
       `usePersona` was `false`) and a concrete one-sentence "done" state
 - [ ] `truth_grounding` present, unmodified — every handoff carries it
@@ -508,15 +451,7 @@ A block a standard prompt does keep is still held to the template verbatim —
       both are fixed text, never reworded per task
 - [ ] `render-sections.js` ran once at craft time (never deferred to the
       spawned session) and its `usePersona` field — not a fresh `Read` or
-      flag check — drove `<task_context>`; its `targetModel` field —
-      overridden by a concrete executing-model answer when the crafting
-      flow gathered one — drove how much elaboration went into
-      `relevant_files`/`context`/`task_rules` below
-- [ ] when `modelSuggestions` was `true`, a reasoning effort was recommended
-      alongside the model, judged by the "Effort fit" note's
-      verification-cost rule and said out loud to the operator — never
-      auto-applied, and never written into the prompt. When it was `false`,
-      neither half was stated at all
+      flag check — drove `<task_context>`
 - [ ] `resolve-symbols.js` ran in the same craft-time slot when any file
       paths were known, its `files[].symbols` fed `relevant_files`, and
       every `missing` path and `unresolved` name was resolved before
@@ -621,14 +556,19 @@ says what each one does once picked.
 tasks spawned through it don't get MCP tools. Use one of the three
 destinations below instead, regardless of Desktop or CLI.
 
-**Execution-mode options** — asked only when the destination is `Execute
-here`, deciding how the work is tracked, not what the prompt says:
-`Tasks from the checks (Recommended)`, `One task, then work it`, or
-`Run now, no tracking`. The crafting skill asks this directly and owns
-the `TaskCreate`/`TaskUpdate` mechanics per mode; `AskUserQuestion`'s own
+**One question, not two.** Destination and execution mode are asked
+together, in a single `AskUserQuestion` the crafting skill owns:
+`Execute here (Recommended)` (one tracked task, worked in this session),
+`Execute here, split by check` (one tracked task per check, each finished
+one committed on a `foreman/<slug>` branch), `Execute with a background
+Agent`, and `Copy prompt to clipboard`. Gather the verification commands
+*before* asking: the split option exists only when there are two or more
+checks, so a one-check task never sees it. `AskUserQuestion`'s own
 free-text option is where a user names the pieces or gives a fixed number
 instead of one-per-check (the splitting section below says what a bare
-number does).
+number does). The `(Recommended)` tag stays on the option that creates no
+branch — a checkpoint branch is a real change to the user's repository and
+is never the default suggestion.
 
 **Background Agent** — call `Agent` with `prompt` = the assembled XML
 prompt, `description` = a 3-5 word summary, `run_in_background: true`.
@@ -682,7 +622,7 @@ exists.
 
 ## Splitting an `Execute here` handoff into several tasks
 
-Only for the `Execute here` destination, `Tasks from the checks` mode.
+Only for the `Execute here, split by check` option.
 `craft-handoff.js` already computes the row shapes and returns them as
 `tasks[]`: one task per runnable check (never by file, never by the
 analyze/implement bullets — a single check is a single task, full stop),
@@ -705,11 +645,10 @@ nothing the checker inspects.
 
 ## Checkpointing a task-split run
 
-Only for the `Tasks from the checks` execution mode, and only when the
-split produced two or more tasks. Single-task mode, `Run now`, and the
-other destinations skip this section entirely — except the clipboard
-checkpoint embed above, which reuses the config-resolution step below at
-craft time.
+Only for the `Execute here, split by check` option, which the crafting
+skill offers only when the split produces two or more tasks. Every other
+option skips this section entirely — except the clipboard checkpoint embed
+above, which reuses the config-resolution step below at craft time.
 
 <!-- [Foreman: 119] -->
 - **Read the config first.** Before anything else, read the `checkpoints`
@@ -768,6 +707,14 @@ craft time.
   - `Open a PR` — push and `gh pr create` against the base branch; if
     `gh` is unavailable, say so and keep the branch
   - `Keep the branch` — do nothing
+
+  **Write the answer back so it is asked once.** After the user answers,
+  set `checkpoints.onFinish` in `.foreman/config.json` to the matching
+  value (`squash`/`merge`/`pr`/`keep`) — `Read` the file, set that one key
+  inside the `checkpoints` object, and write it back with every other key
+  untouched. Say in one line that later runs will act on it directly. A
+  run that reached this question through a concrete config value never
+  asked, so it never writes.
 
 ## When NOT to hand off — do it inline instead
 

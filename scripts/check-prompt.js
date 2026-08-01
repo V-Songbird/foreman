@@ -298,13 +298,6 @@ function checkPrompt(prompt, opts) {
     errors.push("missing <output_format> — include the template default unless the project omits it");
   }
 
-  // --- custom sections, inlined verbatim ---
-  for (const section of config.sections) {
-    if (!norm(prompt).includes(norm(section.xml))) {
-      errors.push(`custom section <${section.tag}> from .foreman/config.json is missing or altered — inline it verbatim`);
-    }
-  }
-
   // --- roadmap-entry paragraph ---
   if (opts.entry) {
     const marker = `ROADMAP.jsonl entry \`${opts.entry}\``;

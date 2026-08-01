@@ -1032,7 +1032,7 @@ describe('next-candidates', () => {
   });
 
   // [Foreman: 125] Collision matching is the same normalized, folder-aware
-  // rule sprint planning uses — an area hint owns everything beneath it, in
+  // rule safe-commit uses — an area hint owns everything beneath it, in
   // either direction, whatever separators/case/decoration the author typed.
   describe('folder-aware collision matching', () => {
     const cases = [

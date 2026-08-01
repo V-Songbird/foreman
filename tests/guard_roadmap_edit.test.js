@@ -10,28 +10,42 @@
 //     escape hatch for genuine corrupt-file repair stays open
 //   - the denial names every mutation command roadmap.js's dispatcher
 //     actually accepts, not a stale subset
+//   - a project with no ROADMAP.jsonl gets zero bytes, whatever is edited
+//   - archive.jsonl only counts inside this project's own .foreman directory
 
-const { test, describe } = require('node:test');
+const { test, describe, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
+const path = require('node:path');
 
-const { runScriptRaw } = require('./helpers');
+const { runScriptRaw, makeTmpProject, writeRoadmap } = require('./helpers');
 
-function run(payload) {
-  const result = runScriptRaw('guard-roadmap-edit.js', payload, {});
+let project;
+
+beforeEach(() => {
+  project = makeTmpProject();
+  writeRoadmap(project, []);
+});
+
+function run(payload, root = project) {
+  const result = runScriptRaw('guard-roadmap-edit.js', payload, { CLAUDE_PROJECT_DIR: root });
   assert.equal(result.status, 0, result.stderr);
   return result.stdout;
 }
 
+function inProject(...segments) {
+  return path.join(project, ...segments);
+}
+
 describe('blocks direct edits to ROADMAP.jsonl', () => {
   test('Edit is denied', () => {
-    const out = run({ tool_name: 'Edit', tool_input: { file_path: 'D:/project/ROADMAP.jsonl' } });
+    const out = run({ tool_name: 'Edit', tool_input: { file_path: inProject('ROADMAP.jsonl') } });
     const payload = JSON.parse(out);
     assert.equal(payload.hookSpecificOutput.permissionDecision, 'deny');
     assert.match(payload.hookSpecificOutput.permissionDecisionReason, /roadmap\.js/);
   });
 
   test('Write is denied', () => {
-    const out = run({ tool_name: 'Write', tool_input: { file_path: 'D:/project/ROADMAP.jsonl' } });
+    const out = run({ tool_name: 'Write', tool_input: { file_path: inProject('ROADMAP.jsonl') } });
     const payload = JSON.parse(out);
     assert.equal(payload.hookSpecificOutput.permissionDecision, 'deny');
   });
@@ -43,7 +57,7 @@ describe('blocks direct edits to ROADMAP.jsonl', () => {
   // them, not a stale subset — a fix for a stale entry needs "correct" in
   // this list to find its way there at all.
   test('names every mutation command the CLI actually accepts', () => {
-    const out = run({ tool_name: 'Edit', tool_input: { file_path: 'D:/project/ROADMAP.jsonl' } });
+    const out = run({ tool_name: 'Edit', tool_input: { file_path: inProject('ROADMAP.jsonl') } });
     const { permissionDecisionReason } = JSON.parse(out).hookSpecificOutput;
     for (const command of [
       'add', 'update-status', 'annotate', 'update-deps', 'correct',
@@ -61,7 +75,7 @@ describe('blocks direct edits to ROADMAP.jsonl', () => {
   });
 
   test('case-insensitive basename match', () => {
-    const out = run({ tool_name: 'Edit', tool_input: { file_path: 'D:/project/roadmap.JSONL' } });
+    const out = run({ tool_name: 'Edit', tool_input: { file_path: inProject('roadmap.JSONL') } });
     const payload = JSON.parse(out);
     assert.equal(payload.hookSpecificOutput.permissionDecision, 'deny');
   });
@@ -69,17 +83,17 @@ describe('blocks direct edits to ROADMAP.jsonl', () => {
 
 describe('leaves everything else alone', () => {
   test('Edit of an unrelated file stays silent', () => {
-    const out = run({ tool_name: 'Edit', tool_input: { file_path: 'D:/project/src/foo.ts' } });
+    const out = run({ tool_name: 'Edit', tool_input: { file_path: inProject('src', 'foo.ts') } });
     assert.equal(out, '');
   });
 
   test('Write of .foreman/config.json stays silent — that file has no CLI path', () => {
-    const out = run({ tool_name: 'Write', tool_input: { file_path: 'D:/project/.foreman/config.json' } });
+    const out = run({ tool_name: 'Write', tool_input: { file_path: inProject('.foreman', 'config.json') } });
     assert.equal(out, '');
   });
 
   test('a filename that merely contains "roadmap" is not a match', () => {
-    const out = run({ tool_name: 'Edit', tool_input: { file_path: 'D:/project/docs/roadmap-notes.md' } });
+    const out = run({ tool_name: 'Edit', tool_input: { file_path: inProject('docs', 'roadmap-notes.md') } });
     assert.equal(out, '');
   });
 
@@ -90,6 +104,17 @@ describe('leaves everything else alone', () => {
 
   test('missing file_path stays silent', () => {
     const out = run({ tool_name: 'Edit', tool_input: {} });
+    assert.equal(out, '');
+  });
+});
+
+describe('a project with no roadmap is not Foreman\'s to talk in', () => {
+  test('editing ROADMAP.jsonl in an uninitialized project writes zero bytes', () => {
+    const bare = makeTmpProject();
+    const out = run(
+      { tool_name: 'Edit', tool_input: { file_path: path.join(bare, 'ROADMAP.jsonl') } },
+      bare
+    );
     assert.equal(out, '');
   });
 });

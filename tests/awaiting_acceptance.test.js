@@ -408,14 +408,6 @@ describe('skill contracts', () => {
     assert.doesNotMatch(notHeld, /awaiting_acceptance/);
   });
 
-  test('the sprint fold-back records awaiting acceptance, not in_progress', () => {
-    const skill = readSkill('skills', 'sprint', 'SKILL.md');
-
-    assert.match(skill, /"status":"awaiting_acceptance","commit":"<sha>"/);
-    assert.match(skill, /Leave unaccepted entries `awaiting_acceptance`/);
-    assert.match(skill, /those\s+outcomes never reach `awaiting_acceptance`/);
-  });
-
   test('the schema documents the lifecycle and the downgrade cost', () => {
     const schema = readSkill('roadmap-schema.md');
 

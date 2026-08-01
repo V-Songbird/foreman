@@ -44,9 +44,9 @@ describe("init skill contract", () => {
     assert.doesNotMatch(skill, /git add \./);
   });
 
-  test("preserves configuration keys it does not recognize", () => {
-    assert.match(skill, /any other key present must survive untouched/);
-    assert.match(skill, /the rule is "everything else\s+survives", not a list/);
+  test("preserves an existing config untouched", () => {
+    assert.match(skill, /leave it exactly as it is/);
+    assert.match(skill, /re-init\s+must not throw away/);
   });
 });
 
@@ -80,28 +80,28 @@ describe("init asks three strategy questions", () => {
 });
 
 describe("init writes safe defaults instead of asking", () => {
-  test("the five written keys, at their safe values", () => {
-    assert.match(skill, /"usePersona": true/);
-    assert.match(skill, /"omitSections": \[\]/);
-    assert.match(skill, /"requireVerification": true/);
-    assert.match(skill, /"taskCloseGate": "off"/);
-    assert.match(skill, /"fableEnabled": false/);
-    assert.match(skill, /those five keys exactly, at those values/);
+  // 1.0: init writes no settings at all. Every default lives in the module
+  // that reads it, so restating them in the file only creates a second copy
+  // that can drift from the reader — which is exactly what happened before.
+  test("the config is written empty, with no key restated", () => {
+    assert.match(skill, /`\.foreman\/config\.json` as `\{\}`/);
+    for (const key of ['usePersona', 'omitSections', 'requireVerification', 'taskCloseGate', 'fableEnabled']) {
+      assert.doesNotMatch(skill, new RegExp(`"${key}": `), `init still writes ${key} into the config`);
+    }
   });
 
   // Absent is not the same as false here: it is also the record that the
   // user was never asked, which is what makes the later first-relevant ask
   // fire exactly once. Writing the key at init would silence it forever.
-  test("leaves the three first-relevant keys unwritten", () => {
-    assert.match(skill, /`discoverySuggestions`, `decisionLog`, and `modelSuggestions` are\s+deliberately \*\*not written\*\*/);
-    assert.match(skill, /absence is also the record that the user was never\s+asked/);
+  test("leaves the first-relevant keys unwritten", () => {
+    assert.match(skill, /`discoverySuggestions` and `decisionLog` stay absent/);
+    assert.match(skill, /an absent key is the record that the user was never\s+asked/);
     assert.doesNotMatch(skill, /"discoverySuggestions": (true|false)/);
-    assert.doesNotMatch(skill, /"modelSuggestions": (true|false)/);
     assert.doesNotMatch(skill, /"decisionLog": \{/);
   });
 
   test("a re-init must not discard an answer already recorded", () => {
-    assert.match(skill, /answers to first-relevant asks that a\s+re-init must not throw away/);
+    assert.match(skill, /recorded answer to a first-relevant ask[\s\S]{0,120}re-init\s+must not throw away/);
   });
 
   // [Foreman: 188] The old generation's ids live on in trailers and anchors;
