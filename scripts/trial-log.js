@@ -29,6 +29,7 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const { readConfigFile } = require("./foreman-config");
 
 const FOREMAN_DIR = ".foreman";
 const LOG_FILE = "trial-log.jsonl";
@@ -115,12 +116,7 @@ function today() {
  * direction a bug here is allowed to fail in.
  */
 function enabled(root) {
-  try {
-    const raw = fs.readFileSync(path.join(foremanDir(root), "config.json"), "utf-8");
-    return JSON.parse(raw).trialLog === true;
-  } catch {
-    return false;
-  }
+  return readConfigFile(root).config.trialLog === true;
 }
 
 /**

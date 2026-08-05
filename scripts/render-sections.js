@@ -4,13 +4,10 @@
 const fs = require("fs");
 const path = require("path");
 const { readDecisionLog } = require("./decision-log-config");
+const { configPath, readConfigFile } = require("./foreman-config");
 
 function projectDir() {
   return path.resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
-}
-
-function configPath(root) {
-  return path.join(root, ".foreman", "config.json");
 }
 
 // Declaration, not detection: the project states whether crafted prompts
@@ -36,17 +33,14 @@ function readUsePersona(config) {
 // keep swallowing their own parse errors because SessionStart/PostToolUse
 // have nowhere to surface one — which is why this warning names them.
 function readConfig(root) {
-  try {
-    return { config: JSON.parse(fs.readFileSync(configPath(root), "utf-8")) || {}, warning: null };
-  } catch (err) {
-    if (err && err.code === "ENOENT") return { config: {}, warning: null };
-    return {
-      config: {},
-      warning:
-        '.foreman/config.json exists but could not be read as JSON — every setting fell back to its ' +
-        "default for this prompt, including the ones foreman's hooks read. Fix the file and re-run.",
-    };
-  }
+  const { config, error } = readConfigFile(root);
+  if (!error) return { config, warning: null };
+  return {
+    config,
+    warning:
+      '.foreman/config.json exists but could not be read as JSON — every setting fell back to its ' +
+      "default for this prompt, including the ones foreman's hooks read. Fix the file and re-run.",
+  };
 }
 
 // Declaration, not detection: the project states whether it can run

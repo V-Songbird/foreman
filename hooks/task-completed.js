@@ -49,6 +49,7 @@ const {
   trailerShasFor,
 } = require("../scripts/commit-evidence");
 const { readDecisionLog } = require("../scripts/decision-log-config");
+const { readConfigFile } = require("../scripts/foreman-config");
 const { record: recordTrial, recordResumeRecovered } = require("../scripts/trial-log");
 const { ENTRY_MARKER_RE, entryIdFromDescription } = require("./task-created");
 
@@ -90,14 +91,10 @@ function projectDir(data) {
 }
 
 function readConfig(root) {
-  const p = path.join(root, ".foreman", "config.json");
-  try {
-    const parsed = JSON.parse(fs.readFileSync(p, "utf-8"));
-    const v = parsed?.taskCloseGate;
-    return GATE_MODES.has(v) ? v : "off";
-  } catch {
-    return "off"; // absent config, or corrupt -- same safe default
-  }
+  // Absent config, or corrupt -- same safe default: readConfigFile hands
+  // back {} for both, and this hook's event has no channel to warn on.
+  const v = readConfigFile(root).config.taskCloseGate;
+  return GATE_MODES.has(v) ? v : "off";
 }
 
 // Once-only-per-task latch, same shape as post-commit.js's freshlyDone

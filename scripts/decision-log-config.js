@@ -8,8 +8,8 @@
 // .foreman/config.json -> defaults. This module owns that chain once so
 // none of the three restate it or drift apart.
 
-const fs = require('fs');
 const path = require('path');
+const { readConfigFile } = require('./foreman-config');
 
 // Off by default: enabling it writes ADR files into the project and anchor
 // comments into its source, and the retrieval side is still file-triggered
@@ -27,10 +27,6 @@ const DECISION_LOG_DEFAULTS = Object.freeze({
 // header) -- so an advisory mode here could only ever be silent.
 const VALID_GATES = new Set(['off', 'block']);
 
-function configPath(root) {
-  return path.join(root, '.foreman', 'config.json');
-}
-
 // A relative path with no leading slash/backslash, no drive-letter root,
 // and no ".." segment — the scope the caller trusts a dir to write ADR
 // docs under. Trailing slashes and "./" segments are tolerated.
@@ -47,11 +43,8 @@ function isValidDir(value) {
 // parse loses every decisionLog setting to its default, and that loss is
 // reported (not silent) since two of the three consumers are gates.
 function readGroup(root) {
-  try {
-    const parsed = JSON.parse(fs.readFileSync(configPath(root), 'utf-8'));
-    return { group: (parsed && parsed.decisionLog) || {}, warning: null };
-  } catch (err) {
-    if (err && err.code === 'ENOENT') return { group: {}, warning: null };
+  const { config, error } = readConfigFile(root);
+  if (error) {
     return {
       group: {},
       warning:
@@ -59,6 +52,7 @@ function readGroup(root) {
         'setting fell back to its default for this read.',
     };
   }
+  return { group: config.decisionLog || {}, warning: null };
 }
 
 /**

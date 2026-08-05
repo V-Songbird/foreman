@@ -10,6 +10,7 @@ const { execFileSync } = require("child_process");
 
 const { readEntries, today, trailerIdsIn } = require("../scripts/roadmap");
 const { resolveHookScope } = require("../scripts/commit-evidence");
+const { readConfigFile } = require("../scripts/foreman-config");
 
 const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
   ? path.resolve(process.env.CLAUDE_PLUGIN_ROOT)
@@ -128,17 +129,15 @@ function filterUnnudged(root, ids, todayStr) {
 // is a decline. Only the first earns the one-time invitation below. An
 // unreadable config counts as unanswered too — it holds no answer either.
 function readConfig(root) {
-  const p = path.join(root, ".foreman", "config.json");
-  try {
-    const parsed = JSON.parse(fs.readFileSync(p, "utf-8"));
-    return {
-      discoverySuggestions: parsed?.discoverySuggestions === true,
-      discoveryUnanswered: !(parsed && typeof parsed === "object" && "discoverySuggestions" in parsed),
-      requireVerification: parsed?.requireVerification !== false,
-    };
-  } catch {
-    return { discoverySuggestions: false, discoveryUnanswered: true, requireVerification: true };
-  }
+  // Corrupt config reads as {} — silent here, deliberately: SessionStart/
+  // PostToolUse have no user-visible channel for a warning, and {} lands on
+  // every safe default above (render-sections.js owns the visible warning).
+  const { config } = readConfigFile(root);
+  return {
+    discoverySuggestions: config.discoverySuggestions === true,
+    discoveryUnanswered: !("discoverySuggestions" in config),
+    requireVerification: config.requireVerification !== false,
+  };
 }
 
 // A short tag on each surfaced in_progress task saying whether this commit's
