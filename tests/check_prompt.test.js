@@ -365,12 +365,21 @@ describe('drift pins', () => {
     assert.ok(raw.includes('must not switch branches or\ncommit checkpoints'));
   });
 
-  test('both skills carry the background-Agent orchestration steering line', () => {
+  // entry 223: the destination question (and its orchestration steering
+  // line) moved into the one shared branch file both flows read at that
+  // step — so the line is pinned there, and each flow is pinned to still
+  // point at the shared file.
+  test('the shared destination question carries the background-Agent orchestration steering line', () => {
+    const shared = fs.readFileSync(
+      path.join(__dirname, '..', 'skills', 'roadmap', 'destination-question.md'),
+      'utf-8'
+    );
+    assert.ok(shared.includes('best for orchestration, where this session owns the commits'));
     for (const rel of [['skills', 'craft-prompt', 'SKILL.md'], ['skills', 'roadmap', 'pick.md']]) {
       const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8');
       assert.ok(
-        skill.includes('best for orchestration, where this session owns the commits'),
-        `${rel.join('/')} lost the orchestration steering line`
+        skill.includes('skills/roadmap/destination-question.md'),
+        `${rel.join('/')} no longer reads the shared destination question`
       );
     }
   });

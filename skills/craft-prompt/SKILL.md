@@ -132,15 +132,10 @@ For each section selected in Call 1 Q2, ask its detail question(s). Batch up to 
 
 ---
 
-## Resolve project config (craft-time, once)
-
-Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/render-sections.js` now. Only its
-`fableEnabled` field is read here, to gate Call 6 below; `craft-handoff.js`
-resolves the same config again internally when it assembles. Surface its
-`warnings` now, if any.
+## Resolve the named files (craft-time, once)
 
 Once the file paths are known, run
-`node ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-symbols.js` in the same slot.
+`node ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-symbols.js` now.
 `craft-handoff.js` resolves the touched paths again on its own, so this
 call exists only for the check below — catching a problem now, before the
 interview continues, instead of after assembly.
@@ -164,32 +159,13 @@ fields here rather than assembling around them:
 
 ## Call 5 — how to run it
 
-Destination and execution mode in one question, asked now, before the
-prompt exists. There is nothing to preview yet; the answer decides how the
-prompt gets built and delivered, not the other way around. Call 3 already
-gathered the verification commands, so the count is known here.
-
-**Q1** — "How do you want to run this?"
-Options, in this order:
-- `Execute here (Recommended)` — one tracked task carrying the whole
-  prompt, worked in this session. It changes nothing about your branches,
-  which is why it leads.
-- `Execute here, split by check` — one tracked task per verification
-  command, each finished task committed on a `foreman/<slug>` branch.
-  **Offer this option only when Call 3 gathered two or more checks.**
-- `Execute with a background Agent` — offload it, get notified on completion — best for orchestration, where this session owns the commits
-- `Copy prompt to clipboard` — just get the text, no execution
-
-Never call `mcp__ccd_session__spawn_task` for any of these — it has a
-known bug where tasks spawned through it don't get MCP tools. `TaskCreate`,
-`Agent`, and the clipboard mechanics in Deliver below are the only three
-delivery paths, regardless of Desktop or CLI.
-
-`AskUserQuestion` appends its own free-text option; never author one — free
-text naming the pieces, or a fixed number of tasks, both mean the split
-cuts into that many slices at whatever verification boundaries exist. Don't
-add a confirmation question: the created rows are the preview, and a wrong
-one is removed with `TaskUpdate` `status: "deleted"`.
+Call 3 already gathered the verification commands, so the count is known
+here. Read `${CLAUDE_PLUGIN_ROOT}/skills/roadmap/destination-question.md`
+now and do exactly what it says: it carries the question and its options
+(the split option appears only when Call 3 gathered two or more checks),
+the delivery-path rule, and the render-sections `fableEnabled` resolve
+that follows the answer — that resolve gates Call 6 below. The checkpoint
+protocol and clipboard mechanics it defers to are Deliver below.
 
 ---
 
