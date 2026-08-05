@@ -37,7 +37,7 @@ numbers can be measured. Off by default. It records counts, booleans, and
 Foreman's own branch names — never a task title, a file path, an id, or
 anything you typed. The file is `.foreman/trial-log.jsonl`, it never leaves
 your machine, and deleting it at any moment is supported. See
-[`benchmarks/health/TRIALS.md`](benchmarks/health/TRIALS.md).
+[`TRIALS.md`](TRIALS.md).
 
 ## Sharing a session with another plugin
 

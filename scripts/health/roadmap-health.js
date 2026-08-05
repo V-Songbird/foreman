@@ -28,8 +28,8 @@ const {
   today,
   TERMINAL_STATUSES,
   CORRECTION_MARKER,
-} = require("../../scripts/roadmap");
-const { validateEntries, validateAcrossFiles } = require("../../scripts/roadmap-doctor");
+} = require("../roadmap");
+const { validateEntries, validateAcrossFiles } = require("../roadmap-doctor");
 
 // "more than 30 days before today" — the same threshold the roadmap skill's
 // staleness signal and the handoff profile check already use.

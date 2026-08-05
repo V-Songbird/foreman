@@ -178,7 +178,7 @@ function readEntriesFrom(file, label) {
 }
 
 // [Foreman: 132] ACTIVE entries only, and deliberately unchanged in shape:
-// every existing caller (list, next-candidates, the hooks, the benchmarks)
+// every existing caller (list, next-candidates, the hooks, the replay harness)
 // excludes archived work by construction instead of remembering to filter.
 function readEntries(root) {
   return readEntriesFrom(roadmapPath(root), "ROADMAP.jsonl");
@@ -1230,7 +1230,7 @@ const CORRECTABLE_STATUSES = new Set([
 // prose a correction replaced is git's job, and copying it here would rebuild
 // in `notes` exactly the museum of obsolete wording this command exists to
 // avoid. Without the stamp an applied correction left no trace at all, so
-// benchmarks/health/roadmap-health.js had nothing to count.
+// scripts/health/roadmap-health.js had nothing to count.
 const CORRECTION_MARKER = "correction applied: ";
 
 // [Foreman: 202] `expected.planned_touches`'s guard compares the same
@@ -2541,7 +2541,7 @@ module.exports = {
   roadmapPath,
   readEntries,
   // [Foreman: 142] The same parser behind readEntries/readArchive, for a
-  // reader pointed at a file neither of those names (benchmarks/health's
+  // reader pointed at a file neither of those names (scripts/health's
   // explicit --archive). Read-only callers only; every writer goes through
   // writeEntries/writeArchive.
   readEntriesFrom,
@@ -2621,7 +2621,7 @@ module.exports = {
   commitTrailerFor,
   trailerIdsIn,
   // [Foreman: 178] The stamp cmdCorrect writes, exported so
-  // benchmarks/health/roadmap-health.js counts the string this script
+  // scripts/health/roadmap-health.js counts the string this script
   // actually writes rather than a second copy of it.
   CORRECTION_MARKER,
   USAGE,

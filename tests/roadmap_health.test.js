@@ -22,9 +22,9 @@ const {
   loadTrialLog,
   trialMetrics,
   health,
-} = require("../benchmarks/health/roadmap-health");
+} = require("../scripts/health/roadmap-health");
 
-const SCRIPT = path.join(__dirname, "..", "benchmarks", "health", "roadmap-health.js");
+const SCRIPT = path.join(__dirname, "..", "scripts", "health", "roadmap-health.js");
 const DATE = "2026-07-28";
 
 let project;

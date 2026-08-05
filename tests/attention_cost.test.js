@@ -25,10 +25,10 @@ const {
   fileMetrics,
   trialMetrics,
   attentionCost,
-} = require("../benchmarks/health/attention-cost");
-const { loadTrialLog } = require("../benchmarks/health/roadmap-health");
+} = require("../scripts/health/attention-cost");
+const { loadTrialLog } = require("../scripts/health/roadmap-health");
 
-const SCRIPT = path.join(__dirname, "..", "benchmarks", "health", "attention-cost.js");
+const SCRIPT = path.join(__dirname, "..", "scripts", "health", "attention-cost.js");
 const DATE = "2026-07-28";
 
 let project;

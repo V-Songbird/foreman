@@ -34,14 +34,14 @@ const {
   normalizedTouch,
   touchesOverlap,
   TERMINAL_STATUSES,
-} = require("../../scripts/roadmap");
+} = require("../roadmap");
 const {
   readCanonical,
   CONCISE_TRUTH_SENTENCE,
   CLOSURE_EVIDENCE_SENTENCE,
   NO_INVENTION_SENTENCE,
   FIX_CEILING_SENTENCE,
-} = require("../../scripts/check-prompt");
+} = require("../check-prompt");
 const { loadTrialLog, ratio } = require("./roadmap-health");
 
 // The close-time stamp roadmap.js `driftNote` writes into `notes`. Both

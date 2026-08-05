@@ -39,7 +39,7 @@ const {
   CORRECTABLE_STATUSES,
   TERMINAL_STATUSES,
 } = require('../scripts/roadmap');
-const { fileMetrics } = require('../benchmarks/health/roadmap-health');
+const { fileMetrics } = require('../scripts/health/roadmap-health');
 
 let project;
 let env;

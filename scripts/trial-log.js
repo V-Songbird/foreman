@@ -3,7 +3,7 @@
 
 // [Foreman: 208] The writer for the opt-in project trial log.
 //
-// benchmarks/health/TRIALS.md defines the log: what may be recorded, the
+// TRIALS.md (plugin root) defines the log: what may be recorded, the
 // closed vocabulary, and the privacy rules. Until now nothing wrote one, so
 // roadmap-health.js and attention-cost.js reported every usage-dependent rate
 // as null with reason "no_trial_log". This is the write half.
@@ -194,7 +194,7 @@ function record(event, fields = {}, options = {}) {
 /**
  * Every readable line already in this project's log, oldest first. Malformed
  * lines are skipped rather than counted — the counting reader that reports
- * them is benchmarks/health/roadmap-health.js's loadTrialLog; this one exists
+ * them is scripts/health/roadmap-health.js's loadTrialLog; this one exists
  * only so a writer can ask what it already wrote.
  */
 function readEvents(root) {
