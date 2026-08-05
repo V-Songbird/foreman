@@ -105,6 +105,20 @@ describe('decision-anchors hook', () => {
     assert.match(out, /023\.md/);
   });
 
+  test('no decision-log dir at all writes zero bytes, anchors or not', () => {
+    const target = writeFile('src/thing.js', '// [Foreman: 025]\n');
+    const out = run(payload(target, { session_id: 's-nodir' }));
+    assert.equal(out, '');
+  });
+
+  test('anchors surface again once the decision-log dir exists — the skip latches nothing', () => {
+    const target = writeFile('src/thing.js', '// [Foreman: 026]\n');
+    assert.equal(run(payload(target, { session_id: 's-redir' })), '');
+    writeFile('docs/foreman/026.md', '# decision');
+    const out = run(payload(target, { session_id: 's-redir' }));
+    assert.match(out, /026\.md/);
+  });
+
   test('a project with no ROADMAP.jsonl writes zero bytes', () => {
     const target = writeFile('src/thing.js', '// [Foreman: 024]\n');
     writeFile('docs/foreman/024.md', '# decision');

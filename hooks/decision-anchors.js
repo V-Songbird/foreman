@@ -114,6 +114,13 @@ function main() {
   // A project that never ran init is not Foreman's to talk in.
   if (!fs.existsSync(path.join(root, "ROADMAP.jsonl"))) return;
 
+  // No decision-log dir means no doc could possibly surface, so exit on one
+  // stat instead of paying the capped read on every touched file. Anchors
+  // stay findable the moment the dir exists again (decisionLog re-enabled) —
+  // nothing is latched on this path.
+  const { dir } = readDecisionLog(root);
+  if (!fs.existsSync(path.join(root, dir))) return;
+
   const target = path.isAbsolute(filePath) ? filePath : path.resolve(root, filePath);
 
   const content = readCapped(target);
@@ -122,7 +129,6 @@ function main() {
   const ids = anchorIdsIn(content);
   if (!ids.length) return;
 
-  const { dir } = readDecisionLog(root);
   const keptIds = [];
   const relPaths = [];
   for (const id of ids) {
