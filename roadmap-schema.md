@@ -404,7 +404,7 @@ filters. Archived entries are not editable in place: `update-status`,
 `restore`.
 
 **Guards.** The archive is a shared ledger like `ROADMAP.jsonl` — a task's
-own commit must not carry it (`isSharedLedger` in `scripts/sprint.js`), and
+own commit must not carry it (`isSharedLedger` in `scripts/safe-commit.js`), and
 safe-commit's `roadmap_close` carve-out stays `ROADMAP.jsonl` only, since a
 close writes the roadmap and never the archive.
 

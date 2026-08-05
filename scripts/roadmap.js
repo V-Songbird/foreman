@@ -1509,7 +1509,7 @@ function hintScore(hintWords, entry) {
 
 // [Foreman: 125]
 // The one collision rule, shared by next-candidates and safe-commit's
-// ownership check (scripts/sprint.js re-exports both).
+// ownership check.
 // `touches` is an area hint, so `src/auth` owns everything beneath it —
 // matching has to be folder-aware in both directions, and forgiving about
 // the shapes a human types: Windows separators, `./` prefixes, trailing
