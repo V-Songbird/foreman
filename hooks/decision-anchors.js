@@ -18,6 +18,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { readInput, projectDir } = require("./lib");
 const crypto = require("crypto");
 
 const { anchorIdsIn } = require("../scripts/roadmap");
@@ -25,24 +26,6 @@ const { readDecisionLog } = require("../scripts/decision-log-config");
 
 const WATCHED_TOOLS = new Set(["Read", "Edit", "Write"]);
 const MAX_BYTES = 512 * 1024;
-
-function readInput() {
-  let raw;
-  try {
-    raw = fs.readFileSync(0, "utf-8");
-  } catch {
-    return {};
-  }
-  try {
-    return JSON.parse(raw || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function projectDir(data) {
-  return path.resolve(process.env.CLAUDE_PROJECT_DIR || data.cwd || process.cwd());
-}
 
 // Reads at most the first MAX_BYTES of `filePath`. null on anything that
 // isn't a readable regular file (missing, directory, permission-denied) --

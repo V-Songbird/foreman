@@ -4,6 +4,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { readInput, projectDir } = require("./lib");
 const crypto = require("crypto");
 
 const { execFileSync } = require("child_process");
@@ -20,24 +21,6 @@ const SCRIPT_PATH = path.join(PLUGIN_ROOT, "scripts", "roadmap.js");
 const WATCHED_TOOLS = new Set(["Bash", "PowerShell"]);
 const SEP = /\s*(?:&&|\|\||[;|\n])\s*/;
 const COMMIT_RE = /^\s*git\s+(?:-\S+\s+)*commit\b/i;
-
-function projectDir(data) {
-  return path.resolve(process.env.CLAUDE_PROJECT_DIR || data.cwd || process.cwd());
-}
-
-function readInput() {
-  let raw;
-  try {
-    raw = fs.readFileSync(0, "utf-8");
-  } catch {
-    return {};
-  }
-  try {
-    return JSON.parse(raw || "{}");
-  } catch {
-    return {};
-  }
-}
 
 function isGitCommit(command) {
   return command.split(SEP).some((part) => COMMIT_RE.test(part));

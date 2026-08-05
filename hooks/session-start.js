@@ -19,6 +19,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { readInput, projectDir } = require("./lib");
 const crypto = require("crypto");
 
 const { readEntries, today, TERMINAL_STATUSES } = require("../scripts/roadmap");
@@ -34,24 +35,6 @@ const STALE_DAYS = 3;
 
 // razor: fixed ceiling, no config key — add one only once a user asks for it.
 const ARCHIVE_OFFER_THRESHOLD = 20;
-
-function readInput() {
-  let raw;
-  try {
-    raw = fs.readFileSync(0, "utf-8");
-  } catch {
-    return {};
-  }
-  try {
-    return JSON.parse(raw || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function projectDir(data) {
-  return path.resolve(process.env.CLAUDE_PROJECT_DIR || data.cwd || process.cwd());
-}
 
 function daysBetween(fromYmd, toYmd) {
   const ms = new Date(toYmd) - new Date(fromYmd);

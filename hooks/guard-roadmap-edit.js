@@ -3,6 +3,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { readInput, projectDir } = require("./lib");
 
 const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
   ? path.resolve(process.env.CLAUDE_PLUGIN_ROOT)
@@ -10,24 +11,6 @@ const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
 const SCRIPT_PATH = path.join(PLUGIN_ROOT, "scripts", "roadmap.js");
 
 const WATCHED_TOOLS = new Set(["Edit", "Write"]);
-
-function readInput() {
-  let raw;
-  try {
-    raw = fs.readFileSync(0, "utf-8");
-  } catch {
-    return {};
-  }
-  try {
-    return JSON.parse(raw || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function projectDir(data) {
-  return path.resolve(process.env.CLAUDE_PROJECT_DIR || data.cwd || process.cwd());
-}
 
 // ROADMAP.jsonl is a basename-only match, deliberately not path-aware — a
 // project having some unrelated file literally named ROADMAP.jsonl elsewhere

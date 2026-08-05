@@ -23,6 +23,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { readInput, projectDir } = require("./lib");
 
 const { cmdUpdateStatus, ID_PATTERN } = require("../scripts/roadmap");
 
@@ -34,24 +35,6 @@ const { cmdUpdateStatus, ID_PATTERN } = require("../scripts/roadmap");
 // so `1000` marks as readily as `001`; the trailing (?!\d) stops a
 // non-id run like `0199` from yielding a real-looking `019`.
 const ENTRY_MARKER_RE = new RegExp(`ROADMAP\\.jsonl entry \`?(${ID_PATTERN})(?!\\d)\`?`);
-
-function readInput() {
-  let raw;
-  try {
-    raw = fs.readFileSync(0, "utf-8");
-  } catch {
-    return {};
-  }
-  try {
-    return JSON.parse(raw || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function projectDir(data) {
-  return path.resolve(process.env.CLAUDE_PROJECT_DIR || data.cwd || process.cwd());
-}
 
 function entryIdFromDescription(description) {
   const m = ENTRY_MARKER_RE.exec(String(description || ""));

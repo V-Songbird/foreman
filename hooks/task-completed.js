@@ -36,6 +36,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { readInput, projectDir } = require("./lib");
 const crypto = require("crypto");
 
 const { readEntries, anchorHasId } = require("../scripts/roadmap");
@@ -71,24 +72,6 @@ const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
   ? path.resolve(process.env.CLAUDE_PLUGIN_ROOT)
   : path.resolve(__dirname, "..");
 const SCRIPT_PATH = path.join(PLUGIN_ROOT, "scripts", "roadmap.js");
-
-function readInput() {
-  let raw;
-  try {
-    raw = fs.readFileSync(0, "utf-8");
-  } catch {
-    return {};
-  }
-  try {
-    return JSON.parse(raw || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function projectDir(data) {
-  return path.resolve(process.env.CLAUDE_PROJECT_DIR || data.cwd || process.cwd());
-}
 
 function readConfig(root) {
   // Absent config, or corrupt -- same safe default: readConfigFile hands
