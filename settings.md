@@ -24,8 +24,9 @@ also how Foreman knows the question was never put to you.
 ## Everything else
 
 `taskCloseGate` decides what happens when a tracked task finishes with its
-roadmap entry still open — `"off"` (default) says nothing, `"block"` holds
-the completion until you close the entry.
+roadmap entry still open — `"off"` (default) says nothing, `"block"` stops
+the first completion attempt with instructions to close the entry; the
+retry then passes.
 
 `fableEnabled` declares that this project can run Fable 5. It defaults to
 `false`, and setting it `true` only adds Fable to the list of models a

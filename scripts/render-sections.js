@@ -44,8 +44,8 @@ function readConfig(root) {
 }
 
 // Declaration, not detection: the project states whether it can run
-// Fable 5 at all (Max plan or API — other plans can't). Set once via
-// foreman:init's Call 2b, or hand-edited later. Default false. Gates
+// Fable 5 at all (Max plan or API — other plans can't). Hand-edited in
+// .foreman/config.json; init does not ask. Default false. Gates
 // whether `Fable` appears as a selectable option in craft-prompt/
 // foreman:roadmap's executing-model question — see prompt-template.md's
 // fableEnabled bullet.
