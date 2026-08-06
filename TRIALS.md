@@ -1,13 +1,13 @@
 # Project trials: recommendation quality, attention cost, and recovery
 
-Three of the nine metrics in [`roadmap-health.js`](roadmap-health.js) cannot be
+Three of the nine metrics in [`roadmap-health.js`](scripts/health/roadmap-health.js) cannot be
 read off the roadmap files. Whether a user *accepts* Foreman's recommendation,
 how often they pick something else, and whether a hint finds what they meant
 are facts about a person choosing — they only exist if a session records the
 choice as it happens.
 
 <!-- [Foreman: 143] -->
-Four of the seven in [`attention-cost.js`](attention-cost.js) are the same kind
+Four of the seven in [`attention-cost.js`](scripts/health/attention-cost.js) are the same kind
 of fact seen from the other side: how long setup runs before the first useful
 task, how many questions a task costs, how often a commit is interrupted, and
 whether an interrupted or failed run comes back. The roadmap records what work
@@ -21,7 +21,7 @@ four attention and recovery ones, and both report `null` with
 `"no_trial_log"` when there is none.
 
 <!-- [Foreman: 208] -->
-**Half of it records today.** [`scripts/trial-log.js`](../../scripts/trial-log.js)
+**Half of it records today.** [`scripts/trial-log.js`](scripts/trial-log.js)
 is the writer, and every event a script or hook already sees is wired: it
 costs no skill instruction, because those calls were being made anyway. Not
 yet recorded are the events only the model can see — which menu row a user

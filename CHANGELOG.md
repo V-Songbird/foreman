@@ -18,6 +18,10 @@ field by convention).
 
 - An internal planning note that was published by mistake (`docs/foreman/097.md`).
 
+### Fixed
+
+- Links in `TRIALS.md` that still pointed at the health tools' old location.
+
 ## [1.0.1] — 2026-08-06
 
 ### Changed
@@ -37,7 +41,7 @@ field by convention).
 
 - A handoff now names the finished tasks that already worked in the files this one plans to touch, and what each of them recorded — only when the file is one that few tasks have ever reached, so a busy shared file stays quiet.
 - Checking the roadmap now also lists the Claude Code hook events Foreman relies on, so a Foreman that has gone quiet can be diagnosed instead of guessed at.
-- `SCOPE.md` now publishes a never-list: teams, dashboards, wikis, review pipelines, agent-role workflows, batch or parallel runs, schedulers, and hosted state. Nothing on it ships in a 1.x release, and an item comes off it only in a major version, with the reason written down. The README carries a short form.
+- Foreman now commits to a never-list: teams, dashboards, wikis, review pipelines, agent-role workflows, batch or parallel runs, schedulers, and hosted state. Nothing on it ships in a 1.x release, and an item comes off it only in a major version, with the reason written down. The README carries it.
 - Roadmap mutations now report newly unblocked, newly blocked, and stranded dependent tasks when the change creates them.
 - Crafting a prompt now checks whether the verification command can actually run in this project, and says so before the prompt is handed off.
 - A file that already imports the same helper is offered as a pattern to imitate, so the prompt cites a real example instead of general advice.
