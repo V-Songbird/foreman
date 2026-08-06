@@ -14,6 +14,10 @@ field by convention).
 
 - The README now opens with a hero graphic of one task id walking the trail from roadmap to git history, and the decision-log's paper-trail diagram was redrawn with bigger type.
 
+### Removed
+
+- An internal planning note that was published by mistake (`docs/foreman/097.md`).
+
 ## [1.0.1] — 2026-08-06
 
 ### Changed
