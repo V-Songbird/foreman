@@ -8,7 +8,7 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
-## Unreleased
+## 1.0.2 — 2026-08-06
 
 ### Changed
 
