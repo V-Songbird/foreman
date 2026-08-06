@@ -8,6 +8,12 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## Unreleased
+
+### Changed
+
+- The README now opens with a hero graphic of one task id walking the trail from roadmap to git history, and the decision-log's paper-trail diagram was redrawn with bigger type.
+
 ## [1.0.1] — 2026-08-06
 
 ### Changed

@@ -5,6 +5,10 @@
   </picture>
   <h1>Foreman</h1>
   <p><strong>Every Claude Code session forgets everything when it ends. Foreman is what's waiting when the next one wakes up.</strong></p>
+
+  <img src="assets/hero.svg" alt="A poster: one task id, 019, rides a single green trail through four checkpoints — roadmap, decision note, code anchor, commit. It reads: Nothing gets lost." width="700" />
+
+  <p><em>This is how a task is remembered.</em></p>
 </div>
 
 <p align="center">
