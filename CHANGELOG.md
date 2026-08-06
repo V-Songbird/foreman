@@ -8,6 +8,19 @@ version is owned by `.claude-plugin/marketplace.json` at the repo root,
 not by `foreman/.claude-plugin/plugin.json` (which carries no version
 field by convention).
 
+## [1.0.1] — 2026-08-06
+
+### Changed
+
+- The benchmark harness no longer ships in the installed plugin — it lives in the marketplace repo. The trial-log privacy contract moved to [`TRIALS.md`](TRIALS.md) at the plugin root, and the health tools now live under `scripts/health/`.
+- Touching files in a project with no decision-log folder no longer pays the anchor scan.
+- Both prompt-crafting flows now read the destination question from one shared file, so a fix to it reaches both.
+
+### Fixed
+
+- `settings.md` now describes `taskCloseGate`'s block mode as it behaves: the first completion attempt is stopped, and the retry passes.
+- A stale comment claimed `fableEnabled` was set by an init question; it is hand-edited in `.foreman/config.json`.
+
 ## [1.0.0] — 2026-08-01
 
 ### Added
