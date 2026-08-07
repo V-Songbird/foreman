@@ -19,9 +19,9 @@ If args were provided, treat them as the task description seed and skip asking f
 
 ---
 
-## Call 1 — task type and optional sections
+## Call 1 — task type, optional sections, and starting point
 
-Ask these two questions together:
+Ask these three questions together:
 
 **Q1** — "What task should the spawned session perform?"
 Options: `Implement a feature`, `Fix a bug`, `Investigate / research`, `Refactor code`, `Write documentation`, `Security audit`
@@ -34,9 +34,44 @@ Options:
 - `Background context` — architectural decisions, patterns, or environment details
 - `Workflow stage` — prompt plus a JSON Schema the tool layer enforces, for a Workflow `agent(prompt, {schema})` stage (mechanically omits `Tone` and replaces the default output format with a fixed enforcement sentence — see the template)
 
+**Q3** — "How well do you know this part of the code?"
+Options:
+- `I know it well` — I can name what should change and what must not.
+- `I know the goal, not the code` — I know what I want; this area's shape
+  is new to me.
+- `This area is new to me` — I could not yet say what a good answer looks
+  like here.
+
 Record which optional sections were selected.
 
 Q2 asks what the user *wants* in the prompt, not what's *true* about the code — no amount of upfront code investigation answers it, so don't skip it even when you've already grounded every fact the prompt will state. Investigation and section selection are orthogonal: being confident about the code is not the same as knowing which sections the user wants included.
+
+Q3 is a starting-point line, not a section: it changes what the assembled
+prompt says, never which blocks it carries. There is no new judgment field
+— every answer below lands in `judgment.context` or `judgment.steps`, which
+the assemble step already carries.
+
+- `I know it well` — nothing is added.
+- `I know the goal, not the code` — add one `judgment.context` line:
+  "Starting point: the user knows the goal but not this area's code, so the
+  file list and steps below are a best guess at its shape, not a survey of
+  it."
+- `This area is new to me` — say in one line that a blind spot pass here is
+  cheaper than a wrong prompt, and offer to run one in this session before
+  crafting. A cold session cannot teach an absent user, so the pass belongs
+  here, not in the prompt. If the user takes it, its answers feed Call 2's
+  files and steps and Call 4's background context, and Q3 is re-read as
+  `I know the goal, not the code`. If the user declines, add the context
+  line above plus one first `judgment.steps` bullet:
+  "Before making changes, do a blind spot pass on this area: name the
+  unknown unknowns — the questions this task should have answered, what
+  good looks like here, prior work already done, and the potholes — and
+  report them. Then proceed with the conservative reading."
+
+Word that bullet with **name** and **report**, never "explain your
+reasoning": the gate warns on a prompt that asks the destination to echo
+its reasoning, and the warning is real — it can trigger a refusal on a
+Fable-class model.
 
 ---
 
@@ -129,6 +164,25 @@ For each section selected in Call 1 Q2, ask its detail question(s). Batch up to 
   clipboard temp file carries the prompt then the schema; a `TaskCreate`
   description carries both. The never-print-into-chat rule in Deliver below
   covers both.
+
+---
+
+## When an answer is "I don't know"
+
+`AskUserQuestion` always appends its own free-text option, so any question
+here can come back as a don't-know. Carry it through as a stated unknown —
+never as a guess, and never by dropping the field. Call 3 Q4 already says
+this for invariants; the same holds for every question in this interview.
+
+- **Call 2 Q2, the done state** — the one that blocks. A prompt with no
+  checkable "done" wastes the whole session. Ask once more for the
+  observable signal before assembling.
+- **Call 2 Q3, the files** — becomes a `judgment.context` line naming what
+  the user could not name, so `relevant_files` is honest about its own
+  reach instead of reading as surveyed.
+- **Anywhere else** — one `judgment.context` line: "Open question the user
+  could not answer: <the question>. Resolve it from the code and say what
+  you found."
 
 ---
 
