@@ -7,6 +7,12 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## 1.1.1 — 2026-08-07
+
+### Changed
+
+- The README is about a fifth shorter — the same behavior described in fewer words.
+
 ## 1.1.0 — 2026-08-07
 
 ### Added

@@ -23,27 +23,27 @@
 
 ## What is this?
 
-Close the laptop, and every plan that only lived in your head closes with it. Open Claude Code tomorrow and it starts from zero. No memory of what you were building, what you already ruled out, or that the file it's about to edit got renamed yesterday.
+Close the laptop, and every plan that only lived in your head closes with it. Open Claude Code tomorrow and it starts from zero. No memory of what you were building, what you ruled out, or that the file it's about to edit got renamed yesterday.
 
-Foreman keeps the plan where the code lives: a plain-language roadmap, committed like any other file. Ask "what's next?" and Foreman hands back its recommended task, and says why it's first. It comes with a ready-to-run prompt that starts by checking its own claims against your code. It earns its keep on real engineering work — the kind that outlives a single chat window.
+Foreman keeps the plan where the code lives: a plain-language roadmap, committed like any other file. Ask "what's next?" and it hands back the recommended task, the reason it's first, and a ready-to-run prompt that checks its own claims against your code.
 
 ## Why you'd want it
 
-- **Your plan survives you forgetting it.** The roadmap lives in your repo, committed like code. The next session picks up exactly where you left off, not from a shrug.
-- **The handoff writes itself.** Every task Foreman hands off comes from the same template, guardrails built in, paths and symbols checked first. Say what you want in plain language, and Foreman does the rest.
-- **It keeps up with your commits.** After each commit, Foreman spots the task that looks finished and asks you to confirm before checking it off. Opt in, and it also flags new work the commit uncovered.
-- **Nothing moves without you.** No task gets added, changed, or checked off behind your back. A project you haven't set up stays untouched.
+- **Your plan survives you forgetting it.** The next session picks up exactly where you left off, not from a shrug.
+- **The handoff writes itself.** Every task goes out on the same template, guardrails built in, paths checked first.
+- **It keeps up with your commits.** A task that looks finished is surfaced for you to confirm, then checked off.
+- **Nothing moves without you.** No task gets added, changed, or checked off behind your back.
 
 ## How it works
 
 | Moment | What happens |
 | --- | --- |
-| You ask "what's next?" | Foreman orders the roadmap — dependencies, collisions, what's done — and recommends the top one, with the reason it came first, plus a ready-to-run prompt. The order is Foreman's default; the pick is yours |
+| You ask "what's next?" | Foreman orders the roadmap — dependencies, collisions, what's done — and recommends the top one, with a ready-to-run prompt. The pick is yours |
 | You describe new work | It becomes a roadmap entry, once you approve it |
-| You commit | A task that looks finished is surfaced for you to confirm, then checked off; opt in and new work the commit uncovered gets flagged too |
+| You commit | A task that looks finished is surfaced for you to confirm; opt in and new work the commit uncovered gets flagged too |
 | You suspect the plan has drifted | The top tasks get double-checked against the actual code, and the roadmap corrected |
 
-Hand a task off as tracked work, and every finished piece lands as its own commit on a `foreman/<slug>` branch. Done work stays done. At the end, you pick what happens to it: squash, merge, PR, or keep.
+Hand a task off as tracked work, and every finished piece lands as its own commit on a `foreman/<slug>` branch. At the end, you pick what happens to it: squash, merge, PR, or keep.
 
 ## Install
 
@@ -54,32 +54,32 @@ Inside Claude Code, run:
 /plugin install foreman@foundry
 ```
 
-Then, in each project you want a roadmap for, run `/foreman:init` once. It asks a few questions and builds the roadmap for you. That's the whole setup.
+Then run `/foreman:init` once in each project you want a roadmap for. It asks a few questions and builds the roadmap. That's the whole setup.
 
 Running [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush) too? Good instinct — razor keeps the code lean, hush keeps it quiet, Foreman keeps the plan.
 
 ## What you can do
 
-Talk to Foreman. That's the whole interface — one entrance, plain language, no command names to memorize. Say what you want and it goes to the right place:
+Talk to Foreman. That's the whole interface — one entrance, plain language, no command names to memorize:
 
 | You say… | You get |
 | --- | --- |
 | "add this to the roadmap" | new work tracked, once you approve it |
 | "where are we" | where every task stands, and what's waiting on you |
-| "that entry's description is stale" | the entry corrected, current value against the new one |
+| "that entry's description is stale" | the entry corrected |
 | "what's next" | the recommended task, why it's first, and a ready-to-run prompt |
-| "is the plan still right? then give me something" | the top tasks checked against your code, repairs you approve one by one, then the pick |
+| "is the plan still right? then give me something" | the top tasks checked against your code, then the pick |
 
 Two ways to get a task, and the cheap one is the default:
 
-- **Fast pick** — ask "what's next" and Foreman orders the roadmap it already has, recommends one, and hands you a ready-to-run prompt. It reads no code.
-- **Reconcile and pick** — the near-term tasks get checked against your actual code first. You approve each repair one at a time, and the pick then runs on a roadmap that was just corrected. Ask for it and it happens. Foreman never starts it on its own, because it costs real tokens.
+- **Fast pick** — Foreman orders the roadmap it already has and recommends one. It reads no code.
+- **Reconcile and pick** — the near-term tasks get checked against your actual code first, repair by repair. Foreman never starts this on its own, because it costs real tokens.
 
 Editing the roadmap file by hand defeats the point, so don't.
 
 ### Advanced
 
-The specialized commands are still there when you'd rather skip the entrance and go straight in:
+The specialized commands are still there when you'd rather go straight in:
 
 | You want to… | Command |
 | --- | --- |
@@ -88,21 +88,19 @@ The specialized commands are still there when you'd rather skip the entrance and
 | Double-check the top tasks against your actual code | `/foreman:survey` |
 | Build a standalone prompt for something that isn't a roadmap entry | `/foreman:craft-prompt` |
 
-That last one is a separate tool, not part of the roadmap job. It interviews you section by section and hands back one self-contained prompt. Roadmap work never needs it — the handoff for a picked task is built for you.
-
 ## Why-notes that find you later
 
-Git remembers every diff. Nobody remembers *why*. Turn this on, and any task that makes a real call writes a short note: the choice, the options that lost, and what it commits you to — tagged right into the code it governs. Open that code six months later, and Foreman hands you the note before you undo a decision you didn't know was there. It's off until you ask for it, because it writes files into your repo and comments into your source. The whole feature fits on one page: [`decision-log.md`](decision-log.md).
+Git remembers every diff. Nobody remembers *why*. Turn this on, and any task that makes a real call writes a short note — the choice, the options that lost, what it commits you to — tagged into the code it governs. Open that code six months later and the note finds you. It's off until you ask for it, because it writes files into your repo. The whole feature fits on one page: [`decision-log.md`](decision-log.md).
 
-Seeing `Foreman: 019` at the bottom of your commits? That's always on. It's how a finished task closes in the same commit as the code it changed — the commit names the task, so nothing dangles and no second "update the roadmap" commit clutters your history.
+Seeing `Foreman: 019` at the bottom of your commits? That's always on. The commit names the task, so a finished task closes in the same commit as its code and nothing dangles.
 
 ## Under the hood
 
-The roadmap is a plain file in your repo (field-by-field details in [`roadmap-schema.md`](roadmap-schema.md)), and every prompt Foreman assembles is structurally validated before it ships. Routine bookkeeping happens mechanically, leaving the model for work that needs judgment. Foreman pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush): razor cuts the code, hush cuts the noise, Foreman keeps the plan. They're built to stay out of each other's way.
+The roadmap is a plain file in your repo (field-by-field details in [`roadmap-schema.md`](roadmap-schema.md)), and every prompt Foreman assembles is structurally validated before it ships. Pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush) — they're built to stay out of each other's way.
 
 ## Scope
 
-Foreman is a solo-developer project companion. Not project-management software, not an agent-workflow builder. It keeps the roadmap and hands off the next task from it. That is the whole job.
+Foreman is a solo-developer project companion. It keeps the roadmap and hands off the next task from it. That is the whole job.
 
 > [!NOTE]
 > **What Foreman will never grow into.** No teams, assignments, estimates,
@@ -114,11 +112,11 @@ Foreman is a solo-developer project companion. Not project-management software, 
 
 ## Settings
 
-`/foreman:init` leaves every setting at its default, so most people never touch configuration. If you want to tune the optional behavior, see the [`settings.md`](settings.md) reference.
+`/foreman:init` leaves every setting at its default, so most people never touch configuration. To tune the optional behavior, see [`settings.md`](settings.md).
 
 ## Requirements
 
-Node.js and git, both of which Claude Code already needs. Foreman 1.0 was built and tested against Claude Code 2.1.x. It leans on a few hook events that are not in the public documentation — `/foreman:roadmap` will tell you if one of them stops arriving.
+Node.js and git, both of which Claude Code already needs. Built and tested against Claude Code 2.1.x — `/foreman:roadmap` will tell you if a hook event it leans on stops arriving.
 
 ## License
 
