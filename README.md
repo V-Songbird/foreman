@@ -17,22 +17,22 @@
     <a href="https://docs.anthropic.com/en/docs/claude-code"><img src="https://img.shields.io/badge/Claude_Code-E5582B" alt="Claude Code"/></a>
 </p>
 
-> **TL;DR** — Every Claude Code session starts with amnesia. Foreman keeps your plan in your repo, committed like code. Ask "what's next?" and you get Foreman's recommended task — with the reason it's the recommendation — and a ready-to-run prompt whose paths and symbols were checked against your code first, and which re-checks its own claims before it edits anything.
+> **TL;DR** — Every Claude Code session starts with amnesia. Foreman keeps your plan in your repo, committed like code. Ask "what's next?" and you get the recommended task, the reason it's first, and a ready-to-run prompt — one whose paths and claims were checked against your code.
 
 ---
 
 ## What is this?
 
-Close the laptop, and every plan that only lived in your head closes with it. Open Claude Code tomorrow and it starts from zero — no memory of what you were building, what you already ruled out, or that the file it's about to edit got renamed yesterday.
+Close the laptop, and every plan that only lived in your head closes with it. Open Claude Code tomorrow and it starts from zero. No memory of what you were building, what you already ruled out, or that the file it's about to edit got renamed yesterday.
 
-Foreman keeps the plan where the code lives: a plain-language roadmap, committed like any other file. Ask "what's next?" and Foreman hands back its recommended task — and says why it's first — plus a ready-to-run prompt that starts by checking its own claims against your code. It earns its keep on real engineering work — the kind that outlives a single chat window.
+Foreman keeps the plan where the code lives: a plain-language roadmap, committed like any other file. Ask "what's next?" and Foreman hands back its recommended task, and says why it's first. It comes with a ready-to-run prompt that starts by checking its own claims against your code. It earns its keep on real engineering work — the kind that outlives a single chat window.
 
 ## Why you'd want it
 
 - **Your plan survives you forgetting it.** The roadmap lives in your repo, committed like code. The next session picks up exactly where you left off, not from a shrug.
 - **The handoff writes itself.** Every task Foreman hands off comes from the same template, guardrails built in, paths and symbols checked first. Say what you want in plain language, and Foreman does the rest.
 - **It keeps up with your commits.** After each commit, Foreman spots the task that looks finished and asks you to confirm before checking it off. Opt in, and it also flags new work the commit uncovered.
-- **Nothing moves without you.** No task gets added, changed, or checked off behind your back, and a project you haven't set up stays untouched.
+- **Nothing moves without you.** No task gets added, changed, or checked off behind your back. A project you haven't set up stays untouched.
 
 ## How it works
 
@@ -73,7 +73,7 @@ Talk to Foreman. That's the whole interface — one entrance, plain language, no
 Two ways to get a task, and the cheap one is the default:
 
 - **Fast pick** — ask "what's next" and Foreman orders the roadmap it already has, recommends one, and hands you a ready-to-run prompt. It reads no code.
-- **Reconcile and pick** — the near-term tasks get checked against your actual code first, you approve each repair one at a time, and the pick then runs on a roadmap that was just corrected. Ask for it and it happens; Foreman never starts it on its own, because it costs real tokens.
+- **Reconcile and pick** — the near-term tasks get checked against your actual code first. You approve each repair one at a time, and the pick then runs on a roadmap that was just corrected. Ask for it and it happens. Foreman never starts it on its own, because it costs real tokens.
 
 Editing the roadmap file by hand defeats the point, so don't.
 
@@ -88,18 +88,13 @@ The specialized commands are still there when you'd rather skip the entrance and
 | Double-check the top tasks against your actual code | `/foreman:survey` |
 | Build a standalone prompt for something that isn't a roadmap entry | `/foreman:craft-prompt` |
 
-That last one is a separate tool, not part of the roadmap job: it interviews
-you section by section and hands back one self-contained prompt. Roadmap work
-never needs it — the handoff for a picked task is built for you.
+That last one is a separate tool, not part of the roadmap job. It interviews you section by section and hands back one self-contained prompt. Roadmap work never needs it — the handoff for a picked task is built for you.
 
 ## Why-notes that find you later
 
 Git remembers every diff. Nobody remembers *why*. Turn this on, and any task that makes a real call writes a short note: the choice, the options that lost, and what it commits you to — tagged right into the code it governs. Open that code six months later, and Foreman hands you the note before you undo a decision you didn't know was there. It's off until you ask for it, because it writes files into your repo and comments into your source. The whole feature fits on one page: [`decision-log.md`](decision-log.md).
 
-Seeing `Foreman: 019` at the bottom of your commits? That's always on, and
-it's how a finished task closes in the same commit as the code it changed —
-the commit names the task, so nothing dangles and no second "update the
-roadmap" commit clutters your history.
+Seeing `Foreman: 019` at the bottom of your commits? That's always on. It's how a finished task closes in the same commit as the code it changed — the commit names the task, so nothing dangles and no second "update the roadmap" commit clutters your history.
 
 ## Under the hood
 
@@ -107,9 +102,7 @@ The roadmap is a plain file in your repo (field-by-field details in [`roadmap-sc
 
 ## Scope
 
-Foreman is a solo-developer project companion — not project-management
-software, not an agent-workflow builder. It keeps the roadmap and hands off
-the next task from it. That is the whole job.
+Foreman is a solo-developer project companion. Not project-management software, not an agent-workflow builder. It keeps the roadmap and hands off the next task from it. That is the whole job.
 
 > [!NOTE]
 > **What Foreman will never grow into.** No teams, assignments, estimates,
@@ -121,16 +114,11 @@ the next task from it. That is the whole job.
 
 ## Settings
 
-`/foreman:init` leaves every setting at its default, so most people never
-touch configuration. If you want to tune the optional behavior, see the
-[`settings.md`](settings.md) reference.
+`/foreman:init` leaves every setting at its default, so most people never touch configuration. If you want to tune the optional behavior, see the [`settings.md`](settings.md) reference.
 
 ## Requirements
 
-Node.js and git, both of which Claude Code already needs. Foreman 1.0 was
-built and tested against Claude Code 2.1.x, and it leans on a few hook
-events that are not in the public documentation — `/foreman:roadmap` will
-tell you if one of them stops arriving.
+Node.js and git, both of which Claude Code already needs. Foreman 1.0 was built and tested against Claude Code 2.1.x. It leans on a few hook events that are not in the public documentation — `/foreman:roadmap` will tell you if one of them stops arriving.
 
 ## License
 

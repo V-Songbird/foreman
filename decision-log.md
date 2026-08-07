@@ -13,13 +13,13 @@ When someone opens that code later, the note comes to them.
 
 ## What earns a note
 
-Exactly one thing: a roadmap entry marked `kind: "decision"` — a task added
-to resolve an open question ("X or Y?", "decide whether", "pick an
-approach") rather than to build something — in a project that has turned
-the feature on.
+Exactly one thing: a roadmap entry marked `kind: "decision"`, in a project
+that has turned the feature on. That's a task added to resolve an open
+question — "X or Y?", "decide whether", "pick an approach" — rather than
+to build something.
 
 **Ordinary implementation work never earns one.** An entry with no `kind` is
-a build, and a build closes with nothing to record: no prompt asks it for a
+a build, and a build closes with nothing to record. No prompt asks it for a
 note, no close check demands one, no hook nudges about it. Foreman never
 assumes a task maps to a decision just because it changed code. If a build
 turns out to have decided something real, the honest move is a

@@ -8,10 +8,10 @@ has a safe default in the code that reads it. Most projects never open it.
 
 | Setting | What it does |
 | --- | --- |
-| `requireVerification` | Hold off marking a task done after a commit until you confirm it's verified — the task waits on you instead, with its commit recorded; your confirmation closes it, and "not ready" sends it back. On by default; set `false` to close a task as soon as its commit lands. |
+| `requireVerification` | Hold off marking a task done after a commit until you confirm it's verified. The task waits on you, with its commit recorded. Your confirmation closes it, and "not ready" sends it back. On by default. Set `false` to close a task as soon as its commit lands. |
 | `discoverySuggestions` | After each commit, offer new roadmap entries Claude spotted in the work. Off by default. The roadmap itself is never pasted into the commit's context. |
 | `decisionLog` | The why-notes described in [`decision-log.md`](decision-log.md): `{enabled, dir, gate}`. Off by default. Applies to `kind: "decision"` tasks only — ordinary implementation work is never asked for a note. |
-| `checkpoints` | How a split run saves its work: `{baseBranch, branch, onFinish}`. By default it uses a `foreman/<slug>` branch and asks once, at the end of the first run, what to do with it — squash, merge, PR, or keep — then remembers your answer here. Checkpoint commits stay local. A run that starts on a dirty tree makes **no** automated commits at all. |
+| `checkpoints` | How a split run saves its work: `{baseBranch, branch, onFinish}`. By default it uses a `foreman/<slug>` branch and asks once, at the end of the first run, what to do with it — squash, merge, PR, or keep. Your answer is remembered here. Checkpoint commits stay local, and a run that starts on a dirty tree makes **no** automated commits at all. |
 | `usePersona` | Whether handoff prompts open with a "You are a…" role sentence (default `true`), or plain domain framing. |
 | `omitSections` | Prompt sections to leave out entirely: `tone`, `example`, `background`, `output_format`. Default none. |
 

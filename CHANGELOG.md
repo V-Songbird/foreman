@@ -1,12 +1,17 @@
 # Changelog
 
 All notable changes to Foreman are documented here. Foreman was named
-Relay through 0.4.8-alpha — see the 0.5.0-alpha entry below for the
-rename; earlier entries below refer to the plugin by its name at the
-time, not retroactively edited. Foreman is a monorepo-folder plugin — its
-version is owned by `.claude-plugin/marketplace.json` at the repo root,
-not by `foreman/.claude-plugin/plugin.json` (which carries no version
-field by convention).
+Relay through 0.4.8-alpha — the 0.5.0-alpha entry below records the
+rename, and older entries keep the name they shipped under. Looking for a
+version number? It lives in the
+[foundry marketplace](https://github.com/V-Songbird/foundry) listing —
+that's why `plugin.json` here carries none.
+
+## 1.0.4 — 2026-08-07
+
+### Changed
+
+- The README, the decision-log page, the settings page, and this file's intro are rewritten in plainer language — shorter sentences, everyday words, the benefit up front. Every setting, field, and behavior they describe is unchanged.
 
 ## 1.0.2 — 2026-08-06
 
