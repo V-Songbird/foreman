@@ -7,6 +7,12 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## 1.1.0 — 2026-08-07
+
+### Added
+
+- `/foreman:craft-prompt` now asks how well you know the code it is about to write a prompt for, and offers a blind spot pass when the area is new to you. An answer of "I don't know" to any interview question is carried into the prompt as a stated unknown instead of a guess.
+
 ## 1.0.4 — 2026-08-07
 
 ### Changed
