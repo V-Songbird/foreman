@@ -7,6 +7,12 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## [Unreleased]
+
+### Changed
+
+- A finished task now says in its own final message that it needs your accept or decline, instead of waiting until your next request to mention it.
+
 ## 1.1.1 — 2026-08-07
 
 ### Changed

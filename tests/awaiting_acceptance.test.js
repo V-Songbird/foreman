@@ -396,6 +396,7 @@ describe('skill contracts', () => {
       destination: 'clipboard',
     });
     assert.match(held, /write\s+`awaiting_acceptance` instead/);
+    assert.match(held, /Say so in your final message too/);
 
     const notHeld = entryParagraphText({
       id: '001',
@@ -406,6 +407,7 @@ describe('skill contracts', () => {
       destination: 'clipboard',
     });
     assert.doesNotMatch(notHeld, /awaiting_acceptance/);
+    assert.doesNotMatch(notHeld, /Say so in your final message too/);
   });
 
   test('the schema documents the lifecycle and the downgrade cost', () => {

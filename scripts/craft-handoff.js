@@ -430,7 +430,7 @@ function entryParagraphText({ id, resume, requireVerification, decisionLogEnable
   const beginStep = `Then take the commit boundary before touching any file:\n\`node ${PLUGIN_ROOT}/scripts/safe-commit.js begin\`\nKeep its \`baseline.head\`. A \`dirty:true\` result means the tree already carries someone else's changes: tell the user in one line, then do the work and make NO commit at all — leave everything in the tree for them. Never stage around it.`;
 
   const holdSentence = requireVerification
-    ? ` When that earned status is \`done\`, write \`awaiting_acceptance\` instead — this project holds finished work for the user's acceptance, and their confirmation makes it \`done\`; \`dropped\` and \`rejected\` close as themselves.`
+    ? ` When that earned status is \`done\`, write \`awaiting_acceptance\` instead — this project holds finished work for the user's acceptance, and their confirmation makes it \`done\`; \`dropped\` and \`rejected\` close as themselves. Say so in your final message too — name the entry and say it now needs the user's accept or decline before you start anything new.`
     : "";
   const closeIntro = `When the work concludes, close the entry the same way — the status it actually earned (\`done\`, \`dropped\`, \`rejected\`) and your full findings in \`notes\`.${holdSentence}`;
 
