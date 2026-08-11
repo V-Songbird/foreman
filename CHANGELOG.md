@@ -7,6 +7,12 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## 1.1.3 — 2026-08-11
+
+### Changed
+
+- The repository no longer carries benchmark run data. The harness, the record format, and the validator stay — run them yourself to regenerate any figure.
+
 ## 1.1.2 — 2026-08-08
 
 ### Changed

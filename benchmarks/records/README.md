@@ -1,13 +1,15 @@
 # Result records
 
-Every public performance claim Foreman makes has to point at a file in this
-directory. A record is the evidence behind one sentence: the exact fixtures and
-prompts it was measured with, the model and its settings, how many times it
+Every public performance claim Foreman makes has to be backed by a record in
+this format. A record is the evidence behind one sentence: the exact fixtures
+and prompts it was measured with, the model and its settings, how many times it
 ran, every individual run, the aggregate with its statistic named, the date,
 the machine, and the things the number does *not* say.
 
 A claim with no record does not ship. Not softened, not asterisked — it either
-gets a record or it stops being a claim.
+gets a record or it stops being a claim. Records themselves stay on the
+operator's machine: this repository publishes the format, the validator, and
+the harness that regenerates the numbers, never the run data.
 
 ## The rules
 
@@ -74,15 +76,9 @@ computation and not a model trial. It is reproducible and it is honest, but it
 is a different kind of evidence from a session that actually ran, and the
 record has to say so rather than letting the two look alike.
 
-## What is published
+## Where the data lives
 
-| Record | Kind | Claim |
-| --- | --- | --- |
-| [`R-010-instruction-load`](R-010-instruction-load.json) | static computation | A Fast pick reached through the entrance loads about 8.6k est. tokens of instructions before ranking a single entry — down 66% from the ~25.5k it loaded before prompt assembly moved into a script. Supersedes `R-008` (the tail of a chain back to `R-004`) after the Check-the-roadmap branch gained two sentences. |
-| [`R-009-prompt-overhead`](R-009-prompt-overhead.json) | static computation | The standard handoff profile carries 12% of the reinforced profile's fixed guardrail text — 499 words saved. Supersedes `R-005` (the tail of a chain back to `R-001`) after template edits that left the numbers unchanged. |
-
-**No model-run records exist yet.** The harness in [`../`](../README.md) drives
-real sessions and reads real costs out of the API, but its output lands in
-`results/`, which is local run output and not committed. Until a run's output
-is published here as a record, the figures it produced are things we saw on our
-machines — reproducible by you with the harness — and not claims Foreman makes.
+Record files land in this directory but are not committed — they are the
+operator's local audit trail. The harness in [`../`](../README.md) drives real
+sessions and reads real costs out of the API; run it yourself to regenerate
+any figure from scratch.
