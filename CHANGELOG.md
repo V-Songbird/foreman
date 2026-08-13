@@ -7,6 +7,12 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## 1.2.1 — 2026-08-13
+
+### Fixed
+
+- A shorter handoff is now held to the same rule as a long one: its verification steps must say when to stop retrying a fix.
+
 ## 1.2.0 — 2026-08-13
 
 ### Fixed
