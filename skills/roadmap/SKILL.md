@@ -30,8 +30,10 @@ Options:
 - `Correct a task` — fix a stale title, why, what, kind, or planned files
   on an entry that already exists.
 - `Review status` — read-only summary of where every task stands.
-- `Check the roadmap` — run the structural doctor and name a repair for
-  each finding.
+
+`AskUserQuestion` takes four options at most, so the structural doctor is
+reached by asking for it rather than from this menu — the routing just
+below carries the phrasings that get there.
 
 If args were provided and read like a task description rather than a
 question, treat it as a seed for "Add a task" and skip this call. If they

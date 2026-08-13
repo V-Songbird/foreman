@@ -143,8 +143,11 @@ context gathered in step 1:
      *outside* this candidate's `planned_touches` consume the code it
      changes, in a way that makes another entry in the digest depend on
      this one? Check against the digest handed to you, not a fresh
-     `ROADMAP.jsonl` read. Only report either direction with a concrete
-     file:line citation — no hunches.
+     `ROADMAP.jsonl` read. Report every relation you can see in either
+     direction, including one you can see but cannot pin to a line — mark
+     that `confident: false` and say what you could not pin down. Step 3
+     filters; a dependency you leave out here is not recoverable there,
+     because it is the one verdict that reorders future picks.
   4. **Already done, or duplicate?** Does the working tree already contain
      what `what` describes, or does it closely overlap another entry's
      `title` in the supplied not-done digest?
@@ -152,7 +155,8 @@ context gathered in step 1:
   Verdict per candidate: `valid` (nothing found) | `hidden-dependency` |
   `stale-description` | `stale-touches` | `already-done` | `duplicate`.
   Every non-`valid` verdict must cite the file:line or commit that grounds
-  it — refuse to report a finding it can't point to concretely.
+  it, or be marked `confident: false` with what it could not pin down —
+  never a bare verdict carrying neither.
 
   A `stale-description` or `stale-touches` verdict carries **two** things
   or it is not reportable as one: the **evidence** — the file paths and

@@ -155,6 +155,22 @@ function dlCloseCommand(id, dir) {
   );
 }
 
+// decision-doc-template.md's own italic instruction lines. A doc still
+// carrying one is the template copied over and never filled in -- the case
+// `fs.existsSync` alone waved through. Pinned against the template file by a
+// test, the way check-prompt.js's PLACEHOLDER_FRAGMENTS is pinned against
+// prompt-template.md, so a reworded template can't silently retire the check.
+//
+// Heading-agnostic on purpose: requiring a `## Decision` heading would reject
+// a legitimate hand-written ADR and still pass the verbatim copy-paste this
+// exists to catch, since the template opens with that very heading.
+const TEMPLATE_PROMPTS = [
+  "*State the choice made in one short paragraph",
+  "*State what forced a choice",
+  "*Highest-value section here.",
+  "*State what this commits future work to",
+];
+
 // The imperative core of a decision-log violation, or null when the entry
 // is compliant (doc "none", a doc file plus an anchored commit, or an
 // investigation-only close with no commits to audit). The caller wraps this
@@ -175,10 +191,29 @@ function decisionLogCore(root, entry, dir) {
   if (doc === "none") return null;
 
   // (3a) doc names a path: the file must exist under the project root.
-  if (!fs.existsSync(path.resolve(root, doc))) {
+  const docPath = path.resolve(root, doc);
+  if (!fs.existsSync(docPath)) {
     return (
       `ROADMAP.jsonl entry ${id} names decision doc ${doc}, but no file exists there. Create ` +
       `the ADR at ${doc}, or re-close the entry with \`"doc":"none"\` if it decided nothing worth recording.`
+    );
+  }
+
+  // (3a-ii) ...and say something. Existence alone passed an empty file and a
+  // verbatim copy of decision-doc-template.md, which record no decision at
+  // all. Fail-soft like every other read here: an unreadable file is infra,
+  // and infra never blocks completion.
+  let body = null;
+  try {
+    body = fs.readFileSync(docPath, "utf-8");
+  } catch {
+    body = null;
+  }
+  if (body !== null && (body.trim() === "" || TEMPLATE_PROMPTS.some((p) => body.includes(p)))) {
+    return (
+      `ROADMAP.jsonl entry ${id} names decision doc ${doc}, but that file is empty or still ` +
+      `carries decision-doc-template.md's instruction lines. Write the decision it records, or ` +
+      `re-close the entry with \`"doc":"none"\` if it decided nothing worth recording.`
     );
   }
 
@@ -310,6 +345,7 @@ module.exports = {
   latchStatePath,
   blockReason,
   decisionLogCore,
+  TEMPLATE_PROMPTS,
   dlBlockReason,
   trailerShasFor,
   SCRIPT_PATH,

@@ -290,6 +290,82 @@ describe('decision-log backstop: doc value handling', () => {
   });
 });
 
+// The file has to say something: existence alone passed an empty doc and a
+// verbatim copy of decision-doc-template.md, neither of which records a
+// decision. Both conditions are heading-agnostic -- a hand-written ADR with
+// no `## Decision` heading passes, and so does the '# ADR 001' fixture the
+// anchor-placement tests below rely on.
+describe('decision-log backstop: doc content', () => {
+  function writeDocBody(rel, text) {
+    const full = path.join(project, rel);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, text, 'utf-8');
+  }
+
+  function reasonFor(rel) {
+    writeRoadmap(project, [doneEntry('001', { doc: rel, commits: [] })]);
+    writeConfig(project, dlConfig('block'));
+    return run(payload(MARKER));
+  }
+
+  test('an empty doc file is a violation', () => {
+    writeDocBody('docs/foreman/001.md', '');
+    const out = JSON.parse(reasonFor('docs/foreman/001.md'));
+    assert.equal(out.decision, 'block');
+    assert.match(out.reason, /empty or still carries/i);
+    assert.ok(out.reason.includes('docs/foreman/001.md'));
+  });
+
+  test('a whitespace-only doc file is a violation', () => {
+    writeDocBody('docs/foreman/001.md', '\n\n   \n');
+    assert.equal(JSON.parse(reasonFor('docs/foreman/001.md')).decision, 'block');
+  });
+
+  test('the template copied over verbatim is a violation', () => {
+    const template = fs.readFileSync(
+      path.join(__dirname, '..', 'decision-doc-template.md'),
+      'utf-8'
+    );
+    writeDocBody('docs/foreman/001.md', template);
+    const out = JSON.parse(reasonFor('docs/foreman/001.md'));
+    assert.equal(out.decision, 'block');
+    assert.match(out.reason, /decision-doc-template\.md/);
+  });
+
+  test('the template with every instruction line replaced passes', () => {
+    writeDocBody(
+      'docs/foreman/001.md',
+      '## Decision\nWe went with the queue.\n\n## Context\nThe cron job kept doubling up.\n'
+    );
+    assert.equal(reasonFor('docs/foreman/001.md'), '');
+  });
+
+  test('a hand-written ADR with no template heading passes', () => {
+    writeDocBody('docs/foreman/001.md', '# ADR 001\n\nWe chose the queue because cron doubled up.\n');
+    assert.equal(reasonFor('docs/foreman/001.md'), '');
+  });
+
+  test('an unreadable doc (a directory at the path) never blocks', () => {
+    fs.mkdirSync(path.join(project, 'docs/foreman/001.md'), { recursive: true });
+    assert.equal(reasonFor('docs/foreman/001.md'), '');
+  });
+
+  test('every TEMPLATE_PROMPTS entry still appears in decision-doc-template.md', () => {
+    const { TEMPLATE_PROMPTS } = require('../hooks/task-completed.js');
+    const template = fs.readFileSync(
+      path.join(__dirname, '..', 'decision-doc-template.md'),
+      'utf-8'
+    );
+    assert.ok(TEMPLATE_PROMPTS.length >= 4);
+    for (const prompt of TEMPLATE_PROMPTS) {
+      assert.ok(
+        template.includes(prompt),
+        `TEMPLATE_PROMPTS entry is no longer in decision-doc-template.md: ${prompt}`
+      );
+    }
+  });
+});
+
 describe('decision-log backstop: anchor placement (real git)', () => {
   function writeDoc(rel) {
     const full = path.join(project, rel);

@@ -7,6 +7,20 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## [Unreleased]
+
+### Fixed
+
+- A decision entry picked from the roadmap is now asked to decide and say why the chosen option wins, instead of being told to implement it.
+- Picking a task now shows the preflight warnings — a stale planned path, a file outside the project, a verification command nothing answers to — even when the handoff passes its checks.
+- Finishing a task now stops if the decision doc it names is empty or is still the untouched template.
+
+### Changed
+
+- A background agent now stops and asks when the work genuinely needs you — a destructive or irreversible action, a real scope change, or input only you can provide — and ends its turn there rather than on a promise to continue.
+- The structural roadmap check is now reached by asking for it, rather than from the roadmap menu.
+- A survey now reports a dependency it can see but cannot pin to a line, marked unconfident, instead of dropping it.
+
 ## 1.1.3 — 2026-08-11
 
 ### Changed

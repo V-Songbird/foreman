@@ -24,7 +24,7 @@ If args were provided, treat them as the task description seed and skip asking f
 Ask these three questions together:
 
 **Q1** — "What task should the spawned session perform?"
-Options: `Implement a feature`, `Fix a bug`, `Investigate / research`, `Refactor code`, `Write documentation`, `Security audit`
+Options: `Implement a feature`, `Fix a bug`, `Investigate / research`, `Refactor code`
 
 **Q2** — "Which optional sections do you want in the prompt?" (multiSelect: true)
 Options:
@@ -78,7 +78,7 @@ Fable-class model.
 ## Call 2 — required fields (batch all 4)
 
 **Q1** — "What role should the spawned agent play?"
-Options: `Senior engineer`, `Security engineer`, `TypeScript developer`, `Python developer`, `Technical writer`, `Code reviewer`
+Options: `Senior engineer`, `Security engineer`, `Code reviewer`, `Technical writer`
 
 **Q2** — "What does 'done' look like? One sentence. A performance or
 coverage goal names the metric and threshold (e.g. 'p95 under 500ms')."
@@ -99,7 +99,7 @@ Options: `I'll describe them`
 Skip this call only if the task type is pure research/investigation with no code changes.
 
 **Q1** — "What command or commands verify success?"
-Options: `npm test`, `npm run build`, `pytest`, `cargo test`, `go test ./...`
+Options: `npm test`, `pytest`, `cargo test`, `go test ./...`
 
 **Q2** — "What's the expected outcome?"
 Options: `All tests pass`, `Build succeeds with exit code 0`, `No lint errors`, `Report file produced`
@@ -111,14 +111,14 @@ here.
 
 **Q3** — only when Call 1's task type was `Fix a bug`: "Paste the failing
 output — stack trace, error message, or test failure — verbatim."
-Options: `None observed`
+Options: `I'll paste it`, `None observed`
 The answer lands in `<context>` under an `Observed failure:` line, exactly
 as pasted — the artifact, not a paraphrase (the spawned session can't ask
 what the error actually said).
 
 **Q4** — "What must stay true after this change? One observable assertion
 per line — something a command could check, not the name of a contract."
-Options: `Nothing in particular`
+Options: `I'll list them`, `Nothing in particular`
 The answers fill the template's optional `<invariants>` block. Rephrase a
 contract name into the assertion behind it ("preserve the
 identity-per-rebuild contract" → "rebuilding twice yields the same ids");
@@ -160,6 +160,12 @@ For each section selected in Call 1 Q2, ask its detail question(s). Batch up to 
   enums for verdict-like fields; for evidence-bearing claims use the
   cited-pair shape `{"cite": "file:line or doc URL", "note": string}`; keep
   schemas small — every validation retry costs a full subagent turn.
+  Legality rules, separate from the authoring rules above: the schema layer
+  takes draft-07 only, and `minimum`/`maximum`, `minLength`/`maxLength`,
+  `multipleOf`, recursive or external `$ref`, and `minItems` above 1 are
+  unsupported — state any such bound in the property's `description`
+  instead. An unsupported keyword fails the run at startup, not at
+  validation time.
   Delivery: both artifacts travel together to the chosen destination — a
   clipboard temp file carries the prompt then the schema; a `TaskCreate`
   description carries both. The never-print-into-chat rule in Deliver below
@@ -286,15 +292,19 @@ if it had.
 - `customTone` ← Call 4's Tone answer, if selected (top-level field,
   outside `judgment`)
 - `judgment.role`/`judgment.goal` ← Call 2 Q1/Q2
+- `judgment.purpose` ← one sentence for what the finished work feeds or
+  who reads it, when the interview already named that (Call 4's
+  Background-context answer commonly does); omit it otherwise, which is
+  the common case
 - `judgment.context` ← Call 4's Background-context answer, if selected,
   plus Call 3 Q3's observed failure, when gathered and not
   `None observed`, under an `Observed failure:` line, verbatim
 - `judgment.steps` ← Call 2 Q4's answer, split into implement/fix bullets
 - `judgment.constraints` ← Call 4's Constraints answers, if selected, plus
-  one more line for a review-flavored task (the `Security audit` task
-  type, or the `Code reviewer` role): "Flag only gaps that affect
-  correctness or security — reporting that the work is sound is a valid
-  outcome."
+  one more line for a review-flavored task (the `Code reviewer` role, or a
+  task type the user described as a review or audit): "Flag only gaps
+  that affect correctness or security — reporting that the work is sound
+  is a valid outcome."
 - `judgment.expectedFileSurface` ← Call 2 Q3's paths, as given; omit when
   no paths were named
 - `judgment.verification` ← Call 3's `Run:`/`Expected:` pairs, in running

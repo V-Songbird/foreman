@@ -39,7 +39,6 @@ const PLACEHOLDER_FRAGMENTS = [
   "[exact command",
   "[pass/fail signal",
   "[Repeat the Run:/Expected: pair",
-  "[CUSTOM SECTIONS",
   "[OPTIONAL",
   "[BACKGROUND-AGENT DESTINATION",
   "[Before snippet",

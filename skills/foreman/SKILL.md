@@ -46,9 +46,10 @@ Notes that change how a route is handed over:
   — not a check against the codebase. That's the difference from
   **reconcile and pick**: this one never touches `foreman:survey` and never
   leads into a pick unless the user separately asks for one.
-- Any of the five roadmap intents can also be reached by the user picking
-  from `foreman:roadmap`'s own menu. Route to the branch when the request
-  already names one; hand over without a branch when it genuinely doesn't.
+- Four of the five roadmap intents can also be reached by the user picking
+  from `foreman:roadmap`'s own menu; **check the roadmap** is phrase-reached
+  only. Route to the branch when the request already names one; hand over
+  without a branch when it genuinely doesn't.
 
 ## When the request fits two intents
 

@@ -10,7 +10,6 @@
 //   - leftover template placeholders are errors
 //   - verification (Run:/Expected:) required unless --research
 //   - omitSections compliance, incl. the background-Agent tone carve-out
-//   - custom sections must be inlined verbatim
 //   - --entry requires the embedded entry paragraph (and --resume its variant)
 //   - usePersona:false rejects a "You are a" opener
 //   - assumed-context phrasing is a warning, not an error
@@ -59,7 +58,6 @@ function goodPrompt(overrides = {}) {
     no_invention: NO_INVENTION_LINE,
     invariants: '',
     task_rules: `<task_rules>\n- Check the refresh path against the failing test.\n- Fix the bug.\n\nConstraints:\n- Do not modify the public API.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\n${FIX_CEILING_LINE}\n</task_rules>`,
-    custom_sections: '',
     request: 'Fix the token refresh bug in the auth middleware.',
     autonomy: '',
     closing: canonical.closing,

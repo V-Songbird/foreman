@@ -213,6 +213,9 @@ mechanics it defers to are step 5 below.
    investigation, same rule as the top of this branch:
    - `role`/`goal` ← a role and one goal sentence for what "done" looks
      like, drawn from the entry's `title`/`why`.
+   - `purpose` ← one sentence for what the finished work feeds or who
+     reads it, when the entry's `why` names that; omit the field when
+     `why` says nothing beyond the goal itself, which is the common case.
    - `context` ← the entry's `what`, plus its `notes` when non-empty,
      attributed as prior recorded findings on this entry (a survey verdict,
      a defer trigger, a previous session's evidence) — the selected-entry
@@ -221,10 +224,10 @@ mechanics it defers to are step 5 below.
      when the selected entry carries a non-empty one, the script folds
      those resolved decision-doc paths into `context` on its own.
    - `steps`/`constraints` ← the entry's own `what`, split into what to
-     implement and any hard limits or patterns to follow. `task_rules` carries no read-first bullet — the fixed `<plan>` block
-     states that step once for every handoff, and `truth_grounding` already
-     carries the verify-before-acting mandate, so don't add a third copy
-     here.
+     implement and any hard limits or patterns to follow. `task_rules` carries no read-first bullet — a reinforced handoff
+     states that step once in its `<plan>` block, and a standard one carries
+     the concise truth line that binds every claim in the prompt, so don't
+     add a copy here.
    - `expectedFileSurface` ← the entry's `planned_touches`, when known, as
      a plain string — the script turns it into the constraint line itself:
      "Expected file surface: <paths>. Anything beyond this list gets
@@ -265,7 +268,10 @@ mechanics it defers to are step 5 below.
 
    Returns one JSON line: `{ok, prompt, profile, signals, tasks?, gate,
    warnings}`. `profile` and `signals` are internal bookkeeping — never
-   name either in anything the user reads. When `ok` is `false`, don't retry blind: show
+   name either in anything the user reads. Surface any top-level
+   `warnings` verbatim whenever that array is non-empty — including when
+   `ok` is `true`, since a stale path or an unanswerable verification
+   command has to be fixed before delivery. When `ok` is `false`, don't retry blind: show
    `gate.errors` (and any `gate.warnings`) to the user instead — each names
    the judgment field that's too thin (missing steps, missing
    verification, an unresolved reference) — gather that field properly and
