@@ -68,14 +68,15 @@ function goodPrompt(overrides = {}) {
   return Object.values(parts).filter(Boolean).join('\n\n') + '\n';
 }
 
-// [Foreman: 138] The short profile: identity + goal, the concise truth line,
-// touches, how to verify, and the closure-evidence rule. Nothing else.
+// [Foreman: 138, 231] The short profile: identity + goal, the concise truth
+// line, touches, how to verify — the Run:/Expected: pairs and the fix ceiling
+// that closes them — and the closure-evidence rule. Nothing else.
 function standardPrompt(overrides = {}) {
   const parts = {
     task_context: '<task_context>\nYou are a senior engineer.\nYour goal is to fix the retry bug so all tests pass.\n</task_context>',
     truth_line: CONCISE_TRUTH_SENTENCE,
     background: '<background>\n<relevant_files>\nsrc/auth/middleware.ts — refreshToken (42), verifySession (77)\n</relevant_files>\n</background>',
-    task_rules: '<task_rules>\n- Fix the bug.\n\nConstraints:\n- Do not modify the public API.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\n</task_rules>',
+    task_rules: `<task_rules>\n- Fix the bug.\n\nConstraints:\n- Do not modify the public API.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\n${FIX_CEILING_LINE}\n</task_rules>`,
     closure: CLOSURE_EVIDENCE_SENTENCE,
     request: 'Fix the token refresh bug in the auth middleware.',
     autonomy: '',
@@ -713,6 +714,18 @@ describe('handoff profiles', () => {
     const longNoClosure = check(project, goodPrompt({ closing: strippedClosing }), ['--destination', 'task', '--profile', 'reinforced']);
     assert.equal(longNoClosure.status, 1);
     assert.ok(longNoClosure.json.errors.some((e) => e.includes('closure-evidence rule')), JSON.stringify(longNoClosure.json.errors));
+  });
+
+  // [Foreman: 231]
+  test('the fix ceiling is required in BOTH profiles — it belongs to the verification block', () => {
+    const project = makeTmpProject();
+    const noCeiling = '<task_rules>\n- Fix the bug.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\n</task_rules>';
+    const short = check(project, standardPrompt({ task_rules: noCeiling }), ['--destination', 'task', '--profile', 'standard']);
+    assert.equal(short.status, 1);
+    assert.ok(short.json.errors.some((e) => e.includes('fix loop is unbounded')), JSON.stringify(short.json.errors));
+    const long = check(project, goodPrompt({ task_rules: noCeiling }), ['--destination', 'task', '--profile', 'reinforced']);
+    assert.equal(long.status, 1);
+    assert.ok(long.json.errors.some((e) => e.includes('fix loop is unbounded')), JSON.stringify(long.json.errors));
   });
 
   test('standard still needs its truth line and a runnable verification', () => {

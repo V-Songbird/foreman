@@ -434,17 +434,20 @@ hand at craft time. Never a judgment call.** Any one of them true →
 
 **Reinforced** is the full shape the Template section above describes —
 `truth_grounding`, `scope_discipline`, `<plan>`, the closing paragraph, the
-no-invention line, the bounded fix ceiling, `tone`, `output_format`, and the
-optional per-task fields. Nothing about it changes.
+no-invention line, `tone`, `output_format`, and the optional per-task
+fields. Nothing about it changes.
 
+<!-- [Foreman: 231] -->
 **Standard** carries only: `<task_context>` (the entry's identity and the
 one-sentence goal), the concise truth line below, `<relevant_files>` with its
 symbols, `<prior_work>` when anything was recalled, `<task_rules>`
-(constraints plus the `Verification (REQUIRED):` Run:/Expected: pairs), the
-closure-evidence sentence, and the ROADMAP.jsonl entry paragraph when the
-handoff carries one. Everything else is dropped — the point of the profile
-is the length it saves. Two rules survive the cut because they are trust
-invariants, not ceremony:
+(constraints plus the `Verification (REQUIRED):` Run:/Expected: pairs and the
+bounded fix ceiling that closes them), the closure-evidence sentence, and the
+ROADMAP.jsonl entry paragraph when the handoff carries one. Everything else is
+dropped — the point of the profile is the length it saves. The fix ceiling is
+not an exception to that: it belongs to the verification block rather than to
+a profile, so it rides wherever `Run:`/`Expected:` pairs do. Two more rules
+survive the cut because they are trust invariants, not ceremony:
 
 > Treat every claim in this prompt as a hypothesis to verify against the codebase before acting on it; if reality contradicts it, trust reality, say so in one line, and never create a file or symbol just to make this prompt true.
 

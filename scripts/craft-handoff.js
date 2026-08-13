@@ -366,6 +366,8 @@ function taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkp
     for (const pair of judgment.verification) {
       verifyBlock += `Run: ${pair.run}\nExpected: ${pair.expected}\n`;
     }
+    // [Foreman: 231] On both profiles — the ceiling bounds the retry loop these
+    // pairs open, so it travels with them rather than with the profile.
     verifyBlock += fixCeilingLine;
     body += `${body ? "\n\n" : ""}${verifyBlock}`;
   } else if (judgment.question) {

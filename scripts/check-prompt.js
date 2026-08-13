@@ -239,9 +239,11 @@ function checkPrompt(prompt, opts) {
     if (!hasVerification) {
       errors.push("task_rules has no verification block (Run:/Expected:) — required unless the task is pure research (--research)");
     }
-    // [Foreman: 103] Bounded recovery is a reinforced rule; standard carries
-    // the runnable check itself and nothing around it.
-    if (reinforced && !norm(taskRules).includes(norm(FIX_CEILING_SENTENCE))) {
+    // [Foreman: 103, 231] The ceiling belongs to the verification block, not
+    // to a profile: it bounds the retry loop the Run:/Expected: pairs open, and
+    // both profiles carry those pairs. craft-handoff.js has always emitted it
+    // on both, so this binds what already ships.
+    if (!norm(taskRules).includes(norm(FIX_CEILING_SENTENCE))) {
       errors.push("the verification block's fix loop is unbounded — it must end with the fixed ceiling (\"after two failed fix attempts, stop and report…\"), not \"iterate until it passes\"");
     }
   }
