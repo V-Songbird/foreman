@@ -9,7 +9,8 @@
 // can be ignored; this makes it harder to.
 //
 // Probed 2026-07-14 (headless CLI 2.1.210, brief §2.1/§4 M1) and re-probed
-// 2026-07-23 (CLI 2.1.216): TaskCompleted accepts the same top-level
+// 2026-07-23 (CLI 2.1.216) and 2026-08-13 (CLI 2.1.228), unchanged both
+// times: TaskCompleted accepts the same top-level
 // {"decision":"block","reason":"..."} shape as Stop/SubagentStop — a real
 // block (the TaskUpdate call itself returns success:false, updatedFields:[],
 // with the reason as its own tool_result text, not a system-reminder). No
