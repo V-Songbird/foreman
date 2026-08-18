@@ -4,13 +4,13 @@
 // [Foreman: 143] The other half of Foreman's product evidence: what using it
 // costs in attention, and whether an interrupted run comes back.
 //
-// PRODUCT-STRATEGY.md ("Attention and cost", "Execution and recovery") asks
-// for seven numbers. Three are already in the files Foreman owns — the roadmap
+// Foreman's product-evidence set asks for seven numbers on attention/cost and
+// execution/recovery. Three are already in the files Foreman owns — the roadmap
 // records what a task predicted and what it actually touched, and the two
 // handoff profiles are fixed text on disk. Four are facts about a person being
 // set up, questioned, interrupted, or recovering, so they come from the same
-// opt-in trial log roadmap-health.js reads (see TRIALS.md), which nothing
-// records yet.
+// opt-in trial log roadmap-health.js reads (see TRIALS.md), written by
+// scripts/trial-log.js to .foreman/trial-log.jsonl when the project opts in.
 //
 // This entry DEFINES the measurements, exactly as 142 did. It records nothing:
 // no skill, hook, or script calls this file, and it never writes.

@@ -2,5 +2,9 @@
 /PRODUCT-STRATEGY.md
 /SCOPE.md
 
-# Benchmark run data stays on the operator's machine; the repo carries the harness.
-/benchmarks/records/*.json
+# Benchmark run data stays on the operator's machine; the harness lives in the marketplace repo.
+/benchmarks/records/*
+/benchmarks/records-archive/
+/benchmarks/results/
+!/benchmarks/records/README.md
+!/benchmarks/records/validate-records.js

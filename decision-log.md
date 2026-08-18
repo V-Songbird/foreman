@@ -126,6 +126,12 @@ Three keys under `decisionLog` in `.foreman/config.json`. `enabled` turns
 authoring on, `dir` says where notes go (default `docs/foreman`), and
 `gate: "block"` refuses to close a decision task until it records one.
 
+Two environment variables override the config after it is read.
+`FOREMAN_DECISION_LOG` accepts `1`, `true`, `0`, or `false` and sets
+`enabled` accordingly; any other value is ignored silently.
+`FOREMAN_DECISION_LOG_DIR` sets `dir`, and takes a relative path with no
+`..` segments — anything else is warned about and ignored.
+
 > [!NOTE]
 > `gate: "block"` is worth thinking about before you set it. Refusing to
 > close a task until it records a note is a good way to teach yourself to

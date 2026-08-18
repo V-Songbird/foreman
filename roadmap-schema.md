@@ -353,7 +353,7 @@ back. Nothing is deleted, and nothing is rewritten in the move.
 
 **Storage.** `.foreman/archive.jsonl`, beside `config.json` rather than at
 the project root — it is history, not the plan. Same JSONL, same fields,
-same `{"foreman_roadmap_format":1}` first line, written by the same writer
+same format-marker first line, written by the same writer
 as `ROADMAP.jsonl` and held to the same structural contract, so it reads
 (and `doctor`s) with the same parser. It is committed like the roadmap, and
 `hooks/guard-roadmap-edit.js` blocks direct `Edit`/`Write` of it too.
@@ -412,7 +412,7 @@ close writes the roadmap and never the archive.
 
 ## `.foreman/config.json`
 
-Sibling runtime file, also at the project root, also committed. Plain JSON,
+Sibling runtime file at `.foreman/config.json`, also committed. Plain JSON,
 no CLI wraps it (unlike `ROADMAP.jsonl`) — edited directly with `Read`/
 `Write` when a flag needs to change. Full field reference is in
 [`settings.md`](settings.md); the one relevant to this file's

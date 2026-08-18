@@ -43,7 +43,7 @@ Foreman keeps the plan where the code lives: a plain-language roadmap, committed
 | You commit | A task that looks finished is surfaced for you to confirm; opt in and new work the commit uncovered gets flagged too |
 | You suspect the plan has drifted | The top tasks get double-checked against the actual code, and the roadmap corrected |
 
-Hand a task off as tracked work, and every finished piece lands as its own commit on a `foreman/<slug>` branch. At the end, you pick what happens to it: squash, merge, PR, or keep.
+Hand a task off as a split run — two or more checks — and every finished piece lands as its own commit on a `foreman/<slug>` branch. At the end, you pick what happens to it: squash, merge, PR, or keep.
 
 ## Install
 

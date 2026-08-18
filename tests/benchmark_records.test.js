@@ -1,8 +1,8 @@
 "use strict";
 
 // [Foreman: 144] The record validator: a well-formed record passes, each
-// violation class fails on its own, and the records actually published in this
-// repository validate clean against the files they were measured against.
+// violation class fails on its own, and a record whose measured file has since
+// changed fails.
 
 const fs = require("fs");
 const os = require("os");
@@ -11,7 +11,6 @@ const { test, describe, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
 const { runNodeScript } = require("./helpers");
 const {
-  RECORDS_DIR,
   sha256,
   validateRecords,
 } = require("../benchmarks/records/validate-records");
@@ -277,28 +276,5 @@ describe("record validator — CLI", () => {
     const output = JSON.parse(run.stdout);
     assert.equal(output.ok, false);
     assert.match(output.error, /records directory not found/);
-  });
-});
-
-describe("the records published in this repository", () => {
-  test("validate clean against the files they were measured against", () => {
-    const result = validateRecords();
-
-    assert.deepEqual(result.errors, []);
-    assert.equal(result.ok, true);
-  });
-
-  test("default to this repository's own records directory", () => {
-    const run = runNodeScript(SCRIPT, []);
-
-    assert.equal(run.status, 0);
-    assert.equal(JSON.parse(run.stdout).records_dir, RECORDS_DIR);
-  });
-
-  test("every published record names at least one limitation", () => {
-    for (const name of fs.readdirSync(RECORDS_DIR).filter((f) => f.endsWith(".json"))) {
-      const record = JSON.parse(fs.readFileSync(path.join(RECORDS_DIR, name), "utf8"));
-      assert.ok(record.limitations.length > 0, `${name} names no limitation`);
-    }
   });
 });

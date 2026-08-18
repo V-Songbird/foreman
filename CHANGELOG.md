@@ -31,7 +31,7 @@ that's why `plugin.json` here carries none.
 
 ### Changed
 
-- The repository no longer carries benchmark run data. The harness, the record format, and the validator stay — run them yourself to regenerate any figure.
+- The repository no longer carries benchmark run data. The record format and the validator stay.
 
 ## 1.1.2 — 2026-08-08
 
@@ -43,7 +43,7 @@ that's why `plugin.json` here carries none.
 
 ### Changed
 
-- The README is about a fifth shorter — the same behavior described in fewer words.
+- Documentation updates.
 
 ## 1.1.0 — 2026-08-07
 
@@ -55,7 +55,7 @@ that's why `plugin.json` here carries none.
 
 ### Changed
 
-- The README, the decision-log page, the settings page, and this file's intro are rewritten in plainer language — shorter sentences, everyday words, the benefit up front. Every setting, field, and behavior they describe is unchanged.
+- Documentation updates. No behavior changed.
 
 ## 1.0.2 — 2026-08-06
 
@@ -82,7 +82,6 @@ that's why `plugin.json` here carries none.
 ### Fixed
 
 - `settings.md` now describes `taskCloseGate`'s block mode as it behaves: the first completion attempt is stopped, and the retry passes.
-- A stale comment claimed `fableEnabled` was set by an init question; it is hand-edited in `.foreman/config.json`.
 
 ## [1.0.0] — 2026-08-01
 
@@ -103,9 +102,7 @@ that's why `plugin.json` here carries none.
 - Work that is finished but not yet accepted now says so: a task waiting on your yes sits in `awaiting_acceptance` instead of looking like it is still being worked on. Foreman offers to accept it when you next ask what to work on, mentions it at session start, and sends it back to in progress — with what you said — when you tell it the work is not ready.
 - Two branches that each added a task can no longer leave the merged roadmap broken: Foreman now reports which tasks ended up sharing an id, what still depends on it, and which commits already carry it, then renumbers the ones you don't keep — links to the task that keeps the id survive the repair untouched.
 - Foreman now has one entrance: describe what you want in plain language — add work, see where the project stands, fix a stale entry, pick what to work on, or check the roadmap against the code and then pick — and it goes to the flow that handles it. The specialized commands still work directly and are now documented as the advanced way in.
-- The benchmarks now include a roadmap health report you can run on any roadmap yourself — stale entries, tasks waiting on work that was dropped, look-alike duplicates, how fast the archive is growing, and the duplicate-id repairs a branch merge needed — alongside the definitions for opt-in, local, count-only trials that would measure whether you actually take the task Foreman recommends.
-- The benchmarks now also report what Foreman costs in attention: how closely each finished task's predicted files matched the files it actually changed, how many files it swept up that nothing predicted, and how much shorter the short handoff is than the full-strength one — next to definitions for the setup time, questions, commit interruptions, and recovery success that only an opt-in, local, count-only trial could measure.
-- Every performance number Foreman publishes now has to point at a result record carrying the exact fixtures and prompts it was measured with, the model and its settings, how many times it ran, each run next to the aggregate, the date, the machine, and what the number doesn't say — with a free checker that fails if a fixture has been edited since the run, so a claim can't quietly drift away from its evidence. The README's earlier benchmark charts predated the rule and are removed until records back them.
+- Added a roadmap health report you can run on any roadmap, and a records validator that checks a stated number against the run behind it.
 - Foreman now offers at session start to archive finished roadmap entries once 20 or more sit in the active roadmap. Offer only — nothing moves without you.
 
 ### Changed
@@ -196,9 +193,6 @@ that's why `plugin.json` here carries none.
 
 ### Fixed
 
-- Two of Foreman's hooks no longer run in projects that never set up a roadmap: opening a file and editing a file both stay silent there, as the other four already did.
-- Blocking a direct edit of `archive.jsonl` now applies only to this project's own copy, instead of any file anywhere with that name.
-- Recording a usage trial no longer costs a run its automated commits: the trial log counts as Foreman's own bookkeeping, like the roadmap and the archive.
 - The close gate's reminder mode produced no message at all. Its replacement, `block`, holds the completion and states what to close.
 
 ## [0.42.0-alpha] — 2026-07-23
@@ -242,9 +236,6 @@ that's why `plugin.json` here carries none.
 
 ### Fixed
 
-- Two of Foreman's hooks no longer run in projects that never set up a roadmap: opening a file and editing a file both stay silent there, as the other four already did.
-- Blocking a direct edit of `archive.jsonl` now applies only to this project's own copy, instead of any file anywhere with that name.
-- Recording a usage trial no longer costs a run its automated commits: the trial log counts as Foreman's own bookkeeping, like the roadmap and the archive.
 - A custom section can no longer use the reserved `decision_log` tag and shadow the template's decision-log block — it is skipped with a warning, like the other reserved tags.
 - The `update-deps` error message now mentions `remove_depends_on` alongside `add_depends_on`.
 - Documentation corrected where it lagged the code: the template's settings shape, the schema doc's completion-check coverage, a broken README link, and init's list of preserved config keys.
@@ -324,9 +315,6 @@ that's why `plugin.json` here carries none.
 
 ### Fixed
 
-- Two of Foreman's hooks no longer run in projects that never set up a roadmap: opening a file and editing a file both stay silent there, as the other four already did.
-- Blocking a direct edit of `archive.jsonl` now applies only to this project's own copy, instead of any file anywhere with that name.
-- Recording a usage trial no longer costs a run its automated commits: the trial log counts as Foreman's own bookkeeping, like the roadmap and the archive.
 - A task's file hints no longer count as stale just because a file isn't there yet — the survey now needs evidence the file once existed and moved.
 
 ## [0.32.0-alpha] — 2026-07-21
@@ -465,9 +453,6 @@ Doc-only: the README logo now adapts to dark mode (white silhouette instead of b
 
 ### Fixed
 
-- Two of Foreman's hooks no longer run in projects that never set up a roadmap: opening a file and editing a file both stay silent there, as the other four already did.
-- Blocking a direct edit of `archive.jsonl` now applies only to this project's own copy, instead of any file anywhere with that name.
-- Recording a usage trial no longer costs a run its automated commits: the trial log counts as Foreman's own bookkeeping, like the roadmap and the archive.
 - The follow-up-fix reminder after a commit now appears once per task per
   day instead of on every commit.
 
@@ -481,9 +466,6 @@ Doc-only: the README logo now adapts to dark mode (white silhouette instead of b
 
 ### Fixed
 
-- Two of Foreman's hooks no longer run in projects that never set up a roadmap: opening a file and editing a file both stay silent there, as the other four already did.
-- Blocking a direct edit of `archive.jsonl` now applies only to this project's own copy, instead of any file anywhere with that name.
-- Recording a usage trial no longer costs a run its automated commits: the trial log counts as Foreman's own bookkeeping, like the roadmap and the archive.
 - Fixed an issue where a failed `git commit` could still trigger
   Foreman's after-commit prompts when an exit-code-preserving plugin was
   also installed.
@@ -499,9 +481,6 @@ Doc-only: the README logo now adapts to dark mode (white silhouette instead of b
 
 ### Fixed
 
-- Two of Foreman's hooks no longer run in projects that never set up a roadmap: opening a file and editing a file both stay silent there, as the other four already did.
-- Blocking a direct edit of `archive.jsonl` now applies only to this project's own copy, instead of any file anywhere with that name.
-- Recording a usage trial no longer costs a run its automated commits: the trial log counts as Foreman's own bookkeeping, like the roadmap and the archive.
 - Fixed an issue where a session could quietly work around an outdated
   claim in its handoff prompt without ever mentioning the mismatch — it
   is now always stated in the final message, even under a minimal output
@@ -541,9 +520,6 @@ Doc-only: the README logo now adapts to dark mode (white silhouette instead of b
 
 ### Fixed
 
-- Two of Foreman's hooks no longer run in projects that never set up a roadmap: opening a file and editing a file both stay silent there, as the other four already did.
-- Blocking a direct edit of `archive.jsonl` now applies only to this project's own copy, instead of any file anywhere with that name.
-- Recording a usage trial no longer costs a run its automated commits: the trial log counts as Foreman's own bookkeeping, like the roadmap and the archive.
 - Roadmap writes are now atomic — an interruption mid-write can no
   longer corrupt `ROADMAP.jsonl`.
 - Fixed an issue where roadmap dates used the UTC day instead of the
@@ -593,9 +569,6 @@ Doc-only: plugin.json's description now matches the marketplace listing text. No
 
 ### Fixed
 
-- Two of Foreman's hooks no longer run in projects that never set up a roadmap: opening a file and editing a file both stay silent there, as the other four already did.
-- Blocking a direct edit of `archive.jsonl` now applies only to this project's own copy, instead of any file anywhere with that name.
-- Recording a usage trial no longer costs a run its automated commits: the trial log counts as Foreman's own bookkeeping, like the roadmap and the archive.
 - Picking a task no longer marks it in progress right away. The roadmap
   now only shows a task as in progress once a session actually starts
   working it, not the moment it's picked or copied.
@@ -621,9 +594,6 @@ Doc-only: plugin.json's description now matches the marketplace listing text. No
 
 ### Fixed
 
-- Two of Foreman's hooks no longer run in projects that never set up a roadmap: opening a file and editing a file both stay silent there, as the other four already did.
-- Blocking a direct edit of `archive.jsonl` now applies only to this project's own copy, instead of any file anywhere with that name.
-- Recording a usage trial no longer costs a run its automated commits: the trial log counts as Foreman's own bookkeeping, like the roadmap and the archive.
 - Fixed guardrail wording that could cause a dispatched agent to narrate
   its work step-by-step in chat instead of working silently and
   reporting only in its final response.
@@ -700,9 +670,6 @@ Doc-only: plugin.json's description now matches the marketplace listing text. No
 
 ### Fixed
 
-- Two of Foreman's hooks no longer run in projects that never set up a roadmap: opening a file and editing a file both stay silent there, as the other four already did.
-- Blocking a direct edit of `archive.jsonl` now applies only to this project's own copy, instead of any file anywhere with that name.
-- Recording a usage trial no longer costs a run its automated commits: the trial log counts as Foreman's own bookkeeping, like the roadmap and the archive.
 - Fixed `craft-prompt` failing to read project config due to a missing
   tool permission.
 - Fixed the post-commit hook not correctly detecting failed `git commit`
@@ -758,9 +725,6 @@ Doc-only: plugin.json's description now matches the marketplace listing text. No
 
 ### Fixed
 
-- Two of Foreman's hooks no longer run in projects that never set up a roadmap: opening a file and editing a file both stay silent there, as the other four already did.
-- Blocking a direct edit of `archive.jsonl` now applies only to this project's own copy, instead of any file anywhere with that name.
-- Recording a usage trial no longer costs a run its automated commits: the trial log counts as Foreman's own bookkeeping, like the roadmap and the archive.
 - Fixed follow-up fix commits made after a task was already marked
   `done` silently losing their commit reference. The post-commit hook
   now also nudges for same-day follow-up commits on completed tasks.
@@ -790,9 +754,6 @@ Doc-only: plugin.json's description now matches the marketplace listing text. No
 
 ### Fixed
 
-- Two of Foreman's hooks no longer run in projects that never set up a roadmap: opening a file and editing a file both stay silent there, as the other four already did.
-- Blocking a direct edit of `archive.jsonl` now applies only to this project's own copy, instead of any file anywhere with that name.
-- Recording a usage trial no longer costs a run its automated commits: the trial log counts as Foreman's own bookkeeping, like the roadmap and the archive.
 - Fixed `update-deps` allowing indirect dependency cycles (two tasks
   depending on each other through a chain), which could leave both tasks
   permanently unable to be marked ready. Cycles are now rejected.
@@ -808,9 +769,6 @@ Doc-only: plugin.json's description now matches the marketplace listing text. No
 
 ### Fixed
 
-- Two of Foreman's hooks no longer run in projects that never set up a roadmap: opening a file and editing a file both stay silent there, as the other four already did.
-- Blocking a direct edit of `archive.jsonl` now applies only to this project's own copy, instead of any file anywhere with that name.
-- Recording a usage trial no longer costs a run its automated commits: the trial log counts as Foreman's own bookkeeping, like the roadmap and the archive.
 - Tone and persona/role are now resolved once when a prompt is crafted
   instead of as a runtime check inside the generated prompt, fixing a
   conflict with persona-style plugins that inject their own identity.
@@ -819,9 +777,6 @@ Doc-only: plugin.json's description now matches the marketplace listing text. No
 
 ### Fixed
 
-- Two of Foreman's hooks no longer run in projects that never set up a roadmap: opening a file and editing a file both stay silent there, as the other four already did.
-- Blocking a direct edit of `archive.jsonl` now applies only to this project's own copy, instead of any file anywhere with that name.
-- Recording a usage trial no longer costs a run its automated commits: the trial log counts as Foreman's own bookkeeping, like the roadmap and the archive.
 - Pick-next-task no longer dumps raw candidate data into the chat before
   asking which task to work on.
 - Reduced the number of candidates fetched from 5 to 3, matching how
@@ -875,9 +830,6 @@ Doc-only: plugin.json's description now matches the marketplace listing text. No
 
 ### Fixed
 
-- Two of Foreman's hooks no longer run in projects that never set up a roadmap: opening a file and editing a file both stay silent there, as the other four already did.
-- Blocking a direct edit of `archive.jsonl` now applies only to this project's own copy, instead of any file anywhere with that name.
-- Recording a usage trial no longer costs a run its automated commits: the trial log counts as Foreman's own bookkeeping, like the roadmap and the archive.
 - `roadmap.js --help` (and no args) now prints usage instead of
   erroring.
 - Handed-off prompts no longer leak raw internal XML tags into the final
@@ -889,9 +841,6 @@ Doc-only: plugin.json's description now matches the marketplace listing text. No
 
 ### Fixed
 
-- Two of Foreman's hooks no longer run in projects that never set up a roadmap: opening a file and editing a file both stay silent there, as the other four already did.
-- Blocking a direct edit of `archive.jsonl` now applies only to this project's own copy, instead of any file anywhere with that name.
-- Recording a usage trial no longer costs a run its automated commits: the trial log counts as Foreman's own bookkeeping, like the roadmap and the archive.
 - Pick-next-task no longer performs its own codebase investigation
   before handing off a task, removing duplicated work and a large amount
   of unnecessary token spend on a single invocation.

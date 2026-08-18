@@ -8,8 +8,9 @@ the machine, and the things the number does *not* say.
 
 A claim with no record does not ship. Not softened, not asterisked — it either
 gets a record or it stops being a claim. Records themselves stay on the
-operator's machine: this repository publishes the format, the validator, and
-the harness that regenerates the numbers, never the run data.
+operator's machine: this repository publishes the format and the validator,
+never the run data; the harness that regenerates the numbers lives in the
+marketplace repo.
 
 ## The rules
 
@@ -79,6 +80,6 @@ record has to say so rather than letting the two look alike.
 ## Where the data lives
 
 Record files land in this directory but are not committed — they are the
-operator's local audit trail. The harness in [`../`](../README.md) drives real
-sessions and reads real costs out of the API; run it yourself to regenerate
-any figure from scratch.
+operator's local audit trail. The harness lives in the marketplace repo under
+`benchmarks/foreman/`; it drives real sessions and reads real costs out of the
+API, so any figure can be regenerated from scratch.

@@ -3,16 +3,18 @@
 
 // [Foreman: 142] The mechanical half of Foreman's product evidence.
 //
-// PRODUCT-STRATEGY.md ("Product evidence required") asks for nine numbers
-// across recommendation quality and roadmap health. Six of them are already
-// in the files Foreman owns; three need a user actually choosing, so they
-// come from a trial log (see TRIALS.md) that nothing records yet.
+// Foreman's product-evidence set asks for nine numbers across recommendation
+// quality and roadmap health. Six of them are already in the files Foreman
+// owns; three need a user actually choosing, so they come from the opt-in
+// trial log (see TRIALS.md), written by scripts/trial-log.js to
+// .foreman/trial-log.jsonl when the project opts in.
 //
-// This entry DEFINES the measurements. It records nothing: no skill, hook, or
-// script calls this file, and it never writes. Acting on the numbers is later
-// work.
+// This entry DEFINES the measurements. It records nothing and never writes,
+// and no skill or hook calls it — its in-repo consumers are
+// scripts/health/attention-cost.js, which imports `loadTrialLog` and `ratio`,
+// plus tests/roadmap_health.test.js. Acting on the numbers is later work.
 //
-// Conventions are picks/ranking-replay.js's: plain script, explicit
+// Conventions: plain script, explicit
 // `--roadmap` (no default pointing at anyone's live roadmap), one JSON object
 // on stdout, exports for the tests. Every derived number comes from
 // roadmap.js / roadmap-doctor.js rather than a second implementation here —

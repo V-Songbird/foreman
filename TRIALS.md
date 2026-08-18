@@ -145,7 +145,7 @@ never the count of dirty files, never which files were unexpected.
 
 ### Recommendation events
 
-Exact branches in `skills/roadmap/SKILL.md`, Fast pick (and, unchanged,
+Exact branches in `skills/roadmap/pick.md` (Fast pick) (and, unchanged,
 whenever Reconcile and pick composes it):
 
 - **`menu_shown`** — step 1, immediately after
@@ -196,16 +196,18 @@ nothing else:
 - **`init_completed`** — the same file's Write phase, after the `add` loop and
   the commit of both files. `tasks` is how many `add` calls succeeded, not how
   many were drafted.
-- **`first_pick`** — `skills/roadmap/SKILL.md`, Pick the next task, at delivery
-  of the assembled handoff (step 3's `check-prompt.js` pass, immediately before
-  the prompt goes to its destination), and only when the log holds no earlier
-  `first_pick`. A pick that never survived the gate is not a first useful task.
+- **`first_pick`** — recorded today by `scripts/craft-handoff.js:685`, after the
+  in-process `check-prompt.js` gate passes and only when the log holds no
+  earlier `first_pick`. A pick that never survived the gate is not a first
+  useful task.
 - **`question_asked`** — every `AskUserQuestion` call in `skills/`, one event
   per call, `flow` naming the branch it sits in and never the question:
   `init` for all three of `skills/init/SKILL.md`'s calls, `pick` / `add` /
-  `correct` / `status` for `skills/roadmap/SKILL.md`'s four branches (Call 1's
-  menu and the archive-finished-work ask belong to the branch the user ends up
-  in), and `survey`. A question batched
+  `correct` / `status` for `skills/roadmap/pick.md`, `add.md`, `correct.md` and
+  `status.md` (Call 1's menu and the archive-finished-work ask stay in
+  `SKILL.md` and belong to the branch the user ends up in), and `survey`. The
+  fifth branch file, `doctor.md`, has no `flow` value in `scripts/trial-log.js`
+  and records nothing. A question batched
   into one call with others is one event — the cost being measured is the
   interruption, not the number of fields in it.
 - **`commit_interrupted`** — every `ok:false` return from
