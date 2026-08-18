@@ -1,9 +1,11 @@
 # How to run it — the shared destination question
 
-The one copy of the destination question both prompt-crafting flows ask
-(roadmap pick's Q2, craft-prompt's Call 5) — a fix here reaches both. The
-executing-model question is deliberately NOT here: its wording differs per
-flow, so each flow keeps its own.
+The one copy of the destination question both prompt-crafting skills ask
+(roadmap pick's Q2, craft-prompt's Call 5) — a fix here reaches both.
+`prompt-template.md`'s delivery-mechanics section names the same step for
+script authors and points here; the exact wording lives here. The
+executing-model question is not here: its one copy lives with
+craft-prompt's Call 6, and roadmap's pick branch reads that copy.
 
 **"How do you want to run this?"** — destination and execution mode in one
 question, asked now, before the prompt exists. There is nothing to preview

@@ -175,7 +175,11 @@ function removeAbandonedClaim(claimPath, staleMs, deadline = Infinity) {
 function publishClaim(lockPath, project, token) {
   fs.mkdirSync(lockPath, { recursive: true });
   const claimPath = path.join(lockPath, `claim-${process.pid}-${token}`);
-  const candidatePath = `${claimPath}.init`;
+  // The staging directory is deliberately outside the `claim-` prefix that
+  // claimDirectories scans. A contender that saw it would stat it and read
+  // its owner file, and an open handle inside a directory makes the publish
+  // rename below fail with EPERM on Windows.
+  const candidatePath = path.join(lockPath, `staging-${process.pid}-${token}`);
   fs.mkdirSync(candidatePath);
   try {
     fs.writeFileSync(

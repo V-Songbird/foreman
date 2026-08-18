@@ -285,7 +285,11 @@ mechanics it defers to are step 5 below.
    **Executing model — background Agent and clipboard only.** Now that the
    prompt exists, ask craft-prompt's Call 6 question — same wording, same
    slots and substitutions (`Fable` included only when `fableEnabled` is
-   `true`), asked with no seeded default. This is the one question that
+   `true`), asked with no seeded default. Read
+   `${CLAUDE_PLUGIN_ROOT}/skills/craft-prompt/SKILL.md`, section "Call 6 —
+   executing model (conditional)", now and ask exactly what it carries —
+   that section is the one copy of the wording, the option set, and the
+   `Other` hint; never restate any of it here. This is the one question that
    comes after the prompt: the `Agent` tool needs a model named, and a
    clipboard prompt is about to be pasted into a session the user chooses.
    `Execute here` never asks it — the session already has a model.
@@ -319,37 +323,27 @@ mechanics it defers to are step 5 below.
      already `in_progress` when the embedded instruction runs is expected,
      and re-running that update is a harmless no-op.
 
-     **Checkpoint protocol — `Execute here, split by check` only.**
-     Read the `checkpoints` block of `.foreman/config.json` first
-     (`branch` `true`, `onFinish` `"ask"`, `baseBranch` unset are the
-     defaults for a missing file/block/key). Before task 1:
-     `node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js begin` — a
-     `dirty:true` result means this run makes no automated commits at all:
-     say so once, work the tasks, and leave every change in the tree for
-     the user. Otherwise settle the branch (create `foreman/<slug>` only
-     when `branch` is `true` and currently on the base branch — `baseBranch`
-     when set, or detect it with
-     `git symbolic-ref --short refs/remotes/origin/HEAD`, name after
-     `origin/`, fallback `main`); then, after each task's check passes:
-     `echo '{"expected":["<files that task changed>"],"message_title":"task <n>/<total>: <task subject>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js finish --baseline <the current baseline>`
-     — never `git add -A`, the primitive owns staging, and its `commit` is
-     the next task's baseline. The last checkpoint carries the
-     roadmap-entry close: stage with `safe-commit.js finish --no-commit`,
-     close with `staged:true`, then commit with `Foreman: <id>` as the
-     message's final line — the entry paragraph and gate rules above are
-     unchanged. After the last task, and only if this run created the
-     branch, `onFinish` decides its fate: `"ask"` (the default) asks
-     `Squash merge (Recommended)` / `Merge` / `Open a PR` / `Keep the
-     branch`; a concrete value acts directly, no question. **When it was
-     asked, write the answer back** — `Read` `.foreman/config.json`, set
-     `checkpoints.onFinish` to `squash`/`merge`/`pr`/`keep` with every
-     other key untouched, write it, and say in one line that later runs
-     act on it without asking. Skip
+     **Checkpoint protocol — `Execute here, split by check` only.** The one
+     copy lives in `${CLAUDE_PLUGIN_ROOT}/prompt-template.md`, section
+     "Checkpointing a task-split run". Read that section now and follow it
+     exactly: it owns the config defaults, the `safe-commit.js begin`
+     boundary, the branch rule, the per-task commit — including the
+     `unexpected_files` refusal, which is shown to the user and re-run with
+     `--allow-unexpected` only on their approval — the rule that
+     checkpoints stay local and are never pushed, the roadmap-entry close,
+     and what happens to the branch at the end. This is the only moment
+     this branch reads that file. Two things that section does not say and
+     this flow does: a `foreman:roadmap` handoff always carries a roadmap
+     entry, so its roadmap-entry close always applies here — stage with
+     `safe-commit.js finish --no-commit`, close with `staged:true`, then
+     commit with `Foreman: <id>` as the message's final line; and skip
      checkpointing and just work the tasks if git is unavailable.
    - **Background Agent**: call `Agent` with `prompt` = the returned
      `prompt`, `description` = a 3-5 word summary, `run_in_background:
      true`, and `model` = the executing model just confirmed above, as its
-     literal string. The tool result trails with the
+     literal string (`haiku`/`sonnet`/`opus`/`fable`) when concrete; omit
+     the `model` parameter entirely when that answer was an `Other` that
+     named no concrete model. The tool result trails with the
      dispatched agent's id (`agentId: a<16 hex>`). Capture it immediately
      with one annotate call, so a later session can resume this exact agent
      instead of re-crafting a prompt from its notes:

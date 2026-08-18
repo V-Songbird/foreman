@@ -367,12 +367,26 @@ function resolve(root, touches, what, verify) {
     warnings.push(`reference scan stopped at ${WALK_LIMIT} files — the reference list may be incomplete`);
   }
 
-  const verification = verify ? resolveCommand(root, verify) : null;
-  if (verification && !verification.resolves) {
-    warnings.push(
-      `verification command "${verification.command}" does not resolve here — fix it before handing off, a prompt naming a command that cannot run wastes the whole session`
-    );
+  // [Foreman: 236] A handoff can name more than one check, and every one of
+  // them has to run in the handed-off session, so every one is preflighted.
+  // Identical commands collapse first — a repeated command is one finding.
+  const commands = [
+    ...new Set(
+      (Array.isArray(verify) ? verify : [verify])
+        .filter((c) => typeof c === "string" && c.trim())
+        .map((c) => c.trim())
+    ),
+  ];
+  const checks = commands.map((command) => resolveCommand(root, command)).filter(Boolean);
+  for (const check of checks) {
+    if (!check.resolves) {
+      warnings.push(
+        `verification command "${check.command}" does not resolve here — fix it before handing off, a prompt naming a command that cannot run wastes the whole session`
+      );
+    }
   }
+  // The payload mirrors what was passed: one command in, one object out.
+  const verification = checks.length ? (Array.isArray(verify) ? checks : checks[0]) : null;
 
   return {
     files,

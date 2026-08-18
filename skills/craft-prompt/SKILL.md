@@ -19,9 +19,9 @@ If args were provided, treat them as the task description seed and skip asking f
 
 ---
 
-## Call 1 — task type, optional sections, and starting point
+## Call 1 — task type, optional sections, starting point, and flavor
 
-Ask these three questions together:
+Ask these four questions together:
 
 **Q1** — "What task should the spawned session perform?"
 Options: `Implement a feature`, `Fix a bug`, `Investigate / research`, `Refactor code`
@@ -32,7 +32,6 @@ Options:
 - `Example` — a before/after or input→output snippet (good for fixes and transformations)
 - `Constraints` — hard limits on files or interfaces the agent must NOT touch
 - `Background context` — architectural decisions, patterns, or environment details
-- `Workflow stage` — prompt plus a JSON Schema the tool layer enforces, for a Workflow `agent(prompt, {schema})` stage (mechanically omits `Tone` and replaces the default output format with a fixed enforcement sentence — see the template)
 
 **Q3** — "How well do you know this part of the code?"
 Options:
@@ -41,6 +40,16 @@ Options:
   is new to me.
 - `This area is new to me` — I could not yet say what a good answer looks
   like here.
+
+**Q4** — "Is this prompt a Workflow `agent(prompt, {schema})` stage?"
+Options:
+- `No` — an ordinary prompt.
+- `Yes` — prompt plus a JSON Schema the tool layer enforces (mechanically
+  omits `Tone` and replaces the default output format with a fixed
+  enforcement sentence — see the template)
+
+Q4 is a flavor, not an optional section: it changes how every block is
+rendered rather than adding one. `Yes` overrides a `Tone` selected in Q2.
 
 Record which optional sections were selected.
 
@@ -87,10 +96,12 @@ Options: `Bug is fixed and all tests pass`, `Feature is implemented and tested`,
 **Q3** — "List the relevant files, naming the functions or classes that
 matter in each. If an analogous implementation exists, name it too as a
 pattern to imitate."
-Options: `I'll list them` (nudge user to use Other and type paths like `src/auth/middleware.ts — refreshToken, verifySession`, plus `Pattern: src/webhooks/github.ts — build the new code the same way` when one applies. A line number only when the spot has no name — `resolve-symbols.js` fills the rest in below.)
+Options: `I'll list them` (nudge user to use Other and type paths like `src/auth/middleware.ts — refreshToken, verifySession`, plus `Pattern: src/webhooks/github.ts — build the new code the same way` when one applies. A line number only when the spot has no name — `resolve-symbols.js` fills the rest in below.), `I can only name the area`
 
 **Q4** — "Describe the two steps: analyze/check, then implement/produce."
-Options: `I'll describe them`
+Options: `I'll describe them`, `Implement only, no analysis`
+`Implement only, no analysis` yields one `judgment.steps` bullet rather
+than two — the analyze half is dropped, never invented.
 
 ---
 
@@ -146,7 +157,7 @@ For each section selected in Call 1 Q2, ask its detail question(s). Batch up to 
 - **Background context** — "Describe the architectural decisions, patterns, or constraints the agent needs to know to act without prior context."
   Options: `I'll describe it`
 
-**Workflow stage** (if selected):
+**Workflow stage** (when Call 1 Q4 was `Yes`):
 - "What should come back? Describe the fields the schema should capture."
   Options: `I'll describe them`
 
@@ -183,9 +194,15 @@ this for invariants; the same holds for every question in this interview.
 - **Call 2 Q2, the done state** — the one that blocks. A prompt with no
   checkable "done" wastes the whole session. Ask once more for the
   observable signal before assembling.
-- **Call 2 Q3, the files** — becomes a `judgment.context` line naming what
-  the user could not name, so `relevant_files` is honest about its own
-  reach instead of reading as surveyed.
+- **Call 2 Q3, the files** — the one answer that still has to produce a
+  path. `relevant_files` is never allowed to be empty: `check-prompt.js`
+  hard-errors on an empty block, so a `touches` of `[]` cannot assemble at
+  all. On `I can only name the area`, or any free-text answer that names no
+  file, put the narrowest directory or subsystem the user *can* name into
+  `touches`, and add a `judgment.context` line saying the list is that area
+  rather than a survey of it. If they cannot name even a directory, say so
+  and ask once for one — it is the single field the handoff cannot be
+  assembled without.
 - **Anywhere else** — one `judgment.context` line: "Open question the user
   could not answer: <the question>. Resolve it from the code and say what
   you found."
@@ -288,7 +305,7 @@ if it had.
 - `destination` ← `"task"` for `Execute here`, `"agent"` for background
   Agent, `"clipboard"` for clipboard
 - `split` ← `true` only when Call 5 picked `Execute here, split by check`
-- `workflowStage` ← `true` only when Call 1 Q2 selected `Workflow stage`
+- `workflowStage` ← `true` only when Call 1 Q4 answered `Yes`
 - `customTone` ← Call 4's Tone answer, if selected (top-level field,
   outside `judgment`)
 - `judgment.role`/`judgment.goal` ← Call 2 Q1/Q2
@@ -327,7 +344,10 @@ Type it back literally.
 
 Returns one JSON line: `{ok, prompt, profile, signals, tasks?, gate,
 warnings}`. `profile` and `signals` are internal bookkeeping — never name
-either in anything the user reads. When `ok` is `false`, don't retry blind:
+either in anything the user reads. Surface any top-level `warnings`
+verbatim whenever that array is non-empty — including when `ok` is `true`,
+since a stale path or an unanswerable verification command has to be fixed
+before delivery. When `ok` is `false`, don't retry blind:
 show `gate.errors` (and any `gate.warnings`) to the user — each names the
 judgment field that's too thin — gather that field properly and re-call,
 rather than resending the same stdin hoping it passes.

@@ -14,12 +14,14 @@ background `Agent`, or copy-pasted elsewhere — has **zero memory** of this
 conversation. Fill every required section. A self-contained prompt is not
 optional — it is the only way the handed-off work can act correctly.
 
-This file is the canonical source scripts read at run time, not something
-a crafting session loads: `check-prompt.js` and `craft-handoff.js` both
-parse the fixed blocks below, so there is exactly one copy of every
-guardrail. `foreman:roadmap`'s pick branch and `foreman:craft-prompt` call
-`craft-handoff.js` and relay what it returns; neither reads this file
-directly.
+This file is the canonical source scripts read at run time:
+`check-prompt.js` and `craft-handoff.js` both parse the fixed blocks
+below, so there is exactly one copy of every guardrail.
+`foreman:roadmap`'s pick branch and `foreman:craft-prompt` call
+`craft-handoff.js` and relay what it returns rather than assembling those
+blocks themselves. One exception: both flows `Read` the "Checkpointing a
+task-split run" section here directly, at their Deliver step, because no
+script assembles that protocol.
 
 ---
 
@@ -576,28 +578,26 @@ Shared by every skill that assembles this template. The skill decides
 says what each one does once picked.
 
 **Never call `mcp__ccd_session__spawn_task`** — it has a known bug where
-tasks spawned through it don't get MCP tools. Use one of the three
-destinations below instead, regardless of Desktop or CLI.
+tasks spawned through it don't get MCP tools. Use one of the
+destinations named in `skills/roadmap/destination-question.md` instead,
+regardless of Desktop or CLI.
 
 **One question, not two.** Destination and execution mode are asked
-together, in a single `AskUserQuestion` the crafting skill owns:
-`Execute here (Recommended)` (one tracked task, worked in this session),
-`Execute here, split by check` (one tracked task per check, each finished
-one committed on a `foreman/<slug>` branch), `Execute with a background
-Agent`, and `Copy prompt to clipboard`. Gather the verification commands
-*before* asking: the split option exists only when there are two or more
-checks, so a one-check task never sees it. `AskUserQuestion`'s own
-free-text option is where a user names the pieces or gives a fixed number
-instead of one-per-check (the splitting section below says what a bare
-number does). The `(Recommended)` tag stays on the option that creates no
-branch — a checkpoint branch is a real change to the user's repository and
-is never the default suggestion.
+together, in a single `AskUserQuestion` the crafting skill owns, before
+the prompt exists. Its exact wording, its options, the split option's
+two-or-more-checks gate and the `(Recommended)` placement all live in
+`skills/roadmap/destination-question.md` — the one copy both crafting
+flows read at that step. Gather the verification commands *before*
+asking: that gate reads them.
 
 **Background Agent** — call `Agent` with `prompt` = the assembled XML
 prompt, `description` = a 3-5 word summary, `run_in_background: true`.
 Checkpoint branches and commits stay with this crafting session — a
 background Agent shares this working tree and must not switch branches or
-commit checkpoints.
+commit checkpoints. Pass `model` too — the executing model the crafting
+skill confirmed, as its literal string, one of
+`haiku`/`sonnet`/`opus`/`fable`; omit the parameter entirely when the
+answer named no concrete model.
 
 **Clipboard** — `Write` the assembled prompt to a temp file first; never
 pass it as an inline shell string, a large prompt breaks shell quoting and
@@ -606,7 +606,8 @@ command: `Get-Content -Raw <file> | Set-Clipboard` on Windows, `pbcopy <
 <file>` on macOS, `xclip -selection clipboard < <file>` (or `wl-copy <
 <file>`) on Linux. Mention the file path too, in case the clipboard step
 fails. If no clipboard tool is available at all, fall back to showing the
-prompt in a fenced `xml` code block instead.
+prompt in a fenced `xml` code block instead. Name the executing model in
+one line too, so the user pastes it into the right kind of session.
 
 **Clipboard checkpoint embed** — only when the assembled prompt carries
 two or more `Run:`/`Expected:` pairs; with one or none, embed nothing.
@@ -679,7 +680,8 @@ above, which reuses the config-resolution step below at craft time.
   block, or key means that key's default: `branch` `true`,
   `onFinish` `"ask"`, `baseBranch` unset (auto-detect). These three keys
   drive the steps below. There is no `push` key and none should be added —
-  see `docs/foreman/119.md`.
+  the default ending squashes the checkpoint branch and deletes it, so
+  pushing each checkpoint publishes work that is about to be rewritten.
 - **Settle the branch before the first task.** When `baseBranch` is set,
   that IS the base branch — skip detection. Otherwise resolve it with
   `git symbolic-ref --short refs/remotes/origin/HEAD` and take the name

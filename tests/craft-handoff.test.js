@@ -324,6 +324,40 @@ describe('task split — entry paragraph on the last row only', () => {
   });
 });
 
+describe('verification preflight — every command, not just the first', () => {
+  test('a second command that does not resolve warns, and the warning names it', () => {
+    writeRoadmap(project, [entryFields()]);
+    const { json } = run(project, {
+      entry: '001',
+      destination: 'clipboard',
+      judgment: goodJudgment({
+        verification: [
+          { run: 'node --test tests/*.test.js', expected: 'all tests pass' },
+          { run: 'definitelynotarealbinary --run', expected: 'the check passes' },
+        ],
+      }),
+    });
+    const hits = json.warnings.filter((w) => w.includes('does not resolve'));
+    assert.equal(hits.length, 1, `expected one unresolvable-command warning, got ${JSON.stringify(json.warnings)}`);
+    assert.ok(hits[0].includes('definitelynotarealbinary --run'), hits[0]);
+  });
+
+  test('the same command twice is one finding, not two', () => {
+    writeRoadmap(project, [entryFields()]);
+    const { json } = run(project, {
+      entry: '001',
+      destination: 'clipboard',
+      judgment: goodJudgment({
+        verification: [
+          { run: 'definitelynotarealbinary --run', expected: 'the check passes' },
+          { run: 'definitelynotarealbinary --run', expected: 'still passes' },
+        ],
+      }),
+    });
+    assert.equal(json.warnings.filter((w) => w.includes('does not resolve')).length, 1, JSON.stringify(json.warnings));
+  });
+});
+
 describe('${CLAUDE_PLUGIN_ROOT} travels literal, never expanded', () => {
   test('stays literal even with the real env var set', () => {
     writeRoadmap(project, [entryFields()]);

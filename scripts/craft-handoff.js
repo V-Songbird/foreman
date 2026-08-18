@@ -553,8 +553,11 @@ function assemble(root, input) {
   const workflowStage = Boolean(input.workflowStage);
 
   const hasVerification = Array.isArray(judgment.verification) && judgment.verification.length > 0;
-  const verifyCmd = hasVerification ? judgment.verification[0].run : input.verify;
-  const symbolResult = resolveSymbols(root, record.planned_touches, record.what, verifyCmd);
+  // [Foreman: 236] Every check the handoff names is preflighted, not just the
+  // first — a command in position 2..N runs in the handed-off session exactly
+  // as the first one does. resolve-symbols.js dedupes and names each one.
+  const verifyCmds = hasVerification ? judgment.verification.map((pair) => pair.run) : input.verify;
+  const symbolResult = resolveSymbols(root, record.planned_touches, record.what, verifyCmds);
 
   const config = render(root);
   const signals = computeSignals(root, record, input, symbolResult.files, hasVerification);
