@@ -201,29 +201,14 @@ function append(root, { lesson, paths, entry, anchor, date }) {
   return { stored: true, area: record.area, paths_count: stored.length };
 }
 
-/** Records grouped by their cosmetic area key, newest first inside each. */
-function fold(records) {
-  const byArea = new Map();
-  for (const record of Array.isArray(records) ? records : []) {
-    const key = record.area || '.';
-    if (!byArea.has(key)) byArea.set(key, []);
-    byArea.get(key).unshift(record);
-  }
-  return byArea;
-}
-
 module.exports = {
-  NOTES_DIR,
-  NOTES_FILE,
   NOTES_RELATIVE: `${NOTES_DIR}/${NOTES_FILE}`,
   FORMAT,
   FORMAT_KEY,
   LESSON_MAX,
   notesPath,
   normalizeStorePath,
-  storablePaths,
   dominantArea,
   read,
   append,
-  fold,
 };

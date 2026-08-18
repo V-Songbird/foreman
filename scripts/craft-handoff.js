@@ -906,8 +906,6 @@ module.exports = {
   // product no longer ships.
   NOTES_HEADER,
   NOTES_CLOSER,
-  NOTES_KEEP,
-  NOTES_MAX_CHARS,
   taskContextText,
   taskRulesText,
   entryParagraphText,

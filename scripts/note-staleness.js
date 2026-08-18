@@ -116,4 +116,4 @@ function resolveAll(root, records, budget = newBudget()) {
   return out;
 }
 
-module.exports = { RESOLVE_BUDGET, TRAILER_TRIES, newBudget, resolve, resolveAll };
+module.exports = { newBudget, resolve, resolveAll };

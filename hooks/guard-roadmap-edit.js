@@ -52,10 +52,6 @@ function guardedPath(filePath, root) {
   return rel === PROJECT_ARCHIVE || rel === PROJECT_NOTES ? rel : null;
 }
 
-function targetsRoadmap(filePath, root) {
-  return guardedPath(filePath, root) !== null;
-}
-
 function main() {
   const data = readInput();
   if (!WATCHED_TOOLS.has(data.tool_name)) return;
@@ -100,4 +96,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { main, targetsRoadmap, guardedPath };
+module.exports = { main, guardedPath };
