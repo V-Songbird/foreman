@@ -7,6 +7,19 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## [Unreleased]
+
+### Added
+
+- A finishing task can now leave one sentence about the code it touched, and the next task that plans to open those same files gets it back. Off until you turn on `areaNotes`. Read the store any time with `roadmap.js notes`.
+- Two interview questions that only offered one answer now offer two: "what is this project?" and "what are the near-term goals?" both accept "read the repo and work it out".
+
+### Fixed
+
+- When a handoff quotes what an earlier task recorded, each line now says whether those files have changed since. Anything git cannot answer says so, rather than reading as current.
+- Four optional-section questions in `/foreman:craft-prompt` offered a single choice. Each now offers a real second answer, and choosing it drops the section instead of leaving it empty.
+- Foreman left one empty lock folder in your system temp directory per project it ever locked, and never removed them. They are cleaned up when the last hold on a project ends.
+
 ## 1.2.1 — 2026-08-13
 
 ### Fixed
