@@ -43,12 +43,21 @@ accumulated notes)`, `Keep it, just add to it`, `Cancel`
 ## Call 1 — project and goals (batch 2)
 
 **Q1** — "What is this project?"
-Options: `I'll describe it` (nudge the user to use Other and give a short
-description — what it does, what stack, new or existing codebase)
+Options: `I'll describe it`, `Read the repo and work it out`
+`I'll describe it` nudges the user into Other for a short description —
+what it does, what stack, new or existing codebase.
 
 **Q2** — "What are the near-term goals for the roadmap?"
-Options: `I'll describe them` (nudge toward Other — 2-5 concrete things
-they want to get done soon)
+Options: `I'll describe them`, `Propose some from the code`
+`I'll describe them` nudges toward Other — 2-5 concrete things they want
+to get done soon.
+
+On either read-the-code answer, ground the draft in what is actually
+there — the README, the manifest, the entry points, `git log` — and say in
+the draft which parts came from the repo rather than from the user. Call 2
+is where they correct it, so a wrong guess costs one round trip. If the
+repo is empty or unreadable, say so and ask the question again rather than
+drafting from nothing.
 
 ---
 

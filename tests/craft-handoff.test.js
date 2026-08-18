@@ -23,6 +23,7 @@ const { test, describe, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('node:child_process');
 
 const { runNodeScript, makeTmpProject, writeRoadmap, writeConfig, initGitRepo, commitFile, SCRIPTS_DIR } = require('./helpers.js');
 const { today } = require(path.join(SCRIPTS_DIR, 'roadmap.js'));
@@ -775,7 +776,7 @@ describe('prior-work recall', () => {
   // below for the wrong reason.
   const LONG_TITLE = 'Rework the auth middleware refresh path and its expiry accounting end to end';
 
-  test('it lands inside <background>, never inside <context>, and stays under 1100 chars', () => {
+  test('it lands inside <background>, never inside <context>, and stays under 1200 chars', () => {
     writeRoadmap(project, [
       entryFields(),
       finished('300', ['src/auth/middleware.js'], {
@@ -805,14 +806,14 @@ describe('prior-work recall', () => {
     if (contextAt > -1) assert.ok(recallAt < contextAt, 'recall must sit outside <context>');
 
     const block = background.slice(recallAt).replace(/<context>[\s\S]*$/, '').trim();
-    assert.ok(block.length < 1100, `recall payload was ${block.length} chars`);
+    assert.ok(block.length < 1200, `recall payload was ${block.length} chars`);
   });
 
-  // The 1100-character ceiling is the feature's contract, so it is enforced
+  // The 1200-character ceiling is the feature's contract, so it is enforced
   // rather than argued: maximal title, maximal excerpt, maximal entry count,
   // and a four-digit id on every row. The row count is pinned with it — a
   // ceiling that no longer fits RECALL_KEEP rows drops a lead in silence.
-  test('the worst case a roadmap can produce still fits under 1100 chars', () => {
+  test('the worst case a roadmap can produce still fits under 1200 chars', () => {
     const rows = [];
     for (let i = 0; i < 3; i += 1) {
       rows.push(finished(String(1000 + i), ['src/auth/middleware.js'], {
@@ -823,7 +824,7 @@ describe('prior-work recall', () => {
     rows.push(...pad(17, 2000));
     const text = priorWorkText(rows, { id: '001', planned_touches: ['src/auth/middleware.js'] });
     assert.ok(text.length > 0, 'the worst case must still recall something');
-    assert.ok(text.length < 1100, `worst-case payload was ${text.length} chars`);
+    assert.ok(text.length < 1200, `worst-case payload was ${text.length} chars`);
     assert.equal(
       text.split('\n').filter((l) => l.startsWith('- ')).length,
       3,
@@ -843,12 +844,79 @@ describe('prior-work recall', () => {
       ...pad(17, 3000),
     ];
     const text = priorWorkText(rows, { id: '001', planned_touches: ['src/auth/middleware.js'] });
-    assert.ok(text.length < 1100);
+    assert.ok(text.length < 1200);
     // Whatever survived is whole: every kept line still ends in its own
     // excerpt rather than a truncation of one.
     for (const line of text.split('\n').filter((l) => l.startsWith('- '))) {
       assert.match(line, /^- \d+ [ABC]{60} — [abc]{240}$/);
     }
+  });
+
+  // Every lead carries a three-valued freshness stamp. "unchanged" is the one
+  // verdict git has to earn; every other outcome reads "unknown", because a
+  // hard-repeated stale path is measured to anchor a session on the decoy.
+  describe('freshness stamps', () => {
+    test('an unresolvable anchor stamps unknown rather than fresh', () => {
+      const bare = makeTmpProject();
+      const rows = [
+        finished('300', ['src/auth/middleware.js'], { commits: ['deadbee'] }),
+        ...pad(4, 900),
+      ];
+      const text = priorWorkText(rows, { id: '001', planned_touches: ['src/auth/middleware.js'] }, bare);
+      assert.match(text, /- 300 .*\[freshness unknown\]/);
+      assert.ok(!text.includes('unchanged since'), 'an undatable lead must never read as fresh');
+    });
+
+    test('a lead whose recorded files have not changed reads as unchanged', () => {
+      const repo = makeTmpProject();
+      initGitRepo(repo);
+      const sha = commitFile(repo, 'src/auth/middleware.js', 'function refreshToken() {}\n');
+      commitFile(repo, 'src/unrelated.js', 'module.exports = 1;\n');
+      const rows = [
+        finished('300', ['src/auth/middleware.js'], { commits: [sha] }),
+        ...pad(4, 900),
+      ];
+      const text = priorWorkText(rows, { id: '001', planned_touches: ['src/auth/middleware.js'] }, repo);
+      assert.match(text, new RegExp(`- 300 .*\\[at ${sha} — its files unchanged since\\]`));
+    });
+
+    test('a lead whose recorded files changed since reads as possibly stale', () => {
+      const repo = makeTmpProject();
+      initGitRepo(repo);
+      const sha = commitFile(repo, 'src/auth/middleware.js', 'function refreshToken() {}\n');
+      commitFile(repo, 'src/auth/middleware.js', 'function refreshToken() { return 1; }\n');
+      const rows = [
+        finished('300', ['src/auth/middleware.js'], { commits: [sha] }),
+        ...pad(4, 900),
+      ];
+      const text = priorWorkText(rows, { id: '001', planned_touches: ['src/auth/middleware.js'] }, repo);
+      assert.match(text, /- 300 .*possibly stale: 1 of its 1 files changed since\]/);
+    });
+
+    // The P1 decoy: a lead recorded against a path that has since MOVED. The
+    // recall still names the old path, which is exactly what anchors a session
+    // on a file nothing imports any more — so the stamp has to fire. It does
+    // because the diff runs without `-M`, which reports a rename as a delete.
+    test('a moved file makes its lead read stale, not fresh', () => {
+      const repo = makeTmpProject();
+      initGitRepo(repo);
+      const sha = commitFile(repo, 'src/parser.js', 'const split = (s) => s.split(/\\s+/);\n');
+      spawnSync('git', ['mv', 'src/parser.js', 'src/tokenizer.js'], { cwd: repo });
+      commitFile(repo, 'src/tokenizer.js', 'const split = (s) => s.split(/[^a-z0-9\']+/);\n');
+      const rows = [
+        finished('300', ['src/parser.js'], { commits: [sha] }),
+        ...pad(4, 900),
+      ];
+      const text = priorWorkText(rows, { id: '001', planned_touches: ['src/parser.js'] }, repo);
+      assert.match(text, /- 300 .*possibly stale: 1 of its 1 files changed since\]/);
+    });
+
+    test('with no root the block carries no stamp at all', () => {
+      const rows = [finished('300', ['src/auth/middleware.js']), ...pad(4, 900)];
+      const text = priorWorkText(rows, { id: '001', planned_touches: ['src/auth/middleware.js'] });
+      assert.match(text, /- 300 /);
+      assert.ok(!text.includes('['), 'selection-only callers get no freshness claim either way');
+    });
   });
 
   test('recall never promotes a handoff to the reinforced profile', () => {

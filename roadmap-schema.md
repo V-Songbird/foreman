@@ -410,6 +410,64 @@ close writes the roadmap and never the archive.
 
 ---
 
+## Lesson lines — `.foreman/notes.jsonl`
+
+Off by default (`areaNotes.enabled`). When on, a close may record **one
+durable sentence** about the code area it touched, and a later task whose
+planned files intersect that record's files is served it back.
+
+**Record shape.** One JSON object per line, after a
+`{"foreman_notes_format":1}` first line:
+
+```json
+{"area":"src/auth","paths":["src/Auth/session.js","test/helpers/clock.js"],
+ "entry":"142","anchor":{"kind":"commit","sha":"a1b2c3d8"},"date":"2026-08-11",
+ "lesson":"token refresh lives in src/Auth/session.js refresh(); tests MUST fake time via test/helpers/clock.js — real timers hang CI"}
+```
+
+- `paths` — the close's `observed_touches`, minus bookkeeping
+  (`ROADMAP.jsonl`, `.foreman/**`, `docs/foreman/**`). Separator-normalized
+  and **case-preserved**: these are handed to git and to the filesystem, where
+  a lowercased path reads wrong on a case-sensitive one.
+- `anchor` — `{"kind":"commit","sha":…}` when the close recorded a sha,
+  `{"kind":"entry"}` otherwise, resolved later through the entry's
+  `Foreman: <id>` trailers. A rebase splits a sha from its trailer, so
+  commit-kind falls through to trailer resolution when the sha is gone.
+- `lesson` — 500 characters, **hard refused** above it, never truncated.
+- `area` — derived, cosmetic, for readable grouping only. Selection is always
+  path-level.
+
+**Writing.** Only `update-status`, only on a close, only through a `lesson`
+field on the same stdin JSON — the append rides the close's existing lock.
+`hooks/guard-roadmap-edit.js` blocks direct `Edit`/`Write` of the file, the
+same way it blocks the roadmap and the archive. Append-only: sessions never
+rewrite it, so two branches merge line by line.
+
+**What is worth recording.** A fact a *future* task in this area would need
+and could not cheaply re-derive. Cite a decision document rather than
+restating it. A project-wide fact belongs in `CLAUDE.md`; a fact about one
+file belongs in that file; a finding specific to this task belongs in the
+entry's own `notes`. Omitting the lesson is a valid outcome, and the common
+one — most tasks teach nothing that generalizes.
+
+**Overlap rules.** A record is served when any of its `paths` overlaps any of
+the reading entry's `planned_touches`, folder-aware in both directions (the
+same rule collision detection uses). A record whose only match is a path that
+more than 20% of closed entries touched is dropped — a file everything
+reaches teaches nothing about this task. At most six records, newest first,
+under a 1000-character ceiling, each one whole or absent.
+
+**Freshness.** Every served record is resolved against git at serving time and
+labelled fresh, possibly-stale, or unknown. A record whose every stored file is
+gone is dropped rather than served.
+
+**Reassign-id.** For an entry-kind record the entry id *is* the anchor, and
+`reassign-id` renumbers holders while immutable commit trailers keep naming
+the old id. A project using both must treat a renumbered entry's records as
+anchored to the old id.
+
+---
+
 ## `.foreman/config.json`
 
 Sibling runtime file at `.foreman/config.json`, also committed. Plain JSON,

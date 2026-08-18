@@ -157,6 +157,40 @@ function claimDirectories(lockPath) {
   }
 }
 
+function stagingDirectories(lockPath) {
+  try {
+    return fs.readdirSync(lockPath, { withFileTypes: true })
+      .filter((item) => item.isDirectory() && item.name.startsWith("staging-"))
+      .map((item) => path.join(lockPath, item.name));
+  } catch {
+    return [];
+  }
+}
+
+// A hard kill between publishClaim's mkdirSync and its renameSync orphans a
+// staging directory that no contention scan will ever look at. Sweep it on the
+// same age rule the claim sweep uses: a publish completes in microseconds, so
+// anything this old cannot be a live one, and no stat here can race a rename.
+function sweepAbandonedStaging(lockPath, staleMs) {
+  for (const stagingPath of stagingDirectories(lockPath)) {
+    if (pathAge(stagingPath) < staleMs) continue;
+    fs.rmSync(stagingPath, { recursive: true, force: true });
+  }
+}
+
+// The per-project container is created by whoever arrives first and, until
+// now, by nobody removed — one orphan per project root that never returns,
+// which is every temporary root a test builds. rmdir refuses a non-empty
+// directory, so a contender's claim always wins over this cleanup.
+function discardEmptyLockContainer(lockPath) {
+  try {
+    fs.rmdirSync(lockPath);
+  } catch {
+    // ENOTEMPTY means a contender still holds a claim; ENOENT means another
+    // releaser got there first. Both are the normal outcome, not a failure.
+  }
+}
+
 function removeAbandonedClaim(claimPath, staleMs, deadline = Infinity) {
   const owner = readJson(path.join(claimPath, OWNER_FILE));
   if (owner && Number.isSafeInteger(owner.pid) && owner.pid > 0) {
@@ -180,7 +214,15 @@ function publishClaim(lockPath, project, token) {
   // its owner file, and an open handle inside a directory makes the publish
   // rename below fail with EPERM on Windows.
   const candidatePath = path.join(lockPath, `staging-${process.pid}-${token}`);
-  fs.mkdirSync(candidatePath);
+  try {
+    fs.mkdirSync(candidatePath);
+  } catch (err) {
+    // A releaser can discard the container between the two mkdirs above.
+    // Recreating it and retrying once is the whole recovery.
+    if (err.code !== "ENOENT") throw err;
+    fs.mkdirSync(lockPath, { recursive: true });
+    fs.mkdirSync(candidatePath);
+  }
   try {
     fs.writeFileSync(
       path.join(candidatePath, OWNER_FILE),
@@ -202,6 +244,7 @@ function publishClaim(lockPath, project, token) {
 }
 
 function chooseTicket(lockPath, claimPath, token, staleMs, deadline) {
+  sweepAbandonedStaging(lockPath, staleMs);
   let maximum = 0;
   for (const otherPath of claimDirectories(lockPath)) {
     if (
@@ -291,7 +334,10 @@ function acquireLock(root, options = {}) {
       sleepSync(Math.min(retryMs, waitMs - elapsed));
     }
   } catch (err) {
-    if (claimPath) fs.rmSync(claimPath, { recursive: true, force: true });
+    if (claimPath) {
+      fs.rmSync(claimPath, { recursive: true, force: true });
+      discardEmptyLockContainer(lockPath);
+    }
     throw err;
   }
 }
@@ -303,6 +349,7 @@ function releaseLock(lock) {
   // replaced path is never removed.
   if (owner && owner.token !== lock.token) return;
   fs.rmSync(lock.claimPath, { recursive: true, force: true });
+  discardEmptyLockContainer(lock.lockPath);
 }
 
 function withRoadmapLock(root, fn, options) {

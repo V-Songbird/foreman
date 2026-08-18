@@ -74,6 +74,22 @@ const REASON_CLASSES = [
   "verification_declined",
 ];
 const RECOVERY_KINDS = ["reinit-snapshot", "resume-in-progress", "failed-verification-retry"];
+// Why a close's lesson did or did not reach the store. Fixed tokens only,
+// never the prose the user typed and never a path out of it — the whole
+// question this answers is what fraction of closes record a lesson at all,
+// and which refusal is the common one.
+const LESSON_OUTCOMES = [
+  "stored",
+  "empty_lesson",
+  "over_500_chars",
+  "no_observed_paths",
+  "not_a_close",
+  "disabled",
+  "conflict",
+  "unsupported_format",
+  "unreadable",
+  "write_failed",
+];
 
 const EVENTS = {
   menu_shown: { candidates: int, hint: bool },
@@ -87,6 +103,7 @@ const EVENTS = {
   question_asked: { flow: oneOf(...FLOWS) },
   commit_interrupted: { hook: oneOf(...HOOKS), reason_class: oneOf(...REASON_CLASSES) },
   recovery_attempted: { kind: oneOf(...RECOVERY_KINDS), success: bool },
+  lesson_present: { stored: bool, outcome: oneOf(...LESSON_OUTCOMES) },
 };
 
 function projectDir() {
@@ -340,6 +357,7 @@ module.exports = {
   HOOKS,
   REASON_CLASSES,
   RECOVERY_KINDS,
+  LESSON_OUTCOMES,
   LOG_FILE,
   SESSION_FILE,
   enabled,

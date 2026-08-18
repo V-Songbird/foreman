@@ -30,6 +30,9 @@ const { VALID_GATES, isValidDir } = require("./decision-log-config");
 // duplicate is actually present.
 const { recordedCommits, trailerShasFor } = require("./commit-evidence");
 const { configPath, OMITTABLE_TAGS } = require("./render-sections");
+// area-notes.js requires nothing from this module, so there is no cycle to
+// defer around -- unlike roadmap.js below.
+const areaNotes = require("./area-notes");
 
 // roadmap.js requires this module at load time, so requiring it back up here
 // would capture a half-built exports object. Node's module cache makes the
@@ -457,6 +460,11 @@ const CONFIG_SPEC = {
   checkpoints: {
     spec: { baseBranch: STRING, branch: BOOL, onFinish: oneOf(ON_FINISH) },
   },
+  // The lesson ledger. One key, default off, every other constant in code —
+  // a consumer-less setting is a setting that drifts from its reader.
+  areaNotes: {
+    spec: { enabled: BOOL },
+  },
 };
 
 function checkGroup(prefix, group, spec, out) {
@@ -480,6 +488,80 @@ function checkGroup(prefix, group, spec, out) {
       out.push(finding("invalid_config_value", "error", [], `.foreman/config.json: ${field} must be ${rule.expected}, got ${JSON.stringify(value)}`, { field }));
     }
   }
+}
+
+// How many record ids a truncated list names before it stops. Long enough to
+// point at the problem, short enough that a store with hundreds of dead
+// records still produces one readable line.
+const NOTES_ID_SAMPLE = 5;
+
+/**
+ * Findings for `.foreman/notes.jsonl`. Filesystem only — no git, ever: this
+ * runs on every `doctor`, and a per-record history scan would put the cost of
+ * the whole store on a command people run casually.
+ *
+ * Dead and invalid records aggregate into ONE finding each. Reporting them
+ * individually would make doctor's output grow with the store forever, which
+ * is the same unbounded-output failure the `notes` CLI caps against.
+ */
+function validateAreaNotes(root) {
+  const out = [];
+  const { records, error, invalid } = areaNotes.read(root);
+
+  if (error === "unreadable" || error === "conflict") {
+    out.push(finding(
+      "notes_unreadable",
+      "error",
+      [],
+      error === "conflict"
+        ? `${areaNotes.NOTES_RELATIVE} still carries merge conflict markers — resolve them by hand; it is append-only, so both sides' lines are keepable`
+        : `${areaNotes.NOTES_RELATIVE} exists but could not be read`
+    ));
+    return out;
+  }
+  if (error === "unsupported_format") {
+    out.push(finding(
+      "notes_unsupported_format",
+      "error",
+      [],
+      `${areaNotes.NOTES_RELATIVE} declares a format this Foreman does not know — upgrade Foreman rather than editing the file`
+    ));
+    return out;
+  }
+
+  if (invalid) {
+    out.push(finding(
+      "notes_invalid_record",
+      "warning",
+      [],
+      `${areaNotes.NOTES_RELATIVE}: ${invalid} line${invalid === 1 ? "" : "s"} could not be read as a record and ${invalid === 1 ? "is" : "are"} skipped`
+    ));
+  }
+
+  // A record every one of whose files is gone describes code that no longer
+  // exists. It is information, not a defect: the store is append-only and
+  // pruning is a later, user-approved decision.
+  const dead = records.filter(
+    (record) => !record.paths.some((p) => fs.existsSync(path.join(root, p)))
+  );
+  if (dead.length) {
+    const areas = new Set(dead.map((record) => record.area || "."));
+    const oldest = dead.map((record) => record.date).filter(Boolean).sort()[0];
+    const ids = dead.map((record) => record.entry).filter(Boolean);
+    const sample = ids.slice(0, NOTES_ID_SAMPLE).join(", ");
+    const more = ids.length > NOTES_ID_SAMPLE ? `, +${ids.length - NOTES_ID_SAMPLE} more` : "";
+    out.push(finding(
+      "notes_dead_record",
+      "info",
+      [],
+      `${areaNotes.NOTES_RELATIVE}: ${dead.length} record${dead.length === 1 ? "" : "s"} name only files that no longer exist, `
+        + `across ${areas.size} area${areas.size === 1 ? "" : "s"}`
+        + (oldest ? `; oldest ${oldest}` : "")
+        + (sample ? ` (entries ${sample}${more})` : "")
+    ));
+  }
+
+  return out;
 }
 
 /** Findings for .foreman/config.json. A missing file is the uninitialized case. */
@@ -589,6 +671,7 @@ module.exports = {
   validateAcrossFiles,
   enrichDuplicates,
   validateConfig,
+  validateAreaNotes,
   applyRepairs,
   summarize,
   CONFIG_SPEC,

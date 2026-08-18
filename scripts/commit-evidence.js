@@ -260,6 +260,73 @@ function resolveEntryEvidence(root, entry) {
 }
 
 /**
+ * The one sha an entry's recorded work should be dated by, or null.
+ * A recorded sha wins when git can still find it; otherwise the newest commit
+ * whose message names the entry, which is all a staged close leaves behind. A
+ * rebase splits a recorded sha from its trailer, so falling through to the
+ * trailer is the ordinary case rather than the exotic one.
+ */
+function anchorShaFor(root, entry) {
+  const { recorded, trailer_shas: trailerShas } = resolveEntryEvidence(root, entry);
+  const found = recorded.filter((fact) => fact.exists);
+  if (found.length) return found[found.length - 1].full;
+  // git log answers newest-first, so the head of the list is the latest commit
+  // that named this entry.
+  return Array.isArray(trailerShas) && trailerShas.length ? trailerShas[0] : null;
+}
+
+/**
+ * Which of `paths` git says changed between `sha` and the working tree.
+ *
+ * `{state: "fresh"|"stale"|"unknown", changed, checked}`. Every failure --
+ * no git, a sha nothing resolves, a sha off this history line, a diff git
+ * would not run -- comes back "unknown" and never "fresh": a lead nobody can
+ * date is not a lead anybody should trust.
+ *
+ * Deliberately no `-M`. Without it a renamed anchor path reports as deleted,
+ * which is exactly the "this moved, do not follow it" signal a caller wants.
+ * `-z` defeats core.quotepath, so a non-ASCII path comes back verbatim.
+ */
+function changedSince(root, sha, paths) {
+  const wanted = (Array.isArray(paths) ? paths : [])
+    .filter((p) => typeof p === "string" && p.trim());
+  const unknown = { state: "unknown", changed: [], checked: 0 };
+  if (!wanted.length) return unknown;
+
+  const where = resolveSha(root, sha);
+  if (!where.exists) return unknown;
+
+  const prefix = where.in_submodule || "";
+  const cwd = prefix ? path.join(root, prefix) : root;
+
+  // Off the current history line -- a divergent branch, a squash-merge -- makes
+  // the diff below meaningless rather than clean.
+  if (gitRead(cwd, ["merge-base", "--is-ancestor", where.full, "HEAD"]) === null) return unknown;
+
+  // filesFromGit re-prefixes what a submodule's git hands back. The pathspecs
+  // going in need the mirror of that: without de-prefixing, a submodule diff
+  // matches nothing and reads fresh forever.
+  const scoped = [];
+  for (const p of wanted) {
+    if (!prefix) scoped.push(p);
+    else if (p === prefix) scoped.push(".");
+    else if (p.startsWith(`${prefix}/`)) scoped.push(p.slice(prefix.length + 1));
+  }
+  if (!scoped.length) return unknown;
+
+  const out = gitRead(cwd, ["diff", "--name-only", "-z", where.full, "--", ...scoped]);
+  if (out === null) return unknown;
+
+  const changed = out.split("\0").map((f) => f.trim()).filter(Boolean)
+    .map((f) => (prefix ? `${prefix}/${f}` : f));
+  return {
+    state: changed.length ? "stale" : "fresh",
+    changed,
+    checked: scoped.length,
+  };
+}
+
+/**
  * The compact form a status view reports.
  * `commit_count`   shas the entry records.
  * `resolved_count` how many of those git found, here or in a submodule.
@@ -290,6 +357,8 @@ module.exports = {
   trailerShasFor,
   showCommits,
   resolveEntryEvidence,
+  anchorShaFor,
+  changedSince,
   evidenceSummary,
   SHA_RE,
 };

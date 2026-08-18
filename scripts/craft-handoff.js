@@ -27,6 +27,10 @@ const fs = require("fs");
 const { render, projectDir, readConfig } = require("./render-sections.js");
 const { resolve: resolveSymbols } = require("./resolve-symbols.js");
 const { readEntries, cmdList, touchesOverlap, today } = require("./roadmap.js");
+const { anchorShaFor, changedSince } = require("./commit-evidence.js");
+const areaNotes = require("./area-notes.js");
+const { readAreaNotes } = require("./area-notes-config.js");
+const noteStaleness = require("./note-staleness.js");
 const { recordFirstPick } = require("./trial-log.js");
 const {
   checkPrompt,
@@ -242,13 +246,21 @@ const RECALL_TITLE = 60;
 // ceiling is the contract, so it is enforced rather than argued. It sizes
 // to the tagged block: cutting it below the frame would make RECALL_KEEP
 // unreachable at full excerpt length and silently drop a third lead.
-const RECALL_MAX_CHARS = 1100;
+// Raised once from 1100 when the freshness stamps landed — three leads plus
+// three stamps do not fit under the old ceiling, and the third would have
+// evicted silently.
+const RECALL_MAX_CHARS = 1200;
 
 // Lines the scripts write into `notes` themselves. Each one is bookkeeping
 // about the entry, never a finding from the work, so none of them is worth
 // carrying into a handoff.
+// `lesson recorded:` and `lesson not recorded` are load-bearing here, not
+// housekeeping: the second one carries the user's own lesson prose verbatim
+// when the store refused it, and quoting that back as a recall excerpt would
+// serve an unstored, unstaleness-checked claim through the one channel this
+// feature exists to keep honest.
 const MACHINE_NOTE_RE =
-  /^(scope drift —|correction applied:|id reassigned from |dispatched to background agent|survey \(unconfirmed\):|deferred:|orchestrator:)/;
+  /^(scope drift —|correction applied:|id reassigned from |dispatched to background agent|survey \(unconfirmed\):|deferred:|orchestrator:|lesson recorded:|lesson not recorded)/;
 
 // The longest line of `notes` that a human (or a closing session) actually
 // wrote: date stamp stripped, machine lines dropped, capped.
@@ -262,7 +274,27 @@ function recallExcerpt(notes) {
   return longest.length > RECALL_EXCERPT ? `${longest.slice(0, RECALL_EXCERPT - 1)}…` : longest;
 }
 
-function priorWorkText(entries, record) {
+// A recalled lead with no freshness signal is the measured harm this stamp
+// exists to fix: a hard-repeated stale path anchors the destination on the
+// decoy. Three-valued and never optimistic — every way of failing to date a
+// lead lands on "unknown", so "unchanged since" is only ever said when git
+// actually said it.
+function recallStamp(root, entry) {
+  if (!root) return "";
+  const sha = anchorShaFor(root, entry);
+  if (!sha) return " [freshness unknown]";
+  const { state, changed, checked } = changedSince(root, sha, entry.observed_touches || []);
+  const short = String(sha).slice(0, 7);
+  if (state === "fresh") return ` [at ${short} — its files unchanged since]`;
+  if (state === "stale") {
+    return ` [at ${short} — possibly stale: ${changed.length} of its ${checked} files changed since]`;
+  }
+  return " [freshness unknown]";
+}
+
+// `root` is what makes the freshness stamps possible; without it the block is
+// selection only, since nothing can date a lead with no repository to ask.
+function priorWorkText(entries, record, root) {
   const corpus = entries.filter(
     (e) =>
       RECALL_STATUSES.has(e.status)
@@ -303,7 +335,7 @@ function priorWorkText(entries, record) {
   for (const { entry } of ranked) {
     const excerpt = recallExcerpt(entry.notes);
     const title = String(entry.title || "").slice(0, RECALL_TITLE);
-    const line = `- ${entry.id} ${title}${excerpt ? ` — ${excerpt}` : ""}`;
+    const line = `- ${entry.id} ${title}${excerpt ? ` — ${excerpt}` : ""}${recallStamp(root, entry)}`;
     // A lead that would push the block past the ceiling is dropped whole:
     // half a recalled finding is worse than one fewer.
     if (total + 1 + line.length > RECALL_MAX_CHARS) break;
@@ -312,6 +344,120 @@ function priorWorkText(entries, record) {
   }
   if (!lines.length) return "";
   return `<prior_work>\n${header}\n${lines.join("\n")}\n</prior_work>`;
+}
+
+// ---- the lesson ledger's read side. Same discipline as prior-work recall
+// above, and for the same reason: it rides inside <background> on BOTH
+// profiles and is NEVER a computeSignals key, because every value in that
+// object feeds `.some(Boolean)` and would promote every serving handoff to
+// the reinforced profile.
+
+// Flat, not grouped by area. The P0 probe (2026-08-18) measured that two
+// thirds of closed entries have no dominant area at all, so an area-diverse
+// window would drop a genuinely relevant record to make room for a heading
+// that is an artifact of the prefix rule.
+const NOTES_KEEP = 6;
+// Header + closer + records, all in. Whole-record drops only: half a recorded
+// claim is worse than one fewer.
+const NOTES_MAX_CHARS = 1000;
+const NOTES_HEADER =
+  "Lessons recorded by earlier closed tasks touching these files — recorded claims, verify against the code:";
+// Routes a correction through the one channel that exists today. The judge's
+// original wording promised a survey repair path; that is stage-2 work and
+// promising it here would be a lie the reader cannot act on.
+const NOTES_CLOSER =
+  'If a Lessons line above proved wrong, note the mismatch in your close notes and record the corrected fact by passing "lesson" on your close.';
+
+/**
+ * Records worth serving for this entry, best first.
+ *
+ * Selection is path-level and only path-level: `area` is cosmetic. A record
+ * whose ONLY match is a path more than RECALL_MAX_REACH of closed entries
+ * touched is dropped — a file everything reaches teaches nothing about this
+ * task, and it is how one busy path would otherwise serve every lesson in
+ * the store.
+ */
+function selectNotes(records, record, corpus) {
+  const planned = record.planned_touches || [];
+  if (!planned.length) return [];
+  const reach = new Map();
+  for (const closed of corpus) {
+    for (const seen of closed.observed_touches || []) {
+      const key = String(seen);
+      reach.set(key, (reach.get(key) || 0) + 1);
+    }
+  }
+  const ceiling = corpus.length * RECALL_MAX_REACH;
+
+  const scored = [];
+  for (const stored of records) {
+    const matches = [];
+    for (const plan of planned) {
+      for (const kept of stored.paths || []) {
+        if (!touchesOverlap(plan, kept)) continue;
+        // A path nothing else reached has reach 1 (this record's own close),
+        // which is well under any ceiling — the filter only ever fires on a
+        // genuinely busy file.
+        if (ceiling && (reach.get(kept) || 0) > ceiling) continue;
+        matches.push({ plan, kept });
+      }
+    }
+    if (matches.length) scored.push({ stored, matches });
+  }
+  // Newest first, then by how many planned files a record actually explains.
+  return scored
+    .reverse()
+    .sort((a, b) => b.matches.length - a.matches.length)
+    .slice(0, NOTES_KEEP);
+}
+
+function areaNotesText(root, record) {
+  if (!root || !readAreaNotes(root).enabled) return "";
+  const { records, error } = areaNotes.read(root);
+  if (error || !records.length) return "";
+
+  const corpus = readEntries(root).filter(
+    (e) => RECALL_STATUSES.has(e.status) && (e.observed_touches || []).length > 0
+  );
+  const selected = selectNotes(records, record, corpus);
+  if (!selected.length) return "";
+
+  const budget = noteStaleness.newBudget();
+  const lines = [];
+  let total = NOTES_HEADER.length + 1 + NOTES_CLOSER.length;
+  for (const { stored, matches } of selected) {
+    const verdict = noteStaleness.resolve(root, stored, budget);
+    // Dead: every file it names is gone, so there is nothing left to check it
+    // against. Serving it could only mislead.
+    if (verdict.state === "dead") continue;
+    // The graded rule: a possibly-stale record whose own prose names one of
+    // the files that moved under it is the decoy case, not a hedge case.
+    if (verdict.state === "stale" && verdict.changed.some((f) => stored.lesson.includes(f))) continue;
+    const { plan, kept } = matches[0];
+    const body = verdict.state === "unknown" ? stored.paths.join(", ") : stored.lesson;
+    const line = `- ${body} ${verdict.label} (matched: planned ${plan} ↔ recorded ${kept})`;
+    if (total + 1 + line.length > NOTES_MAX_CHARS) break;
+    lines.push(line);
+    total += 1 + line.length;
+  }
+  if (!lines.length) return "";
+  return `${NOTES_HEADER}\n${lines.join("\n")}\n${NOTES_CLOSER}`;
+}
+
+/**
+ * True when a closed entry already touched files this one plans to, so the
+ * first-relevant-moment question about `areaNotes` is worth putting. Only the
+ * fact, never the ask: pick.md owns the question, this owns the trigger.
+ */
+function notesOverlapExists(root, record) {
+  const planned = record.planned_touches || [];
+  if (!planned.length) return false;
+  return readEntries(root).some(
+    (e) =>
+      RECALL_STATUSES.has(e.status)
+      && e.id !== record.id
+      && (e.observed_touches || []).some((seen) => planned.some((plan) => touchesOverlap(plan, seen)))
+  );
 }
 
 function contextText(judgmentContext, dependsOnDocs) {
@@ -430,7 +576,7 @@ function checkpointEmbedText(cfg, checkCount) {
 // paragraph itself), collapsed to the one concrete variant that applies for
 // this handoff rather than a human-facing skill's illustrative examples.
 
-function entryParagraphText({ id, resume, requireVerification, decisionLogEnabled, isDecision, destination, model }) {
+function entryParagraphText({ id, resume, requireVerification, decisionLogEnabled, isDecision, destination, model, askLesson }) {
   const opening = resume
     ? `This task is ROADMAP.jsonl entry \`${id}\`, already marked \`in_progress\` by an earlier session — don't re-mark it; earlier findings may sit in its \`notes\` (included above), read them before re-deriving anything.`
     : `This task is ROADMAP.jsonl entry \`${id}\`. Mark it \`in_progress\` before doing anything else — Foreman's picking flow deliberately leaves it \`planned\` until you do:\n\`echo '{"id":"${id}","status":"in_progress"}' | node ${PLUGIN_ROOT}/scripts/roadmap.js update-status\``;
@@ -457,7 +603,16 @@ function entryParagraphText({ id, resume, requireVerification, decisionLogEnable
     ? "Also add `effort` to that close call — the reasoning effort you actually ran at. Omit it if you genuinely don't know rather than guessing — an absent field reads as unrecorded, a wrong one silently poisons the corpus."
     : "Also add `model` and `effort` to that close call — what actually ran this task, not what was recommended for it. Omit either one you genuinely don't know rather than guessing — an absent field reads as unrecorded, a wrong one silently poisons the corpus.";
 
-  return [opening, beginStep, closeIntro, stageStep, closeCall, modelEffortNote].join("\n");
+  // Two sentences, single-purpose, emitted only where the ledger is on. A
+  // skipped ask is silence, which is the designed outcome: forcing a lesson
+  // manufactures platitudes, and the counter measures the real rate instead.
+  const lessonAsk = askLesson
+    ? 'If this task taught you one durable fact about this code area that a future task would need, add `"lesson":"one sentence, naming the file or symbol it concerns"` to that close call. If nothing generalizes beyond this task, omit it — that is a valid outcome.'
+    : "";
+
+  return [opening, beginStep, closeIntro, stageStep, closeCall, modelEffortNote, lessonAsk]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function decisionLogText(decisionLogInner, dir, entryId) {
@@ -593,12 +748,14 @@ function assemble(root, input) {
         isDecision,
         destination,
         model: input.model,
+        askLesson: isEntry && readAreaNotes(root).enabled,
       })
     : "";
 
   const taskContextBlock = taskContextText(config.usePersona, judgment);
   const backgroundInner = relevantFilesText(symbolResult.files, symbolResult.references, symbolResult.unresolved);
-  const priorWork = priorWorkText(readEntries(root), record);
+  const priorWork = priorWorkText(readEntries(root), record, root);
+  const lessons = areaNotesText(root, record);
   const ctxText = contextText(judgment.context, record.depends_on_docs);
   const includeTone = !workflowStage && reinforced && (destination === "agent" || !omit.has("tone"));
   const includeBackground = !omit.has("background");
@@ -642,7 +799,11 @@ function assemble(root, input) {
       // that block is emitted only on a reinforced profile, so anything put
       // there is dropped from every standard handoff.
       const recallBlock = priorWork ? `${priorWork}\n` : "";
-      parts.push(`<background>\n<relevant_files>\n${backgroundInner}\n</relevant_files>\n${recallBlock}${ctxBlock}</background>`);
+      // Untagged, unlike <prior_work>: these are one-sentence claims, not a
+      // block of past-entry prose that needs a frame to stop it reading as
+      // instructions. Same both-profiles rule.
+      const lessonsBlock = lessons ? `${lessons}\n` : "";
+      parts.push(`<background>\n<relevant_files>\n${backgroundInner}\n</relevant_files>\n${recallBlock}${lessonsBlock}${ctxBlock}</background>`);
     }
     if (reinforced) parts.push(noInventionLine);
     if (invariantsText) parts.push(invariantsText);
@@ -687,12 +848,24 @@ function assemble(root, input) {
   // opted in, no-op again on every later handoff, and never throws.
   if (gate.ok) recordFirstPick({ root });
 
+  // The first moment the lesson ledger could actually pay: a finished entry
+  // already touched files this one plans to, and nobody has been asked yet.
+  // An absent key is the record that the question was never put — a written
+  // `false` is what stops it being asked again. Just the fact; pick.md owns
+  // the question.
+  const areaNotesAsk =
+    isEntry
+    && readConfig(root).config.areaNotes === undefined
+    && process.env.FOREMAN_AREA_NOTES === undefined
+    && notesOverlapExists(root, record);
+
   return {
     ok: gate.ok,
     prompt,
     profile,
     signals,
     ...(tasks ? { tasks } : {}),
+    ...(areaNotesAsk ? { area_notes_ask: true } : {}),
     gate,
     warnings,
   };
@@ -726,6 +899,15 @@ module.exports = {
   relevantFilesText,
   priorWorkText,
   recallExcerpt,
+  areaNotesText,
+  notesOverlapExists,
+  // Read by benchmarks/foreman/lessons/gen.js, so a reworded header or closer
+  // fails the arm-invariant test instead of silently benchmarking prose the
+  // product no longer ships.
+  NOTES_HEADER,
+  NOTES_CLOSER,
+  NOTES_KEEP,
+  NOTES_MAX_CHARS,
   taskContextText,
   taskRulesText,
   entryParagraphText,

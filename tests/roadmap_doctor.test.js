@@ -359,6 +359,93 @@ describe('doctor config findings', () => {
   });
 });
 
+// The lesson ledger's four codes. Dead and invalid records aggregate into one
+// finding each on purpose: a per-record finding would make doctor's output
+// grow with the store forever.
+describe('doctor lesson-ledger findings', () => {
+  function writeNotes(lines) {
+    fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
+    fs.writeFileSync(path.join(project, '.foreman', 'notes.jsonl'), lines.join('\n') + '\n', 'utf-8');
+  }
+
+  function record(overrides = {}) {
+    return JSON.stringify({
+      area: 'src/auth',
+      paths: ['src/auth/session.js'],
+      entry: '001',
+      anchor: { kind: 'entry' },
+      date: '2026-08-01',
+      lesson: 'a durable fact',
+      ...overrides,
+    });
+  }
+
+  test('a store with no notes file produces no findings at all', () => {
+    writeRoadmap(project, [base('001')]);
+    assert.deepEqual(withCode(doctor(), 'notes_dead_record'), []);
+    assert.deepEqual(withCode(doctor(), 'notes_invalid_record'), []);
+  });
+
+  test('notes_unreadable: the file still carries merge conflict markers', () => {
+    writeRoadmap(project, [base('001')]);
+    writeNotes(['{"foreman_notes_format":1}', '<<<<<<< HEAD', record()]);
+    const finding = assertFinding(doctor(), 'notes_unreadable', 'error');
+    assert.match(finding.message, /merge conflict markers/);
+  });
+
+  test('notes_unsupported_format: a format this Foreman does not know', () => {
+    writeRoadmap(project, [base('001')]);
+    writeNotes(['{"foreman_notes_format":99}', record()]);
+    assertFinding(doctor(), 'notes_unsupported_format', 'error');
+  });
+
+  test('notes_invalid_record is one warning that counts the skipped lines', () => {
+    writeRoadmap(project, [base('001')]);
+    fs.mkdirSync(path.join(project, 'src', 'auth'), { recursive: true });
+    fs.writeFileSync(path.join(project, 'src', 'auth', 'session.js'), 'x', 'utf-8');
+    writeNotes(['{"foreman_notes_format":1}', record(), '{"paths":[]}', 'not json at all']);
+    const findings = withCode(doctor(), 'notes_invalid_record');
+    assert.equal(findings.length, 1, 'invalid records aggregate into one finding');
+    assert.equal(findings[0].severity, 'warning');
+    assert.match(findings[0].message, /2 lines/);
+  });
+
+  test('notes_dead_record is one info line naming the count, areas and oldest', () => {
+    writeRoadmap(project, [base('001')]);
+    writeNotes([
+      '{"foreman_notes_format":1}',
+      record({ entry: '001', date: '2026-07-01' }),
+      record({ entry: '002', area: 'src/pay', paths: ['src/pay/charge.js'], date: '2026-08-02' }),
+    ]);
+    const findings = withCode(doctor(), 'notes_dead_record');
+    assert.equal(findings.length, 1, 'dead records aggregate into one finding');
+    assert.equal(findings[0].severity, 'info');
+    assert.match(findings[0].message, /2 records name only files that no longer exist/);
+    assert.match(findings[0].message, /across 2 areas/);
+    assert.match(findings[0].message, /oldest 2026-07-01/);
+    assert.match(findings[0].message, /entries 001, 002/);
+  });
+
+  test('a record with one surviving file is not dead', () => {
+    writeRoadmap(project, [base('001')]);
+    fs.mkdirSync(path.join(project, 'src', 'auth'), { recursive: true });
+    fs.writeFileSync(path.join(project, 'src', 'auth', 'session.js'), 'x', 'utf-8');
+    writeNotes([
+      '{"foreman_notes_format":1}',
+      record({ paths: ['src/auth/session.js', 'src/auth/gone.js'] }),
+    ]);
+    assert.deepEqual(withCode(doctor(), 'notes_dead_record'), []);
+  });
+
+  test('areaNotes.enabled is a known setting; a bad value is an error', () => {
+    writeRoadmap(project, [base('001')]);
+    writeConfig(project, { areaNotes: { enabled: true } });
+    assert.deepEqual(withCode(doctor(), 'unknown_config_key'), []);
+    writeConfig(project, { areaNotes: { enabled: 'yes' } });
+    assert.equal(assertFinding(doctor(), 'invalid_config_value', 'error').field, 'areaNotes.enabled');
+  });
+});
+
 describe('doctor --fix', () => {
   test('repairs absent container fields without touching updated_at', () => {
     const entry = base('001');

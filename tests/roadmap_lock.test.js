@@ -38,10 +38,13 @@ function waitForChild(child) {
   });
 }
 
+// Both prefixes, deliberately: filtering on `claim-` alone would let a leaked
+// `staging-` directory pass every emptiness assertion in this file.
 function activeClaims(lockPath) {
   if (!fs.existsSync(lockPath)) return [];
   return fs.readdirSync(lockPath, { withFileTypes: true })
-    .filter((item) => item.isDirectory() && item.name.startsWith("claim-"))
+    .filter((item) => item.isDirectory()
+      && (item.name.startsWith("claim-") || item.name.startsWith("staging-")))
     .map((item) => path.join(lockPath, item.name));
 }
 
@@ -310,6 +313,34 @@ describe("withRoadmapLock", () => {
       /mutation failed/
     );
     assert.deepEqual(activeClaims(lockPath), []);
+  });
+
+  test("leaves no lock directory behind once the last holder releases", () => {
+    const project = makeTemporaryDirectory("foreman-lock-teardown");
+    const lockPath = lockPathForRoot(project);
+
+    withRoadmapLock(project, () => {
+      assert.ok(fs.existsSync(lockPath));
+    });
+
+    assert.equal(fs.existsSync(lockPath), false);
+  });
+
+  test("sweeps a staging directory orphaned between mkdir and rename", () => {
+    const project = makeTemporaryDirectory("foreman-lock-staging");
+    const lockPath = lockPathForRoot(project);
+    const orphan = path.join(lockPath, "staging-999999-abandoned");
+    fs.mkdirSync(orphan, { recursive: true });
+    fs.writeFileSync(
+      path.join(orphan, "owner.json"),
+      JSON.stringify({ pid: 999999, token: "abandoned" }),
+      "utf8"
+    );
+    assert.deepEqual(activeClaims(lockPath), [orphan]);
+
+    withRoadmapLock(project, () => {}, { staleMs: 0 });
+
+    assert.equal(fs.existsSync(orphan), false);
   });
 
   test("does not make distinct project roots contend", () => {

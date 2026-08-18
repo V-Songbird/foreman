@@ -21,14 +21,39 @@ const WATCHED_TOOLS = new Set(["Edit", "Write"]);
 // generic — so only this project's own copy counts, and some other tool's
 // archive.jsonl is not Foreman's to deny.
 const PROJECT_ARCHIVE = ".foreman/archive.jsonl";
+// The lesson ledger, guarded for the same reason and on the same terms: the
+// CLI owns the append (inside the close's lock, with the format marker and
+// the 500-char refusal), and `notes.jsonl` is far too generic a name to match
+// on the basename alone.
+const PROJECT_NOTES = ".foreman/notes.jsonl";
+
+// Which CLI verbs to name when the deny message fires, per file — a generic
+// "use the CLI" leaves the caller to guess which of thirteen verbs applies.
+const SCOPED_HINT = {
+  [PROJECT_NOTES]:
+    'Record a lesson by passing `"lesson"` on that entry\'s `update-status` close, ' +
+    "and read the store back with the `notes` verb.",
+};
+
+function projectRelative(filePath, root) {
+  return path
+    .relative(root, path.resolve(root, String(filePath)))
+    .replaceAll("\\", "/")
+    .toLowerCase();
+}
+
+/** The project-relative path this edit targets, or null when it targets none. */
+function guardedPath(filePath, root) {
+  if (!filePath) return null;
+  const base = path.basename(String(filePath)).toLowerCase();
+  if (base === "roadmap.jsonl") return "ROADMAP.jsonl";
+  if (base !== "archive.jsonl" && base !== "notes.jsonl") return null;
+  const rel = projectRelative(filePath, root);
+  return rel === PROJECT_ARCHIVE || rel === PROJECT_NOTES ? rel : null;
+}
 
 function targetsRoadmap(filePath, root) {
-  if (!filePath) return false;
-  const base = path.basename(String(filePath)).toLowerCase();
-  if (base === "roadmap.jsonl") return true;
-  if (base !== "archive.jsonl") return false;
-  const rel = path.relative(root, path.resolve(root, String(filePath)));
-  return rel.replaceAll("\\", "/").toLowerCase() === PROJECT_ARCHIVE;
+  return guardedPath(filePath, root) !== null;
 }
 
 function main() {
@@ -40,8 +65,10 @@ function main() {
   // Foreman is entitled to say about it.
   if (!fs.existsSync(path.join(root, "ROADMAP.jsonl"))) return;
 
-  if (!targetsRoadmap(data.tool_input?.file_path, root)) return;
+  const guarded = guardedPath(data.tool_input?.file_path, root);
+  if (guarded === null) return;
 
+  const scoped = SCOPED_HINT[guarded];
   const payload = {
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
@@ -50,8 +77,9 @@ function main() {
         `Foreman: direct ${data.tool_name} of ` +
         `${path.basename(String(data.tool_input.file_path))} is blocked. Use ` +
         `node ${SCRIPT_PATH} instead (add/update-status/annotate/update-deps/` +
-        "correct/reassign-id/archive/restore/list/next-candidates/" +
+        "correct/reassign-id/archive/restore/list/next-candidates/notes/" +
         "check-duplicate/doctor/migrate — run with --help for usage). " +
+        (scoped ? `${scoped} ` : "") +
         "It enforces id computation and parse-before/after-write; a hand " +
         "edit bypasses both. If the file is corrupt and the CLI itself " +
         "can't read it, repair it via Bash instead — that path stays open.",
@@ -72,4 +100,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { main, targetsRoadmap };
+module.exports = { main, targetsRoadmap, guardedPath };

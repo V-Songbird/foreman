@@ -108,6 +108,31 @@ describe('leaves everything else alone', () => {
   });
 });
 
+// The lesson ledger is CLI-owned on exactly the archive's terms: the append
+// rides the close's lock and carries a format marker and a hard length
+// refusal, none of which a hand edit honors. The name is generic, so only
+// this project's own copy is Foreman's to deny.
+describe('the lesson ledger is guarded on the same terms as the archive', () => {
+  test('editing this project\'s .foreman/notes.jsonl is denied', () => {
+    const out = run({ tool_name: 'Edit', tool_input: { file_path: inProject('.foreman', 'notes.jsonl') } });
+    const payload = JSON.parse(out);
+    assert.equal(payload.hookSpecificOutput.permissionDecision, 'deny');
+  });
+
+  test('the denial names how to write and how to read the store', () => {
+    const out = run({ tool_name: 'Write', tool_input: { file_path: inProject('.foreman', 'notes.jsonl') } });
+    const { permissionDecisionReason } = JSON.parse(out).hookSpecificOutput;
+    assert.match(permissionDecisionReason, /"lesson"/);
+    assert.match(permissionDecisionReason, /update-status/);
+    assert.match(permissionDecisionReason, /(^|\W)notes(\W|$)/);
+  });
+
+  test('some other tool\'s notes.jsonl elsewhere is not Foreman\'s to deny', () => {
+    const out = run({ tool_name: 'Edit', tool_input: { file_path: inProject('vendor', 'notes.jsonl') } });
+    assert.equal(out, '');
+  });
+});
+
 describe('a project with no roadmap is not Foreman\'s to talk in', () => {
   test('editing ROADMAP.jsonl in an uninitialized project writes zero bytes', () => {
     const bare = makeTmpProject();

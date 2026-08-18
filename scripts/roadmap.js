@@ -9,11 +9,15 @@ const { withRoadmapLock } = require("./roadmap-lock");
 // the project turned it on, and it never throws — a trial is an observation
 // of the work and must never become a way for the work to fail.
 const { record: recordTrial } = require("./trial-log");
+const areaNotes = require("./area-notes");
+const { readAreaNotes } = require("./area-notes-config");
+const noteStaleness = require("./note-staleness");
 const {
   validateEntries,
   validateAcrossFiles,
   enrichDuplicates,
   validateConfig,
+  validateAreaNotes,
   hookDependencies,
   applyRepairs,
   summarize,
@@ -815,11 +819,15 @@ function filesTouchedByCommit(root, sha) {
 // landed commit, so a close can derive touches BEFORE the commit exists
 // and ride inside it. Same fail-soft contract. ROADMAP.jsonl itself is
 // dropped — the close is about to stage it, and it isn't task footprint.
+// `.foreman/notes.jsonl` is dropped for the same reason ROADMAP.jsonl is, and
+// for one more: a staged close that is later abandoned leaves the notes file
+// in the index, where the NEXT close would fold it into observed_touches and
+// keep it there permanently.
 function filesStagedIn(root) {
   return gitFilesIn(
     root,
     ["diff", "--cached", "--name-only", "--relative"],
-    (f) => f && f !== "ROADMAP.jsonl"
+    (f) => f && f !== "ROADMAP.jsonl" && f !== areaNotes.NOTES_RELATIVE
   );
 }
 
@@ -853,13 +861,15 @@ function driftNote(drift) {
   return parts.length ? `scope drift — ${parts.join("; ")}` : null;
 }
 
-// Best-effort `git add ROADMAP.jsonl` so a staged close needs no extra
-// caller step to fold the roadmap change into the pending commit. False
-// (git absent / not a repo) never fails the close — the caller just
-// stages the file itself.
-function stageRoadmapFile(root) {
+// Best-effort `git add` of the files a staged close writes, so it needs no
+// extra caller step to fold them into the pending commit. False (git absent /
+// not a repo) never fails the close — the caller just stages them itself.
+// The notes file is staged only when this close actually wrote to it; an
+// unrelated pending edit to it is not this close's business.
+function stageRoadmapFile(root, extraPaths = []) {
+  const paths = ["ROADMAP.jsonl", ...extraPaths];
   try {
-    execFileSync("git", ["add", "ROADMAP.jsonl"], {
+    execFileSync("git", ["add", "--", ...paths], {
       cwd: root,
       stdio: ["ignore", "ignore", "ignore"],
     });
@@ -954,6 +964,7 @@ function cmdUpdateStatusUnlocked(root, payload) {
     commit,
     staged,
     notes,
+    lesson,
     add_touches,
     doc,
     kind,
@@ -993,6 +1004,9 @@ function cmdUpdateStatusUnlocked(root, payload) {
   }
   if (add_touches !== undefined && !Array.isArray(add_touches)) {
     throw new Error("add_touches must be an array of paths");
+  }
+  if (lesson !== undefined && typeof lesson !== "string") {
+    throw new Error("lesson must be a string — one sentence naming the file or symbol it concerns");
   }
   if (doc !== undefined) validateDoc(doc);
   if (kind !== undefined) validateKind(kind);
@@ -1095,6 +1109,16 @@ function cmdUpdateStatusUnlocked(root, payload) {
   if (note && !String(entry.notes || "").includes(note)) {
     entry.notes = appendNote(entry.notes, note);
   }
+  // The lesson ledger's one write moment, inside the lock this close already
+  // holds. Nothing here can fail the close: every refusal is a reported
+  // reason, and prose that could not be stored is kept on the entry's own
+  // notes rather than dropped.
+  const lessonOutcome = lesson === undefined
+    ? null
+    : recordLesson(root, entry, { lesson, commit });
+  if (lessonOutcome && lessonOutcome.note) {
+    entry.notes = appendNote(entry.notes, lessonOutcome.note);
+  }
   entry.updated_at = today();
   const migrated = writeEntries(root, entries, resolve);
   const warnings = notes ? fieldWarnings([["notes", notes, NOTES_APPEND_WARN_CHARS, NOTES_WARN_HINT]]) : [];
@@ -1102,13 +1126,63 @@ function cmdUpdateStatusUnlocked(root, payload) {
   if (migrated) result.migrated = migrated;
   if (derivedTouches.length) result.derived_touches = derivedTouches;
   if (drift && (drift.untouched.length || drift.unpredicted.length)) result.scope_drift = drift;
+  if (lessonOutcome) result.lesson = lessonOutcome.report;
   // A staged close hands back the exact trailer line the commit message
   // must carry — the entry↔commit link the recorded sha used to be.
   if (staged) {
     result.trailer = commitTrailerFor(id);
-    result.roadmap_staged = stageRoadmapFile(root);
+    result.roadmap_staged = stageRoadmapFile(
+      root,
+      lessonOutcome && lessonOutcome.report.stored ? [areaNotes.NOTES_RELATIVE] : []
+    );
   }
   return warnings.length ? { ...result, warnings } : result;
+}
+
+// A lesson is worth recording only where there is finished work behind it.
+// `awaiting_acceptance` counts for the same reason recall counts it: the diff
+// is real and only the user's yes is missing.
+const LESSON_STATUSES = new Set([...TERMINAL_STATUSES, "awaiting_acceptance"]);
+
+/**
+ * Store one close's lesson, or say exactly why it was not stored.
+ *
+ * `{report, note}` — `report` is what the close hands back
+ * (`{stored:true, area, paths_count}` or `{stored:false, reason}`), `note` is
+ * the line to append to the entry's own notes. Both machine prefixes below
+ * are in craft-handoff.js's MACHINE_NOTE_RE, so neither the provenance line
+ * nor the fallback prose can ever be quoted back as a recall excerpt.
+ */
+function recordLesson(root, entry, { lesson, commit }) {
+  const refuse = (reason, note = null) => {
+    recordTrial("lesson_present", { stored: false, outcome: reason }, { root });
+    return { report: { stored: false, reason }, note };
+  };
+
+  if (!LESSON_STATUSES.has(entry.status)) return refuse("not_a_close");
+
+  // Disabled is not a reason to lose what the user typed: the prose lands on
+  // the entry, prefixed so recall can never mistake it for a finding.
+  if (!readAreaNotes(root).enabled) {
+    return refuse("disabled", `lesson not recorded (areaNotes disabled): ${lesson}`);
+  }
+
+  const anchor = commit ? { kind: "commit", sha: commit } : { kind: "entry" };
+  const stored = areaNotes.append(root, {
+    lesson,
+    paths: entry.observed_touches || [],
+    entry: entry.id,
+    anchor,
+    date: today(),
+  });
+  if (!stored.stored) {
+    return refuse(stored.reason, `lesson not recorded (${stored.reason}): ${lesson}`);
+  }
+  recordTrial("lesson_present", { stored: true, outcome: "stored" }, { root });
+  return {
+    report: stored,
+    note: `lesson recorded: ${areaNotes.NOTES_RELATIVE}, area ${stored.area}`,
+  };
 }
 
 // Notes-only append that leaves status alone — a breadcrumb write must not
@@ -2127,8 +2201,73 @@ function allFindings(root) {
     })),
     ...validateAcrossFiles(active, archived),
     ...validateConfig(root),
+    ...validateAreaNotes(root),
     ...hookDependencies(),
   ], active, archived);
+}
+
+// [Foreman: 243] The explicit pull. Every cap here exists so the output is
+// O(what you asked for) and never O(store): an unfiltered call on a project
+// with four hundred closed tasks must still print something a person reads.
+const NOTES_MAX_AREAS = 10;
+
+function cmdNotes(root, flags) {
+  const { records, error } = areaNotes.read(root);
+  if (error) return { error_code: error, areas: [], records: [] };
+
+  const wantPaths = typeof flags.paths === "string"
+    ? flags.paths.split(",").map((p) => p.trim()).filter(Boolean)
+    : [];
+  const wantArea = typeof flags.area === "string" ? areaNotes.normalizeStorePath(flags.area).toLowerCase() : "";
+
+  // Newest first everywhere: a corrective record is written after the record
+  // it corrects, so it has to be the one a reader meets first.
+  let matched = [...records].reverse();
+  if (wantPaths.length) {
+    matched = matched.filter((record) =>
+      record.paths.some((stored) => wantPaths.some((wanted) => touchesOverlap(wanted, stored))));
+  }
+  if (wantArea) {
+    matched = matched.filter((record) => {
+      const area = String(record.area || ".").toLowerCase();
+      return area === wantArea || area.startsWith(`${wantArea}/`);
+    });
+  }
+
+  // An unfiltered call is the one that can run away, so only that one is
+  // capped by area. A filtered call already named its own bound.
+  const filtered = Boolean(wantPaths.length || wantArea);
+  const order = [];
+  for (const record of matched) {
+    const area = record.area || ".";
+    if (!order.includes(area)) order.push(area);
+  }
+  const served = filtered ? order : order.slice(0, NOTES_MAX_AREAS);
+  const overflow = order.length - served.length;
+  const shown = matched.filter((record) => served.includes(record.area || "."));
+
+  const budget = noteStaleness.newBudget();
+  const resolved = noteStaleness.resolveAll(root, shown, budget);
+
+  const result = {
+    areas: served,
+    records: resolved.map(({ record, state, label: line }) => ({
+      area: record.area || ".",
+      entry: record.entry,
+      date: record.date,
+      paths: record.paths,
+      lesson: record.lesson,
+      staleness: state,
+      label: line,
+    })),
+  };
+  if (overflow > 0) {
+    result.overflow = `+${overflow} more area${overflow === 1 ? "" : "s"} — filter with --area or --paths`;
+  }
+  // Past the budget every remaining record serves its anchor and no freshness
+  // claim, so say that rather than letting "unknown" read as a git failure.
+  if (budget.spent >= budget.limit) result.staleness_budget_spent = true;
+  return result;
 }
 
 function cmdDoctor(root, flags) {
@@ -2189,7 +2328,7 @@ absent when the file was already current.
                     an exact existing title returns that entry with
                     deduped:true; intentional separate tasks need distinct
                     titles so every add remains safe to replay
-  update-status     stdin JSON: {id, status, commit?, staged?, notes?, add_touches?, doc?, kind?, model?, effort?, expected_status?, require_ready?}
+  update-status     stdin JSON: {id, status, commit?, staged?, notes?, lesson?, add_touches?, doc?, kind?, model?, effort?, expected_status?, require_ready?}
                     status: "planned" | "in_progress" | "awaiting_acceptance" | "deferred" | "done" | "dropped" | "rejected"
                     "awaiting_acceptance" = implemented AND checked, waiting
                     only on the user's yes; open everywhere (does not satisfy
@@ -2217,6 +2356,18 @@ absent when the file was already current.
                     add_touches: array of paths to fold into observed_touches
                     (dedup, never removes) -- for a file the commit's own
                     diff cannot show
+                    lesson: one durable sentence about this code area,
+                    naming the file or symbol it concerns, recorded in
+                    .foreman/notes.jsonl for a later task whose planned files
+                    intersect this close's observed ones. Only on a close
+                    (done/dropped/rejected/awaiting_acceptance), only when
+                    areaNotes.enabled, at most 500 chars -- longer is
+                    refused, never truncated. The result reports
+                    lesson:{stored:true, area, paths_count} or
+                    {stored:false, reason}; prose that could not be stored
+                    lands on the entry's own notes instead of being dropped.
+                    Omitting it is a valid outcome: nothing generalizes from
+                    most tasks
                     doc: same "none" | relative .md path contract as add
                     kind: "build" | "decision" -- reclassify the entry;
                     "decision" is stored, "build" drops the key (the default)
@@ -2359,6 +2510,24 @@ absent when the file was already current.
                     user's yes -- same in both shapes, omitted when empty.
                     Separate from in_progress: the action is accept, not
                     resume
+  notes             flag: --paths a.js,b.js   (optional, comma-separated:
+                    only records whose stored files overlap one of these)
+                    flag: --area <prefix>   (optional: only records under
+                    that area key -- a poor filter by design, since two
+                    thirds of closed work has no dominant area; --paths is
+                    the useful one)
+                    the explicit read of the lesson ledger
+                    (.foreman/notes.jsonl), newest first, each record
+                    carrying a staleness verdict ("fresh"|"stale"|"unknown")
+                    and the label that states it. Records whose every stored
+                    file is gone are dropped, not labelled.
+                    An unfiltered call serves at most 10 areas and adds an
+                    "overflow" line counting the rest; staleness resolution
+                    stops at a fixed git budget, after which records serve
+                    their anchor and no freshness claim
+                    (staleness_budget_spent:true says so)
+                    a store that will not parse returns error_code and no
+                    records -- run doctor for the finding that explains it
   check-duplicate   stdin JSON: {title, why}
                     word-overlap match against ALL entries regardless of
                     status, archived ones included (archived:true on those);
@@ -2516,6 +2685,9 @@ function main() {
     case "next-candidates":
       result = cmdNextCandidates(root, parseFlags(rest));
       break;
+    case "notes":
+      result = cmdNotes(root, parseFlags(rest));
+      break;
     case "check-duplicate":
       result = cmdCheckDuplicate(root, readStdinJSON());
       break;
@@ -2527,7 +2699,7 @@ function main() {
       break;
     default:
       throw new Error(
-        `unknown subcommand: ${sub}. Use add|update-status|annotate|update-deps|correct|reassign-id|archive|restore|list|next-candidates|check-duplicate|doctor|migrate`
+        `unknown subcommand: ${sub}. Use add|update-status|annotate|update-deps|correct|reassign-id|archive|restore|list|next-candidates|notes|check-duplicate|doctor|migrate`
       );
   }
   process.stdout.write(JSON.stringify({ ok: true, ...result }));

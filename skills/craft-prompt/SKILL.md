@@ -152,14 +152,26 @@ For each section selected in Call 1 Q2, ask its detail question(s). Batch up to 
 - **Tone** — "Describe the tone for this session."
   Options: `Cautious and defensive (security-focused)`, `Fast and pragmatic (prototype)`, `Pedagogical — explain each step`, `Formal technical report style`
 - **Example** — "Provide a before/after snippet or input → output example."
-  Options: `I'll type it`
-- **Constraints** (batch both) — "Which files or interfaces must NOT be modified?" Options: `I'll list them`; and "Is there a coding style or pattern to follow? Point to an example file." Options: `None`, `I'll describe it`
+  Options: `I'll type it`, `No example to give`
+- **Constraints** (batch both) — "Which files or interfaces must NOT be modified?" Options: `I'll list them`, `Nothing is off limits`; and "Is there a coding style or pattern to follow? Point to an example file." Options: `None`, `I'll describe it`
 - **Background context** — "Describe the architectural decisions, patterns, or constraints the agent needs to know to act without prior context."
-  Options: `I'll describe it`
+  Options: `I'll describe it`, `Nothing beyond the files themselves`
+
+A section selected in Q2 whose detail question comes back with the
+nothing-to-give answer — `No example to give`, `Nothing is off limits`,
+`None`, `Nothing beyond the files themselves` — is dropped from the
+assembled prompt, exactly as Call 3 Q4's `Nothing in particular` drops
+`<invariants>`. An empty block is worse than an absent one, and changing
+their mind about a section is a normal answer rather than a gap to push
+back on.
 
 **Workflow stage** (when Call 1 Q4 was `Yes`):
 - "What should come back? Describe the fields the schema should capture."
-  Options: `I'll describe them`
+  Options: `I'll describe them`, `Derive them from the done state`
+
+  `Derive them from the done state` does not skip the schema — the stage
+  cannot run without one. Author it from Call 2 Q2's done state and Call 1
+  Q1's task type instead, then show the fields before delivering.
 
   This flavor mechanically drops `Tone` and replaces the default output
   format with a fixed enforcement sentence — `craft-handoff.js` bakes both

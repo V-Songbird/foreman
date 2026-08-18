@@ -94,6 +94,8 @@ Git remembers every diff. Nobody remembers *why*. Turn this on, and any task tha
 
 Seeing `Foreman: 019` at the bottom of your commits? That's always on. The commit names the task, so a finished task closes in the same commit as its code and nothing dangles.
 
+There's a lighter version of the same idea. Turn on `areaNotes` and a finishing task can leave one sentence about the code it touched — where a thing lives, which helper is mandatory. The next task that plans to open those same files gets it back, with a note saying whether the files have changed since. Also off by default.
+
 ## Under the hood
 
 The roadmap is a plain file in your repo (field-by-field details in [`roadmap-schema.md`](roadmap-schema.md)), and every prompt Foreman assembles is structurally validated before it ships. Pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush) — they're built to stay out of each other's way.

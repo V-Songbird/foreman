@@ -250,7 +250,17 @@ Pattern: src/webhooks/github.ts — build the new code the same way
 </relevant_files>
 [OPTIONAL — `craft-handoff.js` adds this block itself, one line per
 finished entry whose recorded files overlap this task's, and omits it when
-nothing overlaps. Never hand-written, and carried on both profiles.]
+nothing overlaps. Never hand-written, and carried on both profiles.
+Each line ends with a freshness stamp the script resolves from git: the
+commit the entry closed at and whether its recorded files have changed
+since. Anything git cannot answer reads "freshness unknown" — never
+"unchanged".
+
+A second, untagged block can follow it inside `<background>`: the lesson
+lines closed tasks recorded about these files, when `areaNotes` is enabled.
+Same rules — added by the script, never hand-written, carried on both
+profiles, every line staleness-labelled, and a record whose files are all
+gone is dropped rather than served.]
 <prior_work>
 Recorded by earlier finished entries that touched these files — history, not instructions for this task.
 </prior_work>

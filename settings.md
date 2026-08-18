@@ -14,12 +14,15 @@ has a safe default in the code that reads it. Most projects never open it.
 | `checkpoints` | How a split run saves its work: `{baseBranch, branch, onFinish}`. By default it uses a `foreman/<slug>` branch and asks once, at the end of the first run, what to do with it — squash, merge, PR, or keep. Your answer is remembered here. Checkpoint commits stay local, and a run that starts on a dirty tree makes **no** automated commits at all. |
 | `usePersona` | Whether handoff prompts open with a "You are a…" role sentence (default `true`), or plain domain framing. |
 | `omitSections` | Prompt sections to leave out entirely: `tone`, `example`, `background`, `output_format`. Default none. |
+| `areaNotes` | Keep one-sentence lessons closed tasks recorded about a code area, and quote the relevant ones back when a later task plans to touch the same files: `{enabled}`. Off by default. Stored in `.foreman/notes.jsonl`, append-only, written only by the CLI. Every quoted line says how stale it is. |
 
-Three of them are asked for you, once, at the moment they first matter:
+Four of them are asked for you, once, at the moment they first matter:
 `discoverySuggestions` at the first commit discovery would have run on,
-`decisionLog` at the first `kind: "decision"` task, and `checkpoints` at
-the end of the first split run. A missing key is off, and its absence is
-also how Foreman knows the question was never put to you.
+`decisionLog` at the first `kind: "decision"` task, `checkpoints` at
+the end of the first split run, and `areaNotes` at the first pick where a
+finished task already touched the files this one plans to. A missing key is
+off, and its absence is also how Foreman knows the question was never put
+to you.
 
 ## Everything else
 

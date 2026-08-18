@@ -266,9 +266,9 @@ mechanics it defers to are step 5 below.
    the delivery calls below; the gate errors on a resolved plugins-cache
    path.
 
-   Returns one JSON line: `{ok, prompt, profile, signals, tasks?, gate,
-   warnings}`. `profile` and `signals` are internal bookkeeping — never
-   name either in anything the user reads. Surface any top-level
+   Returns one JSON line: `{ok, prompt, profile, signals, tasks?,
+   area_notes_ask?, gate, warnings}`. `profile` and `signals` are internal
+   bookkeeping — never name either in anything the user reads. Surface any top-level
    `warnings` verbatim whenever that array is non-empty — including when
    `ok` is `true`, since a stale path or an unanswerable verification
    command has to be fixed before delivery. When `ok` is `false`, don't retry blind: show
@@ -276,6 +276,22 @@ mechanics it defers to are step 5 below.
    the judgment field that's too thin (missing steps, missing
    verification, an unresolved reference) — gather that field properly and
    re-call, rather than resending the same stdin hoping it passes.
+   **`area_notes_ask: true` — the first moment lesson lines could pay.**
+   It appears only when a finished entry already touched files this one
+   plans to and the setting has never been put to the user. Ask once, before
+   delivering:
+
+   > "A finished task already touched these files. Should a close be able to
+   > record one durable sentence about a code area, quoted back to later
+   > tasks that plan to touch the same files?"
+   > Options: `Yes, record and quote lessons`, `No, keep handoffs as they are`
+
+   Write the answer straight into `.foreman/config.json` as
+   `{"areaNotes":{"enabled":<true|false>}}`, preserving every other key —
+   a written `false` is what stops the question being asked again. Never
+   re-craft the prompt because of the answer: it takes effect on the next
+   pick, which is soon enough for a setting nobody has been using.
+
 4. **Foreman never marks the entry `in_progress` itself.** It stays
    `planned` — even after this prompt is assembled, delivered, or copied —
    until whichever session actually starts the work runs the
