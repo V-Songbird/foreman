@@ -8,3 +8,8 @@
 /benchmarks/results/
 !/benchmarks/records/README.md
 !/benchmarks/records/validate-records.js
+
+# Plugin-local session state — written at run time, never published.
+.assay/
+.foreman/
+.scribe/
