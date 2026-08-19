@@ -23,9 +23,20 @@ const crypto = require("crypto");
 
 const { anchorIdsIn } = require("../scripts/roadmap");
 const { readDecisionLog } = require("../scripts/decision-log-config");
+const { readAreaNotes } = require("../scripts/area-notes-config");
+const areaNotes = require("../scripts/area-notes");
+const noteStaleness = require("../scripts/note-staleness");
 
 const WATCHED_TOOLS = new Set(["Read", "Edit", "Write"]);
 const MAX_BYTES = 512 * 1024;
+
+// [Foreman: 247] The lesson channel's own bounds, deliberately tighter than
+// the handoff's. This hook fires on every Read, so the whole branch has to be
+// worth its cost at the moment it actually finds something: at most two
+// lessons, and a git budget small enough that a pathological store cannot
+// spend the hook's five-second timeout.
+const NOTE_LIMIT = 2;
+const NOTE_GIT_BUDGET = 6;
 
 // Reads at most the first MAX_BYTES of `filePath`. null on anything that
 // isn't a readable regular file (missing, directory, permission-denied) --
@@ -58,6 +69,46 @@ function relDocPath(dir, id) {
   const segs = String(dir).split(/[\\/]+/).filter(Boolean);
   segs.push(`${id}.md`);
   return segs.join("/");
+}
+
+/**
+ * [Foreman: 247] The lessons recorded about the file being touched, newest
+ * first, each with the freshness label the ledger never serves a line without.
+ *
+ * Returns [] on every quiet path -- feature off, empty store, no match -- so
+ * the caller's cost when nothing matches is one stat and one small read.
+ */
+function lessonsFor(root, relPath) {
+  // One stat before the config read: a project that has recorded nothing is
+  // the common case, and it should cost exactly this much.
+  if (!fs.existsSync(areaNotes.notesPath(root))) return [];
+  if (!readAreaNotes(root).enabled) return [];
+  const { records, error } = areaNotes.read(root);
+  if (error || !records.length) return [];
+
+  const wanted = areaNotes.normalizeStorePath(relPath);
+  if (!wanted) return [];
+  // Exact file, never the folder-prefix overlap the handoff uses. The handoff
+  // is answering "what has anyone learned near this work"; this is answering
+  // "what is recorded about the file in front of you", and a whole directory's
+  // lessons on every Read is noise, not retrieval.
+  const matched = [...records]
+    .reverse()
+    .filter((record) => (record.paths || []).some((stored) => stored === wanted));
+  if (!matched.length) return [];
+
+  const budget = noteStaleness.newBudget(NOTE_GIT_BUDGET);
+  return noteStaleness
+    .resolveAll(root, matched.slice(0, NOTE_LIMIT), budget)
+    .map(({ record, label }) => `${record.lesson} ${label}`);
+}
+
+function lessonMessage(relPath, lessons) {
+  const bullets = lessons.map((line) => `- ${line}`).join("\n");
+  return (
+    `Recorded about ${relPath} by earlier closed tasks -- recorded claims, ` +
+    `verify against the code:\n${bullets}`
+  );
 }
 
 function contextMessage(relPaths) {
@@ -114,46 +165,62 @@ function main() {
   // A project that never ran init is not Foreman's to talk in.
   if (!fs.existsSync(path.join(root, "ROADMAP.jsonl"))) return;
 
-  // No decision-log dir means no doc could possibly surface, so exit on one
-  // stat instead of paying the capped read on every touched file. Anchors
-  // stay findable the moment the dir exists again (decisionLog re-enabled) —
-  // nothing is latched on this path.
-  const { dir } = readDecisionLog(root);
-  if (!fs.existsSync(path.join(root, dir))) return;
-
   const target = path.isAbsolute(filePath) ? filePath : path.resolve(root, filePath);
+  const sessionId = String(data.session_id || "");
+  const parts = [];
 
-  const content = readCapped(target);
-  if (content === null) return;
-
-  const ids = anchorIdsIn(content);
-  if (!ids.length) return;
-
-  const keptIds = [];
-  const relPaths = [];
-  for (const id of ids) {
-    let isFile = false;
-    try {
-      isFile = fs.statSync(path.join(root, dir, `${id}.md`)).isFile();
-    } catch {
-      // no doc for this id -- stray/unrelated bracket text, never surfaced
+  // ---- channel 1: the decision docs this file's anchors name.
+  //
+  // No decision-log dir means no doc could possibly surface, so this channel
+  // exits on one stat instead of paying the capped read on every touched file.
+  // Anchors stay findable the moment the dir exists again (decisionLog
+  // re-enabled) — nothing is latched on this path.
+  const { dir } = readDecisionLog(root);
+  if (fs.existsSync(path.join(root, dir))) {
+    const content = readCapped(target);
+    const ids = content === null ? [] : anchorIdsIn(content);
+    const keptIds = [];
+    const relPaths = [];
+    for (const id of ids) {
+      let isFile = false;
+      try {
+        isFile = fs.statSync(path.join(root, dir, `${id}.md`)).isFile();
+      } catch {
+        // no doc for this id -- stray/unrelated bracket text, never surfaced
+      }
+      if (isFile) {
+        keptIds.push(id);
+        relPaths.push(relDocPath(dir, id));
+      }
     }
-    if (isFile) {
-      keptIds.push(id);
-      relPaths.push(relDocPath(dir, id));
+    if (keptIds.length) {
+      const sortedIds = [...keptIds].sort();
+      if (shouldEmit(root, `${sessionId}:${target}:${sortedIds.join(",")}`)) {
+        parts.push(contextMessage(relPaths));
+      }
     }
   }
-  if (!keptIds.length) return;
 
-  const sortedIds = [...keptIds].sort();
-  const sessionId = String(data.session_id || "");
-  const latchKey = `${sessionId}:${target}:${sortedIds.join(",")}`;
-  if (!shouldEmit(root, latchKey)) return;
+  // ---- channel 2: [Foreman: 247] the lessons recorded about this file.
+  //
+  // Same principle as the anchors above, one level lighter: a decision doc is
+  // a constraint you must not violate, a lesson is a claim worth checking. It
+  // is a separate channel because the two are gated on different things — the
+  // doc channel needs the decision-log dir, this one needs `areaNotes` and a
+  // store — and because a file can easily have one and not the other.
+  const rel = path.relative(root, target).split(path.sep).join("/");
+  if (rel && !rel.startsWith("..") && !path.isAbsolute(rel)) {
+    const lessons = lessonsFor(root, rel);
+    if (lessons.length && shouldEmit(root, `${sessionId}:${target}:lessons:${lessons.length}`)) {
+      parts.push(lessonMessage(rel, lessons));
+    }
+  }
 
+  if (!parts.length) return;
   write({
     hookSpecificOutput: {
       hookEventName: "PostToolUse",
-      additionalContext: contextMessage(relPaths),
+      additionalContext: parts.join("\n\n"),
     },
   });
 }
@@ -171,7 +238,10 @@ module.exports = {
   readCapped,
   relDocPath,
   contextMessage,
+  lessonsFor,
+  lessonMessage,
   latchStatePath,
   shouldEmit,
   MAX_BYTES,
+  NOTE_LIMIT,
 };

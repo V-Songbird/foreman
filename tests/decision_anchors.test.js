@@ -21,6 +21,8 @@ const fs = require('fs');
 const path = require('path');
 
 const { runScriptRaw, makeTmpProject, writeConfig, writeRoadmap } = require('./helpers');
+const areaNotes = require(path.join(__dirname, '..', 'scripts', 'area-notes.js'));
+const anchors = require(path.join(__dirname, '..', 'hooks', 'decision-anchors.js'));
 
 let project;
 let env;
@@ -124,5 +126,105 @@ describe('decision-anchors hook', () => {
     writeFile('docs/foreman/024.md', '# decision');
     fs.rmSync(path.join(project, 'ROADMAP.jsonl'));
     assert.equal(run(payload(target, { session_id: 's-bare' })), '');
+  });
+});
+
+// [Foreman: 247] The second channel: a file with a lesson recorded about it
+// surfaces that lesson at the moment it is touched, on the same hook and under
+// the same once-per-session latch.
+describe('decision-anchors hook, the lesson channel', () => {
+  function recordLesson(relPath, lesson, overrides) {
+    return areaNotes.append(project, {
+      lesson,
+      paths: [relPath],
+      entry: '042',
+      anchor: { kind: 'none' },
+      date: '2026-08-01',
+      ...(overrides || {}),
+    });
+  }
+
+  test('surfaces a lesson recorded about the touched file, with its freshness label', () => {
+    writeConfig(project, { areaNotes: { enabled: true } });
+    const target = writeFile('src/parser.js', 'module.exports = {};\n');
+    recordLesson('src/parser.js', 'punctuation is handled only in the word split');
+
+    const out = run(payload(target, { session_id: 's-lesson' }));
+    assert.match(out, /punctuation is handled only in the word split/);
+    assert.match(out, /Recorded about src\/parser\.js/);
+    // Never a bare claim: the ledger's rule is that every served line says how
+    // stale it is, and this channel is not an exception to it.
+    assert.match(out, /entry 042/);
+  });
+
+  test('says nothing when areaNotes is off, however many lessons the store holds', () => {
+    const target = writeFile('src/parser.js', 'module.exports = {};\n');
+    recordLesson('src/parser.js', 'punctuation is handled only in the word split');
+    assert.equal(run(payload(target, { session_id: 's-off' })), '');
+  });
+
+  test('says nothing when no lesson names this file', () => {
+    writeConfig(project, { areaNotes: { enabled: true } });
+    const target = writeFile('src/parser.js', 'module.exports = {};\n');
+    writeFile('src/other.js', 'module.exports = {};\n');
+    recordLesson('src/other.js', 'unrelated');
+    assert.equal(run(payload(target, { session_id: 's-nomatch' })), '');
+  });
+
+  test('matches the file exactly, never the folder it sits in', () => {
+    writeConfig(project, { areaNotes: { enabled: true } });
+    const target = writeFile('src/parser.js', 'module.exports = {};\n');
+    recordLesson('src', 'something about the whole folder');
+    assert.equal(run(payload(target, { session_id: 's-folder' })), '');
+  });
+
+  test('a retired lesson is not surfaced', () => {
+    writeConfig(project, { areaNotes: { enabled: true } });
+    const target = writeFile('src/parser.js', 'module.exports = {};\n');
+    recordLesson('src/parser.js', 'this one proved wrong');
+    const [stored] = areaNotes.read(project).records;
+    areaNotes.supersede(project, { key: areaNotes.recordKey(stored), date: '2026-08-19' });
+    assert.equal(run(payload(target, { session_id: 's-retired' })), '');
+  });
+
+  test('serves at most NOTE_LIMIT lessons, newest first', () => {
+    writeConfig(project, { areaNotes: { enabled: true } });
+    const target = writeFile('src/parser.js', 'module.exports = {};\n');
+    recordLesson('src/parser.js', 'oldest claim', { date: '2026-07-01' });
+    recordLesson('src/parser.js', 'middle claim', { date: '2026-07-15' });
+    recordLesson('src/parser.js', 'newest claim', { date: '2026-08-01' });
+
+    const out = run(payload(target, { session_id: 's-cap' }));
+    assert.match(out, /newest claim/);
+    assert.match(out, /middle claim/);
+    assert.doesNotMatch(out, /oldest claim/);
+    assert.equal(anchors.NOTE_LIMIT, 2);
+  });
+
+  test('both channels ride one message when a file has a doc and a lesson', () => {
+    writeConfig(project, { areaNotes: { enabled: true } });
+    const target = writeFile('src/parser.js', '// [Foreman: 019]\n');
+    writeFile('docs/foreman/019.md', '# decision');
+    recordLesson('src/parser.js', 'punctuation is handled only in the word split');
+
+    const out = run(payload(target, { session_id: 's-both' }));
+    assert.match(out, /019\.md/);
+    assert.match(out, /punctuation is handled only in the word split/);
+  });
+
+  test('the same file in the same session says it once', () => {
+    writeConfig(project, { areaNotes: { enabled: true } });
+    const target = writeFile('src/parser.js', 'module.exports = {};\n');
+    recordLesson('src/parser.js', 'punctuation is handled only in the word split');
+    assert.notEqual(run(payload(target, { session_id: 's-latch' })), '');
+    assert.equal(run(payload(target, { session_id: 's-latch' })), '');
+  });
+
+  test('a store that will not parse is silence, never a crash', () => {
+    writeConfig(project, { areaNotes: { enabled: true } });
+    const target = writeFile('src/parser.js', 'module.exports = {};\n');
+    recordLesson('src/parser.js', 'punctuation is handled only in the word split');
+    fs.appendFileSync(areaNotes.notesPath(project), '<<<<<<< HEAD\n');
+    assert.equal(run(payload(target, { session_id: 's-broken' })), '');
   });
 });

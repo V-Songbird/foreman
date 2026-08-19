@@ -2101,6 +2101,14 @@ function cmdReassignIdUnlocked(root, payload) {
   if (others.some((holder) => holder.archived)) {
     migrated = writeArchive(root, archived) || migrated;
   }
+  // [Foreman: 247] Lesson records anchored to the repaired id have the same
+  // problem the commit trailers do, and unlike the trailers this store is
+  // ours to fix. Which holder wrote a given record is unknowable, so the
+  // anchor is demoted rather than repointed: the lesson keeps serving, and its
+  // staleness reads "unknown" instead of resolving against the wrong entry's
+  // history.
+  const notes = areaNotes.demoteAnchors(root, id, { date });
+
   const result = {
     kept: { id, title: kept.entry.title },
     reassigned,
@@ -2112,6 +2120,7 @@ function cmdReassignIdUnlocked(root, payload) {
       .map((entry) => entry.id),
   };
   if (migrated) result.migrated = migrated;
+  if (notes && notes.demoted) result.notes_anchors_demoted = notes.demoted;
   return result;
 }
 
@@ -2258,6 +2267,7 @@ function cmdNotes(root, flags) {
   const result = {
     areas: served,
     records: resolved.map(({ record, state, label: line }) => ({
+      key: areaNotes.recordKey(record),
       area: record.area || ".",
       entry: record.entry,
       date: record.date,
@@ -2274,6 +2284,46 @@ function cmdNotes(root, flags) {
   // claim, so say that rather than letting "unknown" read as a git failure.
   if (budget.spent >= budget.limit) result.staleness_budget_spent = true;
   return result;
+}
+
+/**
+ * [Foreman: 247] Retire one served lesson that proved wrong.
+ *
+ * The handoff block already tells a session to record the corrected fact on
+ * its close, and newest-first serving puts the correction above the mistake.
+ * That fixes what gets read first; it does not stop the wrong line being read
+ * at all, and it leaves it spending part of a capped serving window forever.
+ * This is the other half: name the record and it stops being served.
+ *
+ * The key comes from `notes` output. It is derived from the record's own
+ * content, so it is the same in every clone of the project.
+ */
+function cmdNoteSupersede(root, payload) {
+  const { key, by_entry: byEntry } = payload || {};
+  if (typeof key !== "string" || !key) {
+    throw new Error("note-supersede requires key: the record key, as `notes` reports it");
+  }
+  if (byEntry !== undefined && (typeof byEntry !== "string" || !byEntry)) {
+    throw new Error("note-supersede's by_entry, when given, is the id of the entry recording the correction");
+  }
+  // The store's own append is atomic, but a concurrent close writing a lesson
+  // is the case this has to serialize against, and that close holds this lock.
+  return withRoadmapLock(root, () => areaNotes.supersede(root, { key, by_entry: byEntry, date: today() }));
+}
+
+/**
+ * [Foreman: 247] The one operation that rewrites the lesson store.
+ *
+ * Append-only is what makes every other path in the ledger safe, so this is
+ * the deliberate exception and it is never automatic: `--dry-run` reports what
+ * would go, and a flow shows that count before asking. What goes is only what
+ * nothing can learn from any more — records whose every file is gone, and
+ * records a correction already retired.
+ */
+function cmdNotePrune(root, flags) {
+  const dryRun = Boolean(flags && (flags["dry-run"] || flags.dryRun));
+  if (dryRun) return areaNotes.prune(root, { dryRun: true });
+  return withRoadmapLock(root, () => areaNotes.prune(root));
 }
 
 function cmdDoctor(root, flags) {
@@ -2463,6 +2513,13 @@ absent when the file was already current.
                     from correct, checked against the kept holder
                     returns {kept:{id,title}, reassigned:[{from,to,title,
                     trailer_commits}], dependents_on_kept:[ids]}
+                    a lesson-ledger record anchored to the repaired id
+                    cannot be attributed to either holder, so every one
+                    is demoted to an unresolvable anchor rather than
+                    pointed at the surviving holder's history
+                    (notes_anchors_demoted counts them). The lesson and
+                    its date stay; only the freshness verdict falls to
+                    unknown
   archive           stdin JSON: {ids:["019", ...]}
                     moves terminal (done/dropped/rejected) entries out of
                     ROADMAP.jsonl into .foreman/archive.jsonl, verbatim --
@@ -2534,6 +2591,27 @@ absent when the file was already current.
                     (staleness_budget_spent:true says so)
                     a store that will not parse returns error_code and no
                     records -- run doctor for the finding that explains it
+                    every record carries key, the name note-supersede takes
+  note-supersede    stdin JSON: {key, by_entry?}
+                    retire one record that proved wrong, so it stops being
+                    served and stops spending the serving window. key is the
+                    one notes reports; it is derived from the record's own
+                    content, so it is identical in every clone. Appends a
+                    marker rather than editing the line -- the store stays
+                    append-only and two clones retiring the same record still
+                    merge cleanly. by_entry (optional) names the entry that
+                    recorded the correction.
+                    refuses with reason "no_such_record" when the key names
+                    nothing live, "already_superseded" when it is already
+                    retired
+  note-prune        flag: --dry-run   (optional: report and write nothing)
+                    the ONE operation that rewrites .foreman/notes.jsonl, and
+                    never automatic. Removes only what nothing can learn from
+                    any more: records whose every stored file is gone, and
+                    records a note-supersede marker retired. A marker whose
+                    target this file has never carried is kept -- that is the
+                    half-merged case, where the line it retires is still
+                    inbound. Returns {removed, dropped:{dead,superseded}, kept}
   check-duplicate   stdin JSON: {title, why}
                     word-overlap match against ALL entries regardless of
                     status, archived ones included (archived:true on those);
@@ -2694,6 +2772,12 @@ function main() {
     case "notes":
       result = cmdNotes(root, parseFlags(rest));
       break;
+    case "note-supersede":
+      result = cmdNoteSupersede(root, readStdinJSON());
+      break;
+    case "note-prune":
+      result = cmdNotePrune(root, parseFlags(rest));
+      break;
     case "check-duplicate":
       result = cmdCheckDuplicate(root, readStdinJSON());
       break;
@@ -2705,7 +2789,7 @@ function main() {
       break;
     default:
       throw new Error(
-        `unknown subcommand: ${sub}. Use add|update-status|annotate|update-deps|correct|reassign-id|archive|restore|list|next-candidates|notes|check-duplicate|doctor|migrate`
+        `unknown subcommand: ${sub}. Use add|update-status|annotate|update-deps|correct|reassign-id|archive|restore|list|next-candidates|notes|note-supersede|note-prune|check-duplicate|doctor|migrate`
       );
   }
   process.stdout.write(JSON.stringify({ ok: true, ...result }));

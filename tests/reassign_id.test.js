@@ -18,6 +18,7 @@ const {
   initGitRepo,
   runRoadmap,
 } = require('./helpers');
+const areaNotes = require(path.join(__dirname, '..', 'scripts', 'area-notes.js'));
 
 let project;
 
@@ -411,5 +412,38 @@ describe('a duplicated file stays readable before the repair', () => {
     assert.equal(status, 0);
     assert.match(json.entry.notes, /unrelated breadcrumb/);
     assert.equal(readFileRows('ROADMAP.jsonl').filter((row) => row.id === '130').length, 2);
+  });
+
+  // [Foreman: 247] The lesson store anchors on entry ids, so this repair is
+  // the moment an id stops meaning what a record thought it meant.
+  test('demotes every lesson anchored to the repaired id, and says how many', () => {
+    mergedRoadmap();
+    fs.mkdirSync(path.join(project, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(project, 'src', 'rate.js'), '// fixture', 'utf-8');
+    areaNotes.append(project, {
+      lesson: 'the rate lookup is cached in src/rate.js',
+      paths: ['src/rate.js'],
+      entry: '130',
+      anchor: { kind: 'entry', entry: '130' },
+      date: '2026-08-01',
+    });
+
+    const { status, json } = run(['reassign-id'], { id: '130', keep: 'Cache the rate lookup' });
+
+    assert.equal(status, 0);
+    assert.equal(json.notes_anchors_demoted, 1);
+    const [stored] = areaNotes.read(project).records;
+    assert.equal(stored.anchor.kind, 'ambiguous');
+    assert.equal(stored.anchor.was, '130');
+    assert.equal(stored.lesson, 'the rate lookup is cached in src/rate.js');
+  });
+
+  test('says nothing about notes when the project has no lesson store', () => {
+    mergedRoadmap();
+
+    const { status, json } = run(['reassign-id'], { id: '130', keep: 'Cache the rate lookup' });
+
+    assert.equal(status, 0);
+    assert.equal('notes_anchors_demoted' in json, false);
   });
 });

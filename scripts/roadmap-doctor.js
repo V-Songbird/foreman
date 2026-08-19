@@ -540,10 +540,9 @@ function validateAreaNotes(root) {
 
   // A record every one of whose files is gone describes code that no longer
   // exists. It is information, not a defect: the store is append-only and
-  // pruning is a later, user-approved decision.
-  const dead = records.filter(
-    (record) => !record.paths.some((p) => fs.existsSync(path.join(root, p)))
-  );
+  // pruning is a later, user-approved decision — `roadmap.js note-prune` is
+  // that decision's one mechanism, and nothing here performs it.
+  const dead = records.filter((record) => areaNotes.isDead(root, record));
   if (dead.length) {
     const areas = new Set(dead.map((record) => record.area || "."));
     const oldest = dead.map((record) => record.date).filter(Boolean).sort()[0];
@@ -558,6 +557,7 @@ function validateAreaNotes(root) {
         + `across ${areas.size} area${areas.size === 1 ? "" : "s"}`
         + (oldest ? `; oldest ${oldest}` : "")
         + (sample ? ` (entries ${sample}${more})` : "")
+        + " — clear them with `roadmap.js note-prune`"
     ));
   }
 

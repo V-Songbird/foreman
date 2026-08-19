@@ -443,6 +443,33 @@ field on the same stdin JSON — the append rides the close's existing lock.
 same way it blocks the roadmap and the archive. Append-only: sessions never
 rewrite it, so two branches merge line by line.
 
+**Retiring a record.** A lesson that proved wrong is retired by appending a
+marker naming it, never by editing the line:
+
+```json
+{"supersedes":"a91f0c33be21","by_entry":"151","date":"2026-08-19"}
+```
+
+`supersedes` holds the record's **key**, which is derived from that record's
+own `entry`, `date` and `lesson` — so every clone computes the same key and
+two clones retiring the same record still merge cleanly. `notes` reports the
+key of everything it serves, and `note-supersede` takes it. A retired record
+disappears from every read: it stops being served into handoffs, stops showing
+in `notes`, and stops spending the serving window. The line itself stays on
+disk until a prune.
+
+`foreman:survey` is the flow that offers this, because it is the only one that
+has already read the code the claim describes. Retiring records nothing about
+what the truth is instead — the corrected fact belongs on the `lesson` of the
+next task to close in that code.
+
+**Pruning.** `note-prune` is the one operation that rewrites this file, and it
+is never automatic. It removes records whose every file is gone and records
+already retired; a marker whose target this file has never carried is kept,
+because that is the half-merged case and the line it retires is still inbound.
+`--dry-run` reports what would go and writes nothing. `doctor` reports the
+dead-record count and points here.
+
 **What is worth recording.** A fact a *future* task in this area would need
 and could not cheaply re-derive. Cite a decision document rather than
 restating it. A project-wide fact belongs in `CLAUDE.md`; a fact about one
@@ -463,8 +490,14 @@ gone is dropped rather than served.
 
 **Reassign-id.** For an entry-kind record the entry id *is* the anchor, and
 `reassign-id` renumbers holders while immutable commit trailers keep naming
-the old id. A project using both must treat a renumbered entry's records as
-anchored to the old id.
+the old id. Because the id was duplicated, no record written while both
+holders existed can be attributed to either — so `reassign-id` **demotes**
+every record anchored to the repaired id to `{"kind":"ambiguous","was":"<id>"}`
+rather than repointing it at the holder that kept the id. The lesson, its
+`entry` and its `date` are true history and stay exactly as recorded; only the
+freshness verdict falls to unknown, which is the honest answer. The result
+reports `notes_anchors_demoted`. Demotion does not change the record's key, so
+an existing supersede marker keeps working.
 
 ---
 

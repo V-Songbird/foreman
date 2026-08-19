@@ -39,6 +39,12 @@ function newBudget(limit = RESOLVE_BUDGET) {
 /** The shas worth asking git about for this record, best first. */
 function candidateShas(root, record) {
   const anchor = record && record.anchor;
+  // [Foreman: 247] A duplicate-id repair renumbered one of two entries that
+  // shared this record's id, and nothing can say which of them wrote it. The
+  // id now names the OTHER entry, so resolving it would produce a confident
+  // freshness claim from the wrong history. Refusing to resolve costs a label;
+  // resolving costs the trust the whole channel runs on.
+  if (anchor && anchor.kind === 'ambiguous') return [];
   const recorded = anchor && anchor.kind === 'commit' && anchor.sha ? [String(anchor.sha)] : [];
   const trailers = record && record.entry !== undefined && record.entry !== null
     ? trailerShasFor(root, record.entry)

@@ -7,6 +7,18 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## [Unreleased]
+
+### Added
+
+- Opening a file that a recorded lesson names now surfaces that lesson right there, alongside any decision note the file already carried. Needs `areaNotes` on.
+- A survey can now retire a lesson its own findings contradict. A retired lesson stops being quoted into later work, and stops taking up room there.
+- `roadmap.js note-prune` clears lessons nothing can learn from any more — the ones whose files are all gone, and the ones already retired. It asks first, and `--dry-run` shows what would go.
+
+### Fixed
+
+- Repairing a duplicated task id no longer lets a lesson recorded under that id claim a freshness it cannot know. The lesson still shows; its "unchanged since" verdict now reads as unknown.
+
 ## 1.3.0 — 2026-08-18
 
 ### Added

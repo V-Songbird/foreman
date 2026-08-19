@@ -128,7 +128,7 @@ describe('area-notes store', () => {
     const project = makeTmpProject();
     areaNotes.append(project, { lesson: 'first', paths: ['src/a.js'], entry: '001', date: today() });
     fs.appendFileSync(areaNotes.notesPath(project), '<<<<<<< HEAD\n');
-    assert.deepEqual(areaNotes.read(project), { records: [], format: null, error: 'conflict', invalid: 0 });
+    assert.deepEqual(areaNotes.read(project), { records: [], retired: [], tombstones: [], superseded: [], format: null, error: 'conflict', invalid: 0 });
     assert.deepEqual(
       areaNotes.append(project, { lesson: 'second', paths: ['src/b.js'], entry: '002', date: today() }),
       { stored: false, reason: 'conflict' }
@@ -149,7 +149,7 @@ describe('area-notes store', () => {
   });
 
   test('a missing store is a project that recorded nothing, not an error', () => {
-    assert.deepEqual(areaNotes.read(makeTmpProject()), { records: [], format: areaNotes.FORMAT, error: null, invalid: 0 });
+    assert.deepEqual(areaNotes.read(makeTmpProject()), { records: [], retired: [], tombstones: [], superseded: [], format: areaNotes.FORMAT, error: null, invalid: 0 });
   });
 
   test('the area key is the dominant two-segment prefix, lowercased', () => {

@@ -1,6 +1,6 @@
 ---
 name: survey
-description: Advanced surface, normally reached through the `foreman` entrance's Reconcile and pick mode, which hands it a near-term set of ids to scope the pass to. Ground-truths the roadmap's near-term candidates against the actual codebase — an Explore agent checks whether each candidate's planned_touches/depends_on still match reality, then proposes a concrete repair for every finding (hidden dependency, already-done, stale description or planned files), applies only the ones you approve, and persists them back into ROADMAP.jsonl so future sessions pick them up automatically. It costs materially more than a plain pick, which is why it is explicit.
+description: Advanced surface, normally reached through the `foreman` entrance's Reconcile and pick mode, which hands it a near-term set of ids to scope the pass to. Ground-truths the roadmap's near-term candidates against the actual codebase — an Explore agent checks whether each candidate's planned_touches/depends_on still match reality, then proposes a concrete repair for every finding (hidden dependency, already-done, stale description or planned files), applies only the ones you approve, and persists them back into ROADMAP.jsonl so future sessions pick them up automatically. Also retires any recorded lesson the same evidence contradicts, so a wrong claim stops being quoted into later handoffs. It costs materially more than a plain pick, which is why it is explicit.
 when_to_use: Reached through the `foreman` entrance for Reconcile and pick; trigger directly when a power user explicitly asks to reconcile, audit, double-check, or verify the roadmap's ordering — "survey the roadmap", "audit the next tasks", "double-check what's next", "is the roadmap still accurate", or invokes /foreman:survey. Never trigger automatically from foreman:roadmap's pick-next-task flow, a commit, or any other implicit signal.
 argument-hint: "<optional — a task id or two to focus on, otherwise surveys the top unblocked candidates>"
 allowed-tools: AskUserQuestion, Read, Bash, PowerShell, Agent
@@ -262,10 +262,71 @@ Foreman flow.
 
 ---
 
+<!-- [Foreman: 247] -->
+## 3b. The lessons recorded about the same files
+
+Survey is the only flow that has already read the code a recorded lesson
+describes, so it is the only place a wrong one gets retired. Nothing else in
+Foreman can tell a claim that aged badly from one that was never true.
+
+One call, for the candidates you surveyed, with their `planned_touches` joined:
+
+```
+node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js notes --paths <comma-joined paths>
+```
+
+Skip the whole step when it returns no records — that one call answers both
+"is the feature on" and "is there anything here", and it costs nothing to ask.
+
+Two kinds of record are worth the user's attention, and no others:
+
+- **`staleness: "stale"` whose claim the step-2 evidence contradicts.** The
+  files under it moved, and the agents that just read those files reported
+  something different.
+- **Any record the step-2 evidence contradicts outright**, whatever its label.
+  A `fresh` label says the files have not changed since the claim was
+  recorded. It never says the claim was right when it was written.
+
+**A stale label on its own is not a finding.** It is a prompt to look, and the
+looking already happened in step 2. Offering every stale line would turn this
+step into a list the user clicks through, which is how a confirmation stops
+being one.
+
+For each record worth offering, show the lesson verbatim, its label, and the
+evidence line that contradicts it, then ask (`AskUserQuestion`): keep it, or
+retire it. Same rule as every other write here — one finding, one answer,
+never a blanket apply. On retire:
+
+```
+echo '{"key":"<the key notes reported>","by_entry":"<the surveyed entry>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js note-supersede
+```
+
+Retiring stops the line being served and stops it spending the handoff's
+capped serving window. It does not delete it, and it does not record what the
+truth is instead: the corrected fact belongs on the `lesson` of whichever task
+next closes in that code, where it arrives with its own anchor and date.
+
+**Pruning is a separate ask and it comes last.** It is the one command in
+Foreman that rewrites the lesson store, so it never runs on an inference about
+what the user probably wants:
+
+```
+node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js note-prune --dry-run
+```
+
+That writes nothing and reports what would go — records whose every file is
+gone, and records already retired. Show the count and ask once. Only on a yes,
+run the same command without `--dry-run`. When the dry run reports nothing,
+skip the ask entirely rather than asking a question whose answer changes
+nothing.
+
+---
+
 ## 4. Report
 
 Short summary: candidates surveyed (and how many were left unsurveyed, if
-any), verdicts, what got written. Separate the three outcomes in one line
+any), verdicts, what got written. Lessons retired and records pruned get one
+line each when either happened, and no line at all when neither did. Separate the three outcomes in one line
 each: corrections applied, findings left unconfirmed as breadcrumbs, and
 proposals declined (declined ones exist only here — nothing about them was
 written). If nothing was confirmed, say the roadmap is unchanged — this
