@@ -508,6 +508,18 @@ function taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkp
     if (judgment.testFirst) {
       verifyBlock +=
         "Write the invariant test first, confirm it passes against the unmodified code, deliberately break the invariant and confirm the test goes red, then implement.\n";
+      // [Foreman: 4.1 measurement] The testFirst branch is the one place a
+      // session authors the very check it is graded on, which is where a test
+      // can quietly become the specification instead of verifying one. The
+      // clause names that shortcut, and naming a failure has primed it here
+      // before, so the switch exists before the default does: set
+      // FOREMAN_TEST_GAMING_CLAUSE to 1 or true to emit it. Either way it
+      // costs zero words on an ordinary handoff, because nothing outside this
+      // branch ever sees it. Nothing in the product writes this variable.
+      if (/^(1|true)$/i.test(process.env.FOREMAN_TEST_GAMING_CLAUSE || "")) {
+        verifyBlock +=
+          "The test verifies the rule; it does not define it. Write it to hold for every input the rule covers, not only the one named here.\n";
+      }
     }
     for (const pair of judgment.verification) {
       verifyBlock += `Run: ${pair.run}\nExpected: ${pair.expected}\n`;
@@ -759,7 +771,17 @@ function assemble(root, input) {
   const ctxText = contextText(judgment.context, record.depends_on_docs);
   const includeTone = !workflowStage && reinforced && (destination === "agent" || !omit.has("tone"));
   const includeBackground = !omit.has("background");
-  const includeOutputFormat = !workflowStage && reinforced && !omit.has("output_format");
+  // [Foreman: 4.2 measurement] The standard profile ends on the closure-evidence
+  // sentence and says nothing about the final message — the one part of a
+  // handoff a human actually reads. Giving it the canonical <output_format>
+  // costs words on the profile whose whole purpose is the length it saves, so
+  // the switch exists before the default does: set FOREMAN_STANDARD_OUTPUT_SHAPE
+  // to 1 or true and standard carries the block too, inheriting both existing
+  // opt-outs unchanged. Default is today's behaviour until a measurement says
+  // otherwise. Nothing in the product writes this variable.
+  const shapeStandard = /^(1|true)$/i.test(process.env.FOREMAN_STANDARD_OUTPUT_SHAPE || "");
+  const includeOutputFormat =
+    !workflowStage && (reinforced || shapeStandard) && !omit.has("output_format");
   const rulesBlock = taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkpointEmbed);
   // A decision entry's task_rules already say "do not write implementation
   // code" — synthesizing `Implement: <title>.` as the request sentence puts

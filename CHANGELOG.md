@@ -13,6 +13,9 @@ that's why `plugin.json` here carries none.
 
 - A finishing task can now leave one sentence about the code it touched, and the next task that plans to open those same files gets it back. Off until you turn on `areaNotes`. Read the store any time with `roadmap.js notes`.
 - Two interview questions that only offered one answer now offer two: "what is this project?" and "what are the near-term goals?" both accept "read the repo and work it out".
+- Building a prompt now offers real file choices, read from your repository, instead of asking you to type the paths from memory. Whatever you pick is yours to correct, and nothing is used until you choose it.
+- A prompt that fails its checks now comes back with the fix for each problem, and an example to copy where one helps.
+- With `trialLog` on, the log now also covers the parts only the session can see: which task you picked from the menu, whether you took the recommendation, when setup started and finished, and how many questions each flow asked.
 
 ### Fixed
 

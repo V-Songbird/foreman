@@ -301,12 +301,29 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
 // gain check-duplicate already covers. Dedup is now check-duplicate only:
 // one compact call per candidate, paid only when there IS a candidate,
 // instead of the whole backlog injected whether or not anything is found.
+// [Foreman: 4.3 measurement] The inclusion bar was two qualitative words —
+// "CONFIRMED" and "not vague hunches" — on a model that follows exactly that
+// instruction and reports less. The concrete criterion already existed two
+// clauses later, but it governed how to WRITE an accepted candidate rather than
+// what got in. Both gates have to swap together or it is a no-op: the opening
+// bar and the closing "Say nothing if nothing is confirmed", which binds hardest
+// at the emit point. Set FOREMAN_DISCOVERY_CONCRETE_BAR to 1 or true to swap
+// them; the default is today's wording until a measurement says otherwise.
+// Nothing in the product writes this variable.
+const CONCRETE_BAR = /^(1|true)$/i.test(process.env.FOREMAN_DISCOVERY_CONCRETE_BAR || "");
+
 function discoveryBlock() {
   return (
     "[Foreman] Roadmap discovery is enabled for this project. " +
-    "Scan this " +
-    "commit's work for CONFIRMED opportunities, bugs, or ideas — not vague " +
-    "hunches. If you add one to the roadmap, write it dense using only " +
+    (CONCRETE_BAR
+      ? "Scan this commit's work for anything worth tracking — a bug, a gap, "
+        + "an opportunity. The bar is whether you can name it with an exact "
+        + "path, symbol, or behaviour you observed in this session: if you "
+        + "can, offer it. "
+      : "Scan this "
+        + "commit's work for CONFIRMED opportunities, bugs, or ideas — not vague "
+        + "hunches. ") +
+    "If you add one to the roadmap, write it dense using only " +
     "what's already in this session's context (exact paths, line ranges, " +
     "symbol names, the specific behavior observed) — do NOT run extra " +
     "Read/Grep/Bash calls just to enrich the entry, that spends tokens now " +
@@ -339,7 +356,10 @@ function discoveryBlock() {
     "mcp__ccd_session__spawn_task — it has a known bug where tasks spawned " +
     "through it don't get MCP tools. Never act without asking. If this " +
     "session has no user to ask (a background agent), skip the suggestions " +
-    "entirely. Say nothing if nothing is confirmed."
+    "entirely. " +
+    (CONCRETE_BAR
+      ? "If nothing in this commit clears that bar, say nothing."
+      : "Say nothing if nothing is confirmed.")
   );
 }
 
@@ -356,7 +376,8 @@ function discoveryBlock() {
 const DISCOVERY_INVITE =
   "[Foreman] This project has never answered whether it wants commit-time roadmap " +
   "discovery (no `discoverySuggestions` key in `.foreman/config.json`). Ask the user " +
-  "once, now (AskUserQuestion): should Foreman scan each commit for confirmed bugs and " +
+  "once, now (AskUserQuestion): should Foreman scan each commit for " +
+  (CONCRETE_BAR ? "bugs and " : "confirmed bugs and ") +
   "opportunities worth adding to the roadmap? It costs tokens on every commit, which is " +
   "why it is off until asked for. Then write their answer into `.foreman/config.json` — " +
   '`"discoverySuggestions": true` or `false`, either way, preserving every other key — ' +

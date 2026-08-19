@@ -768,3 +768,70 @@ describe('commit scope resolution', () => {
     assert.match(out, /\[files overlap its planned files\]/);
   });
 });
+
+// [Foreman 4.3] The discovery block's inclusion bar was two qualitative words,
+// "CONFIRMED" and "not vague hunches", on a model that follows exactly that
+// and reports less. The concrete criterion already existed two clauses later
+// but governed how to WRITE a candidate, not what got in. Both gates have to
+// swap together or it is a no-op, so the pin is that they move as a pair.
+describe('the discovery inclusion bar switch', () => {
+  const HOOK = path.join(__dirname, '..', 'hooks', 'post-commit.js');
+
+  // CONCRETE_BAR resolves at module load, so each variant needs its own child.
+  function strings(env) {
+    const result = spawnSync(
+      'node',
+      ['-e', `const m = require(${JSON.stringify(HOOK)}); process.stdout.write(JSON.stringify({ block: m.discoveryBlock(), invite: m.DISCOVERY_INVITE }));`],
+      { encoding: 'utf-8', env: { ...process.env, ...(env || {}) } }
+    );
+    assert.equal(result.status, 0, result.stderr);
+    return JSON.parse(result.stdout);
+  }
+
+  test('by default both gates carry today wording', () => {
+    const { block } = strings();
+    assert.match(block, /CONFIRMED opportunities, bugs, or ideas/);
+    assert.match(block, /not vague\s+hunches/);
+    assert.match(block, /Say nothing if nothing is confirmed\./);
+  });
+
+  test('the switch swaps both gates, never just one', () => {
+    const { block } = strings({ FOREMAN_DISCOVERY_CONCRETE_BAR: '1' });
+    assert.ok(!/CONFIRMED opportunities/.test(block), 'the opening bar did not swap');
+    assert.ok(!/vague\s+hunches/.test(block), 'the hunches wording survived');
+    assert.ok(
+      !/Say nothing if nothing is confirmed\./.test(block),
+      'the closing gate did not swap, so the change is a no-op where it binds hardest'
+    );
+    assert.match(block, /exact\s+path, symbol, or behaviour you observed/);
+    assert.match(block, /If nothing in this commit clears that bar, say nothing\./);
+  });
+
+  test('the user-facing invite matches whichever bar is live', () => {
+    assert.match(strings().invite, /scan each commit for confirmed bugs and/);
+    const swapped = strings({ FOREMAN_DISCOVERY_CONCRETE_BAR: '1' }).invite;
+    assert.ok(!/confirmed bugs/.test(swapped), 'the invite still promises the old bar');
+    assert.match(swapped, /scan each commit for bugs and/);
+  });
+
+  test('everything the bar does not govern is untouched', () => {
+    const plain = strings().block;
+    const swapped = strings({ FOREMAN_DISCOVERY_CONCRETE_BAR: '1' }).block;
+    for (const shared of [
+      'MUST go through the duplicate check',
+      'do NOT run extra',
+      'Never act without asking',
+      'skip the suggestions',
+    ]) {
+      assert.ok(plain.includes(shared), `control lost "${shared}"`);
+      assert.ok(swapped.includes(shared), `treatment lost "${shared}"`);
+    }
+  });
+
+  test('an unrecognised value keeps today wording', () => {
+    for (const value of ['', '0', 'false', 'yes']) {
+      const { block } = strings({ FOREMAN_DISCOVERY_CONCRETE_BAR: value });
+      assert.match(block, /Say nothing if nothing is confirmed\./, `"${value}" swapped the bar`);
+    }
+  });
+});

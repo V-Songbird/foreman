@@ -991,3 +991,124 @@ describe('craft-prompt grounds its file options before asking', () => {
     );
   });
 });
+
+// [Foreman 4.2] The standard profile ends on the closure-evidence sentence and
+// says nothing about the final message — the one part of a handoff a human
+// reads. Giving it the canonical <output_format> costs words on the profile
+// whose stated purpose is the length it saves, so the switch ships before the
+// default does and a measurement decides the default.
+describe('the standard profile output shape switch', () => {
+  const shaped = { FOREMAN_STANDARD_OUTPUT_SHAPE: '1' };
+
+  function standardRun(env) {
+    // No signals set, so computeSignals leaves this on the standard profile.
+    return run(project, {
+      title: 'Fix the token refresh bug',
+      what: 'Fix the retry path in the auth middleware so the failing test passes.',
+      planned_touches: ['src/auth/middleware.js'],
+      destination: 'clipboard',
+      request: 'Fix the token refresh bug in the auth middleware.',
+      judgment: goodJudgment(),
+    }, env);
+  }
+
+  test('standard carries no output_format by default', () => {
+    const { json } = standardRun();
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.equal(json.profile, 'standard');
+    assert.ok(!json.prompt.includes('<output_format>'));
+    assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+  });
+
+  test('the switch adds it, and the prompt still passes the gate', () => {
+    const { json } = standardRun(shaped);
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.equal(json.profile, 'standard', 'the switch must not promote the profile');
+    assert.ok(json.prompt.includes('<output_format>'), 'the switch did not add the block');
+    assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+  });
+
+  test('the switch is the only difference the prompt shows', () => {
+    const plain = standardRun().json.prompt;
+    const withShape = standardRun(shaped).json.prompt;
+    const removed = withShape.replace(/\n*<output_format>[\s\S]*?<\/output_format>/, '');
+    assert.equal(removed.trim(), plain.trim(), 'the switch changed something other than the block');
+  });
+
+  test('an unset or unrecognised value keeps today behaviour', () => {
+    for (const value of ['', '0', 'false', 'yes', 'on']) {
+      const { json } = standardRun({ FOREMAN_STANDARD_OUTPUT_SHAPE: value });
+      assert.ok(
+        !json.prompt.includes('<output_format>'),
+        `"${value}" turned the shape on; only 1 and true may`
+      );
+    }
+  });
+
+  test('omitSections still wins over the switch', () => {
+    writeConfig(project, { omitSections: ['output_format'] });
+    const { json } = standardRun(shaped);
+    assert.ok(!json.prompt.includes('<output_format>'), 'the switch overrode an explicit opt-out');
+    assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+  });
+});
+
+// [Foreman 4.1] The testFirst branch is the one place a session authors the
+// very check it is graded on. The anti-gaming clause names that shortcut, and
+// the house's own recorded lesson is that naming a failure can prime it — so
+// the clause ships behind a switch and a measurement decides the default.
+describe('the anti-test-gaming clause', () => {
+  const CLAUSE = 'The test verifies the rule; it does not define it.';
+  const on = { FOREMAN_TEST_GAMING_CLAUSE: '1' };
+
+  function testFirstRun(env, judgmentOverrides = {}) {
+    return run(project, {
+      title: 'Fix the token refresh bug',
+      what: 'Fix the retry path in the auth middleware so the failing test passes.',
+      planned_touches: ['src/auth/middleware.js'],
+      destination: 'clipboard',
+      request: 'Fix the token refresh bug in the auth middleware.',
+      judgment: goodJudgment({ testFirst: true, ...judgmentOverrides }),
+    }, env);
+  }
+
+  test('it is absent by default, even on the testFirst branch', () => {
+    const { json } = testFirstRun();
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.ok(json.prompt.includes('Write the invariant test first'), 'the branch did not fire');
+    assert.ok(!json.prompt.includes(CLAUSE));
+  });
+
+  test('the switch adds it, and the prompt still passes the gate', () => {
+    const { json } = testFirstRun(on);
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.ok(json.prompt.includes(CLAUSE), 'the switch did not add the clause');
+    assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+  });
+
+  test('it costs nothing on a handoff that is not testFirst', () => {
+    const { json } = run(project, {
+      title: 'Fix the token refresh bug',
+      what: 'Fix the retry path in the auth middleware so the failing test passes.',
+      planned_touches: ['src/auth/middleware.js'],
+      destination: 'clipboard',
+      request: 'Fix the token refresh bug in the auth middleware.',
+      judgment: goodJudgment(),
+    }, on);
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.ok(!json.prompt.includes(CLAUSE), 'the clause leaked outside the testFirst branch');
+  });
+
+  test('the clause is the only difference the prompt shows', () => {
+    const plain = testFirstRun().json.prompt;
+    const clause = testFirstRun(on).json.prompt;
+    assert.equal(clause.replace(CLAUSE + ' Write it to hold for every input the rule covers, not only the one named here.\n', ''), plain);
+  });
+
+  test('an unrecognised value keeps today behaviour', () => {
+    for (const value of ['', '0', 'false', 'yes']) {
+      const { json } = testFirstRun({ FOREMAN_TEST_GAMING_CLAUSE: value });
+      assert.ok(!json.prompt.includes(CLAUSE), `"${value}" turned the clause on; only 1 and true may`);
+    }
+  });
+});
