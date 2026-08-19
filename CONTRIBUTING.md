@@ -18,7 +18,7 @@ This plugin is part of the [Foundry Collection](https://github.com/V-Songbird/fo
 └── plugin.json        # name, description, author, keywords — NO version
                         # field (the version is owned by foundry's
                         # .claude-plugin/marketplace.json)
-CHANGELOG.md            # Keep a Changelog format
+CHANGELOG.md            # dated entries, newest first
 LICENSE                 # MIT
 README.md               # plain-language intro first, technical depth after
 skills/                 # if the plugin has skills
@@ -28,7 +28,7 @@ skills/                 # if the plugin has skills
 hooks/
 └── hooks.json          # Hook event wiring (PreToolUse, PostToolUse, etc.)
 scripts/                # if the plugin has helper CLIs
-└── tests/              # required when the plugin has scripted behavior
+tests/                  # required when the plugin has scripted behavior
 ```
 
 Every README shares one skeleton, tone, and style, defined in foundry's [`.github/PLUGIN_README_TEMPLATE.md`](https://github.com/V-Songbird/foundry/blob/main/.github/PLUGIN_README_TEMPLATE.md).

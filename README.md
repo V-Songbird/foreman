@@ -94,7 +94,7 @@ Your project history remembers every change. Nobody remembers *why*. Turn this o
 
 Seeing `Foreman: 019` at the bottom of your saved changes? That one is always on. It is the task number, so you can trace any change back to the job it came from.
 
-There is a lighter version of the same idea, and it is new. Turn on `areaNotes` and a task that finishes can leave one sentence about the code it touched. Something like where a thing lives, or which helper you have to use. The next task that opens those same files gets that sentence back. So do you, when you open one of those files yourself. Each sentence comes with a note saying whether those files have changed since it was written. And if one turns out to be wrong, you can retire it, and it never comes back.
+There is a lighter version of the same idea. Turn on `areaNotes` and a task that finishes can leave one sentence about the code it touched. Anyone who opens those files later gets that sentence back, with a note saying whether the code has moved since. A sentence that turns out to be wrong can be retired. Every option is in [`settings.md`](settings.md).
 
 > [!NOTE]
 > `areaNotes` is **Beta**. It is the newest thing here and may still have rough edges, so it stays off until you say yes. Turning it back off later does not delete anything you have already saved.
@@ -109,8 +109,10 @@ Foreman is for one developer working alone. It keeps the roadmap, and hands you 
 
 > [!NOTE]
 > **What Foreman will never grow into.** No teams, no assigning work to
-> people, no time estimates, no priority levels, no dashboards. No wiki and
-> no knowledge base. No code review. No building your own pipelines out of
+> people, no time estimates, no priority levels, no dashboards. No wiki, and
+> no knowledge base with its own folders, tags or search. Notes here stay
+> attached to the work and the files they came from, nowhere
+> else. No code review. No building your own pipelines out of
 > named roles. No timer that runs things while you are away. No server, no
 > account, and nothing stored anywhere but your own project. Nothing on that
 > list arrives before a major version, and only then with the reason written
