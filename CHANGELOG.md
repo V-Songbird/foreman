@@ -7,7 +7,7 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
-## [Unreleased]
+## 1.3.0 — 2026-08-18
 
 ### Added
 
