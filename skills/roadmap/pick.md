@@ -310,10 +310,18 @@ mechanics it defers to are step 5 below.
    plans to and the setting has never been put to the user. Ask once, before
    delivering:
 
-   > "A finished task already touched these files. Should a close be able to
-   > record one durable sentence about a code area, quoted back to later
-   > tasks that plan to touch the same files?"
+   > "**[Beta]** A finished task already touched these files. Should a close
+   > be able to record one durable sentence about a code area, quoted back to
+   > later tasks that plan to touch the same files? This one is new and may
+   > still have rough edges. Turning it off later changes nothing you have
+   > already recorded."
    > Options: `Yes, record and quote lessons`, `No, keep handoffs as they are`
+
+   The `[Beta]` marker is part of the question, not decoration — it is the
+   user's only warning before a setting starts writing a file into their
+   repository. Keep it, and keep the sentence that says the answer is
+   reversible: the honest reason to say yes to a young feature is that saying
+   no later costs nothing.
 
    Write the answer straight into `.foreman/config.json` as
    `{"areaNotes":{"enabled":<true|false>}}`, preserving every other key —

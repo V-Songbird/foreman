@@ -14,6 +14,8 @@
 //   - a marker whose target never arrived survives the prune (the merge case)
 //   - reassign-id demotes note anchors rather than repointing them, and the
 //     staleness resolver then refuses to answer instead of answering wrongly
+//   - the one question that turns the whole feature on says it is Beta, and
+//     says the answer is reversible
 
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
@@ -341,5 +343,34 @@ describe('a duplicate-id repair and the lessons anchored to it', () => {
     assert.equal(verdict.state, 'unknown');
     assert.equal(verdict.sha, null);
     assert.doesNotMatch(verdict.label, /unchanged since/);
+  });
+});
+
+// The one place a user is ever asked to turn the ledger on. It writes a file
+// into their repository, so the question has to say what it is honestly.
+describe('the areaNotes question', () => {
+  const ask = fs.readFileSync(
+    path.join(__dirname, '..', 'skills', 'roadmap', 'pick.md'),
+    'utf-8'
+  );
+
+  test('marks the feature Beta, where the user actually decides', () => {
+    assert.match(ask, /\*\*\[Beta\]\*\* A finished task already touched these files/);
+  });
+
+  test('says it may still have rough edges, in the question itself', () => {
+    assert.match(ask, /may\s+\n?\s*>?\s*still have rough edges/);
+  });
+
+  test('says the answer is reversible, which is what makes Beta fair to offer', () => {
+    assert.match(ask, /Turning it off later changes nothing you have/);
+  });
+
+  test('still offers exactly the two answers, so the config stays a boolean', () => {
+    assert.match(ask, /Options: `Yes, record and quote lessons`, `No, keep handoffs as they are`/);
+  });
+
+  test('the marker is explained as load-bearing, not left to be tidied away', () => {
+    assert.match(ask, /The `\[Beta\]` marker is part of the question, not decoration/);
   });
 });
