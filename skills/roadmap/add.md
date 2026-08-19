@@ -41,3 +41,18 @@
    JSON response). If `deduped: true`, say it was already tracked and no
    duplicate was created. Surface any `warnings` the response carries,
    verbatim, in the same line.
+
+---
+
+<!-- [Foreman: 209] -->
+## Trial log
+
+After each `AskUserQuestion` call in this branch, one silent line:
+
+```
+node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js question_asked '{"flow":"add"}'
+```
+
+One event per call, never one per question — the cost being measured is the
+interruption, not how many fields it carried. It is a no-op unless the
+project set `trialLog`, so it needs no check first and never blocks the flow.

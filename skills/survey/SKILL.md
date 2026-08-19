@@ -270,3 +270,18 @@ each: corrections applied, findings left unconfirmed as breadcrumbs, and
 proposals declined (declined ones exist only here — nothing about them was
 written). If nothing was confirmed, say the roadmap is unchanged — this
 skill running is not itself news.
+
+---
+
+<!-- [Foreman: 209] -->
+## Trial log
+
+After each `AskUserQuestion` call in this branch, one silent line:
+
+```
+node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js question_asked '{"flow":"survey"}'
+```
+
+One event per call, never one per question — the cost being measured is the
+interruption, not how many fields it carried. It is a no-op unless the
+project set `trialLog`, so it needs no check first and never blocks the flow.

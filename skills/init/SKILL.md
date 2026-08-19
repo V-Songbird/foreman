@@ -23,6 +23,30 @@ asking for it in Call 1.
 
 ---
 
+<!-- [Foreman: 209] -->
+**Trial log.** Setup is one of the flows no script can see from outside, so
+these lines are the only record it left. Each is a no-op unless the project
+set `trialLog`, so none needs a check first and it never blocks the flow.
+
+At the **first question actually put to the user** — the Pre-check's Q1 below
+on a project that already has a roadmap, Call 1's Q1 otherwise — one line:
+
+```
+node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js init_started '{}'
+```
+
+and, after every `AskUserQuestion` call in this skill, one event per call:
+
+```
+node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js question_asked '{"flow":"init"}'
+```
+
+A Pre-check `Cancel` therefore leaves an `init_started` with no
+`init_completed`. That is the correct record of an abandoned setup, not a
+gap to paper over.
+
+---
+
 ## Pre-check
 
 If `ROADMAP.jsonl` already exists at the project root, ask before doing
@@ -152,6 +176,15 @@ the updated draft, ask again. Repeat until approved.
    - `Cancel` — stop here, change nothing, and say the roadmap is
      untouched.
 
+   <!-- [Foreman: 209] -->
+   **Trial log** — once the four-option question above reaches a definite
+   outcome, one line, one event per resolution rather than per retry:
+   ```
+   node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js recovery_attempted '{"kind":"reinit-snapshot","success":<true|false>}'
+   ```
+   `true` for a retry that exited 0 or a backup that copied; `false` for
+   `Continue without a snapshot` and for `Cancel`.
+
    Clear the file only after a snapshot that exited 0, a backup that
    copied, or that explicit continue — and before clearing, note the old
    roadmap's highest id: `Foreman: <id>` commit trailers and
@@ -183,6 +216,15 @@ the updated draft, ask again. Repeat until approved.
 4. Stage and commit just these two files:
    `git add ROADMAP.jsonl .foreman/config.json && git commit -m "chore: init foreman roadmap"`
    (Only the files this skill wrote — never a broader `git add`.)
+
+<!-- [Foreman: 209] -->
+5. **Trial log** — after step 4's commit lands, one line:
+   ```
+   node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js init_completed '{"tasks":<how many add calls succeeded>}'
+   ```
+   `tasks` is how many `add` calls actually succeeded, never how many were
+   drafted. Record it only once both files are committed: an init that never
+   reached the commit did not complete.
 
 Report back: task count, one line that everything optional is off and gets
 asked about when it first matters, and point the user at

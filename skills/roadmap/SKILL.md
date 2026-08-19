@@ -83,3 +83,21 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/roadmap/status.md` and follow it.
 ## Branch: Check the roadmap
 
 Read `${CLAUDE_PLUGIN_ROOT}/skills/roadmap/doctor.md` and follow it.
+
+---
+
+<!-- [Foreman: 209] -->
+## Trial log
+
+This file's own `AskUserQuestion` calls — Call 1's menu and the
+archive-finished-work ask — belong to the branch the user ends up in, not to
+a branch of their own. Record each with that branch's flow:
+
+```
+node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js question_asked '{"flow":"pick"}'
+```
+
+`pick`, `add`, `correct`, `status` or `survey`, whichever the routing lands
+on. The structural doctor has no flow and records nothing. One event per
+call. It is a no-op unless the project set `trialLog`, so it needs no check
+first and never blocks the flow.

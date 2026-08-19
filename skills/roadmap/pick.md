@@ -100,6 +100,32 @@ unchanged.
 2. Go straight to Q1 below — no narrative recap of the candidates in prose
    first, the question *is* the presentation.
 
+<!-- [Foreman: 209] -->
+**Trial log.** Which row the user chose exists only in this turn — no script
+and no hook can see it, so these lines are the only reason the recommendation
+numbers exist at all. Each is a no-op unless the project set `trialLog`, so
+none needs a check first and it never blocks the flow.
+
+- once, right after `next-candidates --menu` returns:
+  `node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js menu_shown '{"candidates":<rows Q1 will show>,"hint":<true when --hint was passed>}'`.
+  `candidates` counts every row the user reads, the accept and resume rows
+  included, capped at 2 of each exactly as the finish-first check caps them.
+  The single-option skip records it too, with `candidates: 1` — a menu of one
+  is still a recommendation that was accepted or wasn't.
+- once, on a menu built with `--hint`:
+  `node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js hint_used '{"hit":<the script's own hint_matched>}'`
+- once, when Q1 is asked:
+  `node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js question_asked '{"flow":"pick"}'`
+- exactly one of these on Q1's answer:
+  `node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js pick_accepted '{"rank":<the row's 1-based position>}'` when the
+  chosen row carries `(Recommended)`, or
+  `node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js pick_overridden '{"chosen_rank":<the row's 1-based position, or null when the answer described something not on the list>}'`
+  for any other row.
+
+An accept or resume choice settles existing work rather than answering "what
+next", so it records neither. The **defer** sub-branch records neither
+either: it re-runs the menu, and the re-asked Q1 emits a fresh `menu_shown`.
+
 **Finish-first check**: if the script's `awaiting_acceptance` or `in_progress`
 array is non-empty, work already exists — offer to settle it before starting
 something new. Those entries take the top option slot(s) in Q1 (at most 2 of
