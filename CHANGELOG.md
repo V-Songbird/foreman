@@ -7,17 +7,22 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
-## [Unreleased]
+## 1.4.0 — 2026-08-19
 
 ### Added
 
-- Opening a file that a recorded lesson names now surfaces that lesson right there, alongside any decision note the file already carried. Needs `areaNotes` on.
-- A survey can now retire a lesson its own findings contradict. A retired lesson stops being quoted into later work, and stops taking up room there.
-- `roadmap.js note-prune` clears lessons nothing can learn from any more — the ones whose files are all gone, and the ones already retired. It asks first, and `--dry-run` shows what would go.
+- Opening a file that a recorded lesson names now shows you that lesson right there, next to any decision note the file already carried. Needs `areaNotes` on.
+- A lesson that turns out to be wrong can now be retired. It stops being quoted into later work, and stops taking up room there.
+- `roadmap.js note-prune` clears out lessons nothing can learn from any more — the ones whose files are all gone, and the ones already retired. It asks first, and `--dry-run` shows what would go.
+
+### Changed
+
+- `areaNotes` is now labelled Beta where you turn it on, and the question says turning it back off doesn't delete anything you've already saved.
+- The README is plainer. Same features, fewer words that assume you already know how Foreman works.
 
 ### Fixed
 
-- Repairing a duplicated task id no longer lets a lesson recorded under that id claim a freshness it cannot know. The lesson still shows; its "unchanged since" verdict now reads as unknown.
+- Repairing a duplicated task id no longer lets a lesson recorded under that id claim a freshness it cannot know. The lesson still shows, and its "unchanged since" now reads as unknown.
 
 ## 1.3.0 — 2026-08-18
 
