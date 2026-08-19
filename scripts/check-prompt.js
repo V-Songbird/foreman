@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 "use strict";
 
+// [Foreman: 062] Standalone CLI contract: this file is plain Node and must
+// stay runnable with no harness present. CLAUDE_PROJECT_DIR is optional and
+// falls back to cwd; no other harness dependency is permitted here. Pinned by
+// tests/standalone.test.js, which spawns it with every CLAUDE_* variable
+// deleted.
+
 // Mechanical gate for an assembled handoff prompt — the checklist items a
 // script can actually verify, verified by a script instead of prose trust.
 // Reads the canonical fixed blocks out of prompt-template.md at run time,

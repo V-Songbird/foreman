@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 "use strict";
 
+// [Foreman: 062] Standalone CLI contract: this file is plain Node and must
+// stay runnable with no harness present. CLAUDE_PROJECT_DIR is optional and
+// falls back to cwd; no other harness dependency is permitted here. Pinned by
+// tests/standalone.test.js, which spawns it with every CLAUDE_* variable
+// deleted.
+
 const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
