@@ -272,10 +272,13 @@ mechanics it defers to are step 5 below.
    `warnings` verbatim whenever that array is non-empty — including when
    `ok` is `true`, since a stale path or an unanswerable verification
    command has to be fixed before delivery. When `ok` is `false`, don't retry blind: show
-   `gate.errors` (and any `gate.warnings`) to the user instead — each names
-   the judgment field that's too thin (missing steps, missing
-   verification, an unresolved reference) — gather that field properly and
-   re-call, rather than resending the same stdin hoping it passes.
+   `gate.errors` (and any `gate.warnings`) to the user instead. Each entry
+   is `{error, fix, example}` — `error` names the judgment field that's too
+   thin (missing steps, missing verification, an unresolved reference),
+   `fix` is the one action that clears it, and `example` is the shape to
+   copy when a literal helps more than a sentence. Feed that JSON back to
+   yourself verbatim, gather the named field properly, and re-call, rather
+   than resending the same stdin hoping it passes.
    **`area_notes_ask: true` — the first moment lesson lines could pay.**
    It appears only when a finished entry already touched files this one
    plans to and the setting has never been put to the user. Ask once, before

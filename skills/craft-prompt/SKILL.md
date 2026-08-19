@@ -360,9 +360,12 @@ either in anything the user reads. Surface any top-level `warnings`
 verbatim whenever that array is non-empty — including when `ok` is `true`,
 since a stale path or an unanswerable verification command has to be fixed
 before delivery. When `ok` is `false`, don't retry blind:
-show `gate.errors` (and any `gate.warnings`) to the user — each names the
-judgment field that's too thin — gather that field properly and re-call,
-rather than resending the same stdin hoping it passes.
+feed the failing JSON back to yourself verbatim and act on it. Each entry
+in `gate.errors` is `{error, fix, example}` — `error` names the judgment
+field that's too thin, `fix` is the one action that clears it, and `example`
+is the shape to copy when a literal helps more than a sentence. Show the
+user `gate.errors` (and any `gate.warnings`), gather the named field
+properly, and re-call — never resend the same stdin hoping it passes.
 
 ---
 

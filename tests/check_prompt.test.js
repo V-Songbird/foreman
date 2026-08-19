@@ -125,13 +125,13 @@ describe('guardrail blocks', () => {
     });
     const { status, json } = check(project, prompt, ['--destination', 'clipboard']);
     assert.equal(status, 1);
-    assert.ok(json.errors.some((e) => e.includes('<truth_grounding> differs')));
+    assert.ok(json.errors.some((e) => e.error.includes('<truth_grounding> differs')));
   });
 
   test('missing scope_discipline is an error', () => {
     const project = makeTmpProject();
     const { json } = check(project, goodPrompt({ scope_discipline: '' }), ['--destination', 'clipboard']);
-    assert.ok(json.errors.some((e) => e.includes('missing <scope_discipline>')));
+    assert.ok(json.errors.some((e) => e.error.includes('missing <scope_discipline>')));
   });
 
   test('scope_discipline passes with substituted plugin paths', () => {
@@ -145,7 +145,7 @@ describe('guardrail blocks', () => {
   test('missing closing paragraph is an error', () => {
     const project = makeTmpProject();
     const { json } = check(project, goodPrompt({ closing: '' }), ['--destination', 'clipboard']);
-    assert.ok(json.errors.some((e) => e.includes('closing paragraph')));
+    assert.ok(json.errors.some((e) => e.error.includes('closing paragraph')));
   });
 
   test('altered closure evidence rule is an error', () => {
@@ -156,7 +156,7 @@ describe('guardrail blocks', () => {
     );
     const { status, json } = check(project, goodPrompt({ closing }), ['--destination', 'clipboard']);
     assert.equal(status, 1);
-    assert.ok(json.errors.some((e) => e.includes('closing paragraph')), JSON.stringify(json.errors));
+    assert.ok(json.errors.some((e) => e.error.includes('closing paragraph')), JSON.stringify(json.errors));
   });
 });
 
@@ -167,7 +167,7 @@ describe('placeholders and required blocks', () => {
       background: '<background>\n<relevant_files>\n[Exact file paths for every file the task touches, each with the symbols that matter.]\n</relevant_files>\n<context>\nSome context.\n</context>\n</background>',
     });
     const { json } = check(project, prompt, ['--destination', 'clipboard']);
-    assert.ok(json.errors.some((e) => e.includes('placeholder')));
+    assert.ok(json.errors.some((e) => e.error.includes('placeholder')));
   });
 
   test('missing verification is an error, unless --research', () => {
@@ -176,7 +176,7 @@ describe('placeholders and required blocks', () => {
       task_rules: '<task_rules>\n- Read the auth docs.\n- Summarize the findings.\n- Write them to docs/findings.md.\n</task_rules>',
     });
     const failed = check(project, noVerify, ['--destination', 'clipboard']);
-    assert.ok(failed.json.errors.some((e) => e.includes('verification')));
+    assert.ok(failed.json.errors.some((e) => e.error.includes('verification')));
     const research = check(project, noVerify, ['--destination', 'clipboard', '--research']);
     assert.equal(research.json.ok, true, JSON.stringify(research.json));
   });
@@ -186,7 +186,7 @@ describe('placeholders and required blocks', () => {
     const empty = goodPrompt({
       background: '<background>\n<relevant_files>\n</relevant_files>\n<context>\nctx\n</context>\n</background>',
     });
-    assert.ok(check(project, empty, ['--destination', 'clipboard']).json.errors.some((e) => e.includes('relevant_files')));
+    assert.ok(check(project, empty, ['--destination', 'clipboard']).json.errors.some((e) => e.error.includes('relevant_files')));
     const vague = goodPrompt({
       background: '<background>\n<relevant_files>\nthe auth module\n</relevant_files>\n<context>\nctx\n</context>\n</background>',
     });
@@ -198,7 +198,7 @@ describe('placeholders and required blocks', () => {
   test('missing output_format is an error when the project does not omit it', () => {
     const project = makeTmpProject();
     const { json } = check(project, goodPrompt({ output_format: '' }), ['--destination', 'clipboard']);
-    assert.ok(json.errors.some((e) => e.includes('<output_format>')));
+    assert.ok(json.errors.some((e) => e.error.includes('<output_format>')));
   });
 });
 
@@ -208,9 +208,9 @@ describe('omitSections compliance', () => {
     writeConfig(project, { omitSections: ['tone'] });
     const withTone = goodPrompt();
     const withoutTone = goodPrompt({ tone: '' });
-    assert.ok(check(project, withTone, ['--destination', 'clipboard']).json.errors.some((e) => e.includes('<tone> present')));
+    assert.ok(check(project, withTone, ['--destination', 'clipboard']).json.errors.some((e) => e.error.includes('<tone> present')));
     assert.equal(check(project, withoutTone, ['--destination', 'clipboard']).json.ok, true);
-    assert.ok(check(project, withoutTone, ['--destination', 'agent']).json.errors.some((e) => e.includes('STAYS')));
+    assert.ok(check(project, withoutTone, ['--destination', 'agent']).json.errors.some((e) => e.error.includes('STAYS')));
     assert.equal(check(project, goodPrompt({ autonomy: AUTONOMY }), ['--destination', 'agent']).json.ok, true);
   });
 
@@ -218,14 +218,14 @@ describe('omitSections compliance', () => {
     const project = makeTmpProject();
     writeConfig(project, { omitSections: ['output_format'] });
     const { json } = check(project, goodPrompt(), ['--destination', 'clipboard']);
-    assert.ok(json.errors.some((e) => e.includes('<output_format> present')));
+    assert.ok(json.errors.some((e) => e.error.includes('<output_format> present')));
     assert.equal(check(project, goodPrompt({ output_format: '' }), ['--destination', 'clipboard']).json.ok, true);
   });
 
   test('an omitted background must be absent, and relevant_files is not required then', () => {
     const project = makeTmpProject();
     writeConfig(project, { omitSections: ['background'] });
-    assert.ok(check(project, goodPrompt(), ['--destination', 'clipboard']).json.errors.some((e) => e.includes('<background> present')));
+    assert.ok(check(project, goodPrompt(), ['--destination', 'clipboard']).json.errors.some((e) => e.error.includes('<background> present')));
     assert.equal(check(project, goodPrompt({ background: '' }), ['--destination', 'clipboard']).json.ok, true);
   });
 });
@@ -242,7 +242,7 @@ describe('roadmap entry paragraph', () => {
   test('--entry requires the embedded paragraph', () => {
     const project = makeTmpProject();
     const { json } = check(project, goodPrompt(), ['--destination', 'task', '--entry', '007']);
-    assert.ok(json.errors.some((e) => e.includes('ROADMAP.jsonl entry `007`')));
+    assert.ok(json.errors.some((e) => e.error.includes('ROADMAP.jsonl entry `007`')));
     const withPara = goodPrompt({ entry_paragraph: paragraph });
     assert.equal(check(project, withPara, ['--destination', 'task', '--entry', '007']).json.ok, true);
   });
@@ -250,7 +250,7 @@ describe('roadmap entry paragraph', () => {
   test('--resume expects the resume variant', () => {
     const project = makeTmpProject();
     const fresh = goodPrompt({ entry_paragraph: paragraph });
-    assert.ok(check(project, fresh, ['--destination', 'task', '--entry', '007', '--resume']).json.errors.some((e) => e.includes('resume')));
+    assert.ok(check(project, fresh, ['--destination', 'task', '--entry', '007', '--resume']).json.errors.some((e) => e.error.includes('resume')));
     const resumed = goodPrompt({ entry_paragraph: resumeParagraph });
     assert.equal(check(project, resumed, ['--destination', 'task', '--entry', '007', '--resume']).json.ok, true);
   });
@@ -261,7 +261,7 @@ describe('persona and assumed context', () => {
     const project = makeTmpProject();
     writeConfig(project, { usePersona: false });
     const { json } = check(project, goodPrompt(), ['--destination', 'clipboard']);
-    assert.ok(json.errors.some((e) => e.includes('usePersona:false')));
+    assert.ok(json.errors.some((e) => e.error.includes('usePersona:false')));
     const domain = goodPrompt({
       task_context: '<task_context>\nDomain: authentication middleware.\nYour goal is to fix the retry bug so all tests pass.\n</task_context>',
     });
@@ -294,7 +294,7 @@ describe('persona and assumed context', () => {
   test('agent destination requires the autonomy paragraph; others warn if it appears', () => {
     const project = makeTmpProject();
     const missing = check(project, goodPrompt(), ['--destination', 'agent']);
-    assert.ok(missing.json.errors.some((e) => e.includes('operating autonomously')));
+    assert.ok(missing.json.errors.some((e) => e.error.includes('operating autonomously')));
     const misplaced = check(project, goodPrompt({ autonomy: AUTONOMY }), ['--destination', 'clipboard']);
     assert.equal(misplaced.json.ok, true);
     assert.ok(misplaced.json.warnings.some((w) => w.includes('user present')));
@@ -305,9 +305,9 @@ describe('workflow-stage flavor', () => {
   test('requires no tone, no output_format, and the fixed sentence', () => {
     const project = makeTmpProject();
     const wrong = check(project, goodPrompt(), ['--destination', 'clipboard', '--workflow-stage']);
-    assert.ok(wrong.json.errors.some((e) => e.includes('<tone> present')));
-    assert.ok(wrong.json.errors.some((e) => e.includes('<output_format> present')));
-    assert.ok(wrong.json.errors.some((e) => e.includes('enforcement sentence')));
+    assert.ok(wrong.json.errors.some((e) => e.error.includes('<tone> present')));
+    assert.ok(wrong.json.errors.some((e) => e.error.includes('<output_format> present')));
+    assert.ok(wrong.json.errors.some((e) => e.error.includes('enforcement sentence')));
     const right = goodPrompt({ tone: '', output_format: WORKFLOW_STAGE_SENTENCE });
     assert.equal(check(project, right, ['--destination', 'clipboard', '--workflow-stage']).json.ok, true);
   });
@@ -460,7 +460,7 @@ describe('unexpanded plugin root', () => {
     });
     const { status, json } = check(project, prompt, ['--destination', 'task', '--entry', '107']);
     assert.equal(status, 1);
-    assert.ok(json.errors.some((e) => e.includes('resolved plugin path')), JSON.stringify(json.errors));
+    assert.ok(json.errors.some((e) => e.error.includes('resolved plugin path')), JSON.stringify(json.errors));
   });
 
   test('a backslash cache path is caught too', () => {
@@ -469,7 +469,7 @@ describe('unexpanded plugin root', () => {
       request: `Run node C:\\Users\\x\\.claude\\plugins\\cache\\foundry\\foreman\\1.2.3\\scripts\\roadmap.js add`,
     });
     const { json } = check(project, prompt, ['--destination', 'task']);
-    assert.ok(json.errors.some((e) => e.includes('resolved plugin path')), JSON.stringify(json.errors));
+    assert.ok(json.errors.some((e) => e.error.includes('resolved plugin path')), JSON.stringify(json.errors));
   });
 
   test('the unexpanded variable passes clean, error and warning both', () => {
@@ -512,7 +512,7 @@ describe('the ordered plan block', () => {
     const { status, json } = check(project, goodPrompt({ plan: '' }), ['--destination', 'task']);
     assert.equal(status, 1);
     assert.equal(json.ok, false);
-    assert.ok(json.errors.some((e) => e.includes('missing <plan>')), JSON.stringify(json.errors));
+    assert.ok(json.errors.some((e) => e.error.includes('missing <plan>')), JSON.stringify(json.errors));
   });
 
   test('an altered <plan> is an error — it is carried verbatim', () => {
@@ -520,7 +520,7 @@ describe('the ordered plan block', () => {
     const prompt = goodPrompt({ plan: '<plan>\n1. Do whatever seems best.\n</plan>' });
     const { status, json } = check(project, prompt, ['--destination', 'task']);
     assert.equal(status, 1);
-    assert.ok(json.errors.some((e) => e.includes('<plan> differs')), JSON.stringify(json.errors));
+    assert.ok(json.errors.some((e) => e.error.includes('<plan> differs')), JSON.stringify(json.errors));
   });
 
   test('the plan states the three universal steps and the entry-paragraph rider', () => {
@@ -572,7 +572,7 @@ describe('durable handoff guardrails', () => {
     const { status, json } = check(project, goodPrompt({ no_invention: '' }), ['--destination', 'task']);
     assert.equal(status, 1);
     assert.equal(json.ok, false);
-    assert.ok(json.errors.some((e) => e.includes('no-invention line')), JSON.stringify(json.errors));
+    assert.ok(json.errors.some((e) => e.error.includes('no-invention line')), JSON.stringify(json.errors));
   });
 
   test('the no-invention line sits outside <background>, so an omitted background keeps it', () => {
@@ -584,7 +584,7 @@ describe('durable handoff guardrails', () => {
     // ...and it is still the checker's business when dropped.
     const dropped = check(project, goodPrompt({ background: '', no_invention: '' }), ['--destination', 'task']);
     assert.equal(dropped.status, 1);
-    assert.ok(dropped.json.errors.some((e) => e.includes('no-invention line')));
+    assert.ok(dropped.json.errors.some((e) => e.error.includes('no-invention line')));
   });
 
   test('the old unbounded "iterate until it passes" fix loop is an error', () => {
@@ -595,7 +595,7 @@ describe('durable handoff guardrails', () => {
     const { status, json } = check(project, goodPrompt({ task_rules: rules }), ['--destination', 'task']);
     assert.equal(status, 1);
     assert.equal(json.ok, false);
-    assert.ok(json.errors.some((e) => e.includes('fix loop is unbounded')), JSON.stringify(json.errors));
+    assert.ok(json.errors.some((e) => e.error.includes('fix loop is unbounded')), JSON.stringify(json.errors));
   });
 
   test('a --research prompt needs no fix ceiling — it has no verification block', () => {
@@ -647,7 +647,7 @@ describe('optional per-task fields', () => {
     const prompt = goodPrompt({ invariants: '<invariants>\n[One observable assertion per line.]\n</invariants>' });
     const { json } = check(project, prompt, ['--destination', 'task']);
     assert.equal(json.ok, false);
-    assert.ok(json.errors.some((e) => e.includes('One observable assertion')), JSON.stringify(json.errors));
+    assert.ok(json.errors.some((e) => e.error.includes('One observable assertion')), JSON.stringify(json.errors));
   });
 });
 
@@ -701,7 +701,7 @@ describe('handoff profiles', () => {
     const { status, json } = check(project, standardPrompt(), ['--destination', 'task', '--profile', 'reinforced']);
     assert.equal(status, 1);
     for (const missing of ['<truth_grounding>', '<scope_discipline>', '<plan>', 'closing paragraph', 'no-invention line']) {
-      assert.ok(json.errors.some((e) => e.includes(missing)), `${missing} not required at --profile reinforced: ${JSON.stringify(json.errors)}`);
+      assert.ok(json.errors.some((e) => e.error.includes(missing)), `${missing} not required at --profile reinforced: ${JSON.stringify(json.errors)}`);
     }
   });
 
@@ -709,11 +709,11 @@ describe('handoff profiles', () => {
     const project = makeTmpProject();
     const shortNoClosure = check(project, standardPrompt({ closure: '' }), ['--destination', 'task', '--profile', 'standard']);
     assert.equal(shortNoClosure.status, 1);
-    assert.ok(shortNoClosure.json.errors.some((e) => e.includes('closure-evidence rule')), JSON.stringify(shortNoClosure.json.errors));
+    assert.ok(shortNoClosure.json.errors.some((e) => e.error.includes('closure-evidence rule')), JSON.stringify(shortNoClosure.json.errors));
     const strippedClosing = canonical.closing.replace(CLOSURE_EVIDENCE_SENTENCE, '');
     const longNoClosure = check(project, goodPrompt({ closing: strippedClosing }), ['--destination', 'task', '--profile', 'reinforced']);
     assert.equal(longNoClosure.status, 1);
-    assert.ok(longNoClosure.json.errors.some((e) => e.includes('closure-evidence rule')), JSON.stringify(longNoClosure.json.errors));
+    assert.ok(longNoClosure.json.errors.some((e) => e.error.includes('closure-evidence rule')), JSON.stringify(longNoClosure.json.errors));
   });
 
   // [Foreman: 231]
@@ -722,20 +722,20 @@ describe('handoff profiles', () => {
     const noCeiling = '<task_rules>\n- Fix the bug.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\n</task_rules>';
     const short = check(project, standardPrompt({ task_rules: noCeiling }), ['--destination', 'task', '--profile', 'standard']);
     assert.equal(short.status, 1);
-    assert.ok(short.json.errors.some((e) => e.includes('fix loop is unbounded')), JSON.stringify(short.json.errors));
+    assert.ok(short.json.errors.some((e) => e.error.includes('fix loop is unbounded')), JSON.stringify(short.json.errors));
     const long = check(project, goodPrompt({ task_rules: noCeiling }), ['--destination', 'task', '--profile', 'reinforced']);
     assert.equal(long.status, 1);
-    assert.ok(long.json.errors.some((e) => e.includes('fix loop is unbounded')), JSON.stringify(long.json.errors));
+    assert.ok(long.json.errors.some((e) => e.error.includes('fix loop is unbounded')), JSON.stringify(long.json.errors));
   });
 
   test('standard still needs its truth line and a runnable verification', () => {
     const project = makeTmpProject();
     const noTruth = check(project, standardPrompt({ truth_line: '' }), ['--destination', 'task', '--profile', 'standard']);
-    assert.ok(noTruth.json.errors.some((e) => e.includes('concise truth-grounding line')), JSON.stringify(noTruth.json.errors));
+    assert.ok(noTruth.json.errors.some((e) => e.error.includes('concise truth-grounding line')), JSON.stringify(noTruth.json.errors));
     const noVerify = check(project, standardPrompt({ task_rules: '<task_rules>\n- Fix the bug.\n</task_rules>' }), ['--destination', 'task', '--profile', 'standard']);
-    assert.ok(noVerify.json.errors.some((e) => e.includes('verification')), JSON.stringify(noVerify.json.errors));
+    assert.ok(noVerify.json.errors.some((e) => e.error.includes('verification')), JSON.stringify(noVerify.json.errors));
     const noFiles = check(project, standardPrompt({ background: '<background>\n<relevant_files>\n</relevant_files>\n</background>' }), ['--destination', 'task', '--profile', 'standard']);
-    assert.ok(noFiles.json.errors.some((e) => e.includes('relevant_files')), JSON.stringify(noFiles.json.errors));
+    assert.ok(noFiles.json.errors.some((e) => e.error.includes('relevant_files')), JSON.stringify(noFiles.json.errors));
   });
 
   test('standard is a smaller floor, not a licence to reword what it keeps', () => {
@@ -743,7 +743,7 @@ describe('handoff profiles', () => {
     const prompt = standardPrompt({ closure: `${CLOSURE_EVIDENCE_SENTENCE}\n\n<plan>\n1. Do whatever seems best.\n</plan>` });
     const { status, json } = check(project, prompt, ['--destination', 'task', '--profile', 'standard']);
     assert.equal(status, 1);
-    assert.ok(json.errors.some((e) => e.includes('<plan> differs')), JSON.stringify(json.errors));
+    assert.ok(json.errors.some((e) => e.error.includes('<plan> differs')), JSON.stringify(json.errors));
   });
 
   test('the template maps every mechanical signal to reinforced, with thresholds', () => {
@@ -799,4 +799,68 @@ describe('handoff profiles', () => {
     }
   });
 
+});
+
+// [Foreman: 075] The gate's errors are a repair instruction, not a complaint.
+// Every one carries the message, the single action that clears it, and the
+// shape to copy when a literal beats a sentence. The whole failing JSON is
+// meant to go back to the crafting session verbatim, so the schema is pinned
+// here rather than left to whichever branch happened to fire.
+describe('every gate error is a repair instruction', () => {
+  // One prompt that trips as many branches at once as a single input can.
+  function tripEverything(project) {
+    return check(project, 'this is not a handoff prompt at all\n', [
+      '--destination', 'agent', '--profile', 'reinforced', '--entry', '007',
+    ]).json;
+  }
+
+  test('each error carries error, fix and example, and every field is well formed', () => {
+    const json = tripEverything(makeTmpProject());
+    assert.equal(json.ok, false);
+    assert.ok(json.errors.length >= 8, `too few branches fired to be a real pin: ${json.errors.length}`);
+
+    for (const e of json.errors) {
+      assert.equal(typeof e, 'object', `an error is still a bare string: ${JSON.stringify(e)}`);
+      assert.ok(typeof e.error === 'string' && e.error.trim(), `empty error message: ${JSON.stringify(e)}`);
+      assert.ok(typeof e.fix === 'string' && e.fix.trim(), `no fix on "${e.error}"`);
+      assert.ok('example' in e, `example key missing on "${e.error}" — it is null, never absent`);
+      assert.ok(
+        e.example === null || (typeof e.example === 'string' && e.example.trim()),
+        `example must be a non-empty string or null, got ${JSON.stringify(e.example)}`
+      );
+      assert.notEqual(e.fix, e.error, `fix just repeats the message on "${e.error}"`);
+    }
+  });
+
+  test('a fix names an action rather than restating the complaint', () => {
+    const json = tripEverything(makeTmpProject());
+    // Every fix opens with an imperative verb — the thing to DO, first word.
+    const verbs = /^(Add|Copy|Restore|Delete|Replace|Fill|List|Close|Append|Open|Include|Tell|Use)\b/;
+    for (const e of json.errors) {
+      assert.match(e.fix, verbs, `fix does not open with an action: "${e.fix}"`);
+    }
+  });
+
+  test('warnings stay bare strings, because nothing has to be repaired to deliver', () => {
+    const project = makeTmpProject();
+    const { json } = check(project, goodPrompt({
+      background: '<background>\n<relevant_files>\nsrc/a.ts — go (1)\n</relevant_files>\n<context>\nAs we discussed above, keep it small.\n</context>\n</background>',
+    }), ['--destination', 'clipboard']);
+    assert.ok(json.warnings.length > 0);
+    for (const w of json.warnings) assert.equal(typeof w, 'string');
+  });
+
+  test('both prompt-building skills tell the caller to act on the fix field', () => {
+    for (const rel of [['skills', 'roadmap', 'pick.md'], ['skills', 'craft-prompt', 'SKILL.md']]) {
+      const skill = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8').replace(/\s+/g, ' ');
+      assert.ok(
+        skill.includes('{error, fix, example}'),
+        `${rel.join('/')} does not document the gate error schema`
+      );
+      assert.ok(
+        /verbatim/.test(skill),
+        `${rel.join('/')} does not say to feed the failing JSON back verbatim`
+      );
+    }
+  });
 });

@@ -396,7 +396,7 @@ describe('the gate — pass and failure both surfaced, never swallowed', () => {
     assert.equal(json.ok, false);
     assert.equal(json.gate.ok, false);
     assert.ok(json.gate.errors.length > 0);
-    assert.ok(json.gate.errors.some((e) => e.includes('task_rules')));
+    assert.ok(json.gate.errors.some((e) => e.error.includes('task_rules')));
     // The prompt is still returned even though the gate rejected it.
     assert.ok(typeof json.prompt === 'string' && json.prompt.length > 0);
   });

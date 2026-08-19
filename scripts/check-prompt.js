@@ -164,6 +164,17 @@ function segmentsInOrder(canonical, actual) {
 
 const DESTINATIONS = new Set(["task", "agent", "clipboard"]);
 
+// [Foreman: 075] A gate error is a repair instruction, not a complaint. Each
+// carries the prose message, the single action that clears it, and - when a
+// literal helps more than a sentence - the shape the fixed prompt should have.
+// The whole failing JSON is meant to go back to the crafting session verbatim:
+// `fix` is what it acts on, `example` is what it copies. `example` is always
+// present so a consumer never has to test for the key; it is null when the
+// message and the fix already say everything.
+function problem(error, fix, example) {
+  return { error, fix, example: example === undefined ? null : example };
+}
+
 function checkPrompt(prompt, opts) {
   const errors = [];
   const warnings = [];
@@ -179,49 +190,49 @@ function checkPrompt(prompt, opts) {
   // --- guardrail blocks, verbatim ---
   const truth = extractBlock(prompt, "truth_grounding");
   if (!truth) {
-    if (reinforced) errors.push("missing <truth_grounding> — every reinforced handoff carries it, unmodified");
+    if (reinforced) errors.push(problem("missing <truth_grounding> — every reinforced handoff carries it, unmodified", "Copy prompt-template.md's <truth_grounding> block in unchanged.", null));
     else if (!norm(prompt).includes(norm(CONCISE_TRUTH_SENTENCE))) {
-      errors.push("standard handoff is missing the concise truth-grounding line (\"Treat every claim in this prompt as a hypothesis…\") — the short profile drops the block, never the rule");
+      errors.push(problem("standard handoff is missing the concise truth-grounding line (\"Treat every claim in this prompt as a hypothesis…\") — the short profile drops the block, never the rule", "Add the concise truth-grounding sentence as its own line - the short profile drops the block, never the rule.", CONCISE_TRUTH_SENTENCE));
     }
   } else if (norm(truth) !== norm(canonical.truthGrounding)) {
-    errors.push("<truth_grounding> differs from the template — it must be carried verbatim");
+    errors.push(problem("<truth_grounding> differs from the template — it must be carried verbatim", "Restore prompt-template.md's <truth_grounding> byte for byte; no rewording is allowed.", null));
   }
   const scope = extractBlock(prompt, "scope_discipline");
   if (!scope) {
-    if (reinforced) errors.push("missing <scope_discipline> — every reinforced handoff carries it, unmodified");
+    if (reinforced) errors.push(problem("missing <scope_discipline> — every reinforced handoff carries it, unmodified", "Copy prompt-template.md's <scope_discipline> block in unchanged.", null));
   } else if (!segmentsInOrder(canonical.scopeDiscipline, scope)) {
-    errors.push("<scope_discipline> differs from the template — it must be carried verbatim (only the ${CLAUDE_PLUGIN_ROOT} paths are substituted)");
+    errors.push(problem("<scope_discipline> differs from the template — it must be carried verbatim (only the ${CLAUDE_PLUGIN_ROOT} paths are substituted)", "Restore prompt-template.md's <scope_discipline> and change nothing but the ${CLAUDE_PLUGIN_ROOT} paths.", null));
   }
   if (reinforced && !segmentsInOrder(canonical.closing, prompt)) {
-    errors.push("the fixed closing paragraph (\"Reason through the approach…\") is missing or altered");
+    errors.push(problem("the fixed closing paragraph (\"Reason through the approach…\") is missing or altered", "Append the template's fixed closing paragraph, unaltered, as the last thing in the prompt.", null));
   }
   // [Foreman: 138] The one guardrail neither profile may drop.
   if (!norm(prompt).includes(norm(CLOSURE_EVIDENCE_SENTENCE))) {
-    errors.push("missing the closure-evidence rule (\"Closure notes and findings describe only observed work…\") — required in both handoff profiles");
+    errors.push(problem("missing the closure-evidence rule (\"Closure notes and findings describe only observed work…\") — required in both handoff profiles", "Add the closure-evidence sentence; both profiles require it.", CLOSURE_EVIDENCE_SENTENCE));
   }
   // [Foreman: 104]
   const plan = extractBlock(prompt, "plan");
   if (!plan) {
-    if (reinforced) errors.push("missing <plan> — every reinforced handoff carries it, unmodified");
+    if (reinforced) errors.push(problem("missing <plan> — every reinforced handoff carries it, unmodified", "Copy prompt-template.md's <plan> block in unchanged.", null));
   } else if (norm(plan) !== norm(canonical.plan)) {
-    errors.push("<plan> differs from the template — it must be carried verbatim");
+    errors.push(problem("<plan> differs from the template — it must be carried verbatim", "Restore prompt-template.md's <plan> verbatim.", null));
   }
   // [Foreman: 107]
   const pinned = prompt.match(PLUGIN_CACHE_PATH_RE);
   if (pinned) {
-    errors.push(`resolved plugin path in the prompt body ("${pinned[0]}") — write \${CLAUDE_PLUGIN_ROOT} instead, or every bookkeeping command dies at the next version bump`);
+    errors.push(problem(`resolved plugin path in the prompt body ("${pinned[0]}") — write \${CLAUDE_PLUGIN_ROOT} instead, or every bookkeeping command dies at the next version bump`, "Replace the resolved path with the literal ${CLAUDE_PLUGIN_ROOT} so the command survives the next version bump.", 'node "${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js" update-status'));
   }
   // [Foreman: 103]
   if (reinforced && !norm(prompt).includes(norm(NO_INVENTION_SENTENCE))) {
-    errors.push("missing the no-invention line (\"a finding to report, not a gap to fill\") — it belongs outside <background>, so an omitted background can't drop it");
+    errors.push(problem("missing the no-invention line (\"a finding to report, not a gap to fill\") — it belongs outside <background>, so an omitted background can't drop it", "Add the no-invention line outside <background>, so omitting background cannot drop it.", `If a file, symbol, or fallback path this prompt names does not exist as described, ${NO_INVENTION_SENTENCE}`));
   }
 
   // --- task_context ---
   const taskContext = extractBlock(prompt, "task_context");
   if (!taskContext || !norm(taskContext)) {
-    errors.push("missing or empty <task_context>");
+    errors.push(problem("missing or empty <task_context>", "Open the prompt with <task_context> naming who the destination is and what done looks like.", "<task_context>\nYou are a senior engineer.\nYour goal is to fix the retry bug so all tests pass.\n</task_context>"));
   } else if (config.usePersona === false && /\byou are an?\b/i.test(taskContext)) {
-    errors.push("task_context opens a persona (\"You are a…\") but the project declares usePersona:false — use domain framing");
+    errors.push(problem("task_context opens a persona (\"You are a…\") but the project declares usePersona:false — use domain framing", "Replace the persona opener with domain framing; the project set usePersona:false.", "<task_context>\nDomain: payments reconciliation.\nYour goal is to fix the retry bug so all tests pass.\n</task_context>"));
   } else if (config.usePersona !== false && !/\byou are\b/i.test(taskContext)) {
     warnings.push("task_context has no \"You are [role]\" sentence — expected with usePersona:true");
   }
@@ -229,28 +240,28 @@ function checkPrompt(prompt, opts) {
   // --- unfilled placeholders ---
   for (const frag of PLACEHOLDER_FRAGMENTS) {
     if (prompt.includes(frag)) {
-      errors.push(`template placeholder left in the prompt: "${frag}…"`);
+      errors.push(problem(`template placeholder left in the prompt: "${frag}…"`, "Fill the bracketed placeholder with the real value, or delete the line when the section does not apply.", null));
     }
   }
 
   // --- task_rules + verification ---
   const taskRules = extractBlock(prompt, "task_rules");
   if (!taskRules || !norm(taskRules)) {
-    errors.push("missing or empty <task_rules>");
+    errors.push(problem("missing or empty <task_rules>", "Add <task_rules> carrying the steps, the constraints, and the verification block.", null));
   } else if (!opts.research) {
     const hasVerification =
       /Verification \(REQUIRED\):/.test(taskRules) &&
       /\bRun:/.test(taskRules) &&
       /\bExpected:/.test(taskRules);
     if (!hasVerification) {
-      errors.push("task_rules has no verification block (Run:/Expected:) — required unless the task is pure research (--research)");
+      errors.push(problem("task_rules has no verification block (Run:/Expected:) — required unless the task is pure research (--research)", "Add a Verification (REQUIRED) block with a Run: line and an Expected: line, or pass --research when the task produces nothing runnable.", "Verification (REQUIRED):\nRun: npm test\nExpected: all tests pass"));
     }
     // [Foreman: 103, 231] The ceiling belongs to the verification block, not
     // to a profile: it bounds the retry loop the Run:/Expected: pairs open, and
     // both profiles carry those pairs. craft-handoff.js has always emitted it
     // on both, so this binds what already ships.
     if (!norm(taskRules).includes(norm(FIX_CEILING_SENTENCE))) {
-      errors.push("the verification block's fix loop is unbounded — it must end with the fixed ceiling (\"after two failed fix attempts, stop and report…\"), not \"iterate until it passes\"");
+      errors.push(problem("the verification block's fix loop is unbounded — it must end with the fixed ceiling (\"after two failed fix attempts, stop and report…\"), not \"iterate until it passes\"", "Close the verification block with the template's fixed ceiling instead of an open-ended retry instruction.", `Do NOT claim success without running this. If it fails, fix and re-run - but ${FIX_CEILING_SENTENCE}`));
     }
   }
 
@@ -259,10 +270,10 @@ function checkPrompt(prompt, opts) {
   const relevantFiles = extractBlock(prompt, "relevant_files");
   if (backgroundOmitted) {
     if (extractBlock(prompt, "background") !== null) {
-      errors.push("<background> present but the project omits it (omitSections)");
+      errors.push(problem("<background> present but the project omits it (omitSections)", "Delete <background>; this project's omitSections excludes it.", null));
     }
   } else if (!relevantFiles || !norm(relevantFiles)) {
-    errors.push("missing or empty <relevant_files>");
+    errors.push(problem("missing or empty <relevant_files>", "List the files the task touches inside <relevant_files>, one per line, with the symbols that matter.", "<relevant_files>\nsrc/auth/middleware.ts - refreshToken (42), verifySession (77)\n</relevant_files>"));
   } else if (!/[\w-]+[\\/.][\w./\\-]+/.test(relevantFiles)) {
     warnings.push("relevant_files has no path-like reference — vague references defeat truth_grounding's \"read the cited files\"");
   }
@@ -275,50 +286,54 @@ function checkPrompt(prompt, opts) {
   // --- tone (destination-scoped) ---
   const toneBlock = extractBlock(prompt, "tone");
   if (opts.workflowStage) {
-    if (toneBlock !== null) errors.push("<tone> present in a Workflow-stage prompt — the flavor drops it unconditionally");
+    if (toneBlock !== null) errors.push(problem("<tone> present in a Workflow-stage prompt — the flavor drops it unconditionally", "Delete <tone>; the Workflow-stage flavor drops it unconditionally.", null));
   } else if (omit.has("tone") && opts.destination !== "agent") {
-    if (toneBlock !== null) errors.push("<tone> present but the project omits it (omitSections) and the destination is not a background Agent");
+    if (toneBlock !== null) errors.push(problem("<tone> present but the project omits it (omitSections) and the destination is not a background Agent", "Delete <tone>; the project omits it and this destination already has a voice.", null));
   } else if (toneBlock === null && reinforced) {
-    errors.push(
+    errors.push(problem(
       opts.destination === "agent" && omit.has("tone")
         ? "<tone> missing — an omitted tone STAYS for a background-Agent destination (no output style reaches that session)"
-        : "missing <tone> — include the template default (or the user's custom tone)"
-    );
+        : "missing <tone> — include the template default (or the user's custom tone)",
+      opts.destination === "agent" && omit.has("tone")
+        ? "Add <tone> anyway — an omitted tone still ships to a background Agent, because no output style reaches that session."
+        : "Add <tone> with the template default, or the tone the user asked for.",
+      "<tone>\nMinimal, professional conversation — silent by default. If an output style already governs this session's voice, defer to it.\n</tone>"
+    ));
   }
 
   // --- other omitted tags ---
   for (const tag of ["example", "output_format"]) {
     if (omit.has(tag) && extractBlock(prompt, tag) !== null) {
-      errors.push(`<${tag}> present but the project omits it (omitSections)`);
+      errors.push(problem(`<${tag}> present but the project omits it (omitSections)`, "Delete the block; this project's omitSections excludes it.", null));
     }
   }
 
   // --- output_format ---
   if (opts.workflowStage) {
     if (extractBlock(prompt, "output_format") !== null) {
-      errors.push("<output_format> present in a Workflow-stage prompt — the flavor replaces it with the fixed enforcement sentence");
+      errors.push(problem("<output_format> present in a Workflow-stage prompt — the flavor replaces it with the fixed enforcement sentence", "Delete <output_format>; the Workflow-stage flavor replaces it with the fixed enforcement sentence.", null));
     }
     if (!prompt.includes(WORKFLOW_STAGE_SENTENCE)) {
-      errors.push("Workflow-stage prompt is missing its fixed enforcement sentence");
+      errors.push(problem("Workflow-stage prompt is missing its fixed enforcement sentence", "Add the Workflow-stage enforcement sentence where <output_format> would go.", WORKFLOW_STAGE_SENTENCE));
     }
   } else if (reinforced && !omit.has("output_format") && extractBlock(prompt, "output_format") === null) {
-    errors.push("missing <output_format> — include the template default unless the project omits it");
+    errors.push(problem("missing <output_format> — include the template default unless the project omits it", "Add <output_format> with the template default unless the project omits it.", "<output_format>\nGive a concise, human-readable summary: what changed, and the verification result. No XML tags in the visible response.\n</output_format>"));
   }
 
   // --- roadmap-entry paragraph ---
   if (opts.entry) {
     const marker = `ROADMAP.jsonl entry \`${opts.entry}\``;
     if (!prompt.includes(marker)) {
-      errors.push(`missing the entry paragraph naming ${marker} — the destination session can't mark or close the entry without it`);
+      errors.push(problem(`missing the entry paragraph naming ${marker} — the destination session can't mark or close the entry without it`, "Add the entry paragraph naming the roadmap id, so the destination can open and close the entry itself.", null));
     } else if (opts.resume) {
       if (!/already marked `in_progress`/.test(prompt)) {
-        errors.push("resume handoff must say the entry is already marked `in_progress` (resume variant paragraph)");
+        errors.push(problem("resume handoff must say the entry is already marked `in_progress` (resume variant paragraph)", "Use the resume wording: state that the entry is already marked `in_progress`.", null));
       }
     } else if (!/Mark it `in_progress`/.test(prompt)) {
-      errors.push("entry paragraph must instruct the destination to mark the entry `in_progress` first");
+      errors.push(problem("entry paragraph must instruct the destination to mark the entry `in_progress` first", "Tell the destination to mark the entry `in_progress` before it starts.", null));
     }
     if (!prompt.includes("update-status")) {
-      errors.push("entry paragraph must carry the roadmap.js update-status command for opening and closing the entry");
+      errors.push(problem("entry paragraph must carry the roadmap.js update-status command for opening and closing the entry", "Include the roadmap.js update-status command the destination runs to open and close the entry.", null));
     }
   }
 
@@ -331,7 +346,7 @@ function checkPrompt(prompt, opts) {
   // --- background-Agent autonomy reminder ---
   const hasAutonomy = prompt.includes(AUTONOMY_SENTENCE);
   if (opts.destination === "agent" && !hasAutonomy) {
-    errors.push('missing the autonomous-operation paragraph ("You are operating autonomously.") — a background Agent has no user to answer questions');
+    errors.push(problem('missing the autonomous-operation paragraph ("You are operating autonomously.") — a background Agent has no user to answer questions', "Add the autonomous-operation paragraph; a background Agent has nobody to ask.", AUTONOMY_SENTENCE));
   } else if (opts.destination !== "agent" && hasAutonomy) {
     warnings.push("carries the autonomous-operation paragraph but the destination has a user present — drop it for task/clipboard");
   }
@@ -348,6 +363,10 @@ function checkPrompt(prompt, opts) {
 const USAGE = `check-prompt.js -- mechanical gate for an assembled handoff prompt.
 Prints one JSON line: {"ok":true,"warnings":[...]} or
 {"ok":false,"errors":[...],"warnings":[...]} (exit 1).
+Each error is {error, fix, example} -- the message, the one action that
+clears it, and the shape to copy (null when the fix says everything).
+Feed the failing JSON back to the crafting session verbatim; it is a repair
+instruction, not a complaint.
 
   node check-prompt.js <prompt-file> --destination task|agent|clipboard
                        [--profile standard|reinforced]
