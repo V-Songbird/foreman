@@ -931,3 +931,63 @@ describe('prior-work recall', () => {
     assert.ok(json.prompt.includes('<prior_work>'));
   });
 });
+
+// [Foreman: 074] The file list is the one interview answer that must produce a
+// real path, and a hand-typed path aimed at the wrong file is the failure
+// truth_grounding spends the destination's tokens rescuing. The skill now
+// grounds that question in one Explore pass before it asks. This is prose, so
+// the pin is on the properties that make it safe rather than on the wording.
+describe('craft-prompt grounds its file options before asking', () => {
+  const SKILL = fs.readFileSync(
+    path.join(__dirname, '..', 'skills', 'craft-prompt', 'SKILL.md'),
+    'utf-8'
+  );
+  const flat = SKILL.replace(/\s+/g, ' ');
+
+  test('the grounding pass runs before Call 2, not after it', () => {
+    const ground = SKILL.indexOf('## Ground the file options');
+    const call2 = SKILL.indexOf('## Call 2 — required fields');
+    assert.ok(ground > 0, 'the grounding section is gone');
+    assert.ok(call2 > 0);
+    assert.ok(ground < call2, 'grounding must happen before the questions it grounds');
+  });
+
+  test('it dispatches exactly one read-only Explore pass, never a second', () => {
+    assert.ok(/`Explore`/.test(SKILL), 'the grounding pass names no agent');
+    assert.ok(/\*\*one\*\* `Explore`/.test(flat), 'the single-pass bound is gone');
+    assert.ok(/[Nn]ever a second one/.test(flat), 'nothing stops a follow-up Explore');
+    assert.ok(/read-only/.test(flat));
+  });
+
+  test('what Explore returns is a proposal the user can overrule', () => {
+    assert.ok(/proposal, not a finding/.test(flat), 'the offer-never-assert rule is gone');
+    assert.ok(
+      /`Other` answer always wins/.test(flat),
+      'nothing says the user overrules a grounded option'
+    );
+    assert.ok(
+      /reaches `touches` until the user has chosen it/.test(flat),
+      'a candidate could reach touches without being picked'
+    );
+  });
+
+  test('every grounded question degrades to its old free-text wording', () => {
+    assert.ok(
+      /never a precondition for asking it/.test(flat),
+      'the empty-Explore fallback is gone'
+    );
+    // Q3 keeps its hand-typed path, and Q1 keeps all four generic commands.
+    assert.ok(flat.includes("`I'll list them`"));
+    assert.ok(flat.includes('`I can only name the area`'));
+    for (const cmd of ['npm test', 'pytest', 'cargo test', 'go test ./...']) {
+      assert.ok(flat.includes(cmd), `the generic ${cmd} fallback is gone`);
+    }
+  });
+
+  test('a detected command is still settled by resolve-symbols, not by Explore', () => {
+    assert.ok(
+      /verification\.resolves: false/.test(flat),
+      'the real verification check is no longer what settles the command'
+    );
+  });
+});

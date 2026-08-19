@@ -84,6 +84,35 @@ Fable-class model.
 
 ---
 
+## Ground the file options (one Explore pass, before Call 2)
+
+Call 2's Q3 is the one answer that has to produce a real path, and a
+hand-typed path pointing at the wrong file is exactly the failure
+`truth_grounding` spends the destination's tokens rescuing. Ground the
+question instead of asking it cold: dispatch **one** `Explore` agent now,
+before Call 2, and turn what it finds into the options.
+
+Give it Call 1's request verbatim and ask for three things back:
+
+- up to three candidate file lines, each `path — the symbols that matter`
+- the project's test command, written the way it would actually be typed
+- one file that already does something similar, for the `Pattern:` line
+
+One pass, medium breadth, read-only. Never a second one — a follow-up
+Explore is the second interview this whole skill is shaped to avoid.
+
+**What comes back is a proposal, not a finding.** Offer it; never assert
+it. The user's `Other` answer always wins, and a candidate they did not
+pick is dropped rather than argued for. Nothing Explore returns reaches
+`touches` until the user has chosen it.
+
+**When Explore returns nothing usable** — no repository, an empty result,
+or candidates naming no file — every question below keeps the free-text
+wording it has always had. A grounded option upgrades the question; it is
+never a precondition for asking it.
+
+---
+
 ## Call 2 — required fields (batch all 4)
 
 **Q1** — "What role should the spawned agent play?"
@@ -96,7 +125,12 @@ Options: `Bug is fixed and all tests pass`, `Feature is implemented and tested`,
 **Q3** — "List the relevant files, naming the functions or classes that
 matter in each. If an analogous implementation exists, name it too as a
 pattern to imitate."
-Options: `I'll list them` (nudge user to use Other and type paths like `src/auth/middleware.ts — refreshToken, verifySession`, plus `Pattern: src/webhooks/github.ts — build the new code the same way` when one applies. A line number only when the spot has no name — `resolve-symbols.js` fills the rest in below.), `I can only name the area`
+Options: `<Explore candidate 1>`, `<Explore candidate 2>`, `<Explore candidate 3>`, `I'll list them` (each candidate is one line the Explore pass proposed, already shaped `src/auth/middleware.ts — refreshToken, verifySession`. Fill the slots you have and drop the rest; with no candidates at all the options are `I'll list them` and `I can only name the area`, as before. Whichever way the user answers, they may add a `Pattern: src/webhooks/github.ts — build the new code the same way` line, and Explore's similar-file answer is what to suggest for it. A line number only when the spot has no name — `resolve-symbols.js` fills the rest in below.)
+
+The candidates are offered one per option so the user can take one and
+correct it in `Other` rather than retyping the whole list. Multi-select
+this question when Explore returned more than one plausible file: the
+picked lines concatenate into `touches` in the order shown.
 
 **Q4** — "Describe the two steps: analyze/check, then implement/produce."
 Options: `I'll describe them`, `Implement only, no analysis`
@@ -110,7 +144,11 @@ than two — the analyze half is dropped, never invented.
 Skip this call only if the task type is pure research/investigation with no code changes.
 
 **Q1** — "What command or commands verify success?"
-Options: `npm test`, `pytest`, `cargo test`, `go test ./...`
+Options: `<the command Explore detected>`, `npm test`, `pytest`, `cargo test` (Explore's answer leads because it was read off this project rather than guessed; with nothing detected the options are the four generic ones, `npm test`, `pytest`, `cargo test`, `go test ./...`)
+
+A detected command is still only a proposal. `resolve-symbols.js` below
+checks it against the project for real, and `verification.resolves: false`
+is what settles it — not the fact that Explore suggested it.
 
 **Q2** — "What's the expected outcome?"
 Options: `All tests pass`, `Build succeeds with exit code 0`, `No lint errors`, `Report file produced`
