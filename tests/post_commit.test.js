@@ -7,15 +7,12 @@
 //   - silent when ROADMAP.jsonl doesn't exist (zero-config: never ran /foreman:init)
 //   - status-sync block appears whenever an in_progress entry exists, or a
 //     done entry was updated earlier today (same-day follow-up fix commit)
-//   - discovery block appears only when .foreman/config.json has
-//     discoverySuggestions:true, and carries no roadmap titles when it does
-//   - an absent discoverySuggestions key (never asked, distinct from an
-//     explicit false) rides a one-time invitation to ask along with a block
-//     that was already being emitted
+//   - discovery block appears unless .foreman/config.json sets
+//     discoverySuggestions:false, and carries no roadmap titles when it does
 //   - requireVerification:true withholds the done transition until the user
 //     confirms, without affecting the freshly-done follow-up branch
-//   - malformed/missing config is treated as discoverySuggestions:false and
-//     requireVerification:true — each key's safe reading, not one polarity
+//   - malformed/missing config lands on every key's default, so both
+//     discoverySuggestions and requireVerification read as on
 //   - a failed commit (confirmed nonzero exit code) stays silent
 //   - a commit with no confirmed exit code fails open (still fires)
 
@@ -33,7 +30,6 @@ const {
   initGitRepo,
   commitFile,
 } = require('./helpers');
-const { discoveryInviteStatePath } = require('../hooks/post-commit');
 
 let project;
 let env;
@@ -248,6 +244,7 @@ describe('awaiting-acceptance follow-up nudge', () => {
   });
 
   test('the recording command keeps each id at its own current status, not a blanket one', () => {
+    writeConfig(project, { discoverySuggestions: false });
     writeRoadmap(project, [
       { id: '001', title: 'ship the thing', status: 'done', updated_at: todayStr() },
       { id: '002', title: 'wait for yes', status: 'awaiting_acceptance' },
@@ -387,34 +384,33 @@ describe('discovery block', () => {
     assert.match(out, /Every candidate MUST go through the duplicate check/);
   });
 
-  test('does not fire by default when config is missing', () => {
+  test('fires by default when config is missing', () => {
     writeRoadmap(project, [{ id: '001', status: 'planned' }]);
     const out = run(bashPayload('git commit -m "add feature"'));
-    assert.equal(out, '');
+    assert.match(out, /Roadmap discovery is enabled/);
   });
 
-  // A config nobody can parse is not a project opting in.
-  test('does not fire when config is malformed JSON', () => {
+  // A config nobody can parse holds no opt-out, so it lands on the default —
+  // the same reading requireVerification already takes.
+  test('fires when config is malformed JSON', () => {
     writeRoadmap(project, [{ id: '001', status: 'planned' }]);
     const fs = require('fs');
     const path = require('path');
     fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
     fs.writeFileSync(path.join(project, '.foreman', 'config.json'), '{not json', 'utf-8');
     const out = run(bashPayload('git commit -m "add feature"'));
-    assert.equal(out, '');
+    assert.match(out, /Roadmap discovery is enabled/);
   });
 
-  // The default flip is discovery-only: the status-sync block still fires on
-  // an unconfigured project, and a malformed config still reads as
-  // requireVerification:true (see the requireVerification suite).
-  test('status-sync is unaffected by the discovery default flip', () => {
+  test('the status-sync block still fires alongside it, unconfigured', () => {
     writeRoadmap(project, [{ id: '001', title: 'Wugglesnort the thing', status: 'in_progress' }]);
     const out = run(bashPayload('git commit -m "finish task"'));
     assert.match(out, /may complete an in-progress/i);
     assert.match(out, /Wugglesnort the thing/);
-    assert.doesNotMatch(out, /Roadmap discovery is enabled/);
+    assert.match(out, /Roadmap discovery is enabled/);
   });
 
+  // The one way out, and the only value that takes it.
   test('does not fire when discoverySuggestions is explicitly false', () => {
     writeRoadmap(project, [{ id: '001', status: 'planned' }]);
     writeConfig(project, { discoverySuggestions: false });
@@ -428,70 +424,6 @@ describe('discovery block', () => {
     const out = run(bashPayload('git commit -m "wip"'));
     assert.match(out, /Roadmap discovery is enabled/);
     assert.match(out, /in-progress ROADMAP/i);
-  });
-});
-
-// [Foreman: 136] init stopped asking about discovery, so the key now carries
-// three states, not two: absent means "never asked" and earns a one-time
-// invitation to ask; an explicit false is a decline and stays silent; an
-// explicit true is the feature itself and needs no invitation.
-describe('discovery first-relevant invitation', () => {
-  test('missing key: invites the ask, without the suggestions block', () => {
-    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
-    const out = context(bashPayload('git commit -m "wip"'));
-    assert.match(out, /never answered whether it wants commit-time roadmap discovery/);
-    assert.match(out, /"discoverySuggestions": true` or `false`/);
-    assert.doesNotMatch(out, /Roadmap discovery is enabled/);
-  });
-
-  test('explicit false: neither the invitation nor the suggestions block', () => {
-    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
-    writeConfig(project, { discoverySuggestions: false });
-    const out = context(bashPayload('git commit -m "wip"'));
-    assert.doesNotMatch(out, /never answered whether it wants/);
-    assert.doesNotMatch(out, /Roadmap discovery is enabled/);
-  });
-
-  test('explicit true: the suggestions block, and no invitation', () => {
-    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
-    writeConfig(project, { discoverySuggestions: true });
-    const out = context(bashPayload('git commit -m "wip"'));
-    assert.match(out, /Roadmap discovery is enabled/);
-    assert.doesNotMatch(out, /never answered whether it wants/);
-  });
-
-  // A config the user has (from init, which writes five other keys) but that
-  // has never carried this one is the normal post-136 case.
-  test('a config carrying other keys but not this one still invites', () => {
-    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
-    writeConfig(project, { requireVerification: false, taskCloseGate: 'off' });
-    const out = context(bashPayload('git commit -m "wip"'));
-    assert.match(out, /never answered whether it wants commit-time roadmap discovery/);
-  });
-
-  test('rides along only — never makes the hook speak on a silent commit', () => {
-    writeRoadmap(project, [{ id: '001', status: 'planned' }]);
-    const out = run(bashPayload('git commit -m "wip"'));
-    assert.equal(out, '');
-  });
-});
-
-describe('discovery invite rate limit', () => {
-  test('is absent on the next qualifying commit the same day', () => {
-    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
-    const first = run(bashPayload('git commit -m "wip 1"'));
-    assert.match(first, /never answered whether it wants/);
-    const second = run(bashPayload('git commit -m "wip 2"'));
-    assert.doesNotMatch(second, /never answered whether it wants/);
-    // the block it rides along with is unaffected by the invite's own dedup
-    assert.match(second, /in-progress ROADMAP/i);
-  });
-
-  test('a corrupt state file fails open — invites anyway', () => {
-    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
-    fs.writeFileSync(discoveryInviteStatePath(project), 'not json', 'utf-8');
-    const out = run(bashPayload('git commit -m "wip"'));
-    assert.match(out, /never answered whether it wants/);
   });
 });
 
@@ -537,6 +469,7 @@ describe('freshly-done nudge fires once per entry per day', () => {
   // awaiting_acceptance entry is just another id in the same population.
   test('second commit the same day stays silent for an already-nudged awaiting_acceptance entry', () => {
     writeRoadmap(project, [{ id: '001', title: 'waiting', status: 'awaiting_acceptance' }]);
+    writeConfig(project, { discoverySuggestions: false });
     const first = run(bashPayload('git commit -m "fix 1"'));
     assert.match(first, /follow-up fix/);
     const second = run(bashPayload('git commit -m "fix 2"'));
@@ -781,7 +714,7 @@ describe('the discovery inclusion bar switch', () => {
   function strings(env) {
     const result = spawnSync(
       'node',
-      ['-e', `const m = require(${JSON.stringify(HOOK)}); process.stdout.write(JSON.stringify({ block: m.discoveryBlock(), invite: m.DISCOVERY_INVITE }));`],
+      ['-e', `const m = require(${JSON.stringify(HOOK)}); process.stdout.write(JSON.stringify({ block: m.discoveryBlock() }));`],
       { encoding: 'utf-8', env: { ...process.env, ...(env || {}) } }
     );
     assert.equal(result.status, 0, result.stderr);
@@ -805,13 +738,6 @@ describe('the discovery inclusion bar switch', () => {
     );
     assert.match(block, /exact\s+path, symbol, or behaviour you observed/);
     assert.match(block, /If nothing in this commit clears that bar, say nothing\./);
-  });
-
-  test('the user-facing invite matches whichever bar is live', () => {
-    assert.match(strings().invite, /scan each commit for confirmed bugs and/);
-    const swapped = strings({ FOREMAN_DISCOVERY_CONCRETE_BAR: '1' }).invite;
-    assert.ok(!/confirmed bugs/.test(swapped), 'the invite still promises the old bar');
-    assert.match(swapped, /scan each commit for bugs and/);
   });
 
   test('everything the bar does not govern is untouched', () => {

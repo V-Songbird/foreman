@@ -1,6 +1,6 @@
 ---
 name: init
-description: Bootstraps a project's ROADMAP.jsonl and .foreman/config.json. Asks three things — what the project is, its near-term goals, and whether the drafted roadmap looks right — then writes and commits both files, leaving every optional behavior at its built-in default. Discovery, decision notes, and checkpoint policy are never asked here; each one is asked the first time it could actually matter.
+description: Bootstraps a project's ROADMAP.jsonl and .foreman/config.json. Asks three things — what the project is, its near-term goals, and whether the drafted roadmap looks right — then writes and commits both files, leaving every optional behavior at its built-in default. The ledger and checkpoint policy are never asked here; each is asked the first time it could actually matter.
 when_to_use: Trigger when the user wants to set up Foreman's roadmap for a project, says "init foreman", "set up the roadmap", "initialize foreman", "start a roadmap", or invokes /foreman:init. Usually a one-time-per-project action.
 argument-hint: "<brief project description — optional seed>"
 allowed-tools: AskUserQuestion, Read, Write, Bash
@@ -95,12 +95,11 @@ nothing blocks a task's completion, handoffs open with a persona sentence,
 no prompt section is omitted, and Fable 5 is assumed unavailable.
 
 Writing those values out would only create a second copy that can drift
-from the readers. `discoverySuggestions` and `ledger` stay absent for
-a second reason too: an absent key is the record that the user was never
-asked, so each gets asked once, the first time it could matter — discovery
-by the post-commit hook after a commit it would have run on, the ledger by
-`foreman:roadmap` at the first pick whose files a finished task already
-touched, and checkpoint policy at the first split run.
+from the readers. `ledger` stays absent for a second reason too: an absent
+key is the record that the user was never asked, so it gets asked once, the
+first time it could matter — by `foreman:roadmap` at the first pick whose
+files a finished task already touched. Checkpoint policy is asked the same
+way, at the first split run.
 
 Any of it can be set by hand later — see
 [`settings.md`](../../settings.md).
@@ -210,7 +209,7 @@ the updated draft, ask again. Repeat until approved.
    **If the file already exists, leave it exactly as it is.** There is
    nothing for init to put in it, and everything already in it is either a
    deliberate hand edit or the recorded answer to a first-relevant ask
-   (`discoverySuggestions`, `ledger`, `checkpoints`) that a re-init
+   (`ledger`, `checkpoints`) that a re-init
    must not throw away. If the file exists but won't parse, say so in the
    report-back and change nothing.
 4. Stage and commit just these two files:

@@ -7,6 +7,13 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## Unreleased
+
+### Changed
+
+- Commit-time roadmap suggestions are on by default. After a commit, Foreman offers work worth tracking that it spotted in the change. Set `"discoverySuggestions": false` in `.foreman/config.json` to turn it off.
+- Foreman no longer asks whether you want them. It just does it, until you say otherwise.
+
 ## 2.0.0 — 2026-08-21
 
 Foreman kept two separate records of what a finished task learned. There is one now, called the ledger.

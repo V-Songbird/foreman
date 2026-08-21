@@ -519,7 +519,8 @@ no CLI wraps it (unlike `ROADMAP.jsonl`) — edited directly with `Read`/
 `Write` when a flag needs to change. Full field reference is in
 [`settings.md`](settings.md); the one relevant to this file's
 own consumer (`post-commit.js`) is `discoverySuggestions` — missing or
-unparseable → treated as `false` (off by default); set it `true` to opt in.
+unparseable → treated as `true` (on by default); an explicit `false` is the
+only way out.
 
 ---
 
