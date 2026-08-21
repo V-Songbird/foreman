@@ -108,10 +108,10 @@ its repair, never `doctor --fix`.
 | `created_at` | string (`YYYY-MM-DD`) | yes | Set once, at creation, never rewritten. |
 | `updated_at` | string (`YYYY-MM-DD`) | yes | Rewritten on every change to the entry. Doubles as `correct`'s staleness guard (`expected_updated_at`), and the split there is honest: it is **date-only**, so two corrections on the same day both match it — those are caught by `correct`'s per-field content check instead (`expected.<field>` must equal the stored value, so a correction composed against text it never saw is refused). What the date guard catches is the multi-day case: a session applying a correction composed against an entry it read days ago, on top of someone else's newer one. |
 | `notes` | string | yes (may be `""`) | Free text. **Append-only** — add to it, never overwrite what's already there. Each append lands on its own `YYYY-MM-DD`-stamped line, written by the script; don't hand-write a date into the note text. The embedded newlines are JSON-escaped, so the file stays one line per entry. This is the durable home for full findings, not a one-line breadcrumb — a dense paragraph of specific findings (exact paths/symbols, what was tried, what shipped) is expected and normal (warns past ~3000 chars). Still never a serialized JSON blob (e.g. dumping an imported/legacy record's full JSON as a string here defeats the point of a structured schema; if migrating from another tracker, map its fields onto `why`/`what`/`planned_touches` instead of stuffing the original object into `notes`). |
-| `doc` | string | no — omitted entirely when not set | Where a `kind: "decision"` entry's decision is written down; ordinary build entries are never asked for it and normally have no `doc` key at all. A forced choice recorded on `add`/`update-status`: exactly `"none"` (this task decided nothing worth an ADR) or a relative path ending in `.md` (no leading slash, no drive letter, no `..` segments) under the project's decision-log dir (default `docs/foreman/<id>.md`, path configurable). Never backfilled onto existing entries and never defaulted — an entry predating this field, or one where the field was never passed, simply has no `doc` key. Code points back at the doc with an anchor comment, `[Foreman: <id>[, <id>...]]` (ids of three or more digits, zero-padded to at least three, comma-separated — e.g. `// [Foreman: 019]` or `// [Foreman: 019, 034]`); `DECISION_ANCHOR_RE`/`anchorIdsIn`/`anchorHasId` in `scripts/roadmap.js` are the one shared definition of that format. |
+| `doc` | string | no — omitted entirely when not set | An optional pointer at a document this project already keeps about this entry. Foreman authors no document and templates none: it only reads. Recorded on `add`/`update-status` as exactly `"none"` (nothing was written down outside the ledger) or a relative path ending in `.md` (no leading slash, no drive letter, no `..` segments), by convention `<ledger.dir>/<id>.md` (default `docs/foreman/<id>.md`, path configurable). Never backfilled onto existing entries and never defaulted, and nothing demands it — an entry where the field was never passed simply has no `doc` key. Direct dependencies' `doc` paths ride into a handoff as `depends_on_docs`. Code points back at an entry with an anchor comment, `[Foreman: <id>[, <id>...]]` (ids of three or more digits, zero-padded to at least three, comma-separated — e.g. `// [Foreman: 019]` or `// [Foreman: 019, 034]`); `DECISION_ANCHOR_RE`/`anchorIdsIn`/`anchorHasId` in `scripts/roadmap.js` are the one shared definition of that format. |
 | `model` | enum | no — omitted entirely when not set | `haiku \| sonnet \| opus \| fable` — which model **actually executed** this entry, recorded on `update-status` (typically the close), never on `add` (an entry being created hasn't run yet). Deliberately not compared against the model that was recommended at craft time: the difference between recommendation and reality is the signal being captured, so nothing warns when they diverge. Self-reported by whoever closes the entry — it cannot be detected, since hook input carries no model. Extend the accepted set in `scripts/roadmap.js` (`MODELS`) when a new model ships. |
 | `effort` | enum | no — omitted entirely when not set | `low \| medium \| high \| xhigh \| max` — the reasoning effort the executing session ran at, recorded the same way and under the same rules as `model`. Also self-reported: the `Agent` tool takes no effort argument, so effort is never dispatched, only whatever the session was already set to. Accepted set is `EFFORTS` in `scripts/roadmap.js`. |
-| `kind` | enum | no — omitted entirely when `build` | The task's purpose: `"build"` (implement a slice — the default, so it's never written to the file) or `"decision"` (resolve an open question, producing a recorded decision rather than code). Set at `add`, `update-status`, or `correct` (reclassifying back to `"build"` drops the key), same omit-when-default shape as `doc`: only `"decision"` is stored, and an entry with no `kind` key is a build. `foreman:roadmap`'s pick flow reads it and, for a decision entry, adds a "decide, don't build" rule to the handoff prompt — which pairs with the decision-log `doc` (the decision's product). It exists because a decision-shaped entry with no such rule gets implemented straight into code a measurable fraction of the time instead of decided; `kind` is what declares the difference once, on the entry, instead of hoping each session infers it. |
+| `kind` | enum | no — omitted entirely when `build` | The task's purpose: `"build"` (implement a slice — the default, so it's never written to the file) or `"decision"` (resolve an open question, producing a recorded decision rather than code). Set at `add`, `update-status`, or `correct` (reclassifying back to `"build"` drops the key), same omit-when-default shape as `doc`: only `"decision"` is stored, and an entry with no `kind` key is a build. `foreman:roadmap`'s pick flow reads it and, for a decision entry, adds a "decide, don't build" rule to the handoff prompt. It exists because a decision-shaped entry with no such rule gets implemented straight into code a measurable fraction of the time instead of decided; `kind` is what declares the difference once, on the entry, instead of hoping each session infers it. |
 
 ### `status` values
 
@@ -410,11 +410,12 @@ close writes the roadmap and never the archive.
 
 ---
 
-## Lesson lines — `.foreman/notes.jsonl`
+## The ledger — `.foreman/notes.jsonl`
 
-Off by default (`areaNotes.enabled`). When on, a close may record **one
-durable sentence** about the code area it touched, and a later task whose
-planned files intersect that record's files is served it back.
+Off by default (`ledger.enabled`; the older `areaNotes` and `decisionLog`
+keys are read as the same setting). When on, a close may record **one durable
+sentence** about the code area it touched, and a later task whose planned
+files intersect that record's files is served it back.
 
 **Record shape.** One JSON object per line, after a
 `{"foreman_notes_format":1}` first line:
@@ -487,6 +488,16 @@ under a 1000-character ceiling, each one whole or absent.
 **Freshness.** Every served record is resolved against git at serving time and
 labelled fresh, possibly-stale, or unknown. A record whose every stored file is
 gone is dropped rather than served.
+
+**Anchors at dispatch.** Beside the path-matched lessons, a handoff reads the
+entry's own `planned_touches` (at most twelve files, capped reads) for
+`[Foreman: <id>]` comments and names what each anchored id resolves to: that
+entry's title, and its document under `ledger.dir` when one exists there. At
+most six ids, first planned file wins, and the entry's own id is never quoted
+back at itself. An id with neither an entry nor a document is stray bracket
+text and is dropped — the same rule `hooks/ledger-recall.js` applies when the
+file is opened rather than planned. This channel is independent of
+`ledger.enabled`: an anchor is the project's own comment, not Foreman's state.
 
 **Reassign-id.** For an entry-kind record the entry id *is* the anchor, and
 `reassign-id` renumbers holders while immutable commit trailers keep naming
@@ -575,11 +586,4 @@ All access — from any caller — goes through `scripts/roadmap.js`, and
   withholds until the user says yes, and a session with no user to ask (a
   background agent, a fold-back) would deadlock. That entry is already
   recorded; `doctor`'s `awaiting_without_evidence` covers the case where it
-  isn't. With
-  `decisionLog.gate` set to `block`, it also audits the `done` close of a
-  `kind: "decision"` entry: that entry must record its `doc` (a path or
-  `"none"`), and a named doc must exist with an anchor comment in one of the
-  entry's commits. A build entry — no `kind` key — is never audited for a
-  doc, whatever the decision-log config says: ordinary implementation work
-  owes no decision record. Any other state, kind, id, or description: silent
-  no-op.
+  isn't. Any other state, id, or description: silent no-op.

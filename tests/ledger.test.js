@@ -1,7 +1,7 @@
 'use strict';
 
-// Tests for scripts/area-notes.js — the lesson ledger's append-only store —
-// and for the `lesson` input update-status writes it through.
+// Tests for scripts/ledger.js — the ledger's append-only store — and for
+// the `lesson` input update-status writes it through.
 //
 // Covers:
 //   - the store's refusal reasons, each by its own name
@@ -12,6 +12,8 @@
 //   - a close never fails because of its lesson: every refusal keeps the
 //     prose on the entry's own notes instead
 //   - the disabled default, and the env override that flips it
+//   - the two config keys `ledger` replaced still turn it on
+//   - anchors served at dispatch, beside the path-matched lessons
 
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
@@ -20,7 +22,7 @@ const path = require('path');
 const { spawnSync } = require('node:child_process');
 
 const { runRoadmap, makeTmpProject, writeRoadmap, initGitRepo, commitFile, SCRIPTS_DIR } = require('./helpers.js');
-const areaNotes = require(path.join(SCRIPTS_DIR, 'area-notes.js'));
+const ledger = require(path.join(SCRIPTS_DIR, 'ledger.js'));
 const { today } = require(path.join(SCRIPTS_DIR, 'roadmap.js'));
 
 function entry(overrides = {}) {
@@ -57,20 +59,20 @@ function enabledProject(extraConfig = {}) {
   fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
   fs.writeFileSync(
     path.join(project, '.foreman', 'config.json'),
-    JSON.stringify({ areaNotes: { enabled: true }, ...extraConfig }),
+    JSON.stringify({ ledger: { enabled: true }, ...extraConfig }),
     'utf-8'
   );
   return project;
 }
 
 function storedRecords(project) {
-  return areaNotes.read(project).records;
+  return ledger.read(project).records;
 }
 
-describe('area-notes store', () => {
+describe('ledger store', () => {
   test('an appended record keeps its paths exactly as recorded', () => {
     const project = makeTmpProject();
-    const out = areaNotes.append(project, {
+    const out = ledger.append(project, {
       lesson: 'token refresh lives in refresh(); tests must fake time',
       paths: ['src\\Auth\\session.js', './test/helpers/clock.js'],
       entry: '001',
@@ -85,27 +87,27 @@ describe('area-notes store', () => {
 
   test('the first line is a format marker and is not a record', () => {
     const project = makeTmpProject();
-    areaNotes.append(project, { lesson: 'a', paths: ['src/a.js'], entry: '001', date: today() });
-    const lines = fs.readFileSync(areaNotes.notesPath(project), 'utf-8').trim().split('\n');
-    assert.deepEqual(JSON.parse(lines[0]), { [areaNotes.FORMAT_KEY]: areaNotes.FORMAT });
+    ledger.append(project, { lesson: 'a', paths: ['src/a.js'], entry: '001', date: today() });
+    const lines = fs.readFileSync(ledger.notesPath(project), 'utf-8').trim().split('\n');
+    assert.deepEqual(JSON.parse(lines[0]), { [ledger.FORMAT_KEY]: ledger.FORMAT });
     assert.equal(storedRecords(project).length, 1);
   });
 
   test('a lesson over 500 chars is refused, never truncated', () => {
     const project = makeTmpProject();
-    const out = areaNotes.append(project, {
-      lesson: 'x'.repeat(areaNotes.LESSON_MAX + 1),
+    const out = ledger.append(project, {
+      lesson: 'x'.repeat(ledger.LESSON_MAX + 1),
       paths: ['src/a.js'],
       entry: '001',
       date: today(),
     });
     assert.deepEqual(out, { stored: false, reason: 'over_500_chars' });
-    assert.equal(fs.existsSync(areaNotes.notesPath(project)), false);
+    assert.equal(fs.existsSync(ledger.notesPath(project)), false);
   });
 
   test('bookkeeping-only paths leave nothing to record', () => {
     const project = makeTmpProject();
-    const out = areaNotes.append(project, {
+    const out = ledger.append(project, {
       lesson: 'a real fact',
       paths: ['ROADMAP.jsonl', '.foreman/notes.jsonl', 'docs/foreman/101.md'],
       entry: '001',
@@ -116,9 +118,9 @@ describe('area-notes store', () => {
 
   test('a torn final line is skipped and every whole line survives', () => {
     const project = makeTmpProject();
-    areaNotes.append(project, { lesson: 'first', paths: ['src/a.js'], entry: '001', date: today() });
-    fs.appendFileSync(areaNotes.notesPath(project), '{"paths":["src/b.js"],"lesso');
-    const { records, error } = areaNotes.read(project);
+    ledger.append(project, { lesson: 'first', paths: ['src/a.js'], entry: '001', date: today() });
+    fs.appendFileSync(ledger.notesPath(project), '{"paths":["src/b.js"],"lesso');
+    const { records, error } = ledger.read(project);
     assert.equal(error, null);
     assert.equal(records.length, 1);
     assert.equal(records[0].lesson, 'first');
@@ -126,11 +128,11 @@ describe('area-notes store', () => {
 
   test('a merge-conflicted store serves nothing and refuses new writes', () => {
     const project = makeTmpProject();
-    areaNotes.append(project, { lesson: 'first', paths: ['src/a.js'], entry: '001', date: today() });
-    fs.appendFileSync(areaNotes.notesPath(project), '<<<<<<< HEAD\n');
-    assert.deepEqual(areaNotes.read(project), { records: [], retired: [], tombstones: [], superseded: [], format: null, error: 'conflict', invalid: 0 });
+    ledger.append(project, { lesson: 'first', paths: ['src/a.js'], entry: '001', date: today() });
+    fs.appendFileSync(ledger.notesPath(project), '<<<<<<< HEAD\n');
+    assert.deepEqual(ledger.read(project), { records: [], retired: [], tombstones: [], superseded: [], format: null, error: 'conflict', invalid: 0 });
     assert.deepEqual(
-      areaNotes.append(project, { lesson: 'second', paths: ['src/b.js'], entry: '002', date: today() }),
+      ledger.append(project, { lesson: 'second', paths: ['src/b.js'], entry: '002', date: today() }),
       { stored: false, reason: 'conflict' }
     );
   });
@@ -139,26 +141,26 @@ describe('area-notes store', () => {
     const project = makeTmpProject();
     fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
     fs.writeFileSync(
-      areaNotes.notesPath(project),
-      `${JSON.stringify({ [areaNotes.FORMAT_KEY]: areaNotes.FORMAT + 1 })}\n`,
+      ledger.notesPath(project),
+      `${JSON.stringify({ [ledger.FORMAT_KEY]: ledger.FORMAT + 1 })}\n`,
       'utf-8'
     );
-    const { records, error } = areaNotes.read(project);
+    const { records, error } = ledger.read(project);
     assert.equal(error, 'unsupported_format');
     assert.deepEqual(records, []);
   });
 
   test('a missing store is a project that recorded nothing, not an error', () => {
-    assert.deepEqual(areaNotes.read(makeTmpProject()), { records: [], retired: [], tombstones: [], superseded: [], format: areaNotes.FORMAT, error: null, invalid: 0 });
+    assert.deepEqual(ledger.read(makeTmpProject()), { records: [], retired: [], tombstones: [], superseded: [], format: ledger.FORMAT, error: null, invalid: 0 });
   });
 
   test('the area key is the dominant two-segment prefix, lowercased', () => {
-    assert.equal(areaNotes.dominantArea(['src/Auth/session.js', 'test/helpers/clock.js']), 'src/auth');
+    assert.equal(ledger.dominantArea(['src/Auth/session.js', 'test/helpers/clock.js']), 'src/auth');
     assert.equal(
-      areaNotes.dominantArea(['foreman/scripts/a.js', 'foreman/scripts/b.js', 'foreman/tests/c.js']),
+      ledger.dominantArea(['foreman/scripts/a.js', 'foreman/scripts/b.js', 'foreman/tests/c.js']),
       'foreman/scripts'
     );
-    assert.equal(areaNotes.dominantArea(['README.md']), '.');
+    assert.equal(ledger.dominantArea(['README.md']), '.');
   });
 });
 
@@ -186,13 +188,13 @@ describe('update-status lesson', () => {
     const { status, json } = close(project, { lesson: 'a fact worth keeping' });
     assert.equal(status, 0, 'a lesson must never fail the close');
     assert.deepEqual(json.lesson, { stored: false, reason: 'disabled' });
-    assert.match(json.entry.notes, /lesson not recorded \(areaNotes disabled\): a fact worth keeping/);
-    assert.equal(fs.existsSync(areaNotes.notesPath(project)), false);
+    assert.match(json.entry.notes, /lesson not recorded \(ledger disabled\): a fact worth keeping/);
+    assert.equal(fs.existsSync(ledger.notesPath(project)), false);
   });
 
   test('an over-long lesson is refused by name and still kept on the entry', () => {
     const project = enabledProject();
-    const long = 'y'.repeat(areaNotes.LESSON_MAX + 1);
+    const long = 'y'.repeat(ledger.LESSON_MAX + 1);
     const { status, json } = close(project, { lesson: long });
     assert.equal(status, 0);
     assert.deepEqual(json.lesson, { stored: false, reason: 'over_500_chars' });
@@ -243,7 +245,7 @@ describe('update-status lesson', () => {
     const project = enabledProject();
     initGitRepo(project);
     fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
-    fs.writeFileSync(areaNotes.notesPath(project), '{"foreman_notes_format":1}\n', 'utf-8');
+    fs.writeFileSync(ledger.notesPath(project), '{"foreman_notes_format":1}\n', 'utf-8');
     spawnSync('git', ['add', '.foreman/notes.jsonl'], { cwd: project });
     const { json } = close(project, { staged: true });
     assert.ok(
@@ -254,7 +256,7 @@ describe('update-status lesson', () => {
 });
 
 describe('lesson lines in the handoff', () => {
-  const { areaNotesText, notesOverlapExists } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
+  const { ledgerText, notesOverlapExists } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
 
   // A real repo, so the record resolves to "fresh" and its prose is served.
   // With no git it would resolve to "unknown", which serves paths only —
@@ -263,7 +265,7 @@ describe('lesson lines in the handoff', () => {
     const project = enabledProject();
     initGitRepo(project);
     const sha = commitFile(project, 'src/Auth/session.js', 'const refresh = () => 1;\n');
-    areaNotes.append(project, {
+    ledger.append(project, {
       lesson: 'the token clock lives in refresh(); fake it in tests',
       paths: ['src/Auth/session.js'],
       entry: '900',
@@ -276,7 +278,7 @@ describe('lesson lines in the handoff', () => {
 
   test('a record whose files this task plans to touch is served, with its label', () => {
     const { project, sha } = seeded();
-    const text = areaNotesText(project, { id: '001', planned_touches: ['src/Auth/session.js'] });
+    const text = ledgerText(project, { id: '001', planned_touches: ['src/Auth/session.js'] });
     assert.match(text, /^Lessons recorded by earlier closed tasks touching these files/);
     assert.match(text, /the token clock lives in refresh\(\)/);
     assert.ok(text.includes(`[entry 900, 2026-08-01, at ${sha} — unchanged since]`), text);
@@ -291,14 +293,14 @@ describe('lesson lines in the handoff', () => {
     const project = enabledProject();
     fs.mkdirSync(path.join(project, 'src', 'Auth'), { recursive: true });
     fs.writeFileSync(path.join(project, 'src', 'Auth', 'session.js'), 'x', 'utf-8');
-    areaNotes.append(project, {
+    ledger.append(project, {
       lesson: 'an unverifiable claim',
       paths: ['src/Auth/session.js'],
       entry: '900',
       anchor: { kind: 'entry' },
       date: '2026-08-01',
     });
-    const text = areaNotesText(project, { id: '001', planned_touches: ['src/Auth/session.js'] });
+    const text = ledgerText(project, { id: '001', planned_touches: ['src/Auth/session.js'] });
     assert.match(text, /- src\/Auth\/session\.js \[entry 900, 2026-08-01 — anchor unresolvable/);
     assert.ok(!text.includes('an unverifiable claim'));
   });
@@ -306,12 +308,12 @@ describe('lesson lines in the handoff', () => {
   test('disabled serves nothing at all', () => {
     const { project } = seeded();
     fs.writeFileSync(path.join(project, '.foreman', 'config.json'), '{}', 'utf-8');
-    assert.equal(areaNotesText(project, { id: '001', planned_touches: ['src/Auth/session.js'] }), '');
+    assert.equal(ledgerText(project, { id: '001', planned_touches: ['src/Auth/session.js'] }), '');
   });
 
   test('a task planning nothing this store knows serves nothing', () => {
     const { project } = seeded();
-    assert.equal(areaNotesText(project, { id: '001', planned_touches: ['src/unrelated.js'] }), '');
+    assert.equal(ledgerText(project, { id: '001', planned_touches: ['src/unrelated.js'] }), '');
   });
 
   test('the whole block stays under its 1000-char ceiling, dropping whole records', () => {
@@ -319,7 +321,7 @@ describe('lesson lines in the handoff', () => {
     initGitRepo(project);
     const sha = commitFile(project, 'src/Auth/session.js', 'const refresh = () => 1;\n');
     for (let i = 0; i < 6; i += 1) {
-      areaNotes.append(project, {
+      ledger.append(project, {
         lesson: `${'L'.repeat(400)} ${i}`,
         paths: ['src/Auth/session.js'],
         entry: String(900 + i),
@@ -327,7 +329,7 @@ describe('lesson lines in the handoff', () => {
         date: '2026-08-01',
       });
     }
-    const text = areaNotesText(project, { id: '001', planned_touches: ['src/Auth/session.js'] });
+    const text = ledgerText(project, { id: '001', planned_touches: ['src/Auth/session.js'] });
     assert.ok(text.length < 1000, `block was ${text.length} chars`);
     for (const line of text.split('\n').filter((l) => l.startsWith('- '))) {
       assert.ok(line.includes('L'.repeat(400)), 'a served record is whole or absent');
@@ -336,14 +338,14 @@ describe('lesson lines in the handoff', () => {
 
   test('a record whose every file is gone is never served', () => {
     const project = enabledProject();
-    areaNotes.append(project, {
+    ledger.append(project, {
       lesson: 'about code that no longer exists',
       paths: ['src/deleted/gone.js'],
       entry: '900',
       anchor: { kind: 'entry' },
       date: '2026-08-01',
     });
-    assert.equal(areaNotesText(project, { id: '001', planned_touches: ['src/deleted/gone.js'] }), '');
+    assert.equal(ledgerText(project, { id: '001', planned_touches: ['src/deleted/gone.js'] }), '');
   });
 
   test('the overlap fact fires only while the setting is unanswered', () => {
@@ -369,8 +371,157 @@ describe('lesson lines in the handoff', () => {
     const { recallExcerpt } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
     const notes = [
       `${today()} lesson recorded: .foreman/notes.jsonl, area src/auth`,
-      `${today()} lesson not recorded (areaNotes disabled): an unstored claim nobody checked`,
+      `${today()} lesson not recorded (ledger disabled): an unstored claim nobody checked`,
     ].join('\n');
     assert.equal(recallExcerpt(notes), null);
+  });
+});
+
+describe('the config keys `ledger` replaced', () => {
+  const { readLedger } = require(path.join(SCRIPTS_DIR, 'ledger-config.js'));
+
+  function withConfig(config) {
+    const project = makeTmpProject();
+    writeRoadmap(project, [entry()]);
+    fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
+    fs.writeFileSync(path.join(project, '.foreman', 'config.json'), JSON.stringify(config), 'utf-8');
+    return project;
+  }
+
+  test('areaNotes still enables it', () => {
+    assert.equal(readLedger(withConfig({ areaNotes: { enabled: true } })).enabled, true);
+  });
+
+  test('decisionLog still enables it, and still names the documents dir', () => {
+    const resolved = readLedger(withConfig({ decisionLog: { enabled: true, dir: 'docs/adr' } }));
+    assert.equal(resolved.enabled, true);
+    assert.equal(resolved.dir, 'docs/adr');
+  });
+
+  test('ledger wins over a legacy key that disagrees', () => {
+    const project = withConfig({ ledger: { enabled: false }, areaNotes: { enabled: true } });
+    assert.equal(readLedger(project).enabled, false);
+  });
+
+  test('the retired gate key is inert, never an error', () => {
+    const resolved = readLedger(withConfig({ decisionLog: { enabled: true, gate: 'block' } }));
+    assert.equal(resolved.enabled, true);
+    assert.equal(resolved.warning, null);
+  });
+});
+
+describe('anchors served at dispatch', () => {
+  const { anchorsText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
+
+  function anchored(project, body) {
+    fs.mkdirSync(path.join(project, 'src', 'Auth'), { recursive: true });
+    fs.writeFileSync(path.join(project, 'src', 'Auth', 'session.js'), body, 'utf-8');
+  }
+
+  test('an anchor naming a roadmap entry is served with that entry title', () => {
+    const project = makeTmpProject();
+    writeRoadmap(project, [entry(), { ...entry(), id: '019', title: 'Expire sessions server-side' }]);
+    anchored(project, '// [Foreman: 019]\nconst refresh = () => 1;\n');
+    const text = anchorsText(project, { id: '001', planned_touches: ['src/Auth/session.js'] }, 'docs/foreman');
+    assert.match(text, /^Anchored in the files this task plans to touch/);
+    assert.match(text, /src\/Auth\/session\.js carries \[Foreman: 019\] — Expire sessions server-side/);
+  });
+
+  test('a document behind the anchor is named too', () => {
+    const project = makeTmpProject();
+    writeRoadmap(project, [entry(), { ...entry(), id: '019', title: 'Expire sessions server-side' }]);
+    anchored(project, '// [Foreman: 019]\n');
+    fs.mkdirSync(path.join(project, 'docs', 'foreman'), { recursive: true });
+    fs.writeFileSync(path.join(project, 'docs', 'foreman', '019.md'), '# a decision\n', 'utf-8');
+    const text = anchorsText(project, { id: '001', planned_touches: ['src/Auth/session.js'] }, 'docs/foreman');
+    assert.match(text, /→ read docs\/foreman\/019\.md first/);
+  });
+
+  test('an id with neither an entry nor a document is stray bracket text', () => {
+    const project = makeTmpProject();
+    writeRoadmap(project, [entry()]);
+    anchored(project, '// [Foreman: 777]\n');
+    assert.equal(anchorsText(project, { id: '001', planned_touches: ['src/Auth/session.js'] }, 'docs/foreman'), '');
+  });
+
+  test("a task never quotes its own id back at itself", () => {
+    const project = makeTmpProject();
+    writeRoadmap(project, [entry()]);
+    anchored(project, '// [Foreman: 001]\n');
+    assert.equal(anchorsText(project, { id: '001', planned_touches: ['src/Auth/session.js'] }, 'docs/foreman'), '');
+  });
+
+  test('a planned file that does not exist yet is silence, never an error', () => {
+    const project = makeTmpProject();
+    writeRoadmap(project, [entry()]);
+    assert.equal(anchorsText(project, { id: '001', planned_touches: ['src/nope.js'] }, 'docs/foreman'), '');
+  });
+
+  test('no planned files means nothing to read', () => {
+    const project = makeTmpProject();
+    writeRoadmap(project, [entry()]);
+    assert.equal(anchorsText(project, { id: '001', planned_touches: [] }, 'docs/foreman'), '');
+  });
+});
+
+describe('the first-relevant ask', () => {
+  const CRAFT = path.join(SCRIPTS_DIR, 'craft-handoff.js');
+
+  const JUDGMENT = {
+    role: 'a senior backend engineer',
+    goal: 'to refresh tokens before expiry so all tests pass',
+    context: 'JWT in httpOnly cookies.',
+    steps: ['Fix the refresh path.'],
+    constraints: ['Do not change the public API.'],
+    verification: [{ run: 'npm test', expected: 'all tests pass' }],
+  };
+
+  // A closed entry that already touched the file this one plans to — the
+  // overlap that makes the question worth putting at all.
+  function overlapping(config) {
+    const project = makeTmpProject();
+    writeRoadmap(project, [
+      entry({ status: 'planned' }),
+      { ...entry(), id: '002', title: 'Earlier work', status: 'done' },
+    ]);
+    fs.mkdirSync(path.join(project, 'src', 'Auth'), { recursive: true });
+    fs.writeFileSync(path.join(project, 'src', 'Auth', 'session.js'), 'const a = 1;\n', 'utf-8');
+    if (config) {
+      fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
+      fs.writeFileSync(path.join(project, '.foreman', 'config.json'), JSON.stringify(config), 'utf-8');
+    }
+    return project;
+  }
+
+  // The ambient overrides have to be absent, not empty: an empty string is
+  // still a defined variable, which is exactly what suppresses the ask.
+  function cleanEnv(project) {
+    const env = { ...process.env, CLAUDE_PROJECT_DIR: project };
+    delete env.FOREMAN_LEDGER;
+    delete env.FOREMAN_AREA_NOTES;
+    delete env.FOREMAN_DECISION_LOG;
+    return env;
+  }
+
+  function craft(project) {
+    const result = spawnSync(process.execPath, [CRAFT], {
+      input: JSON.stringify({ entry: '001', destination: 'clipboard', judgment: JUDGMENT }),
+      encoding: 'utf-8',
+      env: cleanEnv(project),
+    });
+    return JSON.parse(result.stdout);
+  }
+
+  test('an unanswered project is asked, under the current field name', () => {
+    assert.equal(craft(overlapping(null)).ledger_ask, true);
+  });
+
+  test('an answered project is never asked again', () => {
+    assert.equal('ledger_ask' in craft(overlapping({ ledger: { enabled: false } })), false);
+  });
+
+  test('an answer recorded under either older key still counts as answered', () => {
+    assert.equal('ledger_ask' in craft(overlapping({ areaNotes: { enabled: false } })), false);
+    assert.equal('ledger_ask' in craft(overlapping({ decisionLog: { enabled: true } })), false);
   });
 });

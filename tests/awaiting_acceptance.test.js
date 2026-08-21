@@ -391,7 +391,6 @@ describe('skill contracts', () => {
       id: '001',
       resume: false,
       requireVerification: true,
-      decisionLogEnabled: false,
       isDecision: false,
       destination: 'clipboard',
     });
@@ -402,7 +401,6 @@ describe('skill contracts', () => {
       id: '001',
       resume: false,
       requireVerification: false,
-      decisionLogEnabled: false,
       isDecision: false,
       destination: 'clipboard',
     });

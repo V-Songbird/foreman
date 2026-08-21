@@ -11,15 +11,6 @@
    whether…", "pick an approach") — pass `kind: "decision"` so the pick
    flow later hands it a decide-don't-build rule. A build is the default;
    don't ask unless the entry genuinely looks like a decision.
-   When this is a `kind: "decision"` entry, `Read` `.foreman/config.json`:
-   if it carries no `decisionLog` key at all, the user has never been asked,
-   and this is the first moment it matters — ask once (`AskUserQuestion`)
-   whether Foreman should keep a short "why we picked this" note for
-   decisions and show it to later tasks that build on them, then write the
-   answer as `"decisionLog": {"enabled": <bool>}`, preserving every other
-   key. Write it either way: recording the decline is what stops the
-   question from coming back. A key that is already present is an answer —
-   don't re-ask.
 2. Before writing it, check it isn't already tracked:
    `echo '{"title":"...","why":"..."}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js check-duplicate`
    — matches carry each entry's status. On a match, name the existing

@@ -197,7 +197,7 @@ entry, fetch that entry alone:
 `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --ids <id>`.
 Require exactly one returned row and use that full row as the selected entry
 for every step below. Do not fetch the other menu rows. This is where
-`what`, `planned_touches`/`observed_touches`, `depends_on`, full `notes`, decision-doc fields, and
+`what`, `planned_touches`/`observed_touches`, `depends_on`, full `notes`, `doc`, and
 `kind` first enter the flow. For this targeted read, the script also derives
 `depends_on_docs` as bounded paths from direct dependencies; it does not
 return those dependency entries.
@@ -248,7 +248,7 @@ mechanics it defers to are step 5 below.
      read already carries them, so this stops the destination re-deriving
      what someone already wrote down. `depends_on_docs` needs no gathering:
      when the selected entry carries a non-empty one, the script folds
-     those resolved decision-doc paths into `context` on its own.
+     those resolved document paths into `context` on its own.
    - `steps`/`constraints` ← the entry's own `what`, split into what to
      implement and any hard limits or patterns to follow. `task_rules` carries no read-first bullet — a reinforced handoff
      states that step once in its `<plan>` block, and a standard one carries
@@ -278,9 +278,9 @@ mechanics it defers to are step 5 below.
      entry's own `planned_touches` through `resolve-symbols.js` internally
      and cites the symbols it finds — still no investigation, since it
      reads only files the entry already named. Same for the decision-entry
-     task-rule bullet and the `<decision_log>` block: both are baked
-     automatically from the selected entry's `kind` and the project's
-     `decisionLog` setting, nothing to gather here.
+     task-rule bullet, the lessons the ledger has about those files, and any
+     `[Foreman: <id>]` anchor already sitting in them: all three are
+     gathered by the script, nothing to gather here.
 
    Then, one call:
    ```
@@ -293,7 +293,7 @@ mechanics it defers to are step 5 below.
    path.
 
    Returns one JSON line: `{ok, prompt, profile, signals, tasks?,
-   area_notes_ask?, gate, warnings}`. `profile` and `signals` are internal
+   ledger_ask?, gate, warnings}`. `profile` and `signals` are internal
    bookkeeping — never name either in anything the user reads. Surface any top-level
    `warnings` verbatim whenever that array is non-empty — including when
    `ok` is `true`, since a stale path or an unanswerable verification
@@ -305,7 +305,7 @@ mechanics it defers to are step 5 below.
    copy when a literal helps more than a sentence. Feed that JSON back to
    yourself verbatim, gather the named field properly, and re-call, rather
    than resending the same stdin hoping it passes.
-   **`area_notes_ask: true` — the first moment lesson lines could pay.**
+   **`ledger_ask: true` — the first moment lesson lines could pay.**
    It appears only when a finished entry already touched files this one
    plans to and the setting has never been put to the user. Ask once, before
    delivering:
@@ -324,7 +324,7 @@ mechanics it defers to are step 5 below.
    no later costs nothing.
 
    Write the answer straight into `.foreman/config.json` as
-   `{"areaNotes":{"enabled":<true|false>}}`, preserving every other key —
+   `{"ledger":{"enabled":<true|false>}}`, preserving every other key —
    a written `false` is what stops the question being asked again. Never
    re-craft the prompt because of the answer: it takes effect on the next
    pick, which is soon enough for a setting nobody has been using.

@@ -123,7 +123,7 @@ describe('doctor on a healthy roadmap', () => {
       trialLog: true,
       fableEnabled: true,
       requireVerification: false,
-      decisionLog: { enabled: true, dir: 'docs/foreman', gate: 'off' },
+      ledger: { enabled: true, dir: 'docs/foreman' },
       checkpoints: { branch: true, onFinish: 'squash', baseBranch: 'main' },
     });
     assert.deepEqual(defects(doctor().findings), []);
@@ -437,12 +437,12 @@ describe('doctor lesson-ledger findings', () => {
     assert.deepEqual(withCode(doctor(), 'notes_dead_record'), []);
   });
 
-  test('areaNotes.enabled is a known setting; a bad value is an error', () => {
+  test('ledger.enabled is a known setting; a bad value is an error', () => {
     writeRoadmap(project, [base('001')]);
-    writeConfig(project, { areaNotes: { enabled: true } });
+    writeConfig(project, { ledger: { enabled: true } });
     assert.deepEqual(withCode(doctor(), 'unknown_config_key'), []);
-    writeConfig(project, { areaNotes: { enabled: 'yes' } });
-    assert.equal(assertFinding(doctor(), 'invalid_config_value', 'error').field, 'areaNotes.enabled');
+    writeConfig(project, { ledger: { enabled: 'yes' } });
+    assert.equal(assertFinding(doctor(), 'invalid_config_value', 'error').field, 'ledger.enabled');
   });
 });
 

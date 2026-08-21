@@ -88,16 +88,16 @@ If you would rather type a command than a sentence, these go straight to the poi
 | Check the plan against your actual code | `/foreman:survey` |
 | Write a one-off prompt for something not on the roadmap | `/foreman:craft-prompt` |
 
-## Why-notes that find you later
+## What the last task learned
 
-Your project history remembers every change. Nobody remembers *why*. Turn this on and a task that makes a real decision writes a short note: what you chose, what you turned down, and what that locks you into. The note is tied to the code it is about. Open that code six months later and the note finds you. It is off until you ask for it, because it writes files into your project. The whole thing fits on one page: [`decision-log.md`](decision-log.md).
+Your project history remembers every change. Nobody remembers what the last person worked out on the way. Turn this on and a task that finishes can leave one sentence about the code it touched. The next task that plans to touch those files gets that sentence handed to it before it starts, with a note saying whether the code has moved since. So does anyone who opens one of those files. A sentence that turns out to be wrong can be retired. It is off until you ask for it, because it writes a file into your project. The whole thing fits on one page: [`ledger.md`](ledger.md).
 
 Seeing `Foreman: 019` at the bottom of your saved changes? That one is always on. It is the task number, so you can trace any change back to the job it came from.
 
-There is a lighter version of the same idea. Turn on `areaNotes` and a task that finishes can leave one sentence about the code it touched. Anyone who opens those files later gets that sentence back, with a note saying whether the code has moved since. A sentence that turns out to be wrong can be retired. Every option is in [`settings.md`](settings.md).
+Mark code with an `[Foreman: 019]` comment and the task that governs it travels with it — into the next prompt that touches the file, and to whoever opens it. Every option is in [`settings.md`](settings.md).
 
 > [!NOTE]
-> `areaNotes` is **Beta**. It is the newest thing here and may still have rough edges, so it stays off until you say yes. Turning it back off later does not delete anything you have already saved.
+> The ledger is **Beta**. It is the newest thing here and may still have rough edges, so it stays off until you say yes. Turning it back off later does not delete anything you have already saved.
 
 ## Under the hood
 

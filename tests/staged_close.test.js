@@ -10,8 +10,6 @@
 //     HEAD's trailer gets no follow-up nudge (this commit IS its close, or
 //     its acceptance record); an in_progress entry named by the trailer is
 //     tagged as the one this commit completes
-//   - task-completed.js decision-log audit resolves trailer-linked commits
-//     when commits[] is empty, instead of skipping the anchor check
 
 const { test, describe, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
@@ -195,54 +193,5 @@ describe('post-commit.js trailer behavior', () => {
     writeFile('src/thing.js', 'x\n');
     commitAllWithMessage('record the follow-up\n\nForeman: 001');
     assert.equal(runHook(), '');
-  });
-});
-
-describe('task-completed.js decision-log audit resolves trailer commits', () => {
-  const MARKER = 'This task is ROADMAP.jsonl entry `001`. Mark it in_progress before doing anything else.';
-
-  function runHook(sessionId) {
-    const result = runScriptRaw(
-      'task-completed.js',
-      {
-        hook_event_name: 'TaskCompleted',
-        session_id: sessionId,
-        task_id: '1',
-        task_subject: 'Do the thing',
-        task_description: MARKER,
-      },
-      env
-    );
-    assert.equal(result.status, 0, result.stderr);
-    return result.stdout;
-  }
-
-  function dlSetup(doc) {
-    initGitRepo(project);
-    writeConfig(project, { decisionLog: { enabled: true, gate: 'block' } });
-    writeFile('docs/foreman/001.md', '# decision\n');
-    // kind "decision" is what makes the audit apply at all (entry 140).
-    writeRoadmap(project, [entry('001', 'done', { doc, kind: 'decision' })]);
-  }
-
-  test('a staged close whose trailer commit carries the anchor is compliant', () => {
-    dlSetup('docs/foreman/001.md');
-    writeFile('src/thing.js', 'code(); // [Foreman: 001]\n');
-    commitAllWithMessage('close it\n\nForeman: 001');
-    assert.equal(runHook('session-trailer-ok'), '');
-  });
-
-  test('a staged close whose trailer commit lacks the anchor is flagged', () => {
-    dlSetup('docs/foreman/001.md');
-    writeFile('src/thing.js', 'code();\n');
-    commitAllWithMessage('close it\n\nForeman: 001');
-    assert.match(runHook('session-trailer-miss'), /anchor comment/);
-  });
-
-  test('empty commits and no trailer commit stays an investigation-only pass', () => {
-    dlSetup('docs/foreman/001.md');
-    writeFile('src/thing.js', 'code();\n');
-    commitAllWithMessage('no trailer here');
-    assert.equal(runHook('session-no-trailer'), '');
   });
 });

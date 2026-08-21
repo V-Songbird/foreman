@@ -4,7 +4,7 @@
 // roadmap entry (or entry-less judgment), runs render-sections.js and
 // resolve-symbols.js in-process, computes the handoff profile from the five
 // mechanical signals, assembles the XML from prompt-template.md's canonical
-// blocks, bakes the entry paragraph / decision_log / checkpoint embed, and
+// blocks, bakes the entry paragraph / checkpoint embed, and
 // runs check-prompt.js's gate in-process.
 //
 // Covers:
@@ -416,15 +416,41 @@ describe('the gate — pass and failure both surfaced, never swallowed', () => {
   });
 });
 
-describe('decision_log and the clipboard checkpoint embed', () => {
-  test('a kind:"decision" entry with decisionLog enabled bakes the block and the doc close field', () => {
-    writeConfig(project, { decisionLog: { enabled: true, dir: 'docs/foreman' } });
+describe('decision entries and the clipboard checkpoint embed', () => {
+  // Foreman authors no decision document any more: one ledger records what a
+  // close learned, and where a project writes its decisions down is the
+  // project's own business. Neither the write block nor the forced `doc`
+  // close field survives.
+  // The anchor channel's end-to-end path: a comment in a planned file
+  // reaches the assembled prompt, so the destination reads what governs this
+  // code before it starts, not after a hook catches it mid-edit.
+  test('an anchor in a planned file rides into the background block', () => {
+    writeRoadmap(project, [
+      entryFields(),
+      { ...entryFields(), id: '019', title: 'Expire sessions server-side' },
+    ]);
+    const full = path.join(project, 'src', 'auth', 'middleware.js');
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, '// [Foreman: 019]\nfunction refreshToken() {}\n', 'utf-8');
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.match(json.prompt, /Anchored in the files this task plans to touch/);
+    assert.match(json.prompt, /\[Foreman: 019\] — Expire sessions server-side/);
+  });
+
+  test('a planned file carrying no anchor adds nothing at all', () => {
+    writeRoadmap(project, [entryFields()]);
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.ok(!json.prompt.includes('Anchored in the files'), json.prompt);
+  });
+
+  test('a kind:"decision" entry is never handed a document to write', () => {
+    writeConfig(project, { ledger: { enabled: true, dir: 'docs/foreman' } });
     writeRoadmap(project, [entryFields({ kind: 'decision' })]);
     const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
     assert.equal(json.ok, true, JSON.stringify(json));
-    assert.match(json.prompt, /<decision_log>/);
-    assert.match(json.prompt, /write `docs\/foreman\/001\.md`/);
-    assert.match(json.prompt, /"doc":"<path or none>"/);
+    assert.ok(!json.prompt.includes('<decision_log>'), json.prompt);
+    assert.ok(!json.prompt.includes('"doc":'), json.prompt);
   });
 
   // The synthesized request sentence is the one line carrying the actual ask,

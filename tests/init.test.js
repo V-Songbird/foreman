@@ -94,10 +94,10 @@ describe("init writes safe defaults instead of asking", () => {
   // user was never asked, which is what makes the later first-relevant ask
   // fire exactly once. Writing the key at init would silence it forever.
   test("leaves the first-relevant keys unwritten", () => {
-    assert.match(skill, /`discoverySuggestions` and `decisionLog` stay absent/);
+    assert.match(skill, /`discoverySuggestions` and `ledger` stay absent/);
     assert.match(skill, /an absent key is the record that the user was never\s+asked/);
     assert.doesNotMatch(skill, /"discoverySuggestions": (true|false)/);
-    assert.doesNotMatch(skill, /"decisionLog": \{/);
+    assert.doesNotMatch(skill, /"ledger": \{/);
   });
 
   test("a re-init must not discard an answer already recorded", () => {

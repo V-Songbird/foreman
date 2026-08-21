@@ -26,8 +26,8 @@
 // left zero trace — no transcript attachment of any kind, no tool-result
 // text, no model mention — while the same hook on SessionStart,
 // UserPromptSubmit, PostToolUse and Stop produced hook_system_message and
-// hook_additional_context attachments for the first two fields. Both gates
-// below therefore offer `off` and `block` only: an advisory mode on this
+// hook_additional_context attachments for the first two fields. The gate
+// below therefore offers `off` and `block` only: an advisory mode on this
 // event cannot reach anyone, so it is not offered rather than shipped
 // silent. Do not add another output field here expecting it to arrive.
 //
@@ -40,17 +40,11 @@ const path = require("path");
 const { readInput, projectDir } = require("./lib");
 const crypto = require("crypto");
 
-const { readEntries, anchorHasId } = require("../scripts/roadmap");
+const { readEntries } = require("../scripts/roadmap");
 // [Foreman: 134] Entry-to-commit facts come from the one interpreter, so this
 // gate resolves a commit in the same places every other status view does --
-// including a submodule, where a root-only lookup found nothing and the anchor
-// check silently passed.
-const {
-  recordedCommits,
-  showCommits,
-  trailerShasFor,
-} = require("../scripts/commit-evidence");
-const { readDecisionLog } = require("../scripts/decision-log-config");
+// including a submodule, where a root-only lookup found nothing.
+const { trailerShasFor } = require("../scripts/commit-evidence");
 const { readConfigFile } = require("../scripts/foreman-config");
 const { record: recordTrial, recordResumeRecovered } = require("../scripts/trial-log");
 const { ENTRY_MARKER_RE, entryIdFromDescription } = require("./task-created");
@@ -128,129 +122,6 @@ function blockReason(id) {
   );
 }
 
-// --- Decision-log backstop (roadmap entry 092, narrowed by 140) ---------
-//
-// A separate, opt-in gate that fires only on a `done` close of a
-// `kind: "decision"` entry, only when the existing open-entry gate above
-// did NOT fire (an entry can't be both open and done, so the two never
-// contend in one run). Ordinary implementation work is never asked for a
-// decision record -- an entry with no `kind` is a build and closes silently
-// here no matter what the decisionLog config says. It checks that a closed
-// decision task recorded WHERE its decision lives: either an ADR doc under
-// the configured dir, or the forced "none" (decided nothing worth recording).
-// When a doc path is named, it also verifies the code carries an anchor
-// comment `[Foreman: <id>]` in one of the entry's commits, so the doc and
-// the code it governs stay wired together.
-//
-// Infrastructure never blocks completion: any git failure (not a repo, bad
-// sha, git absent) treats the anchor sub-check as passed, and the config
-// read is fail-soft (a null/absent config means disabled -> silent).
-
-// The close command that repairs a doc-missing entry. Shows both the doc
-// path shape (<dir>/<id>.md) and the "none" escape hatch, mirroring the
-// forced choice the roadmap schema enforces.
-function dlCloseCommand(id, dir) {
-  return (
-    `echo '{"id":"${id}","status":"done","doc":"${dir}/${id}.md"}' | node ${SCRIPT_PATH} update-status ` +
-    '(or use `"doc":"none"` if this task decided nothing worth an ADR)'
-  );
-}
-
-// decision-doc-template.md's own italic instruction lines. A doc still
-// carrying one is the template copied over and never filled in -- the case
-// `fs.existsSync` alone waved through. Pinned against the template file by a
-// test, the way check-prompt.js's PLACEHOLDER_FRAGMENTS is pinned against
-// prompt-template.md, so a reworded template can't silently retire the check.
-//
-// Heading-agnostic on purpose: requiring a `## Decision` heading would reject
-// a legitimate hand-written ADR and still pass the verbatim copy-paste this
-// exists to catch, since the template opens with that very heading.
-const TEMPLATE_PROMPTS = [
-  "*State the choice made in one short paragraph",
-  "*State what forced a choice",
-  "*Highest-value section here.",
-  "*State what this commits future work to",
-];
-
-// The imperative core of a decision-log violation, or null when the entry
-// is compliant (doc "none", a doc file plus an anchored commit, or an
-// investigation-only close with no commits to audit). The caller wraps this
-// core in the block framing.
-function decisionLogCore(root, entry, dir) {
-  const id = entry.id;
-  const doc = entry.doc;
-
-  // (1) No doc field: the close never recorded where the decision lives.
-  if (typeof doc !== "string" || doc === "") {
-    return (
-      `ROADMAP.jsonl entry ${id} is closed but records no decision doc. Record where this ` +
-      `task's choice lives, then re-close it: ${dlCloseCommand(id, dir)}.`
-    );
-  }
-
-  // (2) Forced "none": the task decided nothing worth an ADR -- pass.
-  if (doc === "none") return null;
-
-  // (3a) doc names a path: the file must exist under the project root.
-  const docPath = path.resolve(root, doc);
-  if (!fs.existsSync(docPath)) {
-    return (
-      `ROADMAP.jsonl entry ${id} names decision doc ${doc}, but no file exists there. Create ` +
-      `the ADR at ${doc}, or re-close the entry with \`"doc":"none"\` if it decided nothing worth recording.`
-    );
-  }
-
-  // (3a-ii) ...and say something. Existence alone passed an empty file and a
-  // verbatim copy of decision-doc-template.md, which record no decision at
-  // all. Fail-soft like every other read here: an unreadable file is infra,
-  // and infra never blocks completion.
-  let body = null;
-  try {
-    body = fs.readFileSync(docPath, "utf-8");
-  } catch {
-    body = null;
-  }
-  if (body !== null && (body.trim() === "" || TEMPLATE_PROMPTS.some((p) => body.includes(p)))) {
-    return (
-      `ROADMAP.jsonl entry ${id} names decision doc ${doc}, but that file is empty or still ` +
-      `carries decision-doc-template.md's instruction lines. Write the decision it records, or ` +
-      `re-close the entry with \`"doc":"none"\` if it decided nothing worth recording.`
-    );
-  }
-
-  // (3b) An anchor comment must sit at the governed code. An empty commits
-  // array is either a staged close (the `Foreman: <id>` trailer links the
-  // commit instead of a recorded sha) or an investigation-only close --
-  // resolve the trailer first, and only skip when no commit names the id.
-  let commits = recordedCommits(entry);
-  if (commits.length === 0) {
-    const linked = trailerShasFor(root, id);
-    if (linked === null) return null; // git failure -- infra never blocks
-    if (linked.length === 0) return null; // investigation-only close -- nothing to audit
-    commits = linked;
-  }
-
-  const patch = showCommits(root, commits);
-  if (patch === null) return null; // git failure -- infra never blocks
-  if (anchorHasId(patch, id)) return null;
-
-  return (
-    `ROADMAP.jsonl entry ${id} has decision doc ${doc}, but none of its commits carry an ` +
-    `anchor comment for it. Add a \`[Foreman: ${id}]\` comment at the code the decision governs, ` +
-    `amend the commit to include it, then re-close entry ${id} with that commit's sha.`
-  );
-}
-
-// Same probe-derived framing as blockReason above: the provenance opener
-// (this is Foreman's checkpoint, adjust and retry) plus the "complete it
-// again" closer that keeps a driver from reading the block as a refusal.
-function dlBlockReason(core) {
-  return (
-    `[Foreman] This is Foreman's automated roadmap checkpoint, not you declining the ` +
-    `completion -- adjust and retry, don't abandon it. ${core} Then mark this task completed ` +
-    "again -- completing it again after fixing the record is the correct next step, not a repeat of a denied action."
-  );
-}
 
 function write(payload) {
   try {
@@ -283,7 +154,7 @@ function main() {
   const baseLatch = taskId ? `${String(data.session_id || "")}:${taskId}` : "";
 
   // Existing open-entry gate -- keeps precedence. An open entry is fully
-  // handled here; the decision-log check below is only reached for a closed
+  // handled here; the trial-log record below is only reached for a closed
   // entry, so the two never both fire in one run.
   if (OPEN_STATUSES.has(entry.status)) {
     if (readConfig(root) !== "block") return;
@@ -307,26 +178,6 @@ function main() {
     recordResumeRecovered({ root });
   }
 
-  // Decision-log backstop -- only a `done` close is auditable for an ADR
-  // (dropped/rejected/deferred decided nothing to record).
-  if (entry.status !== "done") return;
-
-  // ...and only an explicit decision task. Ordinary implementation work never
-  // owes a decision record, so no `kind` (a build) means silence here.
-  if (entry.kind !== "decision") return;
-
-  const dl = readDecisionLog(root);
-  if (!dl.enabled || dl.gate !== "block") return; // opt-in; disabled/off -> silent
-
-  const core = decisionLogCore(root, entry, dl.dir);
-  if (!core) return; // compliant close
-
-  // Own latch, suffixed off the base key -- fires even after the open gate
-  // consumed `session:task`, and itself at most once per session's task_id.
-  const dlLatch = baseLatch ? `${baseLatch}:dl` : "";
-  if (dlLatch && !shouldGate(root, dlLatch)) return;
-
-  write({ decision: "block", reason: dlBlockReason(core) });
 }
 
 if (require.main === module) {
@@ -345,9 +196,6 @@ module.exports = {
   shouldGate,
   latchStatePath,
   blockReason,
-  decisionLogCore,
-  TEMPLATE_PROMPTS,
-  dlBlockReason,
   trailerShasFor,
   SCRIPT_PATH,
 };

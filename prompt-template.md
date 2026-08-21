@@ -36,7 +36,7 @@ an instruction for the spawned session to act on later):**
    fails soft to defaults when no `.foreman/config.json` exists). One JSON
    object: `{"usePersona": bool, "omit": [...],
    "fableEnabled": bool, "requireVerification": bool,
-   "decisionLog": {"enabled": bool, "dir": string}, "warnings": [...]}`.
+   "ledger": {"enabled": bool, "dir": string}, "warnings": [...]}`.
    All of it is project **declaration** — foreman never inspects
    which style plugins or model the operator runs.
    - `usePersona` — default `true` when missing/unparseable. Controls only
@@ -62,15 +62,12 @@ an instruction for the spawned session to act on later):**
      (its "Acceptance hold" note): with it `true`, a close that earned
      `done` records `awaiting_acceptance` for the user to confirm. The
      template itself does nothing with it.
-   - `decisionLog` — `{enabled, dir}`, the project's declaration of the
-     decision-log feature (default `{enabled:false, dir:"docs/foreman"}`).
-     Include the `<decision_log>` block below only when `enabled` is `true`
-     **and this task is an explicit decision task** — a `kind: "decision"`
-     roadmap entry, or a craft-prompt task whose deliverable is the choice
-     itself — substituting `dir` for every `<dir>`. Ordinary implementation
-     work never carries the block, whatever `enabled` says: a build decides
-     nothing the project asked to record. `dir` is a relative path the
-     destination writes ADR docs under.
+   - `ledger` — `{enabled, dir}`, the project's declaration of the ledger
+     (default `{enabled:false, dir:"docs/foreman"}`). Nothing in this
+     template is conditional on it: `craft-handoff.js` reads it directly to
+     decide whether to ask for a lesson at close and which directory an
+     `[Foreman: <id>]` anchor resolves a document in. Foreman never writes a
+     document there.
    - `warnings` — surface briefly to the user (skipped entries from a
      malformed config); never blocks assembly.
 
@@ -184,35 +181,6 @@ scope — only to work that's genuinely a separate concern from
 `task_context` above.
 </scope_discipline>
 
-[If step 0's `decisionLog.enabled` is true AND this task is an explicit
-decision task (`kind: "decision"` on its roadmap entry, or a craft-prompt
-task whose deliverable is the choice itself), include the `<decision_log>`
-block below verbatim — substitute the resolved `dir` for every `<dir>`,
-and this task's roadmap entry id for every `<entry-id>` (a craft-prompt
-task with no entry id names the doc after a short kebab slug of the goal
-instead). Omit the whole block otherwise — when `enabled` is false (the
-default), and on every ordinary implementation task regardless of
-`enabled`: a build is not asked to produce a decision record. Anchors
-already in the code still surface on their own, through the read hook.]
-<decision_log>
-Before editing a file, scan it for `[Foreman: <id>]` anchor comments; when present, read the listed docs under `<dir>/` first.
-This task's deliverable is the decision: write `<dir>/<entry-id>.md` before closing, in this shape:
-  ---
-  id: <entry-id>
-  title: <imperative title>
-  date: <YYYY-MM-DD>
-  supersedes: [<id>, ...]   # optional whole-doc key; omit when nothing is superseded
-  ---
-  ## Decision — the choice, named, in one paragraph
-  ## Context — the constraint that forced it
-  ## Alternatives rejected — one line each: the option and the single reason it lost
-  ## Consequences — what future work is committed to, plus any never-touch warning
-  ## Findings — optional; drop when empty
-Cite functions by name, never file:line. Never edit an existing decision doc backward — a reversal is a new doc that cites the old one in `supersedes`.
-Mark each code site the decision governs with an ID-only `[Foreman: <entry-id>]` anchor comment in the file's own comment syntax; append your id to any anchor already there — `[Foreman: 019, 034]`.
-When closing the entry, pass `doc` in update-status: the doc path, or `"none"` when nothing was decided.
-</decision_log>
-
 [If `"tone"` is in `omit` (from `render-sections.js`), drop this whole
 `<tone>` block — unless the chosen destination is a background `Agent`,
 where step 0's carve-out keeps the default below in place (no output style
@@ -257,7 +225,7 @@ since. Anything git cannot answer reads "freshness unknown" — never
 "unchanged".
 
 A second, untagged block can follow it inside `<background>`: the lesson
-lines closed tasks recorded about these files, when `areaNotes` is enabled.
+lines closed tasks recorded about these files, when `ledger` is enabled.
 Same rules — added by the script, never hand-written, carried on both
 profiles, every line staleness-labelled, and a record whose files are all
 gone is dropped rather than served.]
@@ -522,10 +490,6 @@ A block a standard prompt does keep is still held to the template verbatim —
       absent otherwise — all three are optional and nothing flags their
       absence; when `<invariants>` is present, every line reads as an
       assertion that could be checked, never as a contract name
-- [ ] `<decision_log>` present iff step 0's `decisionLog.enabled` was
-      `true` **and** this task is an explicit decision task, with
-      `dir`/`<entry-id>` substituted (absent by default, and always absent
-      on ordinary implementation work)
 - [ ] every tag in `omit` is absent from the assembled prompt, overriding
       a conflicting per-prompt selection (exception: an omitted `tone`
       stays for a background-`Agent` destination — step 0's carve-out);

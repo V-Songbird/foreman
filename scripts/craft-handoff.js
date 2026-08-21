@@ -24,12 +24,13 @@
 // gate as --workflow-stage would be on the CLI (entry 204).
 
 const fs = require("fs");
+const path = require("path");
 const { render, projectDir, readConfig } = require("./render-sections.js");
 const { resolve: resolveSymbols } = require("./resolve-symbols.js");
-const { readEntries, cmdList, touchesOverlap, today } = require("./roadmap.js");
+const { readEntries, cmdList, touchesOverlap, today, anchorIdsIn } = require("./roadmap.js");
 const { anchorShaFor, changedSince } = require("./commit-evidence.js");
-const areaNotes = require("./area-notes.js");
-const { readAreaNotes } = require("./area-notes-config.js");
+const ledger = require("./ledger");
+const { readLedger } = require("./ledger-config");
 const noteStaleness = require("./note-staleness.js");
 const { recordFirstPick } = require("./trial-log.js");
 const {
@@ -73,8 +74,7 @@ function stripBracketed(text) {
 
 // The template's own prose repeatedly *mentions* a tag name in backticks
 // before the real tag shows up ("...the `<output_format>` block below..."
-// inside the tone instruction; "...include the `<decision_log>` block
-// below verbatim..." inside decision_log's own gating instruction) — a
+// inside the tone instruction) — a
 // naive first-`<tag>`-to-next-`</tag>` regex (check-prompt.js's
 // extractBlock, built for scanning an *assembled prompt*, never the
 // template's own instructional prose) locks onto that inline mention and
@@ -96,7 +96,6 @@ function templateDefaults() {
     : "Minimal, professional conversation — silent by default, say only what the user actually needs to know.";
   const outputFormatInner = extractTemplateBlock(xml, "output_format") || "";
   const defaultOutputFormat = norm(stripBracketed(outputFormatInner));
-  const decisionLogInner = extractTemplateBlock(xml, "decision_log");
   const noInventionLine = fullLineContaining(xml, NO_INVENTION_SENTENCE);
   const fixCeilingLine = fullLineContaining(xml, FIX_CEILING_SENTENCE);
   const autonomyAt = xml.indexOf(AUTONOMY_MARKER);
@@ -107,7 +106,6 @@ function templateDefaults() {
     canonical,
     defaultTone,
     defaultOutputFormat,
-    decisionLogInner,
     noInventionLine,
     fixCeilingLine,
     autonomyParagraph,
@@ -411,9 +409,9 @@ function selectNotes(records, record, corpus) {
     .slice(0, NOTES_KEEP);
 }
 
-function areaNotesText(root, record) {
-  if (!root || !readAreaNotes(root).enabled) return "";
-  const { records, error } = areaNotes.read(root);
+function ledgerText(root, record) {
+  if (!root || !readLedger(root).enabled) return "";
+  const { records, error } = ledger.read(root);
   if (error || !records.length) return "";
 
   const corpus = readEntries(root).filter(
@@ -444,9 +442,88 @@ function areaNotesText(root, record) {
   return `${NOTES_HEADER}\n${lines.join("\n")}\n${NOTES_CLOSER}`;
 }
 
+// ---- anchors as live references -------------------------------------------
+//
+// `[Foreman: <id>]` comments mark code an earlier entry already governed. The
+// read-back hook has always surfaced them the moment someone opens the file;
+// this serves the same fact one step earlier, at dispatch, so the destination
+// starts out knowing what governs this code instead of finding out mid-edit.
+//
+// Deliberately not a second lessons channel: what an earlier task LEARNED
+// about these paths already rides in the block above, matched path-level. This
+// answers the different question — which entry settled this code, and where
+// that settlement is written down.
+const ANCHOR_MAX_FILES = 12;
+const ANCHOR_KEEP = 6;
+const ANCHOR_MAX_BYTES = 512 * 1024;
+const ANCHOR_HEADER =
+  "Anchored in the files this task plans to touch — earlier entries that already govern this code:";
+
+// Reads at most the first ANCHOR_MAX_BYTES of `filePath`. null on anything
+// that isn't a readable regular file, which the caller skips: a planned path
+// that does not exist yet is the normal case, not an error.
+function readCappedFile(filePath) {
+  let fd;
+  try {
+    fd = fs.openSync(filePath, "r");
+  } catch {
+    return null;
+  }
+  try {
+    const buf = Buffer.alloc(ANCHOR_MAX_BYTES);
+    const bytesRead = fs.readSync(fd, buf, 0, ANCHOR_MAX_BYTES, 0);
+    return buf.toString("utf-8", 0, bytesRead);
+  } catch {
+    return null; // e.g. EISDIR
+  } finally {
+    try {
+      fs.closeSync(fd);
+    } catch {
+      // ignore
+    }
+  }
+}
+
+/**
+ * The anchored entries this task will read past, newest file order first.
+ *
+ * Costs one capped read per planned file and nothing else. An id with neither
+ * a roadmap entry nor a document behind it is stray bracket text and is
+ * dropped, the same rule the read-back hook applies.
+ */
+function anchorsText(root, record, dir) {
+  const planned = (record.planned_touches || []).slice(0, ANCHOR_MAX_FILES);
+  if (!planned.length) return "";
+
+  const found = new Map(); // anchor id -> the first planned file carrying it
+  for (const rel of planned) {
+    if (found.size >= ANCHOR_KEEP) break;
+    const content = readCappedFile(path.resolve(root, rel));
+    if (content === null) continue;
+    for (const id of anchorIdsIn(content)) {
+      if (id !== record.id && !found.has(id)) found.set(id, rel);
+    }
+  }
+  if (!found.size) return "";
+
+  const titles = new Map(readEntries(root).map((e) => [e.id, e.title]));
+  const lines = [];
+  for (const [id, rel] of found) {
+    const docRel = `${String(dir).split(/[\\/]+/).filter(Boolean).join("/")}/${id}.md`;
+    const hasDoc = fs.existsSync(path.resolve(root, docRel));
+    const title = titles.get(id);
+    if (!title && !hasDoc) continue; // stray bracket text, never surfaced
+    const named = title ? ` — ${title}` : "";
+    const doc = hasDoc ? ` → read ${docRel} first` : "";
+    lines.push(`- ${rel} carries [Foreman: ${id}]${named}${doc}`);
+  }
+  if (!lines.length) return "";
+  return `${ANCHOR_HEADER}\n${lines.join("\n")}`;
+}
+
 /**
  * True when a closed entry already touched files this one plans to, so the
- * first-relevant-moment question about `areaNotes` is worth putting. Only the
+ * first-relevant-moment question about the ledger is worth putting. Only the
  * fact, never the ask: pick.md owns the question, this owns the trigger.
  */
 function notesOverlapExists(root, record) {
@@ -588,7 +665,7 @@ function checkpointEmbedText(cfg, checkCount) {
 // paragraph itself), collapsed to the one concrete variant that applies for
 // this handoff rather than a human-facing skill's illustrative examples.
 
-function entryParagraphText({ id, resume, requireVerification, decisionLogEnabled, isDecision, destination, model, askLesson }) {
+function entryParagraphText({ id, resume, requireVerification, destination, model, askLesson }) {
   const opening = resume
     ? `This task is ROADMAP.jsonl entry \`${id}\`, already marked \`in_progress\` by an earlier session — don't re-mark it; earlier findings may sit in its \`notes\` (included above), read them before re-deriving anything.`
     : `This task is ROADMAP.jsonl entry \`${id}\`. Mark it \`in_progress\` before doing anything else — Foreman's picking flow deliberately leaves it \`planned\` until you do:\n\`echo '{"id":"${id}","status":"in_progress"}' | node ${PLUGIN_ROOT}/scripts/roadmap.js update-status\``;
@@ -603,7 +680,6 @@ function entryParagraphText({ id, resume, requireVerification, decisionLogEnable
   const stageStep = `Stage the task's own files with the safe-commit primitive — never \`git add -A\`:\n\`echo '{"id":"${id}","expected":["<the files this task owns>"]}' | node ${PLUGIN_ROOT}/scripts/safe-commit.js finish --baseline <baseline.head> --no-commit\`\nThen close with \`staged:true\` (the script folds the staged files into \`observed_touches\` and stages ROADMAP.jsonl alongside), then commit once with \`Foreman: ${id}\` as the final line of the message.`;
 
   const fields = ['"status":"<status>"', '"staged":true', '"notes":"<findings>"'];
-  if (decisionLogEnabled && isDecision) fields.push('"doc":"<path or none>"');
   const modelBaked = destination === "agent" && model;
   if (modelBaked) fields.push(`"model":"${model}"`);
   const closeCall = `\`echo '{"id":"${id}",${fields.join(",")}}' | node ${PLUGIN_ROOT}/scripts/roadmap.js update-status\``;
@@ -625,11 +701,6 @@ function entryParagraphText({ id, resume, requireVerification, decisionLogEnable
   return [opening, beginStep, closeIntro, stageStep, closeCall, modelEffortNote, lessonAsk]
     .filter(Boolean)
     .join("\n");
-}
-
-function decisionLogText(decisionLogInner, dir, entryId) {
-  const substituted = decisionLogInner.split("<dir>").join(dir).split("<entry-id>").join(entryId);
-  return `<decision_log>\n${substituted}\n</decision_log>`;
 }
 
 function slugify(text, maxLen = 40) {
@@ -731,15 +802,13 @@ function assemble(root, input) {
   const reinforced = Object.values(signals).some(Boolean);
   const profile = reinforced ? "reinforced" : "standard";
 
-  const { canonical, defaultTone, defaultOutputFormat, decisionLogInner, noInventionLine, fixCeilingLine, autonomyParagraph } =
+  const { canonical, defaultTone, defaultOutputFormat, noInventionLine, fixCeilingLine, autonomyParagraph } =
     templateDefaults();
 
   const omit = new Set(config.omit);
   const isDecision = record.kind === "decision";
-  const decisionLogEnabled = Boolean(config.decisionLog && config.decisionLog.enabled);
 
   const entryId = record.id;
-  const decisionLogSlug = entryId || slugify(judgment.goal || record.title || input.title);
 
   const checkCount = hasVerification ? judgment.verification.length : 0;
   const wantsClipboardEmbed = destination === "clipboard" && checkCount >= 2;
@@ -756,18 +825,17 @@ function assemble(root, input) {
         // commits/observed_touches, which is not the same claim.
         resume: Boolean(input.resume),
         requireVerification: config.requireVerification,
-        decisionLogEnabled,
-        isDecision,
         destination,
         model: input.model,
-        askLesson: isEntry && readAreaNotes(root).enabled,
+        askLesson: isEntry && readLedger(root).enabled,
       })
     : "";
 
   const taskContextBlock = taskContextText(config.usePersona, judgment);
   const backgroundInner = relevantFilesText(symbolResult.files, symbolResult.references, symbolResult.unresolved);
   const priorWork = priorWorkText(readEntries(root), record, root);
-  const lessons = areaNotesText(root, record);
+  const lessons = ledgerText(root, record);
+  const anchors = anchorsText(root, record, config.ledger.dir);
   const ctxText = contextText(judgment.context, record.depends_on_docs);
   const includeTone = !workflowStage && reinforced && (destination === "agent" || !omit.has("tone"));
   const includeBackground = !omit.has("background");
@@ -809,9 +877,6 @@ function assemble(root, input) {
       parts.push(CONCISE_TRUTH_SENTENCE);
     }
     if (includeEntry && entryParagraph) parts.push(entryParagraph);
-    if (reinforced && isDecision && decisionLogEnabled) {
-      parts.push(decisionLogText(decisionLogInner, config.decisionLog.dir, decisionLogSlug));
-    }
     if (includeTone) {
       parts.push(`<tone>\n${input.customTone || defaultTone}\n</tone>`);
     }
@@ -825,7 +890,11 @@ function assemble(root, input) {
       // block of past-entry prose that needs a frame to stop it reading as
       // instructions. Same both-profiles rule.
       const lessonsBlock = lessons ? `${lessons}\n` : "";
-      parts.push(`<background>\n<relevant_files>\n${backgroundInner}\n</relevant_files>\n${recallBlock}${lessonsBlock}${ctxBlock}</background>`);
+      // Same untagged treatment, same both-profiles rule: an anchor is a
+      // pointer at code the destination is about to read, and it is only worth
+      // anything before the reading starts.
+      const anchorsBlock = anchors ? `${anchors}\n` : "";
+      parts.push(`<background>\n<relevant_files>\n${backgroundInner}\n</relevant_files>\n${recallBlock}${lessonsBlock}${anchorsBlock}${ctxBlock}</background>`);
     }
     if (reinforced) parts.push(noInventionLine);
     if (invariantsText) parts.push(invariantsText);
@@ -870,14 +939,18 @@ function assemble(root, input) {
   // opted in, no-op again on every later handoff, and never throws.
   if (gate.ok) recordFirstPick({ root });
 
-  // The first moment the lesson ledger could actually pay: a finished entry
-  // already touched files this one plans to, and nobody has been asked yet.
-  // An absent key is the record that the question was never put — a written
-  // `false` is what stops it being asked again. Just the fact; pick.md owns
-  // the question.
-  const areaNotesAsk =
+  // The first moment the ledger could actually pay: a finished entry already
+  // touched files this one plans to, and nobody has been asked yet. An absent
+  // key is the record that the question was never put — a written `false` is
+  // what stops it being asked again, and either key `ledger` replaced counts
+  // as an answer already given. Just the fact; pick.md owns the question.
+  const ledgerConfig = readConfig(root).config;
+  const ledgerAsk =
     isEntry
-    && readConfig(root).config.areaNotes === undefined
+    && ledgerConfig.ledger === undefined
+    && ledgerConfig.areaNotes === undefined
+    && ledgerConfig.decisionLog === undefined
+    && process.env.FOREMAN_LEDGER === undefined
     && process.env.FOREMAN_AREA_NOTES === undefined
     && notesOverlapExists(root, record);
 
@@ -887,7 +960,7 @@ function assemble(root, input) {
     profile,
     signals,
     ...(tasks ? { tasks } : {}),
-    ...(areaNotesAsk ? { area_notes_ask: true } : {}),
+    ...(ledgerAsk ? { ledger_ask: true } : {}),
     gate,
     warnings,
   };
@@ -921,7 +994,8 @@ module.exports = {
   relevantFilesText,
   priorWorkText,
   recallExcerpt,
-  areaNotesText,
+  ledgerText,
+  anchorsText,
   notesOverlapExists,
   // Read by benchmarks/foreman/lessons/gen.js, so a reworded header or closer
   // fails the arm-invariant test instead of silently benchmarking prose the
@@ -934,7 +1008,6 @@ module.exports = {
   checkpointsConfig,
   checkpointEmbedText,
   buildTaskRows,
-  decisionLogText,
   slugify,
   templateDefaults,
   daysSince,

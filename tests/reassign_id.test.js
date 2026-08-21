@@ -18,7 +18,7 @@ const {
   initGitRepo,
   runRoadmap,
 } = require('./helpers');
-const areaNotes = require(path.join(__dirname, '..', 'scripts', 'area-notes.js'));
+const ledger = require(path.join(__dirname, '..', 'scripts', 'ledger.js'));
 
 let project;
 
@@ -420,7 +420,7 @@ describe('a duplicated file stays readable before the repair', () => {
     mergedRoadmap();
     fs.mkdirSync(path.join(project, 'src'), { recursive: true });
     fs.writeFileSync(path.join(project, 'src', 'rate.js'), '// fixture', 'utf-8');
-    areaNotes.append(project, {
+    ledger.append(project, {
       lesson: 'the rate lookup is cached in src/rate.js',
       paths: ['src/rate.js'],
       entry: '130',
@@ -432,7 +432,7 @@ describe('a duplicated file stays readable before the repair', () => {
 
     assert.equal(status, 0);
     assert.equal(json.notes_anchors_demoted, 1);
-    const [stored] = areaNotes.read(project).records;
+    const [stored] = ledger.read(project).records;
     assert.equal(stored.anchor.kind, 'ambiguous');
     assert.equal(stored.anchor.was, '130');
     assert.equal(stored.lesson, 'the rate lookup is cached in src/rate.js');

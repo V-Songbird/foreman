@@ -1,15 +1,19 @@
 #!/usr/bin/env node
 "use strict";
 
-// PostToolUse — makes decision-log anchors (`[Foreman: 019]` comments, see
-// scripts/roadmap.js's anchorIdsIn) active retrieval: touching an anchored
-// file surfaces its ADR doc(s) at that exact moment, so the constraint is
-// read before it's violated instead of discovered after.
+// PostToolUse — the ledger's read-back half. Touching a file surfaces what
+// the project already recorded about it, at the moment it is about to change,
+// so a constraint is read before it's violated instead of discovered after.
+// Two things can surface: the documents its `[Foreman: 019]` anchors name
+// (see scripts/roadmap.js's anchorIdsIn), and the lessons closed tasks
+// recorded about the file itself. The handoff serves the same two facts one
+// step earlier, at dispatch; this catches the file nobody planned to touch.
 //
-// Fires on every Read/Edit/Write regardless of decisionLog.enabled -- once
-// an anchor comment exists in a codebase it should stay findable even in a
-// project that has since turned the authoring mode off. Only `dir` (default
-// docs/foreman) is taken from decision-log-config.
+// The document channel fires on every Read/Edit/Write regardless of
+// `ledger.enabled` -- once an anchor comment exists in a codebase it should
+// stay findable even in a project that never opted in. Only `dir` (default
+// docs/foreman) is taken from ledger-config, and only to read: Foreman never
+// writes a document there.
 //
 // Silence is the overwhelmingly common path (fires on every Read) and must
 // be near-free: no anchors, no matching doc file, or an unreadable/missing/
@@ -22,9 +26,8 @@ const { readInput, projectDir } = require("./lib");
 const crypto = require("crypto");
 
 const { anchorIdsIn } = require("../scripts/roadmap");
-const { readDecisionLog } = require("../scripts/decision-log-config");
-const { readAreaNotes } = require("../scripts/area-notes-config");
-const areaNotes = require("../scripts/area-notes");
+const { readLedger } = require("../scripts/ledger-config");
+const ledger = require("../scripts/ledger");
 const noteStaleness = require("../scripts/note-staleness");
 
 const WATCHED_TOOLS = new Set(["Read", "Edit", "Write"]);
@@ -81,12 +84,12 @@ function relDocPath(dir, id) {
 function lessonsFor(root, relPath) {
   // One stat before the config read: a project that has recorded nothing is
   // the common case, and it should cost exactly this much.
-  if (!fs.existsSync(areaNotes.notesPath(root))) return [];
-  if (!readAreaNotes(root).enabled) return [];
-  const { records, error } = areaNotes.read(root);
+  if (!fs.existsSync(ledger.notesPath(root))) return [];
+  if (!readLedger(root).enabled) return [];
+  const { records, error } = ledger.read(root);
   if (error || !records.length) return [];
 
-  const wanted = areaNotes.normalizeStorePath(relPath);
+  const wanted = ledger.normalizeStorePath(relPath);
   if (!wanted) return [];
   // Exact file, never the folder-prefix overlap the handoff uses. The handoff
   // is answering "what has anyone learned near this work"; this is answering
@@ -171,11 +174,11 @@ function main() {
 
   // ---- channel 1: the decision docs this file's anchors name.
   //
-  // No decision-log dir means no doc could possibly surface, so this channel
+  // No documents directory means no doc could possibly surface, so this channel
   // exits on one stat instead of paying the capped read on every touched file.
-  // Anchors stay findable the moment the dir exists again (decisionLog
+  // Anchors stay findable the moment the dir exists again (the ledger
   // re-enabled) — nothing is latched on this path.
-  const { dir } = readDecisionLog(root);
+  const { dir } = readLedger(root);
   if (fs.existsSync(path.join(root, dir))) {
     const content = readCapped(target);
     const ids = content === null ? [] : anchorIdsIn(content);
@@ -206,7 +209,7 @@ function main() {
   // Same principle as the anchors above, one level lighter: a decision doc is
   // a constraint you must not violate, a lesson is a claim worth checking. It
   // is a separate channel because the two are gated on different things — the
-  // doc channel needs the decision-log dir, this one needs `areaNotes` and a
+  // doc channel needs the documents directory, this one needs `ledger` and a
   // store — and because a file can easily have one and not the other.
   const rel = path.relative(root, target).split(path.sep).join("/");
   if (rel && !rel.startsWith("..") && !path.isAbsolute(rel)) {

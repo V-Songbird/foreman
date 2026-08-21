@@ -346,12 +346,9 @@ if it had.
   Call 2 Q2's done state
 - `kind` ← `"decision"` only when the task being crafted is itself a
   decision — its deliverable is a choice between real alternatives, not an
-  implementation; omit otherwise. `craft-handoff.js` bakes the
-  `<decision_log>` block and the decision `task_rules` bullet from it
-  automatically, exactly as `foreman:roadmap`'s pick branch does, when the
-  render-sections result's `decisionLog.enabled` is also true. Name the doc
-  after a short kebab slug of the goal — this task carries no roadmap entry
-  id for `craft-handoff.js` to substitute.
+  implementation; omit otherwise. `craft-handoff.js` bakes the decision
+  `task_rules` bullet from it automatically, exactly as
+  `foreman:roadmap`'s pick branch does.
 - `destination` ← `"task"` for `Execute here`, `"agent"` for background
   Agent, `"clipboard"` for clipboard
 - `split` ← `true` only when Call 5 picked `Execute here, split by check`

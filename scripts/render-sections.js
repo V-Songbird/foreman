@@ -9,7 +9,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { readDecisionLog } = require("./decision-log-config");
+const { readLedger } = require("./ledger-config");
 const { configPath, readConfigFile } = require("./foreman-config");
 
 function projectDir() {
@@ -79,18 +79,16 @@ function readRequireVerification(config) {
   };
 }
 
-// Delegates the decision-log settings chain (env override ->
-// .foreman/config.json's `decisionLog` group -> defaults) to the module
-// that owns it for all three consumers, instead of restating the parse
-// here. Only `enabled`/`dir` reach a crafted prompt — `gate` is a
-// close-time concern hooks/task-completed.js reads, never a craft-time
-// one, so it is dropped from this shape. Its `warning` rides the same
-// user-visible channel as readConfig's corrupt warning; decision-log-config
+// Delegates the ledger settings chain (env override ->
+// .foreman/config.json's `ledger` group, or the `areaNotes`/`decisionLog`
+// keys it replaced -> defaults) to the module that owns it for every
+// consumer, instead of restating the parse here. Its `warning` rides the
+// same user-visible channel as readConfig's corrupt warning; ledger-config
 // reads the file itself, so a corrupt config yields one warning from each
-// reader (both accurate — every setting AND every decisionLog setting fell
-// to default).
-function readDecisionLogSection(root) {
-  const { enabled, dir, warning } = readDecisionLog(root);
+// reader (both accurate — every setting AND every ledger setting fell to
+// default).
+function readLedgerSection(root) {
+  const { enabled, dir, warning } = readLedger(root);
   return { enabled, dir, warning };
 }
 
@@ -134,19 +132,19 @@ function render(root) {
   const omitResult = renderOmit(config.omitSections);
   const fableEnabledResult = readFableEnabled(config);
   const requireVerificationResult = readRequireVerification(config);
-  const decisionLog = readDecisionLogSection(root);
+  const ledger = readLedgerSection(root);
   return {
     usePersona: readUsePersona(config),
     omit: omitResult.omit,
     fableEnabled: fableEnabledResult.value,
     requireVerification: requireVerificationResult.value,
-    decisionLog: { enabled: decisionLog.enabled, dir: decisionLog.dir },
+    ledger: { enabled: ledger.enabled, dir: ledger.dir },
     warnings: [
       ...(configWarning ? [configWarning] : []),
       ...omitResult.warnings,
       ...(fableEnabledResult.warning ? [fableEnabledResult.warning] : []),
       ...(requireVerificationResult.warning ? [requireVerificationResult.warning] : []),
-      ...(decisionLog.warning ? [decisionLog.warning] : []),
+      ...(ledger.warning ? [ledger.warning] : []),
     ],
   };
 }
@@ -166,7 +164,7 @@ module.exports = {
   readConfig,
   readUsePersona,
   readFableEnabled,
-  readDecisionLogSection,
+  readLedgerSection,
   renderOmit,
   render,
   OMITTABLE_TAGS,

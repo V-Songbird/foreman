@@ -23,16 +23,19 @@
 
 const fs = require("fs");
 const path = require("path");
-const { VALID_GATES, isValidDir } = require("./decision-log-config");
+const { isValidDir } = require("./ledger-config");
+// The only gate left in the config: hooks/task-completed.js's own, parsed
+// inline there. One line here beats a module whose only export it is.
+const VALID_GATES = new Set(["off", "block"]);
 // [Foreman: 134] The one reading of `commits[]`, shared with every status view.
 // [Foreman: 135] trailerShasFor answers "which commits already say Foreman:
 // <id>" for a duplicate finding -- fail-soft, and only ever called when a
 // duplicate is actually present.
 const { recordedCommits, trailerShasFor } = require("./commit-evidence");
 const { configPath, OMITTABLE_TAGS } = require("./render-sections");
-// area-notes.js requires nothing from this module, so there is no cycle to
+// ledger.js requires nothing from this module, so there is no cycle to
 // defer around -- unlike roadmap.js below.
-const areaNotes = require("./area-notes");
+const ledger = require("./ledger");
 
 // roadmap.js requires this module at load time, so requiring it back up here
 // would capture a half-built exports object. Node's module cache makes the
@@ -436,6 +439,15 @@ function oneOf(values) {
   return { ok: (value) => values.has(value), expected: [...values].join(" | ") };
 }
 
+// One shape for the ledger group and for the two keys it replaced, so an
+// alias can never validate differently from the name it aliases.
+const LEDGER_SPEC = {
+  spec: {
+    enabled: BOOL,
+    dir: { ok: isValidDir, expected: 'a relative path with no ".." segments' },
+  },
+};
+
 // Documented in settings.md; the accepted values come from the modules that
 // actually read them, so this table can never drift from the readers.
 const CONFIG_SPEC = {
@@ -450,21 +462,17 @@ const CONFIG_SPEC = {
     ok: (value) => Array.isArray(value) && value.every((tag) => OMITTABLE_TAGS.has(tag)),
     expected: `an array of ${[...OMITTABLE_TAGS].join(" | ")}`,
   },
-  decisionLog: {
-    spec: {
-      enabled: BOOL,
-      dir: { ok: isValidDir, expected: 'a relative path with no ".." segments' },
-      gate: oneOf(VALID_GATES),
-    },
-  },
+  // The ledger. Two keys, default off, every other constant in code — a
+  // consumer-less setting is a setting that drifts from its reader.
+  ledger: LEDGER_SPEC,
   checkpoints: {
     spec: { baseBranch: STRING, branch: BOOL, onFinish: oneOf(ON_FINISH) },
   },
-  // The lesson ledger. One key, default off, every other constant in code —
-  // a consumer-less setting is a setting that drifts from its reader.
-  areaNotes: {
-    spec: { enabled: BOOL },
-  },
+  // The two keys `ledger` replaced, still read so an opted-in project keeps
+  // working untouched. Validated identically; `decisionLog.gate` is gone with
+  // the gate it named, and reports as a key this Foreman does not know.
+  decisionLog: LEDGER_SPEC,
+  areaNotes: LEDGER_SPEC,
 };
 
 function checkGroup(prefix, group, spec, out) {
@@ -506,7 +514,7 @@ const NOTES_ID_SAMPLE = 5;
  */
 function validateAreaNotes(root) {
   const out = [];
-  const { records, error, invalid } = areaNotes.read(root);
+  const { records, error, invalid } = ledger.read(root);
 
   if (error === "unreadable" || error === "conflict") {
     out.push(finding(
@@ -514,8 +522,8 @@ function validateAreaNotes(root) {
       "error",
       [],
       error === "conflict"
-        ? `${areaNotes.NOTES_RELATIVE} still carries merge conflict markers — resolve them by hand; it is append-only, so both sides' lines are keepable`
-        : `${areaNotes.NOTES_RELATIVE} exists but could not be read`
+        ? `${ledger.NOTES_RELATIVE} still carries merge conflict markers — resolve them by hand; it is append-only, so both sides' lines are keepable`
+        : `${ledger.NOTES_RELATIVE} exists but could not be read`
     ));
     return out;
   }
@@ -524,7 +532,7 @@ function validateAreaNotes(root) {
       "notes_unsupported_format",
       "error",
       [],
-      `${areaNotes.NOTES_RELATIVE} declares a format this Foreman does not know — upgrade Foreman rather than editing the file`
+      `${ledger.NOTES_RELATIVE} declares a format this Foreman does not know — upgrade Foreman rather than editing the file`
     ));
     return out;
   }
@@ -534,7 +542,7 @@ function validateAreaNotes(root) {
       "notes_invalid_record",
       "warning",
       [],
-      `${areaNotes.NOTES_RELATIVE}: ${invalid} line${invalid === 1 ? "" : "s"} could not be read as a record and ${invalid === 1 ? "is" : "are"} skipped`
+      `${ledger.NOTES_RELATIVE}: ${invalid} line${invalid === 1 ? "" : "s"} could not be read as a record and ${invalid === 1 ? "is" : "are"} skipped`
     ));
   }
 
@@ -542,7 +550,7 @@ function validateAreaNotes(root) {
   // exists. It is information, not a defect: the store is append-only and
   // pruning is a later, user-approved decision — `roadmap.js note-prune` is
   // that decision's one mechanism, and nothing here performs it.
-  const dead = records.filter((record) => areaNotes.isDead(root, record));
+  const dead = records.filter((record) => ledger.isDead(root, record));
   if (dead.length) {
     const areas = new Set(dead.map((record) => record.area || "."));
     const oldest = dead.map((record) => record.date).filter(Boolean).sort()[0];
@@ -553,7 +561,7 @@ function validateAreaNotes(root) {
       "notes_dead_record",
       "info",
       [],
-      `${areaNotes.NOTES_RELATIVE}: ${dead.length} record${dead.length === 1 ? "" : "s"} name only files that no longer exist, `
+      `${ledger.NOTES_RELATIVE}: ${dead.length} record${dead.length === 1 ? "" : "s"} name only files that no longer exist, `
         + `across ${areas.size} area${areas.size === 1 ? "" : "s"}`
         + (oldest ? `; oldest ${oldest}` : "")
         + (sample ? ` (entries ${sample}${more})` : "")

@@ -1,6 +1,6 @@
 'use strict';
 
-// Tests for hooks/decision-anchors.js — PostToolUse hook that surfaces a
+// Tests for hooks/ledger-recall.js — PostToolUse hook that surfaces a
 // touched file's decision-log docs (ADRs anchored via `[Foreman: 019]`
 // comments) as additionalContext, once per session per file per id-set.
 //
@@ -21,8 +21,8 @@ const fs = require('fs');
 const path = require('path');
 
 const { runScriptRaw, makeTmpProject, writeConfig, writeRoadmap } = require('./helpers');
-const areaNotes = require(path.join(__dirname, '..', 'scripts', 'area-notes.js'));
-const anchors = require(path.join(__dirname, '..', 'hooks', 'decision-anchors.js'));
+const ledger = require(path.join(__dirname, '..', 'scripts', 'ledger.js'));
+const anchors = require(path.join(__dirname, '..', 'hooks', 'ledger-recall.js'));
 
 let project;
 let env;
@@ -45,12 +45,12 @@ function payload(filePath, extra) {
 }
 
 function run(body) {
-  const result = runScriptRaw('decision-anchors.js', body, env);
+  const result = runScriptRaw('ledger-recall.js', body, env);
   assert.equal(result.status, 0, result.stderr);
   return result.stdout;
 }
 
-describe('decision-anchors hook', () => {
+describe('ledger-recall hook', () => {
   test('anchored file with an existing doc emits context listing the doc path', () => {
     const target = writeFile('src/thing.js', '// [Foreman: 019]\nconsole.log(1);\n');
     writeFile('docs/foreman/019.md', '# decision');
@@ -132,9 +132,9 @@ describe('decision-anchors hook', () => {
 // [Foreman: 247] The second channel: a file with a lesson recorded about it
 // surfaces that lesson at the moment it is touched, on the same hook and under
 // the same once-per-session latch.
-describe('decision-anchors hook, the lesson channel', () => {
+describe('ledger-recall hook, the lesson channel', () => {
   function recordLesson(relPath, lesson, overrides) {
-    return areaNotes.append(project, {
+    return ledger.append(project, {
       lesson,
       paths: [relPath],
       entry: '042',
@@ -182,8 +182,8 @@ describe('decision-anchors hook, the lesson channel', () => {
     writeConfig(project, { areaNotes: { enabled: true } });
     const target = writeFile('src/parser.js', 'module.exports = {};\n');
     recordLesson('src/parser.js', 'this one proved wrong');
-    const [stored] = areaNotes.read(project).records;
-    areaNotes.supersede(project, { key: areaNotes.recordKey(stored), date: '2026-08-19' });
+    const [stored] = ledger.read(project).records;
+    ledger.supersede(project, { key: ledger.recordKey(stored), date: '2026-08-19' });
     assert.equal(run(payload(target, { session_id: 's-retired' })), '');
   });
 
@@ -224,7 +224,7 @@ describe('decision-anchors hook, the lesson channel', () => {
     writeConfig(project, { areaNotes: { enabled: true } });
     const target = writeFile('src/parser.js', 'module.exports = {};\n');
     recordLesson('src/parser.js', 'punctuation is handled only in the word split');
-    fs.appendFileSync(areaNotes.notesPath(project), '<<<<<<< HEAD\n');
+    fs.appendFileSync(ledger.notesPath(project), '<<<<<<< HEAD\n');
     assert.equal(run(payload(target, { session_id: 's-broken' })), '');
   });
 });

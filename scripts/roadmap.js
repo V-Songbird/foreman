@@ -15,8 +15,8 @@ const { withRoadmapLock } = require("./roadmap-lock");
 // the project turned it on, and it never throws — a trial is an observation
 // of the work and must never become a way for the work to fail.
 const { record: recordTrial } = require("./trial-log");
-const areaNotes = require("./area-notes");
-const { readAreaNotes } = require("./area-notes-config");
+const ledger = require("./ledger");
+const { readLedger } = require("./ledger-config");
 const noteStaleness = require("./note-staleness");
 const {
   validateEntries,
@@ -419,7 +419,7 @@ function today() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-// Anchor comment format pointing code at its decision-log doc: `[Foreman: 019]`
+// Anchor comment format pointing code at the entry that governs it: `[Foreman: 019]`
 // or multi-id `[Foreman: 019, 034]` -- ID_PATTERN ids, comma-separated,
 // spaces around the comma optional. Exported so the close gate and the anchor
 // tripwire hook share one definition instead of two regexes drifting apart. A
@@ -593,9 +593,9 @@ function fieldWarnings(fields) {
   return warnings;
 }
 
-// `doc` is a forced choice, not a free-text field: exactly "none" (this
-// task decided nothing worth an ADR) or a relative .md path into the
-// project's decision-log dir. Same trust boundary as depends_on ids/
+// `doc` is an optional pointer, not a free-text field: exactly "none" (this
+// task recorded nothing outside the ledger) or a relative .md path into the
+// project's documents dir. Same trust boundary as depends_on ids/
 // touches paths -- an absolute path or a `..` escape could point outside
 // the project. path.win32.isAbsolute is checked alongside posix's (it's
 // always available regardless of host OS) so a Windows-shaped drive-letter
@@ -833,7 +833,7 @@ function filesStagedIn(root) {
   return gitFilesIn(
     root,
     ["diff", "--cached", "--name-only", "--relative"],
-    (f) => f && f !== "ROADMAP.jsonl" && f !== areaNotes.NOTES_RELATIVE
+    (f) => f && f !== "ROADMAP.jsonl" && f !== ledger.NOTES_RELATIVE
   );
 }
 
@@ -1139,7 +1139,7 @@ function cmdUpdateStatusUnlocked(root, payload) {
     result.trailer = commitTrailerFor(id);
     result.roadmap_staged = stageRoadmapFile(
       root,
-      lessonOutcome && lessonOutcome.report.stored ? [areaNotes.NOTES_RELATIVE] : []
+      lessonOutcome && lessonOutcome.report.stored ? [ledger.NOTES_RELATIVE] : []
     );
   }
   return warnings.length ? { ...result, warnings } : result;
@@ -1169,12 +1169,12 @@ function recordLesson(root, entry, { lesson, commit }) {
 
   // Disabled is not a reason to lose what the user typed: the prose lands on
   // the entry, prefixed so recall can never mistake it for a finding.
-  if (!readAreaNotes(root).enabled) {
-    return refuse("disabled", `lesson not recorded (areaNotes disabled): ${lesson}`);
+  if (!readLedger(root).enabled) {
+    return refuse("disabled", `lesson not recorded (ledger disabled): ${lesson}`);
   }
 
   const anchor = commit ? { kind: "commit", sha: commit } : { kind: "entry" };
-  const stored = areaNotes.append(root, {
+  const stored = ledger.append(root, {
     lesson,
     paths: entry.observed_touches || [],
     entry: entry.id,
@@ -1187,7 +1187,7 @@ function recordLesson(root, entry, { lesson, commit }) {
   recordTrial("lesson_present", { stored: true, outcome: "stored" }, { root });
   return {
     report: stored,
-    note: `lesson recorded: ${areaNotes.NOTES_RELATIVE}, area ${stored.area}`,
+    note: `lesson recorded: ${ledger.NOTES_RELATIVE}, area ${stored.area}`,
   };
 }
 
@@ -2107,7 +2107,7 @@ function cmdReassignIdUnlocked(root, payload) {
   // anchor is demoted rather than repointed: the lesson keeps serving, and its
   // staleness reads "unknown" instead of resolving against the wrong entry's
   // history.
-  const notes = areaNotes.demoteAnchors(root, id, { date });
+  const notes = ledger.demoteAnchors(root, id, { date });
 
   const result = {
     kept: { id, title: kept.entry.title },
@@ -2227,13 +2227,13 @@ function allFindings(root) {
 const NOTES_MAX_AREAS = 10;
 
 function cmdNotes(root, flags) {
-  const { records, error } = areaNotes.read(root);
+  const { records, error } = ledger.read(root);
   if (error) return { error_code: error, areas: [], records: [] };
 
   const wantPaths = typeof flags.paths === "string"
     ? flags.paths.split(",").map((p) => p.trim()).filter(Boolean)
     : [];
-  const wantArea = typeof flags.area === "string" ? areaNotes.normalizeStorePath(flags.area).toLowerCase() : "";
+  const wantArea = typeof flags.area === "string" ? ledger.normalizeStorePath(flags.area).toLowerCase() : "";
 
   // Newest first everywhere: a corrective record is written after the record
   // it corrects, so it has to be the one a reader meets first.
@@ -2267,7 +2267,7 @@ function cmdNotes(root, flags) {
   const result = {
     areas: served,
     records: resolved.map(({ record, state, label: line }) => ({
-      key: areaNotes.recordKey(record),
+      key: ledger.recordKey(record),
       area: record.area || ".",
       entry: record.entry,
       date: record.date,
@@ -2308,7 +2308,7 @@ function cmdNoteSupersede(root, payload) {
   }
   // The store's own append is atomic, but a concurrent close writing a lesson
   // is the case this has to serialize against, and that close holds this lock.
-  return withRoadmapLock(root, () => areaNotes.supersede(root, { key, by_entry: byEntry, date: today() }));
+  return withRoadmapLock(root, () => ledger.supersede(root, { key, by_entry: byEntry, date: today() }));
 }
 
 /**
@@ -2322,8 +2322,8 @@ function cmdNoteSupersede(root, payload) {
  */
 function cmdNotePrune(root, flags) {
   const dryRun = Boolean(flags && (flags["dry-run"] || flags.dryRun));
-  if (dryRun) return areaNotes.prune(root, { dryRun: true });
-  return withRoadmapLock(root, () => areaNotes.prune(root));
+  if (dryRun) return ledger.prune(root, { dryRun: true });
+  return withRoadmapLock(root, () => ledger.prune(root));
 }
 
 function cmdDoctor(root, flags) {
@@ -2376,8 +2376,9 @@ absent when the file was already current.
                     resolve would strand the entry out of next-candidates
                     status (create-time only): "planned" (default) | "rejected"
                     doc: "none" | a relative path ending in .md (no leading
-                    slash, no drive letter, no ".." segments) -- a forced
-                    choice, omitted entirely (not defaulted) when not given
+                    slash, no drive letter, no ".." segments) -- an optional
+                    pointer at a document this project already keeps,
+                    omitted entirely (not defaulted) when not given
                     kind: "build" (default, never stored) | "decision" (resolve
                     an open question, no code) -- only "decision" is stored;
                     the pick flow hands a decision entry a "decide, don't build" rule
@@ -2417,7 +2418,7 @@ absent when the file was already current.
                     .foreman/notes.jsonl for a later task whose planned files
                     intersect this close's observed ones. Only on a close
                     (done/dropped/rejected/awaiting_acceptance), only when
-                    areaNotes.enabled, at most 500 chars -- longer is
+                    ledger.enabled, at most 500 chars -- longer is
                     refused, never truncated. The result reports
                     lesson:{stored:true, area, paths_count} or
                     {stored:false, reason}; prose that could not be stored

@@ -19,7 +19,7 @@ const { spawnSync } = require('node:child_process');
 
 const { runRoadmap, makeTmpProject, writeRoadmap, initGitRepo, commitFile, SCRIPTS_DIR } = require('./helpers.js');
 const staleness = require(path.join(SCRIPTS_DIR, 'note-staleness.js'));
-const areaNotes = require(path.join(SCRIPTS_DIR, 'area-notes.js'));
+const ledger = require(path.join(SCRIPTS_DIR, 'ledger.js'));
 const { today } = require(path.join(SCRIPTS_DIR, 'roadmap.js'));
 
 function record(overrides = {}) {
@@ -126,7 +126,7 @@ describe('the notes pull command', () => {
       const file = `${prefix}/area-${i}/thing.js`;
       fs.mkdirSync(path.join(root, path.dirname(file)), { recursive: true });
       fs.writeFileSync(path.join(root, file), 'x', 'utf-8');
-      areaNotes.append(root, {
+      ledger.append(root, {
         lesson: `lesson ${i}`,
         paths: [file],
         entry: String(100 + i),
@@ -173,7 +173,7 @@ describe('the notes pull command', () => {
     fs.mkdirSync(path.join(root, 'src', 'auth'), { recursive: true });
     fs.writeFileSync(path.join(root, 'src', 'auth', 'session.js'), 'x', 'utf-8');
     for (const [entry, lesson] of [['001', 'the wrong claim'], ['002', 'the correction']]) {
-      areaNotes.append(root, {
+      ledger.append(root, {
         lesson,
         paths: ['src/auth/session.js'],
         entry,
@@ -188,7 +188,7 @@ describe('the notes pull command', () => {
   test('a store that will not parse names the reason and serves nothing', () => {
     const root = project();
     fs.mkdirSync(path.join(root, '.foreman'), { recursive: true });
-    fs.writeFileSync(areaNotes.notesPath(root), '<<<<<<< HEAD\n', 'utf-8');
+    fs.writeFileSync(ledger.notesPath(root), '<<<<<<< HEAD\n', 'utf-8');
     const out = notes(root);
     assert.equal(out.error_code, 'conflict');
     assert.deepEqual(out.records, []);
@@ -196,7 +196,7 @@ describe('the notes pull command', () => {
 
   test('a record whose files are all gone never reaches the output', () => {
     const root = project();
-    areaNotes.append(root, {
+    ledger.append(root, {
       lesson: 'about a file that no longer exists',
       paths: ['src/deleted/gone.js'],
       entry: '001',
