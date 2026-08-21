@@ -7,13 +7,6 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
-## Unreleased
-
-### Changed
-
-- Commit-time roadmap suggestions are on by default. After a commit, Foreman offers work worth tracking that it spotted in the change. Set `"discoverySuggestions": false` in `.foreman/config.json` to turn it off.
-- Foreman no longer asks whether you want them. It just does it, until you say otherwise.
-
 ## 2.0.0 — 2026-08-21
 
 Foreman kept two separate records of what a finished task learned. There is one now, called the ledger.
@@ -24,6 +17,7 @@ Foreman kept two separate records of what a finished task learned. There is one 
 
 ### Changed
 
+- Commit-time roadmap suggestions are on by default. After you save changes, Foreman offers work worth tracking that it spotted in them, and no longer asks first. Set `"discoverySuggestions": false` in `.foreman/config.json` to turn it off.
 - One switch instead of two: `"ledger": {"enabled": true}`. If your settings still say `decisionLog` or `areaNotes`, leave them — both still work and both mean the ledger.
 - Foreman no longer writes decision documents, and no longer hands you a template to fill in. Where you write your decisions down is yours. Put one at `docs/foreman/019.md` and a `[Foreman: 019]` comment will point people at it.
 - `decision-log.md` is now [`ledger.md`](ledger.md), and covers the whole thing on one page in plain language.

@@ -40,7 +40,7 @@ Foreman keeps the plan next to the code, in a file it calls the roadmap. It is a
 | --- | --- |
 | You ask "what's next?" | Foreman sorts the roadmap. It knows what is finished, what is waiting on something else, and what would put two jobs in the same files. It recommends one and writes the prompt. You still choose |
 | You describe new work | It gets added to the roadmap, once you approve it |
-| You save your changes | If a task looks finished, Foreman asks you to confirm. Switch one setting on and it also points out new work it noticed along the way |
+| You save your changes | If a task looks finished, Foreman asks you to confirm. It also points out new work it noticed along the way, unless you switch that off |
 | You think the plan has gone stale | It reads the code, finds what no longer matches, and offers you each fix |
 
 A big task can be handed off in pieces, each with its own check. Every finished piece is saved on its own branch, so nothing is lost if you stop halfway. At the end you decide what happens to that branch.
