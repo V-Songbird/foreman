@@ -453,8 +453,18 @@ function ledgerText(root, record) {
 // about these paths already rides in the block above, matched path-level. This
 // answers the different question — which entry settled this code, and where
 // that settlement is written down.
+// Both bounds are on what is SERVED, never on what is collected. An earlier
+// cap counted collected ids between files, which bounded nothing a reader
+// sees: one file carrying fourteen anchors contributed all fourteen, and a
+// file full of stray brackets could spend the budget on lines that are then
+// dropped as unresolvable. Measured before the fix, at 2.0.0: a third to a
+// half of served blocks were over ANCHOR_KEEP, the worst running to 23 lines
+// and 3,342 characters.
 const ANCHOR_MAX_FILES = 12;
 const ANCHOR_KEEP = 6;
+// Header + lines, all in, and whole lines only — the same ceiling and the
+// same whole-or-absent rule the lessons block above it already follows.
+const ANCHOR_MAX_CHARS = 1000;
 const ANCHOR_MAX_BYTES = 512 * 1024;
 const ANCHOR_HEADER =
   "Anchored in the files this task plans to touch — earlier entries that already govern this code:";
@@ -497,7 +507,6 @@ function anchorsText(root, record, dir) {
 
   const found = new Map(); // anchor id -> the first planned file carrying it
   for (const rel of planned) {
-    if (found.size >= ANCHOR_KEEP) break;
     const content = readCappedFile(path.resolve(root, rel));
     if (content === null) continue;
     for (const id of anchorIdsIn(content)) {
@@ -508,14 +517,19 @@ function anchorsText(root, record, dir) {
 
   const titles = new Map(readEntries(root).map((e) => [e.id, e.title]));
   const lines = [];
+  let total = ANCHOR_HEADER.length;
   for (const [id, rel] of found) {
+    if (lines.length >= ANCHOR_KEEP) break;
     const docRel = `${String(dir).split(/[\\/]+/).filter(Boolean).join("/")}/${id}.md`;
     const hasDoc = fs.existsSync(path.resolve(root, docRel));
     const title = titles.get(id);
     if (!title && !hasDoc) continue; // stray bracket text, never surfaced
     const named = title ? ` — ${title}` : "";
     const doc = hasDoc ? ` → read ${docRel} first` : "";
-    lines.push(`- ${rel} carries [Foreman: ${id}]${named}${doc}`);
+    const line = `- ${rel} carries [Foreman: ${id}]${named}${doc}`;
+    if (total + 1 + line.length > ANCHOR_MAX_CHARS) break;
+    lines.push(line);
+    total += 1 + line.length;
   }
   if (!lines.length) return "";
   return `${ANCHOR_HEADER}\n${lines.join("\n")}`;
@@ -996,6 +1010,8 @@ module.exports = {
   recallExcerpt,
   ledgerText,
   anchorsText,
+  ANCHOR_KEEP,
+  ANCHOR_MAX_CHARS,
   notesOverlapExists,
   // Read by benchmarks/foreman/lessons/gen.js, so a reworded header or closer
   // fails the arm-invariant test instead of silently benchmarking prose the

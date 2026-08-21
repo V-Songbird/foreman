@@ -7,6 +7,12 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## 2.0.1 — 2026-08-21
+
+### Fixed
+
+- A task's instructions no longer carry a runaway list of `[Foreman: 019]` comments. One heavily marked file used to contribute every anchor it held, so the list ran to 23 lines where six were intended. It is now six lines at most, and never more than a short paragraph.
+
 ## 2.0.0 — 2026-08-21
 
 Foreman kept two separate records of what a finished task learned. There is one now, called the ledger.

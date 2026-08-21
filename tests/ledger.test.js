@@ -462,6 +462,59 @@ describe('anchors served at dispatch', () => {
     writeRoadmap(project, [entry()]);
     assert.equal(anchorsText(project, { id: '001', planned_touches: [] }, 'docs/foreman'), '');
   });
+
+  // Both bounds are on what is served. The first cap counted collected ids
+  // between files, so ONE heavily-marked file contributed every anchor it
+  // carried — measured at 2.0.0, a third to a half of served blocks were over
+  // the limit, the worst at 23 lines and 3,342 characters.
+  const { ANCHOR_KEEP, ANCHOR_MAX_CHARS } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
+
+  function marked(project, ids, titleFor) {
+    writeRoadmap(project, [
+      entry(),
+      ...ids.map((id) => ({ ...entry(), id, title: titleFor(id) })),
+    ]);
+    fs.mkdirSync(path.join(project, 'src', 'Auth'), { recursive: true });
+    fs.writeFileSync(
+      path.join(project, 'src', 'Auth', 'session.js'),
+      ids.map((id) => `// [Foreman: ${id}]`).join('\n'),
+      'utf-8'
+    );
+    return anchorsText(project, { id: '001', planned_touches: ['src/Auth/session.js'] }, 'docs/foreman');
+  }
+
+  test('one file carrying more anchors than the cap still serves only the cap', () => {
+    const ids = ['019', '020', '021', '022', '023', '024', '025'];
+    const text = marked(makeTmpProject(), ids, (id) => `Entry ${id}`);
+    assert.equal(text.split('\n').length - 1, ANCHOR_KEEP);
+    assert.match(text, /\[Foreman: 019\]/);
+    assert.ok(!text.includes('[Foreman: 025]'), text);
+  });
+
+  test('long titles stop at the character ceiling, never mid-line', () => {
+    const ids = ['019', '020', '021', '022', '023', '024'];
+    const text = marked(makeTmpProject(), ids, (id) => `Entry ${id} ${'x'.repeat(200)}`);
+    assert.ok(text.length <= ANCHOR_MAX_CHARS, `block ran to ${text.length} chars`);
+    for (const line of text.split('\n').slice(1)) {
+      assert.match(line, /^- \S+ carries \[Foreman: \d{3}\] — Entry \d{3} x{200}$/);
+    }
+  });
+
+  test('an unresolvable id never spends a slot a real anchor could use', () => {
+    const project = makeTmpProject();
+    writeRoadmap(project, [entry(), { ...entry(), id: '900', title: 'The real one' }]);
+    fs.mkdirSync(path.join(project, 'src', 'Auth'), { recursive: true });
+    // Seven stray ids ahead of the only one that resolves.
+    fs.writeFileSync(
+      path.join(project, 'src', 'Auth', 'session.js'),
+      ['701', '702', '703', '704', '705', '706', '707', '900']
+        .map((id) => `// [Foreman: ${id}]`)
+        .join('\n'),
+      'utf-8'
+    );
+    const text = anchorsText(project, { id: '001', planned_touches: ['src/Auth/session.js'] }, 'docs/foreman');
+    assert.match(text, /\[Foreman: 900\] — The real one/);
+  });
 });
 
 describe('the first-relevant ask', () => {

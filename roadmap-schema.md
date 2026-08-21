@@ -492,11 +492,16 @@ gone is dropped rather than served.
 **Anchors at dispatch.** Beside the path-matched lessons, a handoff reads the
 entry's own `planned_touches` (at most twelve files, capped reads) for
 `[Foreman: <id>]` comments and names what each anchored id resolves to: that
-entry's title, and its document under `ledger.dir` when one exists there. At
-most six ids, first planned file wins, and the entry's own id is never quoted
-back at itself. An id with neither an entry nor a document is stray bracket
-text and is dropped — the same rule `hooks/ledger-recall.js` applies when the
-file is opened rather than planned. This channel is independent of
+entry's title, and its document under `ledger.dir` when one exists there. An id
+with neither an entry nor a document is stray bracket text and is dropped — the
+same rule `hooks/ledger-recall.js` applies when the file is opened rather than
+planned — and the entry's own id is never quoted back at itself.
+
+Both bounds are on what is **served**, never on what is collected: at most six
+lines, under a 1000-character ceiling, each line whole or absent, in planned-file
+order. Counting collected ids instead bounds nothing a reader sees, since one
+file may carry any number of anchors and a file of stray brackets would spend
+the budget on lines that are then dropped. This channel is independent of
 `ledger.enabled`: an anchor is the project's own comment, not Foreman's state.
 
 **Reassign-id.** For an entry-kind record the entry id *is* the anchor, and
