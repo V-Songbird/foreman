@@ -1,34 +1,97 @@
 # Foreman — the ledger
 
-<!-- foreman:ledger lastmod:2026-08-20 -->
+<!-- foreman:ledger lastmod:2026-08-21 -->
 
-Your project history remembers every change. Nobody remembers what the last
-person learned on the way. Six months later the question isn't what changed —
-it's what someone already found out about this code, and whether it's still
-true.
+Someone works on your login code. Along the way they find out the tests hang
+unless you fake the clock. They fix their bug and finish.
 
-The ledger is Foreman's answer, and it is one thing, not two. A task that
-finishes can leave one sentence about the code it touched. A later task that
-plans to touch the same files gets that sentence handed to it before it
-starts. So does anyone who opens one of those files.
+That discovery is gone. It was never in the code. It was never in your saved
+changes. It lived in one head for one afternoon, and three weeks later the
+next person spends the same afternoon finding the same thing.
 
-## What gets recorded
+The ledger is where that sentence goes instead.
 
-One sentence, on a close, when the task learned something a future task would
-need and could not cheaply work out again. Passing it is optional and skipping
-it is the common answer — most tasks teach nothing that generalises.
+## What you do
 
+One sentence, when a job is finished. That is the whole thing.
+
+> token refresh lives in `session.js`, and tests have to fake the clock
+
+Skipping it is normal. Most jobs teach nothing anyone else will need. The
+sentence is worth writing only when it is something the next person would
+need and could not easily work out alone.
+
+## What you get back
+
+You never have to go looking. The sentence comes to you, at the moment it
+matters.
+
+| When | What you see |
+| --- | --- |
+| A new job is written up | Anything recorded about the files that job will touch |
+| You open a file | Anything recorded about that file |
+| Six months later | Search your saved changes for the job number |
+
+That first one is the point. The next job starts already knowing what the
+last one found out, instead of working it out again.
+
+## One job, one number
+
+Every job gets a number, and the same number turns up in four places. Once
+you spot the pattern the whole thing reads as one piece.
+
+<p align="center"><img src="assets/paper-trail.svg" alt="Job 019 in four places: the job list, the recorded sentence, a Foreman 019 comment in your own code, and a Foreman 019 line at the end of the saved change" width="700"></p>
+
+That last one is the box people ask about. A finished job is saved together
+with the code it changed, and the job list is written first — so it cannot
+name a saved change that does not exist yet. The line points the other way
+instead: the saved change names the job.
+
+You get that one line whether or not the ledger is on. Nothing else about
+what you write is touched.
+
+## Marking code
+
+Put a comment like this next to code that some job settled:
+
+```js
+// [Foreman: 019]
 ```
-echo '{"id":"019","status":"done","lesson":"token refresh lives in session.js refresh(); tests must fake time via test/helpers/clock.js"}' | node scripts/roadmap.js update-status
-```
 
-Everything lands in `.foreman/notes.jsonl`, one line per record, appended and
-never rewritten. Each record keeps the files the task actually touched, the
-entry id, the commit, and the date — that is what makes the staleness label
-possible later.
+It is an ordinary comment in your own file. One spot can carry a few:
+`// [Foreman: 019, 034]`.
 
-**It's off by default**, because it writes a file into your project. One line
-in `.foreman/config.json` turns it on:
+From then on, anyone handed work on that file is told which job governs it,
+by name. If you keep a written decision at `docs/foreman/019.md`, they are
+pointed at that too.
+
+Foreman never writes those documents. Where you write your decisions down,
+and what they look like, is yours.
+
+## Nothing arrives without an age
+
+A recorded sentence is a claim about code, and code moves. A three-month-old
+claim served as fact is worse than no claim at all, because it sounds sure of
+itself.
+
+So every sentence you are shown is checked first, and comes with a verdict:
+**unchanged since**, **may be out of date**, or **cannot tell**. A sentence
+about files that no longer exist is dropped rather than shown. And when
+Foreman cannot tell, you get the file names only — never a claim it could
+not check.
+
+## When one turns out to be wrong
+
+Retire it. It stops being quoted and stops taking up room. Foreman's own
+roadmap review retires anything its evidence contradicts, and you can retire
+one yourself at any time.
+
+Retiring does not rewrite history. The line stays, marked as retired.
+
+## Turning it on
+
+It is off until you say yes, because switching it on puts a new file in your
+project.
 
 ```json
 {
@@ -38,94 +101,19 @@ in `.foreman/config.json` turns it on:
 }
 ```
 
-Foreman asks once, the first time a task plans to touch files an earlier task
-already closed over, and remembers the answer.
+That goes in `.foreman/config.json`. You will probably never type it —
+Foreman asks the question itself, once, the first time it could pay off: when
+a new job is about to touch files a finished job already worked on. Saying no
+is remembered too, which is what stops it asking again.
 
-## One task, one id
+## What it will never do
 
-Every roadmap task gets an id of three or more digits, and that id is the
-thread. It starts in the roadmap, ends in your git history, and picks up what
-was learned on the way.
+- Change your saved-change messages, beyond that one `Foreman: 019` line.
+- Write documents for you, or hand you a template to fill in.
+- Stop you finishing a job because you skipped the sentence.
+- Delete anything if you switch it back off. What was recorded stays.
 
-<p align="center"><img src="assets/paper-trail.svg" alt="Task 019 across four places: the roadmap entry, the ledger line in .foreman/notes.jsonl, a [Foreman: 019] anchor comment in your own code, and a Foreman: 019 trailer on the commit message" width="700"></p>
-
-## Why your commits say `Foreman: 019`
-
-That last box is the one people ask about.
-
-A finished task closes in the *same* commit as the code it changed. The
-roadmap file is written before the commit exists, so the entry can't record a
-commit id that hasn't happened yet. The trailer points the link the other way:
-the commit names the task. One commit, nothing dangling, no second "update the
-roadmap" commit cluttering your history.
-
-You'll see it whenever a tracked task finishes alongside code, whether or not
-the ledger is on. Foreman adds that one line and nothing else — the rest of
-your commit message is yours.
-
-## Anchors
-
-An `[Foreman: 019]` comment in your own code says which task governs that
-code:
-
-```js
-// [Foreman: 019]
-function expireSession(token) {
-```
-
-One site can carry several: `// [Foreman: 019, 034]`. Anchors are yours to
-place, in the file's own comment syntax. Foreman only reads them.
-
-If your project already writes decisions down somewhere — an ADR, a design
-note, whatever you keep — put it at `docs/foreman/019.md` and the anchor will
-find it. Point `dir` elsewhere if that isn't where you keep them. Foreman
-never writes those files and has no opinion on what's inside them.
-
-## When Foreman reads it back
-
-Four moments, and none of them cost you a keystroke:
-
-| Moment | What happens |
-| --- | --- |
-| A task is handed out | Lessons recorded about the files it plans to touch ride in the prompt |
-| ...and in the same breath | So does any `[Foreman: <id>]` anchor already sitting in those files |
-| You open an anchored file | What's recorded about it surfaces before you change it — once per file per session |
-| You go digging months later | `git log --grep="Foreman: 019"` is the whole paper trail |
-
-The first two are the point: the session starts knowing what the last one
-found, instead of working it out again.
-
-The anchor channel keeps working even in a project that never turned the
-ledger on. Once an anchor exists in a codebase, it stays findable.
-
-## Staleness, and being wrong
-
-Every served line says how stale it is. Foreman checks each record against
-git at the moment it serves it, and labels it unchanged, possibly stale, or
-unknown. A record whose files are all gone is dropped rather than served.
-
-A line that proved wrong is retired during a survey and never quoted again.
-You can also retire one by hand:
-
-```
-echo '{"key":"<the key notes reports>"}' | node scripts/roadmap.js note-supersede
-```
-
-## Settings
-
-Two keys under `ledger` in `.foreman/config.json`. `enabled` turns recording
-on; `dir` says where an anchor looks for a document (default `docs/foreman`).
-
-Two environment variables override the config after it is read.
-`FOREMAN_LEDGER` accepts `1`, `true`, `0`, or `false` and sets `enabled`
-accordingly; any other value is ignored silently. `FOREMAN_LEDGER_DIR` sets
-`dir`, and takes a relative path with no `..` segments — anything else is
-warned about and ignored.
-
-If your config still says `decisionLog` or `areaNotes`, it keeps working —
-both are read as `ledger`. `decisionLog.gate` no longer does anything.
-
-Set `"enabled": false`, or drop the block entirely, and nothing new gets
-recorded. What's already in `.foreman/notes.jsonl` stays, and anchors still
-surface when you open the files they tag — they're your files now, not
-Foreman's state.
+> [!NOTE]
+> If your project already has `decisionLog` or `areaNotes` in its settings,
+> leave them. Both still work and both mean the ledger. The old
+> `decisionLog.gate` switch no longer does anything.

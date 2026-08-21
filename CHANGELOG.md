@@ -7,18 +7,23 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
-## Unreleased
+## 2.0.0 — 2026-08-21
+
+Foreman kept two separate records of what a finished task learned. There is one now, called the ledger.
 
 ### Added
 
-- A task now starts out knowing which earlier task governs the code it is about to touch. `[Foreman: 019]` comments in its planned files ride into the prompt, named, along with any document they point at.
+- A task now starts out knowing which earlier task governs the code it is about to touch. Put a `[Foreman: 019]` comment next to code some task settled, and anyone handed work on that file is told which task it was, by name.
 
 ### Changed
 
-- The decision log and `areaNotes` are one thing now, called the ledger, with one switch: `"ledger": {"enabled": true}`. If your config still says `decisionLog` or `areaNotes`, it keeps working.
-- Foreman no longer writes decision documents or asks you to fill in a template. Where your project writes decisions down is yours to choose; put one at `docs/foreman/<id>.md` and an anchor comment will find it.
-- `decisionLog.gate` no longer does anything. Nothing blocks a close for a missing document.
-- `decision-log.md` is now [`ledger.md`](ledger.md), and covers the whole feature on one page.
+- One switch instead of two: `"ledger": {"enabled": true}`. If your settings still say `decisionLog` or `areaNotes`, leave them — both still work and both mean the ledger.
+- Foreman no longer writes decision documents, and no longer hands you a template to fill in. Where you write your decisions down is yours. Put one at `docs/foreman/019.md` and a `[Foreman: 019]` comment will point people at it.
+- `decision-log.md` is now [`ledger.md`](ledger.md), and covers the whole thing on one page in plain language.
+
+### Removed
+
+- `decisionLog.gate` no longer does anything. Nothing stops you finishing a task because a document is missing.
 
 ## 1.4.0 — 2026-08-19
 

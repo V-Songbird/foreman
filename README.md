@@ -90,11 +90,11 @@ If you would rather type a command than a sentence, these go straight to the poi
 
 ## What the last task learned
 
-Your project history remembers every change. Nobody remembers what the last person worked out on the way. Turn this on and a task that finishes can leave one sentence about the code it touched. The next task that plans to touch those files gets that sentence handed to it before it starts, with a note saying whether the code has moved since. So does anyone who opens one of those files. A sentence that turns out to be wrong can be retired. It is off until you ask for it, because it writes a file into your project. The whole thing fits on one page: [`ledger.md`](ledger.md).
+Someone finds out your tests hang unless you fake the clock. They fix their bug and finish, and that discovery is gone. Three weeks later the next person spends the same afternoon finding the same thing. Turn this on and a finished task can leave one sentence instead. The next task that plans to touch those files is handed it before it starts, along with a note saying whether the code has moved since. So is anyone who opens one of those files. A sentence that turns out to be wrong can be retired. It is off until you ask for it, because it puts a new file in your project. The whole thing fits on one page: [`ledger.md`](ledger.md).
 
 Seeing `Foreman: 019` at the bottom of your saved changes? That one is always on. It is the task number, so you can trace any change back to the job it came from.
 
-Mark code with an `[Foreman: 019]` comment and the task that governs it travels with it — into the next prompt that touches the file, and to whoever opens it. Every option is in [`settings.md`](settings.md).
+Put a `[Foreman: 019]` comment next to code some task settled, and from then on anyone handed work on that file is told which task governs it, by name. Every option is in [`settings.md`](settings.md).
 
 > [!NOTE]
 > The ledger is **Beta**. It is the newest thing here and may still have rough edges, so it stays off until you say yes. Turning it back off later does not delete anything you have already saved.
