@@ -586,6 +586,19 @@ describe('update-status records scope drift', () => {
     assert.equal(json.scope_drift, undefined, 'a directory hint is not drift');
   });
 
+  // `touches` is typed by a human or a model, so it arrives in whatever shape
+  // they typed. The collision rule already reads it through normalizedTouch;
+  // drift has to read it the same way or it invents drift that never happened.
+  test('a prediction written with Windows separators is not drift', () => {
+    seed(['./SRC\\Auth/']);
+    const sha = commitFile(project, 'src/auth/index.ts', 'export const x = 1;\n');
+
+    const { json } = run(['update-status'], { id: '001', status: 'done', commit: sha });
+
+    assert.equal(json.scope_drift, undefined, 'the touched file was predicted');
+    assert.equal(json.entry.notes.includes('scope drift'), false);
+  });
+
   test('an entry that predicted nothing records nothing', () => {
     seed([]);
     const sha = commitFile(project, 'src/foo.ts', 'export const x = 1;\n');

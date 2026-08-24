@@ -846,9 +846,13 @@ function filesStagedIn(root) {
 // Matching is prefix-aware on purpose. `touches` is an area-level hint --
 // "foreman/tests" predicts every file beneath it -- so a plain set subtraction
 // would report drift that never happened.
+// Matching goes through normalizedTouch for the same reason the collision
+// rule does: it is the one place that knows the shapes a human types.
 function coversPath(predicted, actual) {
-  const base = predicted.replace(/\/+$/, "");
-  return actual === base || actual.startsWith(`${base}/`);
+  const base = normalizedTouch(predicted);
+  const target = normalizedTouch(actual);
+  if (!base || !target) return false;
+  return target === base || target.startsWith(`${base}/`);
 }
 
 function scopeDrift(predicted, actual) {

@@ -20,10 +20,22 @@ const SCRIPT_PATH = path.join(PLUGIN_ROOT, "scripts", "roadmap.js");
 
 const WATCHED_TOOLS = new Set(["Bash", "PowerShell"]);
 const SEP = /\s*(?:&&|\|\||[;|\n])\s*/;
-const COMMIT_RE = /^\s*git\s+(?:-\S+\s+)*commit\b/i;
+// `git` takes global options before the subcommand, and several of them
+// carry their value in a SEPARATE token. A flags-only skip missed
+// `git -C sub commit` outright, and any regex loose enough to catch it
+// also fires on `git log --grep commit` or `git -c commit.gpgsign=false log`.
+// Walking the tokens is the only reading that gets all three right.
+const GIT_VALUE_FLAGS = new Set(["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"]);
 
 function isGitCommit(command) {
-  return command.split(SEP).some((part) => COMMIT_RE.test(part));
+  return command.split(SEP).some((part) => {
+    const tokens = part.trim().split(/\s+/);
+    if (tokens.shift().toLowerCase() !== "git") return false;
+    while (tokens.length && tokens[0].startsWith("-")) {
+      if (GIT_VALUE_FLAGS.has(tokens.shift())) tokens.shift();
+    }
+    return tokens[0] === "commit";
+  });
 }
 
 // Confirmed against code.claude.com/docs/en/hooks.md: PostToolUse's Bash

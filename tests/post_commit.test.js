@@ -110,6 +110,14 @@ describe('non-matching tool calls', () => {
     const out = run(bashPayload('echo "not-a-git-commit-invocation"'));
     assert.equal(out, '');
   });
+
+  // The subcommand is the first token that is not a global option, so a
+  // `commit` sitting anywhere else on the line is not this commit.
+  test('a git subcommand that only mentions commit stays silent', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    assert.equal(run(bashPayload('git log --grep commit')), '');
+    assert.equal(run(bashPayload('git -c commit.gpgsign=false log')), '');
+  });
 });
 
 describe('no ROADMAP.jsonl', () => {
@@ -181,6 +189,20 @@ describe('status-sync block', () => {
       env
     );
     assert.notEqual(result.stdout, '');
+  });
+
+  // `git -C <dir> commit` and friends carry their value in a separate token,
+  // which a flags-only skip walked straight past.
+  test('global options before the subcommand still read as a commit', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    for (const command of [
+      'git -C . commit -m "wip"',
+      'git -c user.name=a commit -m "wip"',
+      'git --git-dir .git commit -m "wip"',
+      'git --no-pager commit -m "wip"',
+    ]) {
+      assert.notEqual(run(bashPayload(command)), '', command);
+    }
   });
 });
 
