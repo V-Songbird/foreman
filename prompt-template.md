@@ -86,12 +86,18 @@ an instruction for the spawned session to act on later):**
    otherwise make — none of it narrows `truth_grounding`, which still
    governs at run time.
    - `files[].symbols` — feed these into `relevant_files` below: cite the
-     symbol names that live in each file, so the handed-off session doesn't
-     re-derive them. Extraction is a column-0 regex, not a parser, so it
+     symbol names that matter in each file, so the handed-off session
+     doesn't re-derive them. Cite the ones this task touches, not the
+     file's whole surface — a long module resolves to hundreds of names,
+     and the few that matter drown in the rest. `craft-handoff.js` does
+     this itself: names the entry's own prose already uses lead, the list
+     is capped, and the cut tail is stated with its count rather than
+     silently dropped. Extraction is a column-0 regex, not a parser, so it
      narrows the search and never replaces `truth_grounding`.
    - `missing` — the path no longer exists. Fix or drop it before
      delivering; a stale path caught here is one the destination would
-     otherwise chase.
+     otherwise chase. `check-prompt.js` refuses a prompt that still
+     carries the marker, so this is a gate, not a reminder.
    - `outside_project` — the path resolves outside the project root, so it
      was not read. Treat it like `missing`: fix or drop it before
      delivering — a roadmap path pointing outside the repo is never

@@ -277,6 +277,22 @@ function checkPrompt(prompt, opts) {
   } else if (!/[\w-]+[\\/.][\w./\\-]+/.test(relevantFiles)) {
     warnings.push("relevant_files has no path-like reference — vague references defeat truth_grounding's \"read the cited files\"");
   }
+  // [Foreman: 259] A stale path IS caught — resolve-symbols.js flags it and
+  // craft-handoff.js prints the flag — and prompt-template.md's checklist says
+  // to fix or drop it before delivering. Nothing enforced that, so a handoff
+  // could ship the marker and let the destination chase a file that no longer
+  // exists. The marker in the assembled prompt is the enforceable form.
+  if (!backgroundOmitted && relevantFiles) {
+    for (const marker of ["MISSING:", "OUTSIDE PROJECT:"]) {
+      if (!relevantFiles.includes(marker)) continue;
+      errors.push(problem(
+        `relevant_files still carries a ${marker} line — the entry's planned paths are stale, and the template requires fixing or dropping one before delivery`,
+        "Correct the entry's planned_touches to the paths that exist, or drop the dead ones, then re-craft.",
+        null
+      ));
+    }
+  }
+
   // [Foreman: 105] Deliberately no symbol-less warning here. The template asks
   // for symbols, but foreman:roadmap seeds this block from an entry's `planned_touches`,
   // which is area-level and often a bare directory, and that branch is forbidden

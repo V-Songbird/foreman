@@ -26,7 +26,7 @@
 const fs = require("fs");
 const path = require("path");
 const { render, projectDir, readConfig } = require("./render-sections.js");
-const { resolve: resolveSymbols } = require("./resolve-symbols.js");
+const { resolve: resolveSymbols, candidateIdentifiers } = require("./resolve-symbols.js");
 const { readEntries, cmdList, touchesOverlap, today, anchorIdsIn } = require("./roadmap.js");
 const { anchorShaFor, changedSince } = require("./commit-evidence.js");
 const ledger = require("./ledger");
@@ -192,7 +192,45 @@ function computeSignals(root, record, input, symbolFiles, hasVerification) {
 // name, never a line range; missing/outside/unresolved paths ride along as
 // stated discrepancies, exactly as skills/roadmap/SKILL.md's step 3 does.
 
-function relevantFilesText(files, references, unresolved) {
+// [Foreman: 259] Every other block this file assembles has a ceiling —
+// RECALL_MAX_CHARS, NOTES_KEEP, ANCHOR_KEEP — and the symbol list had none.
+// A single-file module resolves to hundreds of top-level names, and the ten
+// the task actually touches drown in them. So the names the entry's own prose
+// asks for lead, the rest follow in file order, and the tail is cut with its
+// count stated rather than silently dropped.
+const SYMBOL_KEEP = 12;
+
+// Symbol names the entry's own title/what already names. Two signals, and
+// both are needed: candidateIdentifiers covers the call-shaped and
+// camelCase/snake_case tokens resolve-symbols.js uses to spot an invented
+// API, and backticks cover the rest — a symbol named `grade` or `scan` has
+// no shape to it, and prose is where an entry names those. Nothing matches
+// on an entry with no prose, which is the honest answer: no signal, so file
+// order decides.
+const BACKTICKED_NAME = /`([A-Za-z_$][\w$]*)`/g;
+
+function promptedNames(record) {
+  if (!record) return new Set();
+  const prose = `${record.title || ""} ${record.what || ""}`;
+  const names = new Set(candidateIdentifiers(prose));
+  BACKTICKED_NAME.lastIndex = 0;
+  let match;
+  while ((match = BACKTICKED_NAME.exec(prose)) !== null) names.add(match[1]);
+  return names;
+}
+
+// The symbols worth printing for one file: prompted names first (file order
+// among themselves), then the rest, capped. Returns the kept list plus how
+// many were left out, so the caller can say so.
+function rankSymbols(symbols, prompted) {
+  const wanted = symbols.filter((s) => prompted.has(s.name));
+  const rest = symbols.filter((s) => !prompted.has(s.name));
+  const kept = [...wanted, ...rest].slice(0, SYMBOL_KEEP);
+  return { kept, dropped: symbols.length - kept.length };
+}
+
+function relevantFilesText(files, references, unresolved, record) {
+  const prompted = promptedNames(record);
   const lines = [];
   for (const f of files || []) {
     if (f.missing) {
@@ -202,7 +240,10 @@ function relevantFilesText(files, references, unresolved) {
     } else if (f.directory || f.unsupported || f.unreadable) {
       lines.push(f.path);
     } else if (f.symbols && f.symbols.length) {
-      lines.push(`${f.path} — ${f.symbols.map((s) => `${s.name} (${s.line})`).join(", ")}`);
+      const { kept, dropped } = rankSymbols(f.symbols, prompted);
+      const named = kept.map((s) => `${s.name} (${s.line})`).join(", ");
+      const tail = dropped > 0 ? `, and ${dropped} more top-level definitions — read the file` : "";
+      lines.push(`${f.path} — ${named}${tail}`);
     } else {
       lines.push(f.path);
     }
@@ -846,7 +887,7 @@ function assemble(root, input) {
     : "";
 
   const taskContextBlock = taskContextText(config.usePersona, judgment);
-  const backgroundInner = relevantFilesText(symbolResult.files, symbolResult.references, symbolResult.unresolved);
+  const backgroundInner = relevantFilesText(symbolResult.files, symbolResult.references, symbolResult.unresolved, record);
   const priorWork = priorWorkText(readEntries(root), record, root);
   const lessons = ledgerText(root, record);
   const anchors = anchorsText(root, record, config.ledger.dir);
@@ -1006,6 +1047,8 @@ module.exports = {
   loadRecord,
   computeSignals,
   relevantFilesText,
+  rankSymbols,
+  SYMBOL_KEEP,
   priorWorkText,
   recallExcerpt,
   ledgerText,

@@ -430,6 +430,38 @@ describe('symbols-first relevant_files', () => {
     assert.deepEqual(json.warnings, [], 'a symbol-less citation must not warn — see the [Foreman: 105] note in check-prompt.js');
   });
 
+  // [Foreman: 259] The template's checklist already said to fix or drop a
+  // stale path before delivering. Nothing enforced it, and a real handoff
+  // shipped two.
+  test('a stale MISSING: path is refused, not merely flagged', () => {
+    const project = makeTmpProject();
+    const prompt = goodPrompt({
+      background: '<background>\n<relevant_files>\nsrc/models/index.js — MISSING: this path no longer exists, a stale prediction to fix or drop\n</relevant_files>\n<context>\nSome context.\n</context>\n</background>',
+    });
+    const { status, json } = check(project, prompt, ['--destination', 'task']);
+    assert.notEqual(status, 0, JSON.stringify(json));
+    assert.ok(json.errors.some((e) => e.error.includes('MISSING:')), JSON.stringify(json.errors));
+  });
+
+  test('an OUTSIDE PROJECT: path is refused the same way', () => {
+    const project = makeTmpProject();
+    const prompt = goodPrompt({
+      background: '<background>\n<relevant_files>\n../elsewhere/a.ts — OUTSIDE PROJECT: resolves outside the project root, not read\n</relevant_files>\n<context>\nSome context.\n</context>\n</background>',
+    });
+    const { status, json } = check(project, prompt, ['--destination', 'task']);
+    assert.notEqual(status, 0, JSON.stringify(json));
+    assert.ok(json.errors.some((e) => e.error.includes('OUTSIDE PROJECT:')), JSON.stringify(json.errors));
+  });
+
+  test('an omitted background cannot trip the stale-path gate', () => {
+    const project = makeTmpProject();
+    writeConfig(project, { omitSections: ['background'] });
+    const prompt = goodPrompt({ background: '' });
+    const { status, json } = check(project, prompt, ['--destination', 'task']);
+    assert.equal(status, 0, JSON.stringify(json));
+  });
+
+
   test('a citation with no path at all still warns', () => {
     const project = makeTmpProject();
     const prompt = goodPrompt({

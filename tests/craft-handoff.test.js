@@ -28,7 +28,7 @@ const { spawnSync } = require('node:child_process');
 const { runNodeScript, makeTmpProject, writeRoadmap, writeConfig, initGitRepo, commitFile, SCRIPTS_DIR } = require('./helpers.js');
 const { today } = require(path.join(SCRIPTS_DIR, 'roadmap.js'));
 const { TEMPLATE_PATH, WORKFLOW_STAGE_SENTENCE } = require(path.join(SCRIPTS_DIR, 'check-prompt.js'));
-const { assemble } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
+const { assemble, relevantFilesText, rankSymbols, SYMBOL_KEEP } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
 
 const CRAFT = path.join(SCRIPTS_DIR, 'craft-handoff.js');
 
@@ -1136,5 +1136,79 @@ describe('the anti-test-gaming clause', () => {
       const { json } = testFirstRun({ FOREMAN_TEST_GAMING_CLAUSE: value });
       assert.ok(!json.prompt.includes(CLAUSE), `"${value}" turned the clause on; only 1 and true may`);
     }
+  });
+});
+
+
+// [Foreman: 259] The symbol list was the one block this assembler printed
+// without a ceiling — prior work has RECALL_MAX_CHARS, notes NOTES_KEEP,
+// anchors ANCHOR_KEEP. A long single-file module resolved to hundreds of
+// names and buried the handful the task touches.
+describe('relevant_files symbol cap', () => {
+  function file(count) {
+    return {
+      path: 'src/big.js',
+      symbols: Array.from({ length: count }, (_, i) => ({ name: 'sym' + i, line: i + 1 })),
+    };
+  }
+
+  test('a file at or under the cap prints every symbol and no tail', () => {
+    const text = relevantFilesText([file(SYMBOL_KEEP)], [], []);
+    assert.equal(text.split(', ').length, SYMBOL_KEEP);
+    assert.ok(!text.includes('more top-level definitions'), text);
+  });
+
+  test('a file over the cap prints exactly the cap and states what was cut', () => {
+    const text = relevantFilesText([file(SYMBOL_KEEP + 30)], [], []);
+    assert.ok(text.includes('sym' + (SYMBOL_KEEP - 1) + ' (' + SYMBOL_KEEP + ')'), text);
+    assert.ok(!text.includes('sym' + SYMBOL_KEEP + ' '), 'a symbol past the cap was printed');
+    assert.ok(text.includes('and 30 more top-level definitions — read the file'), text);
+  });
+
+  test("names the entry's own prose uses lead, however late they sit in the file", () => {
+    const record = { title: 'Fix it', what: 'Make `sym99` call `sym98` before returning' };
+    const text = relevantFilesText([file(120)], [], [], record);
+    assert.match(text, /^src\/big\.js — sym98 \(99\), sym99 \(100\), sym0 \(1\)/);
+    assert.ok(text.includes('and 108 more top-level definitions'), text);
+  });
+
+  test('rankSymbols reports the count it dropped, never a silent truncation', () => {
+    const { kept, dropped } = rankSymbols(file(40).symbols, new Set());
+    assert.equal(kept.length, SYMBOL_KEEP);
+    assert.equal(dropped, 40 - SYMBOL_KEEP);
+  });
+
+  test('an entry with no prose still caps, in file order', () => {
+    const text = relevantFilesText([file(20)], [], [], { title: '', what: '' });
+    assert.match(text, /^src\/big\.js — sym0 \(1\), sym1 \(2\)/);
+    assert.ok(text.includes('and 8 more top-level definitions'), text);
+  });
+
+  test('a real assembled handoff carries the capped block', () => {
+    const project = makeTmpProject();
+    fs.writeFileSync(
+      path.join(project, 'big.js'),
+      Array.from({ length: 60 }, (_, i) => 'function widget' + i + '() {}').join('\n')
+    );
+    writeConfig(project, {});
+    writeRoadmap(project, [{
+      id: '001',
+      title: 'Rework widget3',
+      why: 'it is wrong',
+      what: 'Make `widget3` return early',
+      status: 'planned',
+      source: 'user',
+      depends_on: [],
+      planned_touches: ['big.js'],
+      observed_touches: [],
+      commits: [],
+      created_at: today(),
+      updated_at: today(),
+      notes: '',
+    }]);
+    const { prompt } = assemble(project, { entry: '001', destination: 'task', judgment: goodJudgment() });
+    assert.ok(prompt.includes('widget3 ('), 'the prose-named symbol is missing');
+    assert.ok(prompt.includes('more top-level definitions — read the file'), 'the cap note is missing');
+    assert.ok(!prompt.includes('widget59 ('), 'the whole file surface leaked into the prompt');
   });
 });
