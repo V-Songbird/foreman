@@ -229,10 +229,10 @@ simply does not appear.
 `${CLAUDE_PLUGIN_ROOT}/skills/roadmap/destination-question.md` now and do
 exactly what it says: it carries the question and its options (the split
 option appears only when the gathered `verification` array holds two or
-more pairs), the delivery-path rule, and the render-sections
-`fableEnabled` resolve that follows the answer — that resolve gates the
-executing-model question below. The checkpoint protocol and clipboard
-mechanics it defers to are step 5 below.
+more pairs) and the delivery-path rule. The checkpoint protocol and
+clipboard mechanics it defers to are step 5 below. Foreman never asks which
+model runs the work and never sets one: a background Agent inherits this
+session's model, and a pasted prompt runs wherever the user pastes it.
 
 3. **Gather the judgment fields, then call `craft-handoff.js` once.** Every
    field below comes from the selected entry's own fields — no
@@ -335,17 +335,6 @@ mechanics it defers to are step 5 below.
    `update-status` call embedded in step 3 above. Picking or copying a task
    is not the same as starting it; only the session that begins acting on
    it should say so.
-   **Executing model — background Agent and clipboard only.** Now that the
-   prompt exists, ask craft-prompt's Call 6 question — same wording, same
-   slots and substitutions (`Fable` included only when `fableEnabled` is
-   `true`), asked with no seeded default. Read
-   `${CLAUDE_PLUGIN_ROOT}/skills/craft-prompt/SKILL.md`, section "Call 6 —
-   executing model (conditional)", now and ask exactly what it carries —
-   that section is the one copy of the wording, the option set, and the
-   `Other` hint; never restate any of it here. This is the one question that
-   comes after the prompt: the `Agent` tool needs a model named, and a
-   clipboard prompt is about to be pasted into a session the user chooses.
-   `Execute here` never asks it — the session already has a model.
 5. Deliver via whatever Q2 picked, using the `prompt` (and `tasks[]` when
    present) craft-handoff just returned — never re-derive, re-split, or
    re-embed any of it. Open every delivery message with a brief: one or two
@@ -392,11 +381,10 @@ mechanics it defers to are step 5 below.
      commit with `Foreman: <id>` as the message's final line; and skip
      checkpointing and just work the tasks if git is unavailable.
    - **Background Agent**: call `Agent` with `prompt` = the returned
-     `prompt`, `description` = a 3-5 word summary, `run_in_background:
-     true`, and `model` = the executing model just confirmed above, as its
-     literal string (`haiku`/`sonnet`/`opus`/`fable`) when concrete; omit
-     the `model` parameter entirely when that answer was an `Other` that
-     named no concrete model. The tool result trails with the
+     `prompt`, `description` = a 3-5 word summary, and `run_in_background:
+     true`. Never pass `model`: the agent inherits this session's model,
+     which is the one Foreman can be sure the user chose.
+     The tool result trails with the
      dispatched agent's id (`agentId: a<16 hex>`). Capture it immediately
      with one annotate call, so a later session can resume this exact agent
      instead of re-crafting a prompt from its notes:
@@ -413,9 +401,7 @@ mechanics it defers to are step 5 below.
      <file>` (or `wl-copy < <file>`) on Linux. Mention the file path too,
      in case the clipboard step fails. If no clipboard tool is available at
      all, show the prompt in a fenced `xml` code block instead — the one
-     exception to never printing it into chat. Name the executing model
-     confirmed above in one line, so the user pastes it into the right kind
-     of session. Any checkpoint protocol a multi-check prompt needs already
+     exception to never printing it into chat. Any checkpoint protocol a multi-check prompt needs already
      rides inside `prompt`'s own `task_rules` — craft-handoff baked it in;
      nothing more to do here.
 

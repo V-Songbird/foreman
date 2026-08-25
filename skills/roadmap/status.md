@@ -29,5 +29,15 @@ moved back with `update-status`, or its edge is removed with
 is not in this render at all — `list --archived --summary` returns it in
 the same shape when the user asks for the history. If any parked entries
 exist, fetch just those in full for the "waiting on what" word —
-`list --ids <their ids>` — drawn from their `why`/`notes`. No writes,
-no further questions.
+`list --ids <their ids>` — drawn from their `why`/`notes`.
+
+Close with one line on who did the work. Run `node
+${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --stats` — counts of the
+model and reasoning effort each finished entry self-reported at close, plus
+how many recorded nothing. Write it as one sentence in everyday words, the
+models named plainly and the blanks stated: "Finished work ran on Opus 40,
+Fable 10, Sonnet 7 — 177 entries did not say." Both fields are optional and
+honest about it, so a large blank count is a fact to report, never a
+problem to flag. Skip the line entirely when `closed` is `0` — a roadmap
+with nothing finished has nothing to say here. No writes, no further
+questions.

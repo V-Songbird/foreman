@@ -1490,6 +1490,37 @@ function cmdCorrectUnlocked(root, payload) {
   return warnings.length ? { ...result, warnings } : result;
 }
 
+// [Foreman: 260] The reader for `model`/`effort`. Both are self-reported at
+// close and, before this, nothing read them back -- 57 of 244 entries here
+// carried a model and the only code touching the field was doctor.js's enum
+// check. A field nothing reads is a field nobody keeps filling in, so `list
+// --stats` reports what the corpus actually holds, unrecorded entries
+// included: a blank count that stays high is the honest signal that the
+// field is not earning its place.
+//
+// Closed work only. A planned entry has not run, so counting it as
+// "unrecorded" would bury the real gap in entries that never could have
+// answered.
+const RAN_STATUSES = new Set(["done", "awaiting_acceptance", "dropped"]);
+
+function statsFor(entries) {
+  const ran = entries.filter((e) => RAN_STATUSES.has(e.status));
+  const tally = (field, valid) => {
+    const counts = {};
+    for (const value of valid) {
+      const n = ran.filter((e) => e[field] === value).length;
+      if (n) counts[value] = n;
+    }
+    return counts;
+  };
+  return {
+    closed: ran.length,
+    by_model: tally("model", MODELS),
+    by_effort: tally("effort", EFFORTS),
+    no_model: ran.filter((e) => e.model === undefined).length,
+    no_effort: ran.filter((e) => e.effort === undefined).length,
+  };
+}
 function cmdList(root, filters) {
   // [Foreman: 132] --archived swaps the source file and nothing else: the
   // same --ids/--status/--summary semantics, over history instead of the
@@ -1508,6 +1539,9 @@ function cmdList(root, filters) {
   // fall back to a full-entry read) and drops the prose — on a large
   // roadmap the full entries are most of the payload, re-sent into context
   // on every review.
+  // --stats replaces the rows entirely: the caller asked what the corpus
+  // holds, not which entries are in it.
+  if (filters.stats) return { stats: statsFor(filtered) };
   if (filters.summary) {
     filtered = filtered.map((e) => ({
       id: e.id,
@@ -2553,6 +2587,11 @@ absent when the file was already current.
                     id/title/status/depends_on/planned_touches -- use for
                     whole-roadmap renders and not-done digests, then fetch
                     the few needing prose via --ids)
+                    flag: --stats   (optional: replaces the rows with counts
+                    of the self-reported model/effort fields over closed work
+                    (done/awaiting_acceptance/dropped) -- {closed, by_model,
+                    by_effort, no_model, no_effort}. Combines with --status,
+                    --ids and --archived, which filter first)
                     flag: --archived   (optional: read .foreman/archive.jsonl
                     instead of ROADMAP.jsonl -- same filter semantics;
                     without it every view is active-only)

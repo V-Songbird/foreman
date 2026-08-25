@@ -290,37 +290,10 @@ Call 3 already gathered the verification commands, so the count is known
 here. Read `${CLAUDE_PLUGIN_ROOT}/skills/roadmap/destination-question.md`
 now and do exactly what it says: it carries the question and its options
 (the split option appears only when Call 3 gathered two or more checks),
-the delivery-path rule, and the render-sections `fableEnabled` resolve
-that follows the answer — that resolve gates Call 6 below. The checkpoint
-protocol and clipboard mechanics it defers to are Deliver below.
-
----
-
-## Call 6 — executing model (conditional)
-
-Ask this when Call 5's answer was `Execute with a background Agent` or
-`Copy prompt to clipboard`. Skip it for either `Execute here` option —
-that session already has a model, and Foreman never changes it.
-
-**Q1** — background Agent: "Which model should the background Agent run
-on?" Clipboard: "Which model will run the pasted prompt?"
-`Haiku`, `Sonnet`, `Opus` always; `Fable` too, but only when the
-render-sections result's `fableEnabled` is `true` — three options when
-it's `false` (the default), four when it's `true`. Offer them in plain
-order with no `(Recommended)` label and no why-line: the question exists
-because a dispatch needs a model named, not because Foreman has an opinion
-about which one.
-
-No fifth "Inherit"/"Unknown" slot — `AskUserQuestion` caps authored
-options at four, and the tool's own automatic `Other` already covers it as
-free text. Add this hint to Q1's context so the user knows: "Not sure, or
-want it to inherit the session's model? Pick Other and leave it blank or
-say so."
-
-The answer is a dispatch value and nothing more: on the background-Agent
-path a concrete model becomes the `Agent` call's literal `model`
-(`haiku`/`sonnet`/`opus`/`fable`); an `Other` answer that names no concrete
-model means leaving `model` out of the call.
+the delivery-path rule, and nothing else. The checkpoint protocol and
+clipboard mechanics it defers to are Deliver below. Foreman never asks
+which model runs the work and never sets one: a background Agent inherits
+this session's model, and a pasted prompt runs wherever the user pastes it.
 
 ---
 
@@ -431,11 +404,9 @@ prompt and the task-split rows are already baked in.
   rule, the per-task commit, and what happens to the branch at the end.
   This is the only moment this skill reads that file.
 - **Background Agent** — call `Agent` with `prompt` = the returned
-  `prompt`, `description` = a 3-5 word summary, `run_in_background: true`,
-  and `model` = Call 6's answer as its literal string
-  (`haiku`/`sonnet`/`opus`/`fable`) when concrete; omit the `model`
-  parameter entirely when the answer was an `Other` that didn't name a
-  concrete model.
+  `prompt`, `description` = a 3-5 word summary, and `run_in_background:
+  true`. Never pass `model`: the agent inherits this session's model, which
+  is the one Foreman can be sure the user chose.
 - **Clipboard** — `Write` the returned `prompt` to a temp file first, never
   as an inline shell string: a large prompt breaks shell
   quoting and the copy silently fails. Then pipe the file's content into
@@ -444,8 +415,7 @@ prompt and the task-split rows are already baked in.
   <file>` (or `wl-copy < <file>`) on Linux. Mention the file path too, in
   case the clipboard step fails. If no clipboard tool is available at all,
   show the prompt in a fenced `xml` code block instead — the one exception
-  to never printing it into chat. Name Call 6's model in one line, so the
-  user pastes it into the right kind of session. Any checkpoint protocol a multi-check prompt
+  to never printing it into chat. Any checkpoint protocol a multi-check prompt
   needs already rides inside `prompt`'s own `task_rules` — craft-handoff
   baked it in; nothing more to do here. A `Workflow stage` task also
   carries the JSON Schema artifact assembled in Call 4 — deliver it

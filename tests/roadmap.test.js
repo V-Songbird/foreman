@@ -1684,6 +1684,59 @@ describe('model and effort fields', () => {
   });
 });
 
+// [Foreman: 260] The reader for those two fields. Before it, both were
+// write-only: nothing but the doctor's enum check ever touched entry.model.
+describe('list --stats', () => {
+  function entry(id, status, extra) {
+    return Object.assign({ id, title: id, why: 'a', what: 'a', status, source: 'user', depends_on: [], touches: [], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '' }, extra || {});
+  }
+
+  beforeEach(() => {
+    writeRoadmap(project, [
+      entry('001', 'done', { model: 'opus', effort: 'high' }),
+      entry('002', 'done', { model: 'opus' }),
+      entry('003', 'awaiting_acceptance', { model: 'sonnet', effort: 'low' }),
+      entry('004', 'done'),
+      entry('005', 'planned', { model: 'fable' }),
+      entry('006', 'in_progress'),
+    ]);
+  });
+
+  test('counts the models closed work reported, and what it left blank', () => {
+    const { status, json } = run(['list', '--stats']);
+    assert.equal(status, 0);
+    assert.deepEqual(json.stats.by_model, { sonnet: 1, opus: 2 });
+    assert.deepEqual(json.stats.by_effort, { low: 1, high: 1 });
+    assert.equal(json.stats.no_model, 1);
+    assert.equal(json.stats.no_effort, 2);
+  });
+
+  test('only work that has actually run is counted', () => {
+    const { json } = run(['list', '--stats']);
+    assert.equal(json.stats.closed, 4, 'planned and in_progress entries were counted as closed');
+    assert.ok(!('fable' in json.stats.by_model), 'a planned entry contributed a model');
+  });
+
+  test('--stats replaces the rows entirely', () => {
+    const { json } = run(['list', '--stats']);
+    assert.equal(json.entries, undefined);
+  });
+
+  test('--status filters before the count', () => {
+    const { json } = run(['list', '--stats', '--status', 'awaiting_acceptance']);
+    assert.equal(json.stats.closed, 1);
+    assert.deepEqual(json.stats.by_model, { sonnet: 1 });
+  });
+
+  test('a roadmap with nothing finished reports zeroes, not an error', () => {
+    writeRoadmap(project, [entry('001', 'planned')]);
+    const { status, json } = run(['list', '--stats']);
+    assert.equal(status, 0);
+    assert.equal(json.stats.closed, 0);
+    assert.deepEqual(json.stats.by_model, {});
+  });
+});
+
 describe('anchor comments (DECISION_ANCHOR_RE / anchorIdsIn / anchorHasId)', () => {
   const { anchorIdsIn, anchorHasId } = require('../scripts/roadmap');
 

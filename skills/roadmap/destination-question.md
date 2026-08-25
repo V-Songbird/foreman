@@ -3,9 +3,10 @@
 The one copy of the destination question both prompt-crafting skills ask
 (roadmap pick's Q2, craft-prompt's Call 5) — a fix here reaches both.
 `prompt-template.md`'s delivery-mechanics section names the same step for
-script authors and points here; the exact wording lives here. The
-executing-model question is not here: its one copy lives with
-craft-prompt's Call 6, and roadmap's pick branch reads that copy.
+script authors and points here; the exact wording lives here. There is no
+follow-up question about which model runs the work: Foreman never asks and
+never sets one, so a background Agent inherits the calling session's model
+and a pasted prompt runs wherever the user pastes it.
 
 **"How do you want to run this?"** — destination and execution mode in one
 question, asked now, before the prompt exists. There is nothing to preview
@@ -34,12 +35,3 @@ the split cuts into that many slices at whatever verification boundaries
 exist instead of one-per-check. Don't add a confirmation question — the
 created rows are the preview, and a wrong one is removed with `TaskUpdate`
 `status: "deleted"`.
-
-## Resolve `fableEnabled` (right after the answer)
-
-Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/render-sections.js` exactly once.
-Only its `fableEnabled` field is read here — it decides whether `Fable`
-appears in the calling flow's executing-model question. `craft-handoff.js`
-resolves the same config again internally when it assembles, so this call
-is only for that one gating decision, never for reuse in assembly. Surface
-its `warnings` now, if any.

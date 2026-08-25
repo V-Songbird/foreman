@@ -52,9 +52,11 @@ function readConfig(root) {
 // Declaration, not detection: the project states whether it can run
 // Fable 5 at all (Max plan or API — other plans can't). Hand-edited in
 // .foreman/config.json; init does not ask. Default false. Gates
-// whether `Fable` appears as a selectable option in craft-prompt/
-// foreman:roadmap's executing-model question — see prompt-template.md's
-// fableEnabled bullet.
+// [Foreman: 260] Declaration only. It gated whether `Fable` appeared in
+// the executing-model menu, and that question is gone — Foreman no longer
+// asks which model runs a task — so nothing reads this field today. Kept
+// because foreman:init writes it into every project's config.
+// See prompt-template.md's fableEnabled bullet.
 function readFableEnabled(config) {
   const value = config?.fableEnabled;
   if (value === undefined) return { value: false, warning: null };

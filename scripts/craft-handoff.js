@@ -714,13 +714,13 @@ function checkpointEmbedText(cfg, checkCount) {
 }
 
 // ---- the entry paragraph — id substitution, requireVerification
-// acceptance hold, decision-doc close field, executing model when given,
+// acceptance hold, decision-doc close field,
 // ${CLAUDE_PLUGIN_ROOT} as the literal string. This is the canonical copy
 // now (skills/roadmap/pick.md calls this script instead of assembling the
 // paragraph itself), collapsed to the one concrete variant that applies for
 // this handoff rather than a human-facing skill's illustrative examples.
 
-function entryParagraphText({ id, resume, requireVerification, destination, model, askLesson }) {
+function entryParagraphText({ id, resume, requireVerification, askLesson }) {
   const opening = resume
     ? `This task is ROADMAP.jsonl entry \`${id}\`, already marked \`in_progress\` by an earlier session — don't re-mark it; earlier findings may sit in its \`notes\` (included above), read them before re-deriving anything.`
     : `This task is ROADMAP.jsonl entry \`${id}\`. Mark it \`in_progress\` before doing anything else — Foreman's picking flow deliberately leaves it \`planned\` until you do:\n\`echo '{"id":"${id}","status":"in_progress"}' | node ${PLUGIN_ROOT}/scripts/roadmap.js update-status\``;
@@ -735,16 +735,12 @@ function entryParagraphText({ id, resume, requireVerification, destination, mode
   const stageStep = `Stage the task's own files with the safe-commit primitive — never \`git add -A\`:\n\`echo '{"id":"${id}","expected":["<the files this task owns>"]}' | node ${PLUGIN_ROOT}/scripts/safe-commit.js finish --baseline <baseline.head> --no-commit\`\nThen close with \`staged:true\` (the script folds the staged files into \`observed_touches\` and stages ROADMAP.jsonl alongside), then commit once with \`Foreman: ${id}\` as the final line of the message.`;
 
   const fields = ['"status":"<status>"', '"staged":true', '"notes":"<findings>"'];
-  const modelBaked = destination === "agent" && model;
-  if (modelBaked) fields.push(`"model":"${model}"`);
   const closeCall = `\`echo '{"id":"${id}",${fields.join(",")}}' | node ${PLUGIN_ROOT}/scripts/roadmap.js update-status\``;
 
-  // roadmap-schema.md:112-113 — model/effort are self-reported at close,
-  // never guessed. A background-Agent dispatch already knows its model (baked
-  // above), so it only still owes effort; every other case owes both.
-  const modelEffortNote = modelBaked
-    ? "Also add `effort` to that close call — the reasoning effort you actually ran at. Omit it if you genuinely don't know rather than guessing — an absent field reads as unrecorded, a wrong one silently poisons the corpus."
-    : "Also add `model` and `effort` to that close call — what actually ran this task, not what was recommended for it. Omit either one you genuinely don't know rather than guessing — an absent field reads as unrecorded, a wrong one silently poisons the corpus.";
+  // [Foreman: 260] roadmap-schema.md:112-113 — model/effort are self-reported
+  // at close, never guessed, and now always: Foreman stopped asking which model
+  // should run a task, so nothing upstream knows the answer to bake in.
+  const modelEffortNote = "Also add `model` and `effort` to that close call — what actually ran this task. Omit either one you genuinely don't know rather than guessing — an absent field reads as unrecorded, a wrong one silently poisons the corpus.";
 
   // Two sentences, single-purpose, emitted only where the ledger is on. A
   // skipped ask is silence, which is the designed outcome: forcing a lesson
@@ -880,8 +876,6 @@ function assemble(root, input) {
         // commits/observed_touches, which is not the same claim.
         resume: Boolean(input.resume),
         requireVerification: config.requireVerification,
-        destination,
-        model: input.model,
         askLesson: isEntry && readLedger(root).enabled,
       })
     : "";

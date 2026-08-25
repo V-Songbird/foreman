@@ -55,8 +55,9 @@ an instruction for the spawned session to act on later):**
    - `fableEnabled` — boolean declaration (default `false`) that the
      operator can run Fable 5 at all (Max plan or API — other plans
      can't). Written `false` by `foreman:init`, and set by hand in
-     `.foreman/config.json` by a project that can. Gates whether `Fable` appears at all as a
-     selectable executing model in craft-time menus, and nothing else.
+     `.foreman/config.json` by a project that can. Declaration only: it
+     gated the executing-model menu, and Foreman no longer asks which model
+     runs a task, so nothing reads it today.
    - `requireVerification` — boolean (default `true` when missing or
      unparseable). Read by `foreman:roadmap`'s embedded entry paragraph
      (its "Acceptance hold" note): with it `true`, a close that earned
@@ -574,10 +575,8 @@ asking: that gate reads them.
 prompt, `description` = a 3-5 word summary, `run_in_background: true`.
 Checkpoint branches and commits stay with this crafting session — a
 background Agent shares this working tree and must not switch branches or
-commit checkpoints. Pass `model` too — the executing model the crafting
-skill confirmed, as its literal string, one of
-`haiku`/`sonnet`/`opus`/`fable`; omit the parameter entirely when the
-answer named no concrete model.
+commit checkpoints. Never pass `model`: the agent inherits the crafting
+session's model, which is the one Foreman can be sure the user chose.
 
 **Clipboard** — `Write` the assembled prompt to a temp file first; never
 pass it as an inline shell string, a large prompt breaks shell quoting and
@@ -586,8 +585,7 @@ command: `Get-Content -Raw <file> | Set-Clipboard` on Windows, `pbcopy <
 <file>` on macOS, `xclip -selection clipboard < <file>` (or `wl-copy <
 <file>`) on Linux. Mention the file path too, in case the clipboard step
 fails. If no clipboard tool is available at all, fall back to showing the
-prompt in a fenced `xml` code block instead. Name the executing model in
-one line too, so the user pastes it into the right kind of session.
+prompt in a fenced `xml` code block instead.
 
 **Clipboard checkpoint embed** — only when the assembled prompt carries
 two or more `Run:`/`Expected:` pairs; with one or none, embed nothing.

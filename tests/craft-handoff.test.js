@@ -562,7 +562,7 @@ describe('entry paragraph — model/effort self-report channel', () => {
     assert.match(json.prompt, /Also add `model` and `effort` to that close call — what actually ran this task/);
   });
 
-  test('an agent destination with no confirmed model also gets the both-fields instruction', () => {
+  test('an agent destination gets the both-fields instruction', () => {
     writeRoadmap(project, [entryFields()]);
     const { json } = run(project, { entry: '001', destination: 'agent', judgment: goodJudgment() });
     assert.equal(json.ok, true, JSON.stringify(json));
@@ -570,13 +570,16 @@ describe('entry paragraph — model/effort self-report channel', () => {
     assert.ok(!json.prompt.includes('"model":"'));
   });
 
-  test('an agent destination with a confirmed model bakes it and asks only for effort', () => {
+  // [Foreman: 260] Foreman no longer asks which model should run a task, so
+  // nothing upstream can know one to bake in. A caller passing `model` anyway
+  // is passing a value nothing confirmed: it is ignored, and the destination
+  // still self-reports what actually ran.
+  test('a passed model is ignored — the destination always self-reports both', () => {
     writeRoadmap(project, [entryFields()]);
     const { json } = run(project, { entry: '001', destination: 'agent', model: 'sonnet', judgment: goodJudgment() });
     assert.equal(json.ok, true, JSON.stringify(json));
-    assert.match(json.prompt, /"model":"sonnet"/);
-    assert.match(json.prompt, /Also add `effort` to that close call — the reasoning effort you actually ran at/);
-    assert.ok(!json.prompt.includes('Also add `model` and `effort`'));
+    assert.ok(!json.prompt.includes('"model":"sonnet"'), 'a passed model was baked into the close call');
+    assert.match(json.prompt, /Also add `model` and `effort` to that close call/);
   });
 });
 

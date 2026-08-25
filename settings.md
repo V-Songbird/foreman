@@ -29,8 +29,9 @@ the first completion attempt with instructions to close the entry; the
 retry then passes.
 
 `fableEnabled` declares that this project can run Fable 5. It defaults to
-`false`, and setting it `true` only adds Fable to the list of models a
-handoff can be dispatched to.
+`false`. Nothing reads it today: it used to add Fable to a list of models a
+handoff could be dispatched to, and Foreman no longer asks which model runs
+a task.
 
 `trialLog` keeps a local log of how Foreman is used, so its own health
 numbers can be measured. Off by default. It records counts, booleans, and
