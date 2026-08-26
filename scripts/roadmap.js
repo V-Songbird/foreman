@@ -122,15 +122,22 @@ function splitTouches(entry) {
 // thing that writes the result; readEntries applies the same steps IN MEMORY
 // so every read-only command works on an unmigrated file.
 const UPGRADE_STEPS = [
-  { from: 1, to: 2, fn: (entries) => entries.map(splitTouches) },
+  // shapeIdempotent: safe to run against an already-current entry, so it
+  // runs no matter what the marker claims. An old Foreman appending a v1
+  // entry to a file already stamped format 2 is not a format the marker can
+  // describe, and the shape is the only honest signal left.
+  { from: 1, to: 2, shapeIdempotent: true, fn: (entries) => entries.map(splitTouches) },
 ];
 
 // Every step at or above the file's own version, in order — so a format-1
-// file walks the whole chain and a current one walks none.
+// file walks the whole chain and a current one walks none. A step marked
+// `shapeIdempotent` runs regardless: the marker describes the file, not each
+// line in it, and an old Foreman can append an old-shaped entry to a file a
+// newer one already stamped.
 function upgradeEntries(entries, from) {
   let out = entries;
   for (const step of UPGRADE_STEPS) {
-    if (step.from >= from) out = step.fn(out);
+    if (step.from >= from || step.shapeIdempotent) out = step.fn(out);
   }
   return out;
 }

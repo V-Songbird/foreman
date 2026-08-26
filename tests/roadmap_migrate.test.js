@@ -410,3 +410,31 @@ describe('usage', () => {
     assert.match(help, /foreman_roadmap_format/);
   });
 });
+
+// [Foreman: 263] The marker describes the FILE, not each line in it. An older
+// Foreman (seen in the wild: a script pinned at 0.31.0-alpha) appends a v1
+// entry to a roadmap a newer Foreman already stamped format 2, and the file
+// then declares a format its own contents do not honor. Version-gated
+// upgrades skipped that entry entirely: planned_touches read as absent, the
+// handoff builder refused to build it, and doctor called the file healthy
+// because it defaults the field to []. splitTouches is idempotent by shape,
+// so it now runs whatever the marker claims.
+describe('a v1-shaped entry inside a file already stamped format 2', () => {
+  test('still normalizes on read', () => {
+    writeRaw([META, JSON.stringify(v1Entry('001', { touches: ['src/auth'] }))]);
+    const { json } = run(['list']);
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.deepEqual(json.entries[0].planned_touches, ['src/auth']);
+    assert.deepEqual(json.entries[0].observed_touches, []);
+    assert.ok(!('touches' in json.entries[0]), JSON.stringify(json.entries[0]));
+  });
+
+  test('is repaired on disk by the next mutation', () => {
+    writeRaw([META, JSON.stringify(v1Entry('001', { touches: ['src/auth'] }))]);
+    const { json } = run(['update-status'], JSON.stringify({ id: '001', status: 'in_progress' }));
+    assert.equal(json.ok, true, JSON.stringify(json));
+    const stored = JSON.parse(readLines()[1]);
+    assert.deepEqual(stored.planned_touches, ['src/auth']);
+    assert.ok(!('touches' in stored), JSON.stringify(stored));
+  });
+});
