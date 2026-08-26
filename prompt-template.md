@@ -605,6 +605,11 @@ instructing the pasted session to:
   changed — `git add -- <those paths>`, never `git add -A` — and commit
   `task <n>/<total>: <task subject>`, and leave it local — checkpoints
   are never pushed;
+- the last task carries the roadmap close instead of a `task
+  <n>/<total>` commit, when this handoff carries an entry paragraph —
+  stage with `safe-commit.js finish --no-commit`, close with
+  `staged:true`, then make that one commit with the baked `Foreman: <id>`
+  as its final line; omit this line entirely when there is no entry;
 - after the last task, apply the baked `onFinish` — `"ask"` asks the
   user squash/merge/PR/keep, a concrete value acts directly — only when
   the run created the branch;

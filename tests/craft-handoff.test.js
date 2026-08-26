@@ -28,7 +28,7 @@ const { spawnSync } = require('node:child_process');
 const { runNodeScript, makeTmpProject, writeRoadmap, writeConfig, initGitRepo, commitFile, SCRIPTS_DIR } = require('./helpers.js');
 const { today } = require(path.join(SCRIPTS_DIR, 'roadmap.js'));
 const { TEMPLATE_PATH, WORKFLOW_STAGE_SENTENCE } = require(path.join(SCRIPTS_DIR, 'check-prompt.js'));
-const { assemble, relevantFilesText, rankSymbols, SYMBOL_KEEP } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
+const { assemble, relevantFilesText, rankSymbols, SYMBOL_KEEP, checkpointEmbedText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
 
 const CRAFT = path.join(SCRIPTS_DIR, 'craft-handoff.js');
 
@@ -500,6 +500,34 @@ describe('decision entries and the clipboard checkpoint embed', () => {
     assert.match(json.prompt, /apply `squash` directly/);
   });
 
+  // [Foreman: 262] The embed and the entry paragraph used to contradict each
+  // other on the last commit: the paragraph says commit once with a
+  // `Foreman: <id>` trailer, the embed said commit `task <n>/<total>`. The
+  // template reconciles them, but the pasted session never reads the
+  // template — so the reconciliation is baked into the embed itself.
+  test('the embed defers its last commit to the roadmap close, id baked in', () => {
+    writeConfig(project, { checkpoints: { branch: true, onFinish: 'squash' } });
+    writeRoadmap(project, [entryFields()]);
+    const { json } = run(project, {
+      entry: '001',
+      destination: 'clipboard',
+      judgment: goodJudgment({
+        verification: [
+          { run: 'npm test -- auth', expected: 'auth tests pass' },
+          { run: 'npm test', expected: 'all tests pass' },
+        ],
+      }),
+    });
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.ok(json.prompt.includes("the last task carries the roadmap close instead of a `task <n>/<total>` commit"), json.prompt);
+    assert.ok(json.prompt.includes("make that one commit with `Foreman: 001` as its final line"), json.prompt);
+  });
+
+  test('a handoff with no roadmap entry gets no roadmap-close bullet', () => {
+    const embed = checkpointEmbedText({ baseBranch: null, branch: true, onFinish: 'ask' }, 2, null);
+    assert.ok(!embed.includes('carries the roadmap close'), embed);
+    assert.ok(embed.includes("commit `task <n>/<total>: <task subject>`"), embed);
+  });
   test('clipboard with a single verification pair gets no checkpoint embed', () => {
     writeRoadmap(project, [entryFields()]);
     const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });

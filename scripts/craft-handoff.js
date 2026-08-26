@@ -691,7 +691,7 @@ function checkpointsConfig(root) {
 // compact block appended to task_rules, per prompt-template.md's "Clipboard
 // checkpoint embed" section. Only when the destination is clipboard and the
 // prompt carries two or more Run:/Expected: pairs.
-function checkpointEmbedText(cfg, checkCount) {
+function checkpointEmbedText(cfg, checkCount, entryId) {
   const branchLine = cfg.baseBranch
     ? `the base branch is \`${cfg.baseBranch}\``
     : "detect the base branch with `git symbolic-ref --short refs/remotes/origin/HEAD` (name after `origin/`, fallback `main`)";
@@ -708,6 +708,11 @@ function checkpointEmbedText(cfg, checkCount) {
     `- settle the branch first: ${branchLine}; ${branchAction}`,
     "- before task 1, stop if `git status --porcelain` is non-empty: say so once and make no checkpoint commits at all for this run",
     "- after each task's check passes, stage only the files that task changed (`git add -- <those paths>`, never `git add -A`) and commit `task <n>/<total>: <task subject>`; leave it local, never push",
+    ...(entryId
+      ? [
+          "- the last task carries the roadmap close instead of a `task <n>/<total>` commit: stage with `safe-commit.js finish --no-commit`, close the entry with `staged:true`, then make that one commit with `Foreman: " + entryId + "` as its final line",
+        ]
+      : []),
     `- after the last task (only if this run created the branch): ${onFinishLine}`,
     "- skip checkpointing and just work the tasks if git is unavailable",
   ].join("\n");
@@ -864,7 +869,7 @@ function assemble(root, input) {
   const checkCount = hasVerification ? judgment.verification.length : 0;
   const wantsClipboardEmbed = destination === "clipboard" && checkCount >= 2;
   const checkpointEmbed = wantsClipboardEmbed
-    ? checkpointEmbedText(checkpointsConfig(root), checkCount)
+    ? checkpointEmbedText(checkpointsConfig(root), checkCount, isEntry ? entryId : null)
     : null;
 
   const entryParagraph = isEntry
