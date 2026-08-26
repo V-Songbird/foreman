@@ -14,8 +14,8 @@
 //   - roadmap.js: add -> list -> next-candidates -> update-status round-trip,
 //     writing to the CWD project because no CLAUDE_PROJECT_DIR is set
 //   - render-sections.js: renders against a temp .foreman/config.json, and a
-//     non-boolean fableEnabled warns and defaults to false rather than crashing
-//     (it is a boolean gate, not an enum)
+//     non-boolean requireVerification warns and falls back rather than
+//     crashing (it is a boolean gate, not an enum)
 //   - check-prompt.js: passes a good prompt and fails an unfilled placeholder,
 //     resolving prompt-template.md from its own tree rather than from cwd
 //
@@ -140,22 +140,22 @@ describe('the scripts layer runs with no harness environment', () => {
     fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
     fs.writeFileSync(
       path.join(project, '.foreman', 'config.json'),
-      JSON.stringify({ usePersona: false, fableEnabled: true }),
+      JSON.stringify({ usePersona: false, requireVerification: false }),
       'utf-8'
     );
 
     const out = json(runStandalone(RENDER, [], null, project));
     assert.equal(out.ok, true, JSON.stringify(out));
     assert.equal(out.usePersona, false, 'the cwd config was not the one that was read');
-    assert.equal(out.fableEnabled, true);
+    assert.equal(out.requireVerification, false);
   });
 
-  test('a non-boolean fableEnabled warns and defaults to false rather than crashing', () => {
+  test('a non-boolean requireVerification warns and falls back rather than crashing', () => {
     const project = makeTmpProject();
     fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
     fs.writeFileSync(
       path.join(project, '.foreman', 'config.json'),
-      JSON.stringify({ fableEnabled: 'yes' }),
+      JSON.stringify({ requireVerification: 'yes' }),
       'utf-8'
     );
 
@@ -163,9 +163,9 @@ describe('the scripts layer runs with no harness environment', () => {
     assert.equal(result.status, 0, `render-sections crashed: ${result.stderr}`);
     const out = json(result);
     assert.equal(out.ok, true);
-    assert.equal(out.fableEnabled, false, 'a boolean gate must fail closed, not carry a string through');
+    assert.equal(out.requireVerification, true, 'a boolean gate must fall back to its default, not carry a string through');
     assert.ok(
-      out.warnings.some((w) => /fableEnabled/.test(w)),
+      out.warnings.some((w) => /requireVerification/.test(w)),
       `the bad value was swallowed silently: ${JSON.stringify(out.warnings)}`
     );
   });

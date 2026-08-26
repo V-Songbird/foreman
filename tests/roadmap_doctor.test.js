@@ -121,7 +121,6 @@ describe('doctor on a healthy roadmap', () => {
       omitSections: ['tone', 'output_format'],
       taskCloseGate: 'block',
       trialLog: true,
-      fableEnabled: true,
       requireVerification: false,
       ledger: { enabled: true, dir: 'docs/foreman' },
       checkpoints: { branch: true, onFinish: 'squash', baseBranch: 'main' },
@@ -349,6 +348,18 @@ describe('doctor config findings', () => {
     writeRoadmap(project, [base('001')]);
     writeConfig(project, { decisionLog: { push: true } });
     assert.equal(assertFinding(doctor(), 'unknown_config_key', 'warning').field, 'decisionLog.push');
+  });
+
+  // [Foreman: 260] `fableEnabled` gated the executing-model menu, which is
+  // gone. A project that hand-set it is told the key is retired rather than
+  // left believing it still does something -- a warning, never an error,
+  // because the config is otherwise fine.
+  test('a retired fableEnabled reports as a key this Foreman does not know', () => {
+    writeRoadmap(project, [base('001')]);
+    writeConfig(project, { fableEnabled: true });
+    const report = doctor();
+    assert.equal(assertFinding(report, 'unknown_config_key', 'warning').field, 'fableEnabled');
+    assert.equal(report.summary.errors, 0);
   });
 
   test('unreadable_config: the file exists but is not JSON', () => {

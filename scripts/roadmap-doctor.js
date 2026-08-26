@@ -456,7 +456,11 @@ const CONFIG_SPEC = {
   // [Foreman: 208] Opt-in, default false. Read by scripts/trial-log.js.
   trialLog: BOOL,
   requireVerification: BOOL,
-  fableEnabled: BOOL,
+  // [Foreman: 260] `fableEnabled` is gone with the executing-model question
+  // it gated -- Foreman no longer asks which model runs a task -- and now
+  // reports as a key this Foreman does not know, the same way
+  // `decisionLog.gate` did. init has always written `{}`, so only a project
+  // that hand-set it sees the warning.
   taskCloseGate: oneOf(VALID_GATES),
   omitSections: {
     ok: (value) => Array.isArray(value) && value.every((tag) => OMITTABLE_TAGS.has(tag)),

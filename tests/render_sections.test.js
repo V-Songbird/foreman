@@ -188,38 +188,6 @@ describe('render-sections — usePersona', () => {
   });
 });
 
-describe('render-sections — fableEnabled', () => {
-  test('no config.json -> fableEnabled defaults to false', () => {
-    const { json } = run();
-    assert.equal(json.fableEnabled, false);
-    assert.deepEqual(json.warnings, []);
-  });
-
-  test('config.json without fableEnabled -> defaults to false', () => {
-    writeConfig(project, { discoverySuggestions: true });
-    const { json } = run();
-    assert.equal(json.fableEnabled, false);
-  });
-
-  for (const value of [true, false]) {
-    test(`fableEnabled: ${value} passes through`, () => {
-      writeConfig(project, { fableEnabled: value });
-      const { json } = run();
-      assert.equal(json.fableEnabled, value);
-      assert.deepEqual(json.warnings, []);
-    });
-  }
-
-  test('a non-boolean fableEnabled defaults to false with a warning, no throw', () => {
-    writeConfig(project, { fableEnabled: 'on' });
-    const { status, json } = run();
-    assert.equal(status, 0);
-    assert.equal(json.fableEnabled, false);
-    assert.equal(json.warnings.length, 1);
-    assert.match(json.warnings[0], /not a boolean/);
-  });
-});
-
 // [Foreman: 185] Default ON and fail-toward-true, matching post-commit's
 // reader: the safe reading holds finished work for acceptance.
 describe('render-sections — requireVerification', () => {

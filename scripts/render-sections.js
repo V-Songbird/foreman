@@ -49,28 +49,6 @@ function readConfig(root) {
   };
 }
 
-// Declaration, not detection: the project states whether it can run
-// Fable 5 at all (Max plan or API — other plans can't). Hand-edited in
-// .foreman/config.json; init does not ask. Default false. Gates
-// [Foreman: 260] Declaration only. It gated whether `Fable` appeared in
-// the executing-model menu, and that question is gone — Foreman no longer
-// asks which model runs a task — so nothing reads this field today. Kept
-// because foreman:init writes it into every project's config.
-// See prompt-template.md's fableEnabled bullet.
-function readFableEnabled(config) {
-  const value = config?.fableEnabled;
-  if (value === undefined) return { value: false, warning: null };
-  if (typeof value === "boolean") return { value, warning: null };
-  return {
-    value: false,
-    warning: `fableEnabled: ${JSON.stringify(value)} is not a boolean — defaulted to false`,
-  };
-}
-
-// [Foreman: 185] Same polarity as post-commit's reader: default ON, and
-// anything unparseable falls to true — the safe reading holds finished work
-// for acceptance rather than skipping it. Craft time bakes this into the
-// closing paragraph, which is what makes the primary close path honor it.
 function readRequireVerification(config) {
   const value = config?.requireVerification;
   if (value === undefined) return { value: true, warning: null };
@@ -132,19 +110,16 @@ function renderOmit(raw) {
 function render(root) {
   const { config, warning: configWarning } = readConfig(root);
   const omitResult = renderOmit(config.omitSections);
-  const fableEnabledResult = readFableEnabled(config);
   const requireVerificationResult = readRequireVerification(config);
   const ledger = readLedgerSection(root);
   return {
     usePersona: readUsePersona(config),
     omit: omitResult.omit,
-    fableEnabled: fableEnabledResult.value,
     requireVerification: requireVerificationResult.value,
     ledger: { enabled: ledger.enabled, dir: ledger.dir },
     warnings: [
       ...(configWarning ? [configWarning] : []),
       ...omitResult.warnings,
-      ...(fableEnabledResult.warning ? [fableEnabledResult.warning] : []),
       ...(requireVerificationResult.warning ? [requireVerificationResult.warning] : []),
       ...(ledger.warning ? [ledger.warning] : []),
     ],
@@ -165,7 +140,6 @@ module.exports = {
   configPath,
   readConfig,
   readUsePersona,
-  readFableEnabled,
   readLedgerSection,
   renderOmit,
   render,

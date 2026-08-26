@@ -85,7 +85,7 @@ describe("init writes safe defaults instead of asking", () => {
   // that can drift from the reader — which is exactly what happened before.
   test("the config is written empty, with no key restated", () => {
     assert.match(skill, /`\.foreman\/config\.json` as `\{\}`/);
-    for (const key of ['usePersona', 'omitSections', 'requireVerification', 'taskCloseGate', 'fableEnabled']) {
+    for (const key of ['usePersona', 'omitSections', 'requireVerification', 'taskCloseGate']) {
       assert.doesNotMatch(skill, new RegExp(`"${key}": `), `init still writes ${key} into the config`);
     }
   });

@@ -92,7 +92,7 @@ Every optional behavior already has a safe default in the code that reads
 it, so init writes `.foreman/config.json` as an empty object `{}` and lets
 those defaults stand: finished work waits for the user's confirmation,
 nothing blocks a task's completion, handoffs open with a persona sentence,
-no prompt section is omitted, and Fable 5 is assumed unavailable.
+and no prompt section is omitted.
 
 Writing those values out would only create a second copy that can drift
 from the readers. `ledger` stays absent for a second reason too: an absent

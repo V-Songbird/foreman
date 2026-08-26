@@ -35,7 +35,7 @@ an instruction for the spawned session to act on later):**
    — always (it resolves a project root from `$CLAUDE_PROJECT_DIR`/cwd and
    fails soft to defaults when no `.foreman/config.json` exists). One JSON
    object: `{"usePersona": bool, "omit": [...],
-   "fableEnabled": bool, "requireVerification": bool,
+   "requireVerification": bool,
    "ledger": {"enabled": bool, "dir": string}, "warnings": [...]}`.
    All of it is project **declaration** — foreman never inspects
    which style plugins or model the operator runs.
@@ -52,12 +52,6 @@ an instruction for the spawned session to act on later):**
      run), never a background agent's, so the omission's premise fails
      there; the kept default still self-yields if a style does govern. The
      other three tags have no destination dependence.
-   - `fableEnabled` — boolean declaration (default `false`) that the
-     operator can run Fable 5 at all (Max plan or API — other plans
-     can't). Written `false` by `foreman:init`, and set by hand in
-     `.foreman/config.json` by a project that can. Declaration only: it
-     gated the executing-model menu, and Foreman no longer asks which model
-     runs a task, so nothing reads it today.
    - `requireVerification` — boolean (default `true` when missing or
      unparseable). Read by `foreman:roadmap`'s embedded entry paragraph
      (its "Acceptance hold" note): with it `true`, a close that earned
