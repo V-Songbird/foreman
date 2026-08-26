@@ -7,6 +7,24 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## 2.1.0 — 2026-08-25
+
+Foreman stopped asking which model should run your task, and started telling you which one did.
+
+### Added
+
+- `roadmap.js list --stats` reports the models and reasoning efforts your finished work ran on, and how many entries recorded neither. The status view now ends with that in one line.
+
+### Changed
+
+- A handoff no longer lists every definition in a file it cites. The names your task already mentions come first, the rest are cut, and the cut is stated with its count. A long file used to contribute hundreds of names and bury the few that mattered.
+- A prompt is now refused if it still points at a file that no longer exists. That was already the rule; nothing enforced it.
+- Handing work to a background agent no longer asks which model to use. The agent runs on the model your session is already using.
+
+### Removed
+
+- The `fableEnabled` setting is gone. It only ever shaped the model question, which is also gone. A project that still sets it is told the key is retired — a warning, never an error.
+
 ## 2.0.1 — 2026-08-21
 
 ### Fixed
