@@ -7,6 +7,15 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## 2.1.1 — 2026-08-25
+
+Two fixes to how a task is handed off and how an older roadmap is read.
+
+### Fixed
+
+- A handoff split into several tasks no longer gives two different instructions for its last commit. The last one closes the roadmap entry, as the entry's own paragraph always said.
+- A roadmap entry written by an older Foreman is now read and repaired. Its planned files used to look empty, and a handoff could not be built for it.
+
 ## 2.1.0 — 2026-08-25
 
 Foreman stopped asking which model should run your task, and started telling you which one did.
