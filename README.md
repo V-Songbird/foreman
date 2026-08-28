@@ -17,6 +17,14 @@
     <a href="https://docs.anthropic.com/en/docs/claude-code"><img src="https://img.shields.io/badge/Claude_Code-E5582B" alt="Claude Code"/></a>
 </p>
 
+<p align="center">
+    <a href="#install"><strong>Install</strong></a> &nbsp;·&nbsp;
+    <a href="#what-is-this">What is this?</a> &nbsp;·&nbsp;
+    <a href="#what-you-can-do">What you can do</a> &nbsp;·&nbsp;
+    <a href="#scope">Scope</a> &nbsp;·&nbsp;
+    <a href="#settings">Settings</a>
+</p>
+
 > **TL;DR** — Every Claude Code session forgets everything when it ends. Foreman writes your plan into your project, as a normal file you can read. Ask "what's next?" and you get the task it recommends, why that one, and a ready-to-run prompt. It checks that prompt against your real code first, so it can't point at a file that moved.
 
 ---
