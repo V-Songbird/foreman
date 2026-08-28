@@ -7,6 +7,11 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## 2.2.1 — 2026-08-28
+
+The README now opens with a short list of links, so you can jump straight to
+the install steps or the settings without scrolling the whole page.
+
 ## 2.2.0 — 2026-08-28
 
 "How do you want to run this?" now reads the moment before it answers, and marks the poor fits instead of hiding them.
