@@ -59,6 +59,12 @@
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/post-commit.js\"",
             "commandWindows": "node \"$env:CLAUDE_PLUGIN_ROOT\\hooks\\post-commit.js\"",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/context-fill.js\"",
+            "commandWindows": "node \"$env:CLAUDE_PLUGIN_ROOT\\hooks\\context-fill.js\"",
+            "timeout": 5
           }
         ]
       },

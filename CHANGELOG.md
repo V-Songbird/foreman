@@ -7,6 +7,13 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## [Unreleased]
+
+### Changed
+
+- "How do you want to run this?" now recommends a different option depending on the moment. A session that is filling up is pointed at the clipboard, so the work starts in a fresh window instead of a crowded one. A task with two or more checks is pointed at the split run, when the tree is clean enough to commit each one. Every option stays selectable.
+- Splitting a handoff by check now says up front when it cannot commit anything. A tree with uncommitted changes turns off the branch and the per-check commits for the whole run; the option used to promise them anyway.
+
 ## 2.1.1 — 2026-08-25
 
 Two fixes to how a task is handed off and how an older roadmap is read.
