@@ -11,7 +11,8 @@ that's why `plugin.json` here carries none.
 
 ### Changed
 
-- "How do you want to run this?" now recommends a different option depending on the moment. A session that is filling up is pointed at the clipboard, so the work starts in a fresh window instead of a crowded one. A task with two or more checks is pointed at the split run, when the tree is clean enough to commit each one. Every option stays selectable.
+- "How do you want to run this?" now recommends a different option depending on the moment. A session that is filling up is pointed at the clipboard, so the work starts in a fresh window instead of a crowded one. A task that runs clear of work already in progress is pointed at a background agent. A task with two or more checks is pointed at the split run, when the tree is clean enough to commit each one. Every option stays selectable.
+- A background agent is no longer recommended when it would be the risky choice: when the task shares planned files with work already running, when nothing runnable can tell it whether it succeeded, or when your tree has uncommitted changes it would be editing around. You can still pick it.
 - Splitting a handoff by check now says up front when it cannot commit anything. A tree with uncommitted changes turns off the branch and the per-check commits for the whole run; the option used to promise them anyway.
 
 ## 2.1.1 — 2026-08-25

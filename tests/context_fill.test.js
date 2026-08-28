@@ -223,12 +223,32 @@ describe('context-fill — wiring', () => {
     assert.doesNotMatch(shared, /`Execute here \(Recommended\)`/);
   });
 
-  test('the destination question makes the split probe the tree first', () => {
+  test('the destination question probes the tree before asking', () => {
     const shared = fs.readFileSync(
       path.join(__dirname, '..', 'skills', 'roadmap', 'destination-question.md'),
       'utf-8'
     );
     assert.match(shared, /safe-commit\.js begin/);
     assert.match(shared, /dirty:false/);
+    // Unconditional: rule 2 can fire on a single check, so a probe gated on
+    // the split's two-or-more count would be missing exactly when it is needed.
+    assert.match(shared, /## Probe the tree before asking/);
+    assert.match(shared, /Always, before the question/);
+  });
+
+  test('the background Agent leads on one rule and is barred outside it', () => {
+    const shared = fs.readFileSync(
+      path.join(__dirname, '..', 'skills', 'roadmap', 'destination-question.md'),
+      'utf-8'
+    );
+    // The four conditions rule 2 needs, each named where the rule is stated.
+    const ruleTwo = shared.slice(shared.indexOf('2. **Other work'), shared.indexOf('3. **Two or more'));
+    assert.ok(ruleTwo, 'rule 2 is missing');
+    for (const condition of ['in_progress', 'collision', 'dirty:false', 'verification']) {
+      assert.match(ruleTwo, new RegExp(condition.replace('.', '\\.')), `rule 2 does not name ${condition}`);
+    }
+    assert.match(shared, /Never recommend the background Agent outside rule 2/);
+    // Barred from leading, never removed from the list.
+    assert.match(shared, /always \*offered\*/);
   });
 });
