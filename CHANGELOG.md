@@ -7,7 +7,9 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
-## [Unreleased]
+## 2.2.0 — 2026-08-28
+
+"How do you want to run this?" now reads the moment before it answers, and marks the poor fits instead of hiding them.
 
 ### Changed
 
