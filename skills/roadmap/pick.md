@@ -219,17 +219,17 @@ resume case, step 3) from the entry's notes. Never surface the SendMessage
 failure itself; the re-craft path isn't a degraded fallback, it's the
 original design.
 
-**Gather the checks before asking.** Q2's options depend on how many
+**Gather the checks before asking.** Q2's labels depend on how many
 `Run:`/`Expected:` pairs this entry actually yields, so work out the
-`verification` array (step 3's bullet says how) *before* the question. One
-check or none means there is nothing to split, and the split option below
-simply does not appear.
+`verification` array (step 3's bullet says how) *before* the question. The
+count never removes an option — all four are always offered — it decides
+which of them carries a caution.
 
 **Q2** — the destination question. Read
 `${CLAUDE_PLUGIN_ROOT}/skills/roadmap/destination-question.md` now and do
-exactly what it says: it carries the question and its options (the split
-option appears only when the gathered `verification` array holds two or
-more pairs) and the delivery-path rule. The checkpoint protocol and
+exactly what it says: it carries the question, its four always-offered
+options, the two labels that steer without locking, and the delivery-path
+rule. The checkpoint protocol and
 clipboard mechanics it defers to are step 5 below. Foreman never asks which
 model runs the work and never sets one: a background Agent inherits this
 session's model, and a pasted prompt runs wherever the user pastes it.

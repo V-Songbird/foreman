@@ -646,10 +646,12 @@ nothing the checker inspects.
 
 ## Checkpointing a task-split run
 
-Only for the `Execute here, split by check` option, which the crafting
-skill offers only when the split produces two or more tasks. Every other
-option skips this section entirely — except the clipboard checkpoint embed
-above, which reuses the config-resolution step below at craft time.
+Only for the `Execute here, split by check` option. The crafting skill
+offers that option every time and marks it when it is a poor fit, so a
+split can legitimately arrive here carrying a single task; it runs the
+same way, one checkpoint instead of several. Every other option skips this
+section entirely — except the clipboard checkpoint embed above, which
+reuses the config-resolution step below at craft time.
 
 <!-- [Foreman: 119] -->
 - **Read the config first.** Before anything else, read the `checkpoints`

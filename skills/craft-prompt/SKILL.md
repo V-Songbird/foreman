@@ -287,10 +287,11 @@ fields here rather than assembling around them:
 ## Call 5 — how to run it
 
 Call 3 already gathered the verification commands, so the count is known
-here. Read `${CLAUDE_PLUGIN_ROOT}/skills/roadmap/destination-question.md`
-now and do exactly what it says: it carries the question and its options
-(the split option appears only when Call 3 gathered two or more checks),
-the delivery-path rule, and nothing else. The checkpoint protocol and
+here — it never removes an option, it decides which one carries a caution.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/roadmap/destination-question.md`
+now and do exactly what it says: it carries the question, its four
+always-offered options, the two labels that steer without locking, the
+delivery-path rule, and nothing else. The checkpoint protocol and
 clipboard mechanics it defers to are Deliver below. Foreman never asks
 which model runs the work and never sets one: a background Agent inherits
 this session's model, and a pasted prompt runs wherever the user pastes it.

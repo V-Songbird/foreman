@@ -11,16 +11,21 @@ and a pasted prompt runs wherever the user pastes it.
 **"How do you want to run this?"** — destination and execution mode in one
 question, asked now, before the prompt exists. There is nothing to preview
 yet; the answer decides how the prompt gets built and delivered, not the
-other way around. Options, in this order:
+other way around.
+
+**All four options are always offered, in this order.** None of them is
+ever withheld, whatever the session looks like — the user knows things
+Foreman does not, and a hidden option is a decision taken away from them
+rather than a decision made for them. Foreman's whole say in the matter is
+the two labels described under "Which option leads" and "Which options
+carry a caution" below.
 
 - `Execute here` — one tracked task carrying the whole prompt, worked in
   this session. The common case, and it changes nothing about your
   branches.
 - `Execute here, split by check` — one tracked task per verification
   command, each finished task committed on a `foreman/<slug>` branch (the
-  calling flow's delivery step owns the checkpoint protocol). **Offer this
-  option only when the gathered verification commands number two or
-  more.**
+  calling flow's delivery step owns the checkpoint protocol).
 - `Execute with a background Agent` — offload it, get notified on completion — best for orchestration, where this session owns the commits
 - `Copy prompt to clipboard` — just get the text, no execution
 
@@ -38,16 +43,12 @@ Only a `dirty:false` result means this run can commit. On **anything
 else** — `dirty:true`, a git failure, no repository at all — the split
 still runs its tasks in order but commits nothing and creates no branch,
 because `prompt-template.md`'s "Take the boundary first" rule turns both
-off for the whole run. That is not a footnote to discover afterwards: say
-it in the option's own description ("no commits — your tree already has
-uncommitted changes") and never let that option lead. A split whose
-selling point is per-check commits must not be recommended when it cannot
-make one.
+off for the whole run. That is not a footnote to discover afterwards: it
+is what the split's caution says, below.
 
 A dirty tree is a caution on the background Agent for a different reason:
 Foreman dispatches it without `isolation`, so it edits **this** working
-tree, alongside whatever you have not committed yet. Say that in its
-description too when the probe came back dirty.
+tree, alongside whatever you have not committed yet.
 
 ## Which option leads
 
@@ -85,18 +86,52 @@ option's label — never to two:
 
 **Never recommend the background Agent outside rule 2.** It cannot ask
 you a question, so an entry with nothing runnable has no way to tell
-whether it got there; and it shares your working tree, so a collision or a
+whether it got there, and it shares your working tree, so a collision or a
 dirty tree makes an unattended run the riskiest option on the list rather
-than the most convenient. The option is always *offered* — the user knows
-things Foreman does not, starting with whether they want to do something
-else meanwhile — it just never leads on Foreman's own say-so.
+than the most convenient. It is still offered every time — it just never
+leads on Foreman's own say-so.
 
 Say the reason in the recommended option's own description, in the user's
 terms and without the machinery: "this session is filling up, a fresh one
 will do better" rather than a token count or a hook name. Quote the
-percentage only if they ask for it. The tag is a recommendation and
-nothing more — every option stays selectable, and no rule firing ever
-removes another option.
+percentage only if they ask for it.
+
+## Which options carry a caution
+
+An option the user can pick but that has a **named, currently-true reason
+against it** carries `(Caution)` appended to its label, and says the
+reason in its own description. Nothing else earns the tag: an option with
+no live objection carries no label at all.
+
+The word matters. Never write "(Not recommended)" or any other label
+containing "recommend" — a user scanning labels reads the word, not the
+negation in front of it, and two options both carrying "recommend" is
+worse than no signal at all. `(Caution)` shares no word with
+`(Recommended)`, which is the whole point of it.
+
+The conditions, each one checked independently:
+
+| Option | Carries `(Caution)` when | Say in the description |
+| --- | --- | --- |
+| `Execute here, split by check` | the probe did not return `dirty:false` | no commits and no branch — your tree already has uncommitted changes |
+| `Execute here, split by check` | fewer than two checks were gathered | only one task, so this is `Execute here` under another name |
+| `Execute with a background Agent` | the selected row's `collision` is true | it edits files another running task also plans to touch |
+| `Execute with a background Agent` | the verification array is empty | nothing runnable, so it cannot tell whether it succeeded |
+| `Execute with a background Agent` | the probe did not return `dirty:false` | it edits this same tree, around your uncommitted changes |
+
+`Execute here` and `Copy prompt to clipboard` never carry it — neither has
+a condition that can go wrong. When two rows hold for the same option, tag
+it once and give the shorter reason.
+
+**One `(Recommended)`, never on a cautioned option.** The two labels
+cannot collide by construction: every rule that promotes an option already
+requires the conditions its cautions test for. If you ever find both
+applying, the reading is wrong — recheck the probe and the counts rather
+than tagging one option twice.
+
+Every option stays selectable. Neither label removes anything from the
+list, and a user who picks a cautioned option gets it built exactly as
+asked, with no second question and no talking them out of it.
 
 Never call `mcp__ccd_session__spawn_task` for any of these — it has a known
 bug where tasks spawned through it don't get MCP tools. `TaskCreate`,
