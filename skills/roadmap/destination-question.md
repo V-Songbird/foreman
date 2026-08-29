@@ -39,8 +39,16 @@ regardless. Two of the rules below need the answer, and one of them can
 fire on a single check, so there is no cheaper moment and no condition
 worth guarding it with.
 
-Only a `dirty:false` result means this run can commit. On **anything
-else** — `dirty:true`, a git failure, no repository at all — the split
+Only a `dirty:false` result means this run can commit. Read the `dirty`
+field and nothing else: a routine pick leaves Foreman's own bookkeeping in
+the tree — the entry's `in_progress` flip on ROADMAP.jsonl, the sha a
+previous close recorded there, a lesson written to `.foreman/notes.jsonl`
+— and the probe already discounts all of it, returning `dirty:false` with
+those paths named in `ledger_dirty`. A populated `ledger_dirty` is not a
+dirty tree and never earns a caution — otherwise the split could never
+lead on a tracked roadmap, because a pick always leaves one behind.
+
+On **anything else** — `dirty:true`, a git failure, no repository at all — the split
 still runs its tasks in order but commits nothing and creates no branch,
 because `prompt-template.md`'s "Take the boundary first" rule turns both
 off for the whole run. That is not a footnote to discover afterwards: it

@@ -678,7 +678,10 @@ reuses the config-resolution step below at craft time.
   offer to absorb the existing changes, and skip the branch step too:
   there is nothing to checkpoint onto. Only a `dirty:false` result
   continues below, and its `baseline.head` is the first checkpoint's
-  baseline.
+  baseline. Read the `dirty` field alone: Foreman's own bookkeeping in the
+  tree — ROADMAP.jsonl and `.foreman/notes.jsonl` — comes back
+  `dirty:false` with those paths in `ledger_dirty`, which is the normal
+  state after a pick and is not someone else's uncommitted work.
 - **One commit per finished task, staged by the primitive.** After a
   task's verification passes and the task is marked completed:
   `echo '{"expected":["<the files this task changed>"],"message_title":"task <n>/<total>: <task subject>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js finish --baseline <the current baseline>`

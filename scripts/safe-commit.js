@@ -183,9 +183,17 @@ function dirtyFiles(root) {
 // confined to shared-ledger files is Foreman's own bookkeeping (the entry's
 // in_progress flip on a tracked roadmap), not someone else's work in the
 // tree. Anything else keeps the ordinary dirty refusal.
+// The lesson ledger counts as bookkeeping HERE and nowhere else: a close that
+// records a lesson writes `.foreman/notes.jsonl`, so the very act of closing
+// one task would otherwise cost the next one its baseline. It stays out of
+// isSharedLedger because a staged close deliberately stages it into its own
+// commit, which that predicate would forbid.
+const NOTES_LEDGER = ".foreman/notes.jsonl";
+
 function ledgerOnlyDirt(root) {
   const files = dirtyFiles(root);
-  return files.length && files.every(isSharedLedger) ? files : null;
+  const bookkeeping = (file) => isSharedLedger(file) || file === NOTES_LEDGER;
+  return files.length && files.every(bookkeeping) ? files : null;
 }
 
 // Everything that differs from the baseline commit: index and worktree come
