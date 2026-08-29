@@ -1243,3 +1243,39 @@ describe('relevant_files symbol cap', () => {
     assert.ok(!prompt.includes('widget59 ('), 'the whole file surface leaked into the prompt');
   });
 });
+
+// [Foreman] `<context>` renders on the reinforced profile only. That is
+// deliberate, but it used to be silent: a crafting session could put a
+// load-bearing fact in `judgment.context` and never learn the standard
+// handoff shipped without it. Found by rendering a benchmark arm and diffing
+// it against the facts it was built from — the `fix location:` line was gone.
+describe('judgment.context and the standard profile', () => {
+  const dropped = (json) => (json.warnings || []).some((w) => w.includes('judgment.context was dropped'));
+
+  test('standard drops it and says so', () => {
+    writeRoadmap(project, [entryFields()]);
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.equal(json.profile, 'standard');
+    assert.ok(!json.prompt.includes('<context>'), 'standard rendered <context> after all');
+    assert.ok(dropped(json), `no drop warning: ${JSON.stringify(json.warnings)}`);
+  });
+
+  test('reinforced renders it and stays quiet', () => {
+    writeRoadmap(project, [entryFields({ commits: ['a1b2c3d'] })]);
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.equal(json.profile, 'reinforced');
+    assert.ok(json.prompt.includes('<context>'), 'reinforced dropped <context>');
+    assert.ok(!dropped(json), `warned on a profile that carries it: ${JSON.stringify(json.warnings)}`);
+  });
+
+  test('no context supplied, nothing to warn about', () => {
+    writeRoadmap(project, [entryFields()]);
+    const { json } = run(project, {
+      entry: '001',
+      destination: 'clipboard',
+      judgment: goodJudgment({ context: '' }),
+    });
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.ok(!dropped(json), `warned with no context given: ${JSON.stringify(json.warnings)}`);
+  });
+});

@@ -1013,6 +1013,19 @@ function assemble(root, input) {
 
   const warnings = [...config.warnings, ...symbolResult.warnings, ...gateResult.warnings];
 
+  // [Foreman] `<context>` renders on the reinforced profile only, so a fact
+  // the crafting session put in `judgment.context` is absent from every
+  // standard handoff. That is deliberate — but it was silent, and a session
+  // that supplied one had no way to learn the fact never shipped. Found by
+  // rendering a benchmark arm and diffing it against the facts it was built
+  // from: the arm's `fix location:` line had vanished.
+  if (judgment.context && gateResult.profile !== "reinforced") {
+    warnings.push(
+      "judgment.context was dropped: <context> renders on the reinforced profile only, and this handoff assembled at standard. "
+        + "Put anything the session must actually receive in judgment.constraints, task_rules or the description instead."
+    );
+  }
+
   // [Foreman: 208] The first delivered handoff of this project's life. This
   // is the moment TRIALS.md names — a prompt that never passed the gate is
   // not a first useful task — and it costs no skill instruction, because
