@@ -395,7 +395,26 @@ describe('skill contracts', () => {
       destination: 'clipboard',
     });
     assert.match(held, /write\s+`awaiting_acceptance` instead/);
-    assert.match(held, /Say so in your final message too/);
+    // A destination with a user in it asks; it never falls back to prose.
+    assert.match(held, /The first option is Test/);
+    assert.match(held, /"status":"done"/);
+    assert.doesNotMatch(held, /Say so in your final message too/);
+    // The Test option is gated on a recorded line, so the same paragraph has
+    // to say how one gets recorded — and that a runnable check never is one.
+    assert.match(held, /"unverified: <the check, and what to look for>"/);
+    assert.match(held, /never hand a command to the user to run for you/);
+
+    // A background agent has no one to ask, so the hand-back stays prose.
+    const agentHeld = entryParagraphText({
+      id: '001',
+      resume: false,
+      requireVerification: true,
+      isDecision: false,
+      destination: 'agent',
+    });
+    assert.match(agentHeld, /Say so in your final message too/);
+    assert.doesNotMatch(agentHeld, /AskUserQuestion/);
+    assert.doesNotMatch(agentHeld, /unverified:/);
 
     const notHeld = entryParagraphText({
       id: '001',
@@ -406,6 +425,19 @@ describe('skill contracts', () => {
     });
     assert.doesNotMatch(notHeld, /awaiting_acceptance/);
     assert.doesNotMatch(notHeld, /Say so in your final message too/);
+    assert.doesNotMatch(notHeld, /AskUserQuestion/);
+    assert.doesNotMatch(notHeld, /unverified:/);
+  });
+
+  // [Foreman] The second surface for the same choice: an entry accepted days
+  // later, from the pick menu, must offer the same hand-test the finishing
+  // session offered — and must read it back from the entry, never invent it.
+  test('the pick menu offers the recorded hand-tests before accepting', () => {
+    const skill = readSkill('skills', 'roadmap', 'pick.md');
+
+    assert.match(skill, /`Test it first \(Recommended\)`/);
+    assert.match(skill, /`unverified:` line out of its `notes`/);
+    assert.match(skill, /With none, that option does not appear at all/);
   });
 
   test('the schema documents the lifecycle and the downgrade cost', () => {

@@ -299,7 +299,7 @@ const RECALL_MAX_CHARS = 1200;
 // serve an unstored, unstaleness-checked claim through the one channel this
 // feature exists to keep honest.
 const MACHINE_NOTE_RE =
-  /^(scope drift —|correction applied:|id reassigned from |dispatched to background agent|survey \(unconfirmed\):|deferred:|orchestrator:|lesson recorded:|lesson not recorded)/;
+  /^(scope drift —|correction applied:|id reassigned from |dispatched to background agent|survey \(unconfirmed\):|deferred:|orchestrator:|lesson recorded:|lesson not recorded|unverified:)/;
 
 // The longest line of `notes` that a human (or a closing session) actually
 // wrote: date stamp stripped, machine lines dropped, capped.
@@ -725,15 +725,35 @@ function checkpointEmbedText(cfg, checkCount, entryId) {
 // paragraph itself), collapsed to the one concrete variant that applies for
 // this handoff rather than a human-facing skill's illustrative examples.
 
-function entryParagraphText({ id, resume, requireVerification, askLesson }) {
+function entryParagraphText({ id, resume, requireVerification, askLesson, destination }) {
   const opening = resume
     ? `This task is ROADMAP.jsonl entry \`${id}\`, already marked \`in_progress\` by an earlier session — don't re-mark it; earlier findings may sit in its \`notes\` (included above), read them before re-deriving anything.`
     : `This task is ROADMAP.jsonl entry \`${id}\`. Mark it \`in_progress\` before doing anything else — Foreman's picking flow deliberately leaves it \`planned\` until you do:\n\`echo '{"id":"${id}","status":"in_progress"}' | node ${PLUGIN_ROOT}/scripts/roadmap.js update-status\``;
 
   const beginStep = `Then take the commit boundary before touching any file:\n\`node ${PLUGIN_ROOT}/scripts/safe-commit.js begin\`\nKeep its \`baseline.head\`. A \`dirty:true\` result means the tree already carries someone else's changes: tell the user in one line, then do the work and make NO commit at all — leave everything in the tree for them. Never stage around it.`;
 
+  // [Foreman] A background agent has no one to ask, so it keeps the prose
+  // hand-back; every other destination lands in a session with a user in it,
+  // and that session puts the accept/review choice in front of them rather
+  // than leaving it for the next pick to raise days later.
+  const acceptCall = `\`echo '{"id":"${id}","status":"done"}' | node ${PLUGIN_ROOT}/scripts/roadmap.js update-status\``;
+  const askSentence =
+    destination === "agent"
+      ? ` Say so in your final message too — name the entry and say it now needs the user's accept or decline before you start anything new.`
+      : ` Then put the choice to them in the same turn, with AskUserQuestion. Wrote at least one \`unverified:\` line? The first option is Test — you read those lines back to them and stop, the entry still awaiting. With none, offer accept-the-entry and review-it-first only. Accepting closes it — ${acceptCall}. Review leaves it awaiting and you walk them through what changed. Start nothing new until they answer.`;
+  // [Foreman] What makes the Test option mechanical rather than a mood: it
+  // can only appear where a `unverified:` line was actually recorded, and a
+  // check with a runnable command is never one — the session runs those
+  // itself instead of handing the user its own homework. One `annotate` per
+  // check, because one append is exactly one line (roadmap.js appendNote
+  // folds embedded newlines).
+  const splitStep =
+    requireVerification && destination !== "agent"
+      ? `Before you close, split your checks in two. Anything with a command, you run — never hand a command to the user to run for you. Anything that can only be settled by a human's eyes or hands — how it renders, how it feels to use, whether the motion looks right — has no command, so record it on the entry, one call per check:\n\`echo '{"id":"${id}","notes":"unverified: <the check, and what to look for>"}' | node ${PLUGIN_ROOT}/scripts/roadmap.js annotate\`\nWrite none at all when every check ran — an empty list is the normal outcome and is what tells the user there is nothing to look at.`
+      : "";
+
   const holdSentence = requireVerification
-    ? ` When that earned status is \`done\`, write \`awaiting_acceptance\` instead — this project holds finished work for the user's acceptance, and their confirmation makes it \`done\`; \`dropped\` and \`rejected\` close as themselves. Say so in your final message too — name the entry and say it now needs the user's accept or decline before you start anything new.`
+    ? ` When that earned status is \`done\`, write \`awaiting_acceptance\` instead — this project holds finished work for the user's acceptance, and their confirmation makes it \`done\`; \`dropped\` and \`rejected\` close as themselves.${askSentence}`
     : "";
   const closeIntro = `When the work concludes, close the entry the same way — the status it actually earned (\`done\`, \`dropped\`, \`rejected\`) and your full findings in \`notes\`.${holdSentence}`;
 
@@ -754,7 +774,7 @@ function entryParagraphText({ id, resume, requireVerification, askLesson }) {
     ? 'If this task taught you one durable fact about this code area that a future task would need, add `"lesson":"one sentence, naming the file or symbol it concerns"` to that close call. If nothing generalizes beyond this task, omit it — that is a valid outcome.'
     : "";
 
-  return [opening, beginStep, closeIntro, stageStep, closeCall, modelEffortNote, lessonAsk]
+  return [opening, beginStep, splitStep, closeIntro, stageStep, closeCall, modelEffortNote, lessonAsk]
     .filter(Boolean)
     .join("\n");
 }
@@ -881,6 +901,7 @@ function assemble(root, input) {
         // commits/observed_touches, which is not the same claim.
         resume: Boolean(input.resume),
         requireVerification: config.requireVerification,
+        destination,
         askLesson: isEntry && readLedger(root).enabled,
       })
     : "";

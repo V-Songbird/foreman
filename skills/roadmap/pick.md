@@ -133,7 +133,14 @@ each; oldest `updated_at` first), with the first one carrying
 `(Recommended)`:
 - `awaiting_acceptance` rows lead, labeled `Accept: <title> (<id>)`.
   Description: `why` plus "finished, waiting on you since <updated_at>". On
-  that choice, ask once whether the work holds up; accepting closes it —
+  that choice, read the entry back first —
+  `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --ids <id>` — and take every
+  `unverified:` line out of its `notes`. Those are the checks the finishing
+  session could not run itself, and with one or more of them the first option
+  is `Test it first (Recommended)`: print those lines verbatim, say nothing
+  about whether it works, and stop — the entry stays `awaiting_acceptance`
+  until they come back. With none, that option does not appear at all. Then
+  ask whether the work holds up; accepting closes it —
   `echo '{"id":"<id>","status":"done"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
   — and declining sends it back with what they said:
   `echo '{"id":"<id>","status":"in_progress","notes":"<what they said>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`.
