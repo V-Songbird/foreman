@@ -9,8 +9,9 @@
 //   - occupancy = the last non-sidechain assistant usage, every *_tokens field
 //   - sidechain records (a subagent's own window) are skipped
 //   - torn lines, a missing transcript, an empty one -> null, never a throw
-//   - the threshold decision, and the assumed window when none is configured
-//   - a configured compaction point wins over the assumption
+//   - the threshold decision against a configured compaction point
+//   - no configured window is silence: the share is unknowable, so nothing
+//     is claimed about it
 //   - end to end: emits above the line, silent below it
 //   - the wiring: hooks.json runs it on the same matcher as post-commit
 //   - the rule it points at still exists in destination-question.md
@@ -24,11 +25,13 @@ const path = require('path');
 const { runScriptRaw } = require('./helpers');
 
 const hook = require(path.join(__dirname, '..', 'hooks', 'context-fill.js'));
-const { CONTEXT_SHARE, ASSUMED_WINDOW, PRE_QUESTION_SCRIPT, assess, currentTokens, message } = hook;
+const { CONTEXT_SHARE, PRE_QUESTION_SCRIPT, assess, currentTokens, message } = hook;
 
-// Over the line against the assumed window, with room to spare either way.
-const OVER = Math.round(ASSUMED_WINDOW * CONTEXT_SHARE) + 5000;
-const UNDER = Math.round(ASSUMED_WINDOW * CONTEXT_SHARE) - 5000;
+// A compaction point to measure against, and two occupancies over and under
+// the line for it, with room to spare either way.
+const WINDOW = 200000;
+const OVER = Math.round(WINDOW * CONTEXT_SHARE) + 5000;
+const UNDER = Math.round(WINDOW * CONTEXT_SHARE) - 5000;
 
 function tmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'foreman-context-'));
@@ -48,6 +51,11 @@ function assistant(usage, extra) {
 /** An env that guarantees no window is configured, whatever the host has set. */
 function noWindowEnv() {
   return { CLAUDE_CONFIG_DIR: tmpDir(), CLAUDE_CODE_AUTO_COMPACT_WINDOW: '' };
+}
+
+/** The same, with a compaction point configured — the only case that speaks. */
+function windowEnv() {
+  return { CLAUDE_CONFIG_DIR: tmpDir(), CLAUDE_CODE_AUTO_COMPACT_WINDOW: String(WINDOW) };
 }
 
 function payload(command, transcriptPath, tool) {
@@ -127,75 +135,89 @@ describe('context-fill — reading occupancy', () => {
 
 describe('context-fill — the threshold decision', () => {
   test('below the line is silence', () => {
-    assert.equal(assess(UNDER, null), null);
+    assert.equal(assess(UNDER, WINDOW), null);
   });
 
-  test('at or above the line returns a reading against the assumed window', () => {
-    const reading = assess(OVER, null);
+  test('at or above the line returns a reading against the configured window', () => {
+    const reading = assess(OVER, WINDOW);
     assert.ok(reading);
-    assert.equal(reading.window, ASSUMED_WINDOW);
-    assert.equal(reading.assumed, true);
-    assert.equal(reading.percent, Math.round((OVER / ASSUMED_WINDOW) * 100));
+    assert.equal(reading.window, WINDOW);
+    assert.equal(reading.percent, Math.round((OVER / WINDOW) * 100));
   });
 
-  test('a configured compaction point wins over the assumption', () => {
-    // The same occupancy is over the line against 200k and under it against 1M.
+  test('the same occupancy reads differently against a different window', () => {
+    // Over the line against 200k, comfortably under it against 1M — which is
+    // exactly why an unconfigured window may not be guessed at.
     assert.equal(assess(OVER, 1000000), null);
     const reading = assess(OVER, 100000);
     assert.ok(reading);
     assert.equal(reading.window, 100000);
-    assert.equal(reading.assumed, false);
+  });
+
+  test('no configured window is silence, however full the session is', () => {
+    for (const window of [null, undefined, 0]) {
+      assert.equal(assess(OVER, window), null);
+      assert.equal(assess(999999, window), null);
+    }
   });
 
   test('a missing or nonsense occupancy is silence, never a throw', () => {
     for (const value of [null, undefined, 0, -1, NaN, 'lots']) {
-      assert.equal(assess(value, null), null);
+      assert.equal(assess(value, WINDOW), null);
     }
   });
 
-  test('the message names the assumption when there is one, and never orders the user around', () => {
-    assert.match(message(assess(OVER, null)), /assumed/);
-    assert.doesNotMatch(message(assess(OVER, 100000)), /assumed/);
-    assert.match(message(assess(OVER, null)), /destination-question\.md/);
+  test('the message names the compaction point and never orders the user around', () => {
+    const text = message(assess(OVER, WINDOW));
+    assert.match(text, /compaction point/);
+    assert.doesNotMatch(text, /assumed/);
+    assert.match(text, /destination-question\.md/);
   });
 });
 
 describe('context-fill — end to end', () => {
   test('emits additionalContext above the line', () => {
     const file = writeTranscript([assistant({ input_tokens: OVER })]);
-    const res = runScriptRaw('context-fill.js', payload('node "/p/foreman/scripts/roadmap.js" next-candidates --menu', file), noWindowEnv());
+    const res = runScriptRaw('context-fill.js', payload('node "/p/foreman/scripts/roadmap.js" next-candidates --menu', file), windowEnv());
     assert.equal(res.status, 0);
     const out = JSON.parse(res.stdout);
     assert.equal(out.hookSpecificOutput.hookEventName, 'PostToolUse');
     assert.match(out.hookSpecificOutput.additionalContext, /\[Foreman\] Context reading/);
   });
 
+  test('silent with no configured window, however full the session is', () => {
+    const file = writeTranscript([assistant({ input_tokens: OVER })]);
+    const res = runScriptRaw('context-fill.js', payload('node "/p/foreman/scripts/roadmap.js" next-candidates --menu', file), noWindowEnv());
+    assert.equal(res.status, 0);
+    assert.equal(res.stdout.trim(), '');
+  });
+
   test('silent below the line', () => {
     const file = writeTranscript([assistant({ input_tokens: UNDER })]);
-    const res = runScriptRaw('context-fill.js', payload('node "/p/foreman/scripts/roadmap.js" next-candidates --menu', file), noWindowEnv());
+    const res = runScriptRaw('context-fill.js', payload('node "/p/foreman/scripts/roadmap.js" next-candidates --menu', file), windowEnv());
     assert.equal(res.stdout.trim(), '');
   });
 
   test('silent on a command that is not a pre-question script', () => {
     const file = writeTranscript([assistant({ input_tokens: OVER })]);
-    const res = runScriptRaw('context-fill.js', payload('git commit -m "x"', file), noWindowEnv());
+    const res = runScriptRaw('context-fill.js', payload('git commit -m "x"', file), windowEnv());
     assert.equal(res.stdout.trim(), '');
   });
 
   test('silent on a tool this hook does not watch', () => {
     const file = writeTranscript([assistant({ input_tokens: OVER })]);
-    const res = runScriptRaw('context-fill.js', payload('node "/p/foreman/scripts/roadmap.js" list', file, 'Read'), noWindowEnv());
+    const res = runScriptRaw('context-fill.js', payload('node "/p/foreman/scripts/roadmap.js" list', file, 'Read'), windowEnv());
     assert.equal(res.stdout.trim(), '');
   });
 
   test('silent, and still exits clean, with no transcript to read', () => {
-    const res = runScriptRaw('context-fill.js', payload('node "/p/foreman/scripts/roadmap.js" list', undefined), noWindowEnv());
+    const res = runScriptRaw('context-fill.js', payload('node "/p/foreman/scripts/roadmap.js" list', undefined), windowEnv());
     assert.equal(res.status, 0);
     assert.equal(res.stdout.trim(), '');
   });
 
   test('empty stdin is silence, not a crash', () => {
-    const res = runScriptRaw('context-fill.js', '', noWindowEnv());
+    const res = runScriptRaw('context-fill.js', '', windowEnv());
     assert.equal(res.status, 0);
     assert.equal(res.stdout.trim(), '');
   });

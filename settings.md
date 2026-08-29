@@ -28,6 +28,16 @@ roadmap entry still open — `"off"` (default) says nothing, `"block"` stops
 the first completion attempt with instructions to close the entry; the
 retry then passes.
 
+"How do you want to run this?" points a session that is filling up at the
+clipboard, so the work starts in a fresh window instead of a crowded one. It
+can only say that when it knows how much room your window has, and nothing
+Foreman can read carries that by default. Two things tell it: the
+`CLAUDE_CODE_AUTO_COMPACT_WINDOW` environment variable, or an
+`autoCompactWindow` key in your Claude Code `settings.json` — the value is
+the point your session compacts at, between 100000 and 1000000 tokens. With
+neither set, the question stays quiet about context and recommends on
+everything else.
+
 `trialLog` keeps a local log of how Foreman is used, so its own health
 numbers can be measured. Off by default. It records counts, booleans, and
 Foreman's own branch names — never a task title, a file path, an id, or

@@ -10,11 +10,12 @@
 // which a skill cannot invoke — so this hook derives it the one other way
 // available: the transcript's own last assistant `usage` block, summed.
 //
-// It speaks only when the session is at or above CONTEXT_SHARE of the
-// window and only after one of the scripts a crafting flow runs *before*
-// that question. Below the line it writes nothing and costs nothing, which
-// is the common case. The number is a fact for the flow to apply; the rule
-// that acts on it lives in skills/roadmap/destination-question.md, so the
+// It speaks only when the session is at or above CONTEXT_SHARE of a
+// window the user actually configured, and only after one of the scripts a
+// crafting flow runs *before* that question. Below the line, or with no
+// configured window to measure against, it writes nothing and costs
+// nothing, which is the common case. The number is a fact for the flow to
+// apply; the rule that acts on it lives in skills/roadmap/destination-question.md, so the
 // wording of the recommendation stays in one place.
 //
 // Every failure path here is silence. A missing transcript, an unreadable
@@ -47,11 +48,6 @@ const CONTEXT_SHARE = 0.25;
 // The range `/autocompact` accepts, and so the only values worth believing.
 const WINDOW_MIN = 100000;
 const WINDOW_MAX = 1000000;
-
-// What a default session holds. Used only when the user configured no
-// compaction point of their own, and named as an assumption wherever it
-// reaches a human.
-const ASSUMED_WINDOW = 200000;
 
 // Read far enough back to clear the largest single tool result a turn can
 // hold, so the newest assistant record is inside the slice.
@@ -126,24 +122,25 @@ function currentTokens(transcriptPath) {
 
 // The one decision: is this session full enough that the destination question
 // should hear about it? Returns null for silence, or the numbers the message
-// is built from. `window` is null when the user configured no compaction
-// point, and the assumption is carried out so the message can name it.
+// is built from. An unconfigured window is silence: window sizes range from
+// 100k to 1M, so any stand-in number is wrong by up to 5x in one direction or
+// the other, and a wrong reading recommends a fresh session to someone who has
+// most of their window left. Silence just leaves the default recommendation
+// standing, which is the right answer when the share is unknowable.
 function assess(tokens, configuredWindow) {
   if (!Number.isFinite(tokens) || tokens <= 0) return null;
-  const window = configuredWindow || ASSUMED_WINDOW;
-  const share = tokens / window;
+  if (!configuredWindow) return null;
+  const share = tokens / configuredWindow;
   if (share < CONTEXT_SHARE) return null;
-  return { tokens, window, assumed: !configuredWindow, percent: Math.round(share * 100) };
+  return { tokens, window: configuredWindow, percent: Math.round(share * 100) };
 }
 
 function message(reading) {
-  const windowText = reading.assumed
-    ? `an assumed ${reading.window.toLocaleString("en-US")}-token window`
-    : `this session's ${reading.window.toLocaleString("en-US")}-token compaction point`;
   return (
     `[Foreman] Context reading for the destination question: this session is about ` +
     `${reading.percent}% full (${reading.tokens.toLocaleString("en-US")} tokens against ` +
-    `${windowText}), at or above Foreman's ${Math.round(CONTEXT_SHARE * 100)}% line. ` +
+    `this session's ${reading.window.toLocaleString("en-US")}-token compaction point), ` +
+    `at or above Foreman's ${Math.round(CONTEXT_SHARE * 100)}% line. ` +
     `If you reach "How do you want to run this?" this turn, apply the high-context ` +
     `rule in skills/roadmap/destination-question.md. This is a reading, not an ` +
     `instruction to the user — never quote the number at them unless they ask.`
@@ -181,7 +178,6 @@ if (require.main === module) main();
 
 module.exports = {
   CONTEXT_SHARE,
-  ASSUMED_WINDOW,
   PRE_QUESTION_SCRIPT,
   autoCompactWindow,
   currentTokens,
