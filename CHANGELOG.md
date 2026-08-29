@@ -7,6 +7,10 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## 2.3.3 — 2026-08-29
+
+Fixed an issue where finishing a task could hand you something to try that could not be tried yet, because it depended on work nobody had built — or something Claude could have checked itself. A check now only reaches you if it is answerable today and genuinely beyond what the session can run.
+
 ## 2.3.2 — 2026-08-29
 
 Fixed an issue where finishing one task could leave your project looking like it had uncommitted work, so the next task ran with no automatic commits and its split-into-steps option was flagged as risky.
