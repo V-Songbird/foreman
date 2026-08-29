@@ -747,9 +747,15 @@ function entryParagraphText({ id, resume, requireVerification, askLesson, destin
   // itself instead of handing the user its own homework. One `annotate` per
   // check, because one append is exactly one line (roadmap.js appendNote
   // folds embedded newlines).
+  //
+  // [Foreman] Two bars on top of "has no command", both from live misfires:
+  // a check blocked on unbuilt work fired Test on an entry nobody could
+  // test, and an Electron project sent its owner to the window session after
+  // session until one of them wrote a skill that drives the app instead. A
+  // note is for what the session cannot reach, not for what it did not try.
   const splitStep =
     requireVerification && destination !== "agent"
-      ? `Before you close, split your checks in two. Anything with a command, you run — never hand a command to the user to run for you. Anything that can only be settled by a human's eyes or hands — how it renders, how it feels to use, whether the motion looks right — has no command, so record it on the entry, one call per check:\n\`echo '{"id":"${id}","notes":"unverified: <the check, and what to look for>"}' | node ${PLUGIN_ROOT}/scripts/roadmap.js annotate\`\nWrite none at all when every check ran — an empty list is the normal outcome and is what tells the user there is nothing to look at.`
+      ? `Before you close, split your checks in two. Anything with a command, you run — never hand a command to the user to run for you. Anything that can only be settled by a human's eyes or hands — how it renders, how it feels to use, whether the motion looks right — has no command, so record it on the entry, one call per check:\n\`echo '{"id":"${id}","notes":"unverified: <the check, and what to look for>"}' | node ${PLUGIN_ROOT}/scripts/roadmap.js annotate\`\nTwo bars before you write one of those lines. It has to be answerable today: a check that waits on work nobody has built yet goes in your findings, not here. And it has to be genuinely past your reach: where a skill, script or harness in this project already drives the thing, use it and answer the check yourself, and where none exists but one could, say that in your findings instead of sending the user to look by hand again.\nWrite none at all when every check ran — an empty list is the normal outcome and is what tells the user there is nothing to look at.`
       : "";
 
   const holdSentence = requireVerification

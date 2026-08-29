@@ -403,6 +403,11 @@ describe('skill contracts', () => {
     // to say how one gets recorded — and that a runnable check never is one.
     assert.match(held, /"unverified: <the check, and what to look for>"/);
     assert.match(held, /never hand a command to the user to run for you/);
+    // Two more bars, both from live misfires: a check nothing can answer yet
+    // fired Test on an untestable entry, and one the session could have
+    // driven itself sent the user to the window session after session.
+    assert.match(held, /answerable today/);
+    assert.match(held, /genuinely past your reach/);
 
     // A background agent has no one to ask, so the hand-back stays prose.
     const agentHeld = entryParagraphText({
