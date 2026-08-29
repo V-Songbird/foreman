@@ -7,6 +7,10 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## 2.3.2 — 2026-08-29
+
+Fixed an issue where finishing one task could leave your project looking like it had uncommitted work, so the next task ran with no automatic commits and its split-into-steps option was flagged as risky.
+
 ## 2.3.1 — 2026-08-29
 
 Fixed an issue where "How do you want to run this?" could describe a session as filling up when it had most of its room left, and steer the work to the clipboard for no reason. It now weighs context only when Claude Code knows the point your session compacts at; [`settings.md`](settings.md) says where to set that.
