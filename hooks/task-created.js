@@ -20,7 +20,7 @@
 //
 // Input schema (verified empirically 2026-07-10 — undocumented in
 // hooks.md): common fields + task_id, task_subject, task_description.
-// Re-checked by the task-schema canary through CLI 2.1.241 (2026-08-25),
+// Re-checked by the task-schema canary through CLI 2.1.251 (2026-08-28),
 // unchanged.
 
 const fs = require("fs");

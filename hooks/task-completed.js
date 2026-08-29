@@ -10,7 +10,8 @@
 //
 // Probed 2026-07-14 (headless CLI 2.1.210, brief §2.1/§4 M1) and re-probed
 // 2026-07-23 (CLI 2.1.216), 2026-08-13 (CLI 2.1.228), 2026-08-21 (CLI
-// 2.1.238) and 2026-08-25 (CLI 2.1.241), unchanged every time:
+// 2.1.238), 2026-08-25 (CLI 2.1.241) and 2026-08-28 (CLI 2.1.251),
+// unchanged every time:
 // TaskCompleted accepts the same top-level
 // {"decision":"block","reason":"..."} shape as Stop/SubagentStop — a real
 // block (the TaskUpdate call itself returns success:false, updatedFields:[],

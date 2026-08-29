@@ -7,6 +7,10 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## 2.3.0 — 2026-08-28
+
+A finished task now asks you what to do with it there and then, instead of waiting until your next request to mention it. Accept it, review it, or try the parts only a person can try: anything with a command to run, the session runs itself, and anything that needs your eyes — how something renders, how it feels to use — is recorded on the task and handed to you as a short list. That list shows up again the next time you pick work, so it survives closing the session.
+
 ## 2.2.1 — 2026-08-28
 
 The README now opens with a short list of links, so you can jump straight to
