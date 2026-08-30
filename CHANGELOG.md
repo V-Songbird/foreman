@@ -7,6 +7,14 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## 2.4.0 — 2026-08-29
+
+Crafting a prompt now looks for a way your project can already be driven or inspected — a skill, a script, a fixture harness — and names it when it finds one that runs unattended, exits on its own, and does not rewrite what it checks. Fewer checks come back to you to run by hand.
+
+Fixed an issue where a task that creates a file could not be handed off at all: the new file's path was reported as a stale prediction and the prompt was refused. The prompt now says the path is not on disk yet and names both readings — the task creates it, or the plan is stale. A path outside your project is still refused.
+
+Crafting now warns when context you supplied would not have reached the prompt, instead of dropping it quietly.
+
 ## 2.3.3 — 2026-08-29
 
 Fixed an issue where finishing a task could hand you something to try that could not be tried yet, because it depended on work nobody had built — or something Claude could have checked itself. A check now only reaches you if it is answerable today and genuinely beyond what the session can run.
