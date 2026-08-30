@@ -269,6 +269,24 @@ describe('resolve-symbols preflight', () => {
     assert.equal(json.verification.via, null);
   });
 
+  // [Foreman] A command-shape denylist was built here on 2026-08-29 and cut the
+  // same day: `dev`/`serve`/`--update`/`--fix` is one ecosystem's vocabulary,
+  // it never ends, and termination cannot be read off a string. This pins the
+  // absence, so the list is not quietly reintroduced — a dev server resolves,
+  // and resolving is all this script claims to know.
+  test('a dev server resolves like any other script — no shape judgment here', () => {
+    writeFile('src/sample.js', SAMPLE_JS);
+    writeFile('package.json', JSON.stringify({ scripts: { dev: 'vite' } }));
+
+    const { json } = run({
+      stdin: JSON.stringify({ touches: ['src/sample.js'], verify: 'npm run dev' }),
+    });
+
+    assert.equal(json.verification.resolves, true);
+    assert.equal('unattended' in json.verification, false, 'a command-shape denylist came back');
+    assert.deepEqual(json.warnings, []);
+  });
+
   test('no verify given means no verification field at all', () => {
     writeFile('src/sample.js', SAMPLE_JS);
     const { json } = run({ argv: ['--touches', 'src/sample.js'] });

@@ -92,11 +92,34 @@ hand-typed path pointing at the wrong file is exactly the failure
 question instead of asking it cold: dispatch **one** `Explore` agent now,
 before Call 2, and turn what it finds into the options.
 
-Give it Call 1's request verbatim and ask for three things back:
+Give it Call 1's request verbatim and ask for four things back:
 
 - up to three candidate file lines, each `path — the symbols that matter`
 - the project's test command, written the way it would actually be typed
 - one file that already does something similar, for the `Pattern:` line
+- one way this project can be *driven or looked at*, when it has one — a
+  skill under `.claude/skills/`, a script, a fixture harness. It has to clear
+  three bars, all of them: it runs unattended, it exits on its own, and it
+  does not rewrite the thing it checks. Name the command, or return nothing.
+
+The fourth exists because the alternative is handing the check back to the
+user. A project that ships a way to drive itself should have that named in
+the handoff, so the destination session runs it instead of writing "please
+look at this and tell me if it renders right".
+
+**The three bars are yours to apply, and they were learned the hard way.**
+Asked this question over eight real projects, a search agent returned a dev
+server that never exits, a command needing someone at the keyboard, and a
+test run with `--update` that regenerates the very golden files it compares
+against — all three at high confidence.
+
+Nothing downstream re-checks the first two. A denylist of command shapes was
+tried and cut: `dev`/`serve`/`--update` is one ecosystem's vocabulary out of
+many, and whether a command terminates cannot be read off the string at all.
+So this is judgment, not a gate — which is why returning nothing beats
+returning a near-miss. The third bar does have a mechanical backstop, at the
+far end: `safe-commit.js finish` refuses every file the task did not declare,
+so a check that rewrites its own fixtures surfaces when the work closes.
 
 One pass, medium breadth, read-only. Never a second one — a follow-up
 Explore is the second interview this whole skill is shaped to avoid.
@@ -144,7 +167,7 @@ than two — the analyze half is dropped, never invented.
 Skip this call only if the task type is pure research/investigation with no code changes.
 
 **Q1** — "What command or commands verify success?"
-Options: `<the command Explore detected>`, `npm test`, `pytest`, `cargo test` (Explore's answer leads because it was read off this project rather than guessed; with nothing detected the options are the four generic ones, `npm test`, `pytest`, `cargo test`, `go test ./...`)
+Options: `<the command Explore detected>`, `<Explore's way to drive the project>`, `npm test`, `pytest` (Explore's answers lead because they were read off this project rather than guessed; with nothing detected the options are the four generic ones, `npm test`, `pytest`, `cargo test`, `go test ./...`). The drive command is offered second and only when Explore found one — it is the check that would otherwise be handed back to the user as something to look at.
 
 A detected command is still only a proposal. `resolve-symbols.js` below
 checks it against the project for real, and `verification.resolves: false`

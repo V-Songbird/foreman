@@ -200,6 +200,16 @@ function onPath(binary) {
     );
 }
 
+// [Foreman] Deliberately no "is this command safe to run unattended" check
+// here. A first attempt matched command shapes — `dev`, `serve`, `--update`,
+// `--fix` — and it was cut: that list is one ecosystem's vocabulary and it has
+// no end (`rails server`, `flask run`, `dotnet watch`, `--bless`), while
+// termination cannot be decided from a string at all without running it, which
+// a prompt builder must never do. The two real failure shapes are covered
+// where they are actually observable instead: a command that never exits is
+// the crafting session's judgment call at craft time (skills/craft-prompt),
+// and a command that rewrites what it checks shows up at close, when
+// safe-commit.js `finish` refuses every file the task did not declare.
 function resolveCommand(root, command) {
   const text = String(command).trim();
   if (!text) return null;
