@@ -89,14 +89,18 @@ an instruction for the spawned session to act on later):**
      is capped, and the cut tail is stated with its count rather than
      silently dropped. Extraction is a column-0 regex, not a parser, so it
      narrows the search and never replaces `truth_grounding`.
-   - `missing` — the path no longer exists. Fix or drop it before
-     delivering; a stale path caught here is one the destination would
-     otherwise chase. `check-prompt.js` refuses a prompt that still
-     carries the marker, so this is a gate, not a reminder.
+   - `missing` — nothing is at that path. Two readings, and the payload
+     cannot tell them apart: this task is the one that creates the file,
+     or the entry's `planned_touches` went stale. Leave it when the task
+     creates it — the marker in `relevant_files` says so in both branches,
+     so the destination is not misled either way. Fix or drop it when it
+     is stale, before delivering. `check-prompt.js` warns on the marker
+     and does not refuse it.
    - `outside_project` — the path resolves outside the project root, so it
-     was not read. Treat it like `missing`: fix or drop it before
-     delivering — a roadmap path pointing outside the repo is never
-     followed.
+     was not read, and it can never be a file this task writes. Fix or
+     drop it before delivering — a roadmap path pointing outside the repo
+     is never followed. `check-prompt.js` refuses a prompt that still
+     carries this marker, so this one is a gate, not a reminder.
    - `unresolved` — identifier-shaped names in the task's own description
      that match no symbol in any touched file. Treat each as either an
      invented API or an un-caught rename, and resolve it before assembly.

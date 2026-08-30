@@ -433,17 +433,20 @@ describe('symbols-first relevant_files', () => {
   // [Foreman: 259] The template's checklist already said to fix or drop a
   // stale path before delivering. Nothing enforced it, and a real handoff
   // shipped two.
-  test('a stale MISSING: path is refused, not merely flagged', () => {
+  // [Foreman: 271] But refusing it was too blunt: planned_touches is a plan,
+  // so a task that adds a file names it before it exists, and every one of
+  // those handoffs was refused. The marker still prints and still warns.
+  test('a MISSING: path warns and still passes — the task may be the one creating it', () => {
     const project = makeTmpProject();
     const prompt = goodPrompt({
-      background: '<background>\n<relevant_files>\nsrc/models/index.js — MISSING: this path no longer exists, a stale prediction to fix or drop\n</relevant_files>\n<context>\nSome context.\n</context>\n</background>',
+      background: '<background>\n<relevant_files>\nsrc/api/retry.js — MISSING: nothing at this path yet. Either this task creates the file, or the plan is stale and needs fixing.\n</relevant_files>\n<context>\nSome context.\n</context>\n</background>',
     });
     const { status, json } = check(project, prompt, ['--destination', 'task']);
-    assert.notEqual(status, 0, JSON.stringify(json));
-    assert.ok(json.errors.some((e) => e.error.includes('MISSING:')), JSON.stringify(json.errors));
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.ok(json.warnings.some((w) => w.includes('MISSING:')), JSON.stringify(json.warnings));
   });
 
-  test('an OUTSIDE PROJECT: path is refused the same way', () => {
+  test('an OUTSIDE PROJECT: path is still refused — it was never read, and no task writes outside the root', () => {
     const project = makeTmpProject();
     const prompt = goodPrompt({
       background: '<background>\n<relevant_files>\n../elsewhere/a.ts — OUTSIDE PROJECT: resolves outside the project root, not read\n</relevant_files>\n<context>\nSome context.\n</context>\n</background>',

@@ -277,19 +277,30 @@ function checkPrompt(prompt, opts) {
   } else if (!/[\w-]+[\\/.][\w./\\-]+/.test(relevantFiles)) {
     warnings.push("relevant_files has no path-like reference — vague references defeat truth_grounding's \"read the cited files\"");
   }
-  // [Foreman: 259] A stale path IS caught — resolve-symbols.js flags it and
-  // craft-handoff.js prints the flag — and prompt-template.md's checklist says
-  // to fix or drop it before delivering. Nothing enforced that, so a handoff
-  // could ship the marker and let the destination chase a file that no longer
-  // exists. The marker in the assembled prompt is the enforceable form.
+  // [Foreman: 259] The marker in the assembled prompt is the enforceable form
+  // of a path problem: resolve-symbols.js flags it, craft-handoff.js prints it,
+  // and this is where it costs something.
+  // [Foreman: 271] The two markers are not the same kind of problem, so they no
+  // longer carry the same verdict. A path outside the project root was never
+  // read and can never be the file this task writes, so it stays an error. A
+  // path that is simply not on disk is ambiguous by construction: planned_touches
+  // is a PLAN, and a task that adds a file names that file before it exists.
+  // Nothing in the path, the prose or the entry separates the two, so refusing
+  // the prompt refused every create-a-file task — foreman's own schema example
+  // among them. It is a warning now, and the marker in the prompt states both
+  // branches so the destination is not misled either way.
   if (!backgroundOmitted && relevantFiles) {
-    for (const marker of ["MISSING:", "OUTSIDE PROJECT:"]) {
-      if (!relevantFiles.includes(marker)) continue;
+    if (relevantFiles.includes("OUTSIDE PROJECT:")) {
       errors.push(problem(
-        `relevant_files still carries a ${marker} line — the entry's planned paths are stale, and the template requires fixing or dropping one before delivery`,
-        "Correct the entry's planned_touches to the paths that exist, or drop the dead ones, then re-craft.",
+        "relevant_files still carries an OUTSIDE PROJECT: line — the path resolves outside the project root, so it was never read and cannot be the file this task writes",
+        "Correct the entry's planned_touches to a path inside the project, or drop it, then re-craft.",
         null
       ));
+    }
+    if (relevantFiles.includes("MISSING:")) {
+      warnings.push(
+        "relevant_files carries a MISSING: line — expected if this task creates that file, a stale planned_touches entry if it does not"
+      );
     }
   }
 

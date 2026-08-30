@@ -234,7 +234,7 @@ function relevantFilesText(files, references, unresolved, record) {
   const lines = [];
   for (const f of files || []) {
     if (f.missing) {
-      lines.push(`${f.path} — MISSING: this path no longer exists, a stale prediction to fix or drop`);
+      lines.push(`${f.path} — MISSING: nothing at this path yet. Either this task creates the file, or the plan is stale and needs fixing.`);
     } else if (f.outside_project) {
       lines.push(`${f.path} — OUTSIDE PROJECT: resolves outside the project root, not read`);
     } else if (f.directory || f.unsupported || f.unreadable) {

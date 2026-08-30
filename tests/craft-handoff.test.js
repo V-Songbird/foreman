@@ -114,6 +114,24 @@ describe('entry mode', () => {
     assert.equal(status, 1);
     assert.match(json.error, /999/);
   });
+
+  // [Foreman: 271] planned_touches is a plan, so a task that adds a file names
+  // that file before it exists. The gate used to refuse the whole handoff for
+  // it, which refused every create-a-file task.
+  test('a planned path that does not exist yet still crafts a passing handoff', () => {
+    writeRoadmap(project, [entryFields({
+      title: 'Add a retry wrapper',
+      what: 'Add src/auth/retry.js with exponential backoff and call it from middleware.',
+      planned_touches: ['src/auth/middleware.js', 'src/auth/retry.js'],
+    })]);
+    const { status, json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.equal(json.ok, true);
+    assert.equal(json.gate.ok, true, JSON.stringify(json.gate.errors));
+    assert.match(json.prompt, /src\/auth\/retry\.js — MISSING:/);
+    assert.match(json.prompt, /Either this task creates the file, or the plan is stale/);
+    assert.ok(json.gate.warnings.some((w) => w.includes('MISSING:')), JSON.stringify(json.gate.warnings));
+  });
 });
 
 describe('entry-less mode', () => {

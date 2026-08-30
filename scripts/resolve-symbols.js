@@ -358,7 +358,7 @@ function resolve(root, touches, what, verify) {
 
   const files = list.map((relPath) => resolveFile(root, relPath.trim()));
   for (const file of files) {
-    if (file.missing) warnings.push(`${file.path}: no longer exists — the entry's touches are stale`);
+    if (file.missing) warnings.push(`${file.path}: not on disk — expected if this task creates it, stale touches if not`);
     if (file.outside_project) warnings.push(`${file.path}: resolves outside the project — not read; fix or drop it`);
     if (file.unsupported) warnings.push(`${file.path}: no definition patterns for this file type — skipped`);
     if (file.unreadable) warnings.push(`${file.path}: could not be read — skipped`);
