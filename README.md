@@ -20,9 +20,9 @@
 <p align="center">
     <a href="#install"><strong>Install</strong></a> &nbsp;·&nbsp;
     <a href="#what-is-this">What is this?</a> &nbsp;·&nbsp;
+    <a href="#why-youd-want-it">Why you'd want it</a> &nbsp;·&nbsp;
     <a href="#what-you-can-do">What you can do</a> &nbsp;·&nbsp;
-    <a href="#scope">Scope</a> &nbsp;·&nbsp;
-    <a href="#settings">Settings</a>
+    <a href="#going-deeper">Going deeper</a>
 </p>
 
 > **TL;DR** — Every Claude Code session forgets everything when it ends. Foreman writes your plan into your project, as a normal file you can read. Ask "what's next?" and you get the task it recommends, why that one, and a ready-to-run prompt. It checks that prompt against your real code first, so it can't point at a file that moved.
@@ -31,27 +31,31 @@
 
 ## What is this?
 
-Close the laptop, and every plan that only lived in your head closes with it. Open Claude Code tomorrow and it starts from zero. No memory of what you were building, what you ruled out, or that the file it's about to edit got renamed yesterday.
+Close the laptop, and every plan that only lived in your head closes with it.
 
-Foreman keeps the plan next to the code, in a file it calls the roadmap. It is a to-do list in plain words, saved in your project like any other file. Ask "what's next?" and it hands back the task it recommends, why that one came first, and a prompt you can run straight away. Before handing it over, it opens the files the task names and checks they are still there and still say what the plan thinks.
+Open Claude Code tomorrow and it starts from zero. No memory of what you were
+building. No memory of what you ruled out and why. No idea that the file it is
+about to edit got renamed yesterday.
+
+So you explain it all again. Every morning.
+
+Foreman keeps the plan next to the code, in a file it calls the roadmap. It is
+a to-do list in plain words, saved in your project like any other file. Ask
+"what's next?" and it hands back the task it recommends, why that one came
+first, and a prompt you can run straight away.
+
+Before handing that prompt over, it opens the files the task names and checks
+they are still there, and still say what the plan thinks they say.
+
+That is the whole idea. The plan stops living in your head.
 
 ## Why you'd want it
 
 - **Your plan survives you forgetting it.** The next session picks up exactly where you left off, not from a shrug.
+- **You stop re-explaining your project.** The task, the reason, and the files all arrive together, already written.
 - **The instructions write themselves.** Every task goes out in the same shape, with the same safety rails, and the file names checked before you see it.
 - **It keeps up with your work.** When a task looks finished, Foreman says so and asks. You confirm, and it gets ticked off.
 - **Nothing moves without you.** No task gets added, changed, or checked off behind your back.
-
-## How it works
-
-| Moment | What happens |
-| --- | --- |
-| You ask "what's next?" | Foreman sorts the roadmap. It knows what is finished, what is waiting on something else, and what would put two jobs in the same files. It recommends one and writes the prompt. You still choose |
-| You describe new work | It gets added to the roadmap, once you approve it |
-| You save your changes | If a task looks finished, Foreman asks you to confirm. It also points out new work it noticed along the way, unless you switch that off |
-| You think the plan has gone stale | It reads the code, finds what no longer matches, and offers you each fix |
-
-A big task can be handed off in pieces, each with its own check. Every finished piece is saved on its own branch, so nothing is lost if you stop halfway. At the end you decide what happens to that branch.
 
 ## Install
 
@@ -62,13 +66,15 @@ Inside Claude Code, run:
 /plugin install foreman@foundry
 ```
 
-Then run `/foreman:init` once in each project you want a roadmap for. It asks you a few questions and writes the roadmap for you. That is the whole setup.
+Then run `/foreman:init` once in each project you want a roadmap for. It asks
+you a few questions and writes the roadmap for you. That is the whole setup.
 
 Running [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush) too? Good instinct — razor keeps the code lean, hush keeps it quiet, Foreman keeps the plan.
 
 ## What you can do
 
-Just talk to it. That is the whole thing. One way in, plain words, nothing to memorise:
+Just talk to it. That is the whole thing. One way in, plain words, nothing to
+memorise:
 
 | You say… | You get |
 | --- | --- |
@@ -78,42 +84,51 @@ Just talk to it. That is the whole thing. One way in, plain words, nothing to me
 | "what's next" | the task it recommends, why that one, and a prompt you can run |
 | "is the plan still right? then give me something" | your code checked against the plan first, then a task |
 
-Two ways to get a task. The cheap one is what you get by default:
-
-- **Fast pick** — Foreman sorts the roadmap it already has and recommends one. It reads no code, so it is quick and nearly free. This is what you get unless you ask for the other one.
-- **Reconcile and pick** — it reads your code first, finds where the plan has gone stale, and offers you each fix before recommending anything. This one costs real money, so Foreman never starts it on its own. You have to ask.
-
-Don't edit the roadmap file by hand. Foreman keeps it tidy for you, and hand edits break that.
-
-### Advanced
-
-If you would rather type a command than a sentence, these go straight to the point:
-
-| You want to… | Command |
-| --- | --- |
-| Set up a roadmap for a project (one-time) | `/foreman:init` |
-| Get the next task, add one, fix one, or see where things stand | `/foreman:roadmap` |
-| Check the plan against your actual code | `/foreman:survey` |
-| Write a one-off prompt for something not on the roadmap | `/foreman:craft-prompt` |
+There are [commands](HOW-IT-WORKS.md#commands) too, if you would rather type
+them. You never need them.
 
 ## What the last task learned
 
-Someone finds out your tests hang unless you fake the clock. They fix their bug and finish, and that discovery is gone. Three weeks later the next person spends the same afternoon finding the same thing. Turn this on and a finished task can leave one sentence instead. The next task that plans to touch those files is handed it before it starts, along with a note saying whether the code has moved since. So is anyone who opens one of those files. A sentence that turns out to be wrong can be retired. It is off until you ask for it, because it puts a new file in your project. The whole thing fits on one page: [`ledger.md`](ledger.md).
+Someone finds out your tests hang unless you fake the clock. They fix their bug
+and finish, and that discovery is gone. Three weeks later the next person
+spends the same afternoon finding the same thing.
 
-Seeing `Foreman: 019` at the bottom of your saved changes? That one is always on. It is the task number, so you can trace any change back to the job it came from.
+Turn this on and a finished task can leave one sentence instead. The next task
+that touches those files is handed it before it starts. So is anyone who opens
+one of them. A sentence that turns out to be wrong can be retired.
 
-Put a `[Foreman: 019]` comment next to code some task settled, and from then on anyone handed work on that file is told which task governs it, by name. Every option is in [`settings.md`](settings.md).
+It is off until you ask for it, because it puts a new file in your project.
+The whole thing fits on one page: [the ledger](ledger.md).
 
 > [!NOTE]
-> The ledger is **Beta**. It is the newest thing here and may still have rough edges, so it stays off until you say yes. Turning it back off later does not delete anything you have already saved.
+> The ledger is **Beta**. It is the newest thing here and may still have rough
+> edges, so it stays off until you say yes. Turning it back off later does not
+> delete anything you have already saved.
 
-## Under the hood
+## Going deeper
 
-The roadmap is an ordinary file in your project, so you can read it with Foreman switched off. Every field is explained in [`roadmap-schema.md`](roadmap-schema.md). Every prompt is checked before it leaves, so a missing step or a command that cannot run is caught here rather than by whoever does the work. Pairs naturally with [razor](https://github.com/V-Songbird/razor) and [hush](https://github.com/V-Songbird/hush) — they're built to stay out of each other's way.
+Everything technical lives here, so this page can stay short:
 
-## Scope
+| | |
+| --- | --- |
+| [How Foreman works](HOW-IT-WORKS.md) | What runs and when, how a task is picked, what gets checked |
+| [Settings](settings.md) | Every option, and what each one does |
+| [The roadmap file](roadmap-schema.md) | Every field, and what it means |
+| [The ledger](ledger.md) | The optional notes store, in full |
+| [The prompt template](prompt-template.md) | The exact shape of every prompt Foreman writes |
 
-Foreman is for one developer working alone. It keeps the roadmap, and hands you the next task from it. That is the whole job.
+## Good to know
+
+Foreman is for one developer working alone. It keeps the roadmap, and hands you
+the next task from it. That is the whole job.
+
+`/foreman:init` leaves everything at its default, so most people never open the
+settings at all.
+
+Leave the roadmap file to Foreman. It keeps it tidy for you, and hand edits
+break that. Tell Foreman what is wrong instead and it fixes the entry.
+
+You need Node.js and git, both of which Claude Code already needs.
 
 > [!NOTE]
 > **What Foreman will never grow into.** No teams, no assigning work to
@@ -125,14 +140,6 @@ Foreman is for one developer working alone. It keeps the roadmap, and hands you 
 > account, and nothing stored anywhere but your own project. Nothing on that
 > list arrives before a major version, and only then with the reason written
 > down next to it.
-
-## Settings
-
-`/foreman:init` leaves everything at its default, so most people never open the settings at all. If you do want to change something, [`settings.md`](settings.md) lists every option in one table.
-
-## Requirements
-
-Node.js and git, both of which Claude Code already needs. Built and tested against Claude Code 2.1.x. If a future Claude Code stops sending Foreman something it relies on, `/foreman:roadmap` will tell you rather than going quiet.
 
 ## License
 

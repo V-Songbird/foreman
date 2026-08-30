@@ -7,6 +7,15 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## 2.4.1 — 2026-08-29
+
+The front page is rewritten to answer what Foreman is, why it exists and why
+you'd want it, and nothing else. How a task gets picked, what gets checked, the
+commands and the requirements all moved to
+[How Foreman works](HOW-IT-WORKS.md), linked from the front page along with
+[Settings](settings.md), [the roadmap file](roadmap-schema.md),
+[the ledger](ledger.md) and [the prompt template](prompt-template.md).
+
 ## 2.4.0 — 2026-08-29
 
 Crafting a prompt now looks for a way your project can already be driven or inspected — a skill, a script, a fixture harness — and names it when it finds one that runs unattended, exits on its own, and does not rewrite what it checks. Fewer checks come back to you to run by hand.

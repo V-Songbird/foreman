@@ -16,13 +16,15 @@ const read = (...rel) => fs.readFileSync(path.join(__dirname, "..", ...rel), "ut
 const roadmap = read("skills", "roadmap", "pick.md");
 const survey = read("skills", "survey", "SKILL.md");
 const entrance = read("skills", "foreman", "SKILL.md");
-const readme = read("README.md");
+const howItWorks = read("HOW-IT-WORKS.md");
 
 describe("two confidence modes", () => {
-  test("both modes are named, in the roadmap skill and the README", () => {
+  // The README is the plain-language front page; the two pick modes are a
+  // mechanism, so they live in HOW-IT-WORKS.md. Both must still name them.
+  test("both modes are named, in the roadmap skill and HOW-IT-WORKS.md", () => {
     for (const [name, text] of [
       ["roadmap skill", roadmap],
-      ["README", readme],
+      ["HOW-IT-WORKS.md", howItWorks],
     ]) {
       assert.match(text, /\*\*Fast pick\*\*/, `${name} does not name Fast pick`);
       assert.match(text, /\*\*Reconcile and pick\*\*/, `${name} does not name Reconcile and pick`);
