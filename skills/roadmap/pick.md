@@ -303,8 +303,8 @@ session's model, and a pasted prompt runs wherever the user pastes it.
    ledger_ask?, gate, warnings}`. `profile` and `signals` are internal
    bookkeeping — never name either in anything the user reads. Surface any top-level
    `warnings` verbatim whenever that array is non-empty — including when
-   `ok` is `true`, since a stale path or an unanswerable verification
-   command has to be fixed before delivery. When `ok` is `false`, don't retry blind: show
+   `ok` is `true`, since a path not on disk yet, or an unanswerable
+   verification command, has to be judged before delivery. When `ok` is `false`, don't retry blind: show
    `gate.errors` (and any `gate.warnings`) to the user instead. Each entry
    is `{error, fix, example}` — `error` names the judgment field that's too
    thin (missing steps, missing verification, an unresolved reference),

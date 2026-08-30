@@ -390,8 +390,8 @@ Returns one JSON line: `{ok, prompt, profile, signals, tasks?, gate,
 warnings}`. `profile` and `signals` are internal bookkeeping — never name
 either in anything the user reads. Surface any top-level `warnings`
 verbatim whenever that array is non-empty — including when `ok` is `true`,
-since a stale path or an unanswerable verification command has to be fixed
-before delivery. When `ok` is `false`, don't retry blind:
+since a path not on disk yet, or an unanswerable verification command, has
+to be judged before delivery. When `ok` is `false`, don't retry blind:
 feed the failing JSON back to yourself verbatim and act on it. Each entry
 in `gate.errors` is `{error, fix, example}` — `error` names the judgment
 field that's too thin, `fix` is the one action that clears it, and `example`
