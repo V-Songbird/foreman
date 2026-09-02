@@ -1188,6 +1188,34 @@ describe('the anti-test-gaming clause', () => {
   });
 });
 
+// [Foreman 4a] The extras clause — "if you find a pre-existing bug next door,
+// report it, don't fix it here" — was measured over 48 sessions and DECLINED:
+// zero extras in either control on two task shapes and two models, and +40%
+// output tokens on Sonnet. Unlike §4.1-4.3 no switch was kept, so nothing in
+// the product emits it; the arms live entirely in the benchmark harness. This
+// test guards the absence, so a future edit cannot reintroduce it silently.
+describe('the extras clause is not in the product', () => {
+  test('no crafted prompt carries it, on either profile', () => {
+    const build = (judgmentOverrides) => run(project, {
+      title: 'Fix the token refresh bug',
+      what: 'Fix the retry path in the auth middleware so the failing test passes.',
+      planned_touches: ['src/auth/middleware.js'],
+      destination: 'clipboard',
+      request: 'Fix the token refresh bug in the auth middleware.',
+      judgment: goodJudgment(judgmentOverrides),
+    }, { FOREMAN_EXTRAS_CLAUSE: '1' });
+
+    for (const overrides of [{}, { testFirst: true }, { constraints: [] }]) {
+      const { json } = build(overrides);
+      assert.equal(json.ok, true, JSON.stringify(json));
+      assert.ok(
+        !json.prompt.includes('you find a pre-existing bug'),
+        'the extras clause is back in the product — it was measured and declined'
+      );
+    }
+  });
+});
+
 
 // [Foreman: 259] The symbol list was the one block this assembler printed
 // without a ceiling — prior work has RECALL_MAX_CHARS, notes NOTES_KEEP,

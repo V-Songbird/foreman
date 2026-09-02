@@ -244,12 +244,12 @@ back on.
   enums for verdict-like fields; for evidence-bearing claims use the
   cited-pair shape `{"cite": "file:line or doc URL", "note": string}`; keep
   schemas small — every validation retry costs a full subagent turn.
-  Legality rules, separate from the authoring rules above: the schema layer
-  takes draft-07 only, and `minimum`/`maximum`, `minLength`/`maxLength`,
-  `multipleOf`, recursive or external `$ref`, and `minItems` above 1 are
-  unsupported — state any such bound in the property's `description`
-  instead. An unsupported keyword fails the run at startup, not at
-  validation time.
+  Legality rules, separate from the authoring rules above:
+  `minimum`/`maximum`, `minLength`/`maxLength`, `multipleOf`, recursive or
+  external `$ref`, and `minItems` above 1 are unsupported, and
+  `additionalProperties` takes no value but `false` — state any such bound
+  in the property's `description` instead. An unsupported keyword is
+  rejected up front with a 400, not at output-validation time.
   Delivery: both artifacts travel together to the chosen destination — a
   clipboard temp file carries the prompt then the schema; a `TaskCreate`
   description carries both. The never-print-into-chat rule in Deliver below
