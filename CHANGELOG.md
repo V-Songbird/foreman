@@ -7,6 +7,15 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## 2.5.0 — 2026-09-03
+
+Copied prompts now name the task tools they need, and a planned file that does
+not exist yet is no longer forbidden and required in the same breath. Foreman
+warns when splitting a task by check would produce tasks with nothing to build
+in them. The Windows copy no longer garbles dashes, repeated pattern lines
+collapse to one per file, and an ordinary word before a bracket is no longer
+reported as a missing function.
+
 ## 2.4.1 — 2026-08-29
 
 The front page is rewritten to answer what Foreman is, why it exists and why
