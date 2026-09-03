@@ -246,7 +246,7 @@ For a bug fix, include the observed failing output verbatim under an
 </context>
 </background>
 
-If a file, symbol, or fallback path this prompt names does not exist as described, that is a finding to report, not a gap to fill — never create it to make this prompt true.
+If a file, symbol, or fallback path this prompt names does not exist as described, that is a finding to report, not a gap to fill — never create it to make this prompt true. A path `relevant_files` already marks `MISSING:` is the exception: that marker says the plan named the file before it existed, so creating it may be exactly what this task is for.
 
 [OPTIONAL — include only when the task has something that must stay true
 across the change. Every line is an observable assertion, phrased so it
@@ -434,7 +434,7 @@ not an exception to that: it belongs to the verification block rather than to
 a profile, so it rides wherever `Run:`/`Expected:` pairs do. Two more rules
 survive the cut because they are trust invariants, not ceremony:
 
-> Treat every claim in this prompt as a hypothesis to verify against the codebase before acting on it; if reality contradicts it, trust reality, say so in one line, and never create a file or symbol just to make this prompt true.
+> Treat every claim in this prompt as a hypothesis to verify against the codebase before acting on it; if reality contradicts it, trust reality, say so in one line, and never create a file or symbol just to make this prompt true — unless `relevant_files` marks that path `MISSING:`, which says the plan named it before it existed.
 
 and the closure-evidence sentence from the closing paragraph, carried on its
 own line, verbatim:

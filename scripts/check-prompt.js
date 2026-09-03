@@ -93,7 +93,7 @@ const PROFILES = new Set(["standard", "reinforced"]);
 // Standard's one-line stand-in for the full <truth_grounding> block. It folds
 // the no-invention rule in, so the short profile loses length, not the rule.
 const CONCISE_TRUTH_SENTENCE =
-  "Treat every claim in this prompt as a hypothesis to verify against the codebase before acting on it; if reality contradicts it, trust reality, say so in one line, and never create a file or symbol just to make this prompt true.";
+  "Treat every claim in this prompt as a hypothesis to verify against the codebase before acting on it; if reality contradicts it, trust reality, say so in one line, and never create a file or symbol just to make this prompt true — unless `relevant_files` marks that path `MISSING:`, which says the plan named it before it existed.";
 
 // The trust invariant both profiles carry. In `reinforced` it rides inside the
 // fixed closing paragraph (already compared verbatim); `standard` carries the

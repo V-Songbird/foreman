@@ -1272,6 +1272,25 @@ describe('relevant_files symbol cap', () => {
     assert.ok(text.includes('and 108 more top-level definitions'), text);
   });
 
+  // [Foreman: 274] relevant_files ships on BOTH profiles, and it tells the
+  // session a MISSING: path may be one this task creates. The no-invention
+  // rule told it the opposite, in the same prompt. Entry 271 fixed the gate
+  // and left the clause, so every prompt planning a new file carried both.
+  test('both profiles except a MISSING: path from the no-invention rule', () => {
+    const project = makeTmpProject();
+    writeSourceFile(project);
+
+    writeRoadmap(project, [entryFields()]);
+    const standard = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.equal(standard.json.profile, 'standard');
+    assert.ok(standard.json.prompt.includes('unless `relevant_files` marks that path `MISSING:`'), standard.json.prompt);
+
+    writeRoadmap(project, [entryFields({ commits: ['a1b2c3d'] })]);
+    const reinforced = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.equal(reinforced.json.profile, 'reinforced');
+    assert.ok(reinforced.json.prompt.includes('is the exception: that marker says the plan named the file before it existed'), reinforced.json.prompt);
+  });
+
   // [Foreman: 275] References are per-symbol, so several symbols living in one
   // file printed that file once each. A live prompt carried 11 Pattern lines
   // naming 5 files.
