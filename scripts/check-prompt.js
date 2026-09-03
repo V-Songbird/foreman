@@ -93,7 +93,16 @@ const PROFILES = new Set(["standard", "reinforced"]);
 // Standard's one-line stand-in for the full <truth_grounding> block. It folds
 // the no-invention rule in, so the short profile loses length, not the rule.
 const CONCISE_TRUTH_SENTENCE =
-  "Treat every claim in this prompt as a hypothesis to verify against the codebase before acting on it; if reality contradicts it, trust reality, say so in one line, and never create a file or symbol just to make this prompt true — unless `relevant_files` marks that path `MISSING:`, which says the plan named it before it existed.";
+  "Treat every claim in this prompt as a hypothesis to verify against the codebase before acting on it; if reality contradicts it, trust reality, say so in one line, and never create a file or symbol just to make this prompt true";
+
+// [Foreman: 274] The trust invariant is the sentence above; the MISSING:
+// carve-out that follows it is a clarification, not part of the rule. The gate
+// requires the invariant and lets the clarification ride, so a prompt written
+// before the carve-out existed still passes and only the wording foreman emits
+// has to move.
+const CONCISE_TRUTH_CARVE_OUT =
+  " — unless `relevant_files` marks that path `MISSING:`, which says the plan named the file before it existed.";
+const CONCISE_TRUTH_EMITTED = CONCISE_TRUTH_SENTENCE + CONCISE_TRUTH_CARVE_OUT;
 
 // The trust invariant both profiles carry. In `reinforced` it rides inside the
 // fixed closing paragraph (already compared verbatim); `standard` carries the
@@ -192,7 +201,7 @@ function checkPrompt(prompt, opts) {
   if (!truth) {
     if (reinforced) errors.push(problem("missing <truth_grounding> — every reinforced handoff carries it, unmodified", "Copy prompt-template.md's <truth_grounding> block in unchanged.", null));
     else if (!norm(prompt).includes(norm(CONCISE_TRUTH_SENTENCE))) {
-      errors.push(problem("standard handoff is missing the concise truth-grounding line (\"Treat every claim in this prompt as a hypothesis…\") — the short profile drops the block, never the rule", "Add the concise truth-grounding sentence as its own line - the short profile drops the block, never the rule.", CONCISE_TRUTH_SENTENCE));
+      errors.push(problem("standard handoff is missing the concise truth-grounding line (\"Treat every claim in this prompt as a hypothesis…\") — the short profile drops the block, never the rule", "Add the concise truth-grounding sentence as its own line - the short profile drops the block, never the rule.", CONCISE_TRUTH_EMITTED));
     }
   } else if (norm(truth) !== norm(canonical.truthGrounding)) {
     errors.push(problem("<truth_grounding> differs from the template — it must be carried verbatim", "Restore prompt-template.md's <truth_grounding> byte for byte; no rewording is allowed.", null));
@@ -477,6 +486,7 @@ module.exports = {
   PLACEHOLDER_FRAGMENTS,
   PROFILES,
   CONCISE_TRUTH_SENTENCE,
+  CONCISE_TRUTH_EMITTED,
   CLOSURE_EVIDENCE_SENTENCE,
   WORKFLOW_STAGE_SENTENCE,
   NO_INVENTION_SENTENCE,

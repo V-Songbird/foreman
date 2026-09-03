@@ -37,7 +37,7 @@ const {
   checkPrompt,
   readCanonical,
   norm,
-  CONCISE_TRUTH_SENTENCE,
+  CONCISE_TRUTH_EMITTED,
   CLOSURE_EVIDENCE_SENTENCE,
   NO_INVENTION_SENTENCE,
   FIX_CEILING_SENTENCE,
@@ -961,7 +961,7 @@ function assemble(root, input) {
       parts.push(`<truth_grounding>\n${canonical.truthGrounding}\n</truth_grounding>`);
       parts.push(`<scope_discipline>\n${canonical.scopeDiscipline}\n</scope_discipline>`);
     } else {
-      parts.push(CONCISE_TRUTH_SENTENCE);
+      parts.push(CONCISE_TRUTH_EMITTED);
     }
     if (includeEntry && entryParagraph) parts.push(entryParagraph);
     if (includeTone) {
