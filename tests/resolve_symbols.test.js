@@ -161,6 +161,37 @@ describe('resolve-symbols', () => {
     assert.deepEqual(json.unresolved, []);
   });
 
+  // [Foreman: 279] Prose puts parentheses after ordinary words, and the
+  // call-shaped regex read every one of them as a call site. All three strings
+  // below are from live entries: `group`, `show` and `it` each shipped in the
+  // "an invented API or an un-caught rename" line.
+  test('an ordinary word before a parenthesis is prose, not a call site', () => {
+    writeFile('src/sample.js', SAMPLE_JS);
+    const prose = [
+      'plan it as remove-group plus insert-group (entry 031 splice), refusing commands',
+      'map each internal term to the word the UI should show (History, Clean up, move to trash)',
+      'the first stated goal was that it (simple to use) still holds',
+    ];
+    for (const what of prose) {
+      const { json } = run({ stdin: JSON.stringify({ touches: ['src/sample.js'], what }) });
+      assert.deepEqual(json.unresolved, [], what);
+    }
+  });
+
+  test('a call site that looks like code still surfaces, backticked or compound', () => {
+    writeFile('src/sample.js', SAMPLE_JS);
+    const { json } = run({
+      stdin: JSON.stringify({
+        touches: ['src/sample.js'],
+        what: 'Call renameTheThing() and AsyncView(), then `deny(reason)` from the renderer.',
+      }),
+    });
+
+    for (const name of ['renameTheThing', 'AsyncView', 'deny']) {
+      assert.ok(json.unresolved.includes(name), `${name} must still surface: ${JSON.stringify(json.unresolved)}`);
+    }
+  });
+
   test('a directory and an unsupported extension degrade cleanly', () => {
     writeFile('src/sample.js', SAMPLE_JS);
     writeFile('docs/notes.md', '# notes\n');

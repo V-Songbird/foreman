@@ -126,12 +126,30 @@ function resolveFile(root, relPath) {
 const CALL_SHAPED = /\b([A-Za-z_$][\w$]*)\s*\(/g;
 const COMPOUND_SHAPED = /\b([a-z$][\w$]*(?:[A-Z][\w$]*|_[\w$]+)[\w$]*)\b/g;
 
+// [Foreman: 279] CALL_SHAPED alone read any word before an open parenthesis as
+// a call site, and entry prose puts parentheses after ordinary words all the
+// time — `insert-group (entry 031's splice)` yielded `group`, `should show
+// (History, Clean up, …)` yielded `show`, `that it (…)` yielded `it`. Each
+// then shipped in the "an invented API or an un-caught rename" line and sent
+// the session hunting a symbol that does not exist. This restores the rule the
+// comment above already states: a lowercase word with no shape to it is prose.
+// A call-shaped hit has to look like code too — compound, capitalised, or
+// backticked where it appears.
+const CODE_SHAPED = /^(?:[A-Z]|[A-Za-z_$][\w$]*(?:[A-Z]|_))/;
+
+function looksLikeCode(name, what) {
+  return CODE_SHAPED.test(name) || String(what).includes(`\`${name}`);
+}
+
 function candidateIdentifiers(what) {
   const found = new Set();
   for (const re of [CALL_SHAPED, COMPOUND_SHAPED]) {
     re.lastIndex = 0;
     let match;
-    while ((match = re.exec(String(what))) !== null) found.add(match[1]);
+    while ((match = re.exec(String(what))) !== null) {
+      if (re === CALL_SHAPED && !looksLikeCode(match[1], what)) continue;
+      found.add(match[1]);
+    }
   }
   return [...found];
 }
