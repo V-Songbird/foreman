@@ -1019,6 +1019,26 @@ function assemble(root, input) {
 
   const warnings = [...config.warnings, ...symbolResult.warnings, ...gateResult.warnings];
 
+  // [Foreman: 276] buildTaskRows gives row 1 the whole prompt and every later
+  // row only `goal || subject`, `files`, Run and Expected. A pair carrying
+  // neither goal nor files therefore becomes a task whose entire description
+  // is a command — so splitting on three whole-repo gates (typecheck, test,
+  // lint) yields one task holding all the work and two holding none, plus a
+  // checkpoint commit each. The split wants slices; this says when it got
+  // gates instead.
+  if (tasks) {
+    const empty = judgment.verification
+      .map((pair, i) => ({ pair, i }))
+      .filter(({ pair, i }) => i > 0 && !pair.goal && !(pair.files && pair.files.length))
+      .map(({ pair, i }) => `${i + 1} (\`${pair.run}\`)`);
+    if (empty.length) {
+      warnings.push(
+        `the split would create ${empty.length} task${empty.length > 1 ? "s" : ""} carrying no work — row${empty.length > 1 ? "s" : ""} ${empty.join(", ")} name${empty.length > 1 ? "" : "s"} a command and nothing to build. `
+          + "Give each of those verification pairs its own `goal` (and `files` where the slice is known), or deliver this as one task rather than a split."
+      );
+    }
+  }
+
   // [Foreman] `<context>` renders on the reinforced profile only, so a fact
   // the crafting session put in `judgment.context` is absent from every
   // standard handoff. That is deliberate — but it was silent, and a session

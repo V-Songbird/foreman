@@ -123,6 +123,7 @@ The conditions, each one checked independently:
 | --- | --- | --- |
 | `Execute here, split by check` | the probe did not return `dirty:false` | no commits and no branch — your tree already has uncommitted changes |
 | `Execute here, split by check` | fewer than two checks were gathered | only one task, so this is `Execute here` under another name |
+| `Execute here, split by check` | no check after the first names its own slice of the work | the later tasks would only run a command — one task holds everything |
 | `Execute with a background Agent` | the selected row's `collision` is true | it edits files another running task also plans to touch |
 | `Execute with a background Agent` | the verification array is empty | nothing runnable, so it cannot tell whether it succeeded |
 | `Execute with a background Agent` | the probe did not return `dirty:false` | it edits this same tree, around your uncommitted changes |

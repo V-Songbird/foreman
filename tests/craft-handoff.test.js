@@ -1272,6 +1272,46 @@ describe('relevant_files symbol cap', () => {
     assert.ok(text.includes('and 108 more top-level definitions'), text);
   });
 
+  // [Foreman: 276] A split row after the first carries only goal/files/Run/
+  // Expected, so a pair with neither goal nor files becomes a task whose whole
+  // description is a command. Splitting on typecheck/test/lint is the case
+  // that found this: one task holds the work, two hold nothing.
+  test('a split whose later rows carry no work warns, and one that slices does not', () => {
+    const project = makeTmpProject();
+    writeSourceFile(project);
+    writeRoadmap(project, [entryFields()]);
+    const gates = [
+      { run: 'npm run typecheck', expected: 'exits 0' },
+      { run: 'npm test', expected: 'all tests pass' },
+      { run: 'npm run lint', expected: 'exits 0' },
+    ];
+
+    const { json } = run(project, {
+      entry: '001',
+      destination: 'task',
+      split: true,
+      judgment: goodJudgment({ verification: gates }),
+    });
+    assert.equal(json.ok, true, JSON.stringify(json));
+    const warned = json.warnings.find((w) => w.includes('carrying no work'));
+    assert.ok(warned, JSON.stringify(json.warnings));
+    assert.ok(warned.includes('2 tasks'), warned);
+    assert.ok(warned.includes('`npm test`') && warned.includes('`npm run lint`'), warned);
+
+    const sliced = run(project, {
+      entry: '001',
+      destination: 'task',
+      split: true,
+      judgment: goodJudgment({
+        verification: [
+          { run: 'npm run typecheck', expected: 'exits 0' },
+          { run: 'npm test', expected: 'all tests pass', goal: 'Cover the new branch', files: ['src/auth/middleware.js'] },
+        ],
+      }),
+    });
+    assert.ok(!sliced.json.warnings.some((w) => w.includes('carrying no work')), JSON.stringify(sliced.json.warnings));
+  });
+
   // [Foreman: 274] relevant_files ships on BOTH profiles, and it tells the
   // session a MISSING: path may be one this task creates. The no-invention
   // rule told it the opposite, in the same prompt. Entry 271 fixed the gate
