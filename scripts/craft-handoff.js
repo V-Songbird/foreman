@@ -248,8 +248,14 @@ function relevantFilesText(files, references, unresolved, record) {
       lines.push(f.path);
     }
   }
+  // [Foreman: 275] One line per reference meant one line per SYMBOL, so a
+  // handful of symbols living in one file printed that file over and over —
+  // a live prompt carried 11 Pattern lines naming 5 files. The pattern being
+  // pointed at is the file, so the file is what dedups.
+  const patterned = new Set();
   for (const ref of references || []) {
-    if (ref.files && ref.files.length) {
+    if (ref.files && ref.files.length && !patterned.has(ref.files[0])) {
+      patterned.add(ref.files[0]);
       lines.push(`Pattern: ${ref.files[0]} — build the new code the same way`);
     }
   }

@@ -1272,6 +1272,23 @@ describe('relevant_files symbol cap', () => {
     assert.ok(text.includes('and 108 more top-level definitions'), text);
   });
 
+  // [Foreman: 275] References are per-symbol, so several symbols living in one
+  // file printed that file once each. A live prompt carried 11 Pattern lines
+  // naming 5 files.
+  test('references sharing a file print one Pattern line, not one per symbol', () => {
+    const refs = [
+      { files: ['electron/main/workspace/kinds.ts'] },
+      { files: ['electron/main/workspace/kinds.ts'] },
+      { files: ['electron/main/workspace/sessions.ts'] },
+      { files: ['electron/main/workspace/kinds.ts'] },
+    ];
+    const lines = relevantFilesText([], refs, []).split('\n');
+    assert.deepEqual(lines, [
+      'Pattern: electron/main/workspace/kinds.ts — build the new code the same way',
+      'Pattern: electron/main/workspace/sessions.ts — build the new code the same way',
+    ]);
+  });
+
   test('rankSymbols reports the count it dropped, never a silent truncation', () => {
     const { kept, dropped } = rankSymbols(file(40).symbols, new Set());
     assert.equal(kept.length, SYMBOL_KEEP);
