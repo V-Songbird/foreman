@@ -703,8 +703,8 @@ function checkpointEmbedText(cfg, checkCount, entryId) {
       ? "ask the user squash/merge/PR/keep the branch"
       : `apply \`${cfg.onFinish}\` directly, no question`;
   return [
-    "Checkpoint protocol for this multi-task run (the pasted session has no Foreman scripts to call, so this rides in the prompt itself):",
-    `- create one tracked task per Run:/Expected: pair (${checkCount} total) and chain each to the previous one`,
+    "Checkpoint protocol for this multi-task run (the pasted session cannot read prompt-template.md, so this rides in the prompt itself):",
+    `- create one tracked task per Run:/Expected: pair (${checkCount} total) with \`TaskCreate\`, then chain every task from the second onward with one \`TaskUpdate\` \`addBlockedBy: ["<the previous task's id>"]\``,
     `- settle the branch first: ${branchLine}; ${branchAction}`,
     "- before task 1, stop if `git status --porcelain` is non-empty: say so once and make no checkpoint commits at all for this run",
     "- after each task's check passes, stage only the files that task changed (`git add -- <those paths>`, never `git add -A`) and commit `task <n>/<total>: <task subject>`; leave it local, never push",

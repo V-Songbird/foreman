@@ -594,8 +594,9 @@ describes (same keys, same defaults), then append a compact block to the
 end of `task_rules` with the resolved values baked in — never the
 resolution rules themselves. Keep it to a dozen imperative lines,
 instructing the pasted session to:
-- create one tracked task per `Run:`/`Expected:` pair and chain each to
-  the previous one;
+- create one tracked task per `Run:`/`Expected:` pair with `TaskCreate`,
+  then chain every task from the second onward with one `TaskUpdate`
+  `addBlockedBy: ["<the previous task's id>"]`;
 - settle the branch first — name the baked base branch, or bake the
   detection line (`git symbolic-ref --short refs/remotes/origin/HEAD`,
   name after `origin/`, fallback `main`) when `baseBranch` was unset;
@@ -603,8 +604,8 @@ instructing the pasted session to:
   branch, otherwise checkpoint in place (with `branch` `false`, always
   in place);
 - before task 1, stop if `git status --porcelain` is non-empty: say so
-  once and make no checkpoint commits at all for the run (the pasted
-  session has no Foreman scripts to call, so this is the gate);
+  once and make no checkpoint commits at all for the run (this is the
+  gate for the checkpoint commits, whatever else the prompt instructs);
 - after each task's check passes, stage only the files that task
   changed — `git add -- <those paths>`, never `git add -A` — and commit
   `task <n>/<total>: <task subject>`, and leave it local — checkpoints

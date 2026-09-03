@@ -518,6 +518,29 @@ describe('decision entries and the clipboard checkpoint embed', () => {
     assert.match(json.prompt, /apply `squash` directly/);
   });
 
+  // [Foreman: 273] The embed used to say "chain each to the previous one" and
+  // name no tool, so the ordering was advice. The pasted session is a Claude
+  // Code session — the prompt already bakes ${CLAUDE_PLUGIN_ROOT} and names
+  // AskUserQuestion — so naming the tools costs nothing and hands the ordering
+  // to that session's own harness, the same way the task destination does.
+  test('the embed names the task tools, so the reading session enforces the order', () => {
+    writeRoadmap(project, [entryFields()]);
+    const { json } = run(project, {
+      entry: '001',
+      destination: 'clipboard',
+      judgment: goodJudgment({
+        verification: [
+          { run: 'npm test -- auth', expected: 'auth tests pass' },
+          { run: 'npm test', expected: 'all tests pass' },
+        ],
+      }),
+    });
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.ok(json.prompt.includes('with `TaskCreate`'), json.prompt);
+    assert.ok(json.prompt.includes('`addBlockedBy: ["<the previous task\'s id>"]`'), json.prompt);
+    assert.ok(!json.prompt.includes('has no Foreman scripts to call'), json.prompt);
+  });
+
   // [Foreman: 262] The embed and the entry paragraph used to contradict each
   // other on the last commit: the paragraph says commit once with a
   // `Foreman: <id>` trailer, the embed said commit `task <n>/<total>`. The
