@@ -1298,6 +1298,20 @@ describe('relevant_files symbol cap', () => {
     assert.ok(warned.includes('2 tasks'), warned);
     assert.ok(warned.includes('`npm test`') && warned.includes('`npm run lint`'), warned);
 
+    // [Foreman: 277] The clipboard embed asks the pasted session for the same
+    // one-task-per-check rows, so it carries the same exposure. The first cut
+    // of this warning was gated on `tasks`, which only exists for the task
+    // destination, so the clipboard door was silent.
+    const clip = run(project, {
+      entry: '001',
+      destination: 'clipboard',
+      judgment: goodJudgment({ verification: gates }),
+    });
+    assert.ok(
+      clip.json.warnings.some((w) => w.includes('carrying no work')),
+      JSON.stringify(clip.json.warnings)
+    );
+
     const sliced = run(project, {
       entry: '001',
       destination: 'task',

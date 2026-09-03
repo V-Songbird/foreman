@@ -1026,7 +1026,13 @@ function assemble(root, input) {
   // lint) yields one task holding all the work and two holding none, plus a
   // checkpoint commit each. The split wants slices; this says when it got
   // gates instead.
-  if (tasks) {
+  //
+  // [Foreman: 277] Gated on `tasks` at first, which craft-handoff only builds
+  // for destination task — so the clipboard embed, which asks the pasted
+  // session for the same one-task-per-check rows, got no warning at all. The
+  // exposure is the delivery asking for per-check tasks, whichever door it
+  // came through.
+  if (tasks || wantsClipboardEmbed) {
     const empty = judgment.verification
       .map((pair, i) => ({ pair, i }))
       .filter(({ pair, i }) => i > 0 && !pair.goal && !(pair.files && pair.files.length))
