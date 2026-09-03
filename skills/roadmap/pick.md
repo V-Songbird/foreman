@@ -403,7 +403,7 @@ session's model, and a pasted prompt runs wherever the user pastes it.
    - **Clipboard**: `Write` the returned `prompt` to a temp file first —
      never pass it as an inline shell string, a large prompt breaks shell
      quoting and the copy silently fails. Then pipe the file's content into
-     the clipboard command: `Get-Content -Raw <file> | Set-Clipboard` on
+     the clipboard command: `Get-Content -Raw -Encoding utf8 <file> | Set-Clipboard` on
      Windows, `pbcopy < <file>` on macOS, `xclip -selection clipboard <
      <file>` (or `wl-copy < <file>`) on Linux. Mention the file path too,
      in case the clipboard step fails. If no clipboard tool is available at
