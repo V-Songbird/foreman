@@ -7,6 +7,11 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## 2.5.1 — 2026-09-03
+
+The warning about split tasks with nothing to build in them no longer fires
+when each slice was given its own name.
+
 ## 2.5.0 — 2026-09-03
 
 Copied prompts now name the task tools they need, and a planned file that does
