@@ -1312,6 +1312,23 @@ describe('relevant_files symbol cap', () => {
       JSON.stringify(clip.json.warnings)
     );
 
+    // [Foreman: 280] A pair carrying its own `subject` and nothing else is a
+    // real row — buildTaskRows writes `pair.goal || subject`. The first cut of
+    // this filter read only goal and files, so a live split whose rows read
+    // "Cover the two counts with a fixture test" was reported as empty.
+    const subjects = run(project, {
+      entry: '001',
+      destination: 'task',
+      split: true,
+      judgment: goodJudgment({
+        verification: gates.map((g, i) => ({ ...g, subject: `Slice ${i + 1} of the work` })),
+      }),
+    });
+    assert.ok(
+      !subjects.json.warnings.some((w) => w.includes('carrying no work')),
+      JSON.stringify(subjects.json.warnings)
+    );
+
     const sliced = run(project, {
       entry: '001',
       destination: 'task',

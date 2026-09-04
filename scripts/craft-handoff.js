@@ -1035,7 +1035,13 @@ function assemble(root, input) {
   if (tasks || wantsClipboardEmbed) {
     const empty = judgment.verification
       .map((pair, i) => ({ pair, i }))
-      .filter(({ pair, i }) => i > 0 && !pair.goal && !(pair.files && pair.files.length))
+      // [Foreman: 280] `subject` belongs here too — buildTaskRows writes
+      // `pair.goal || subject`, and `subject` is `pair.subject` unless the pair
+      // gave none. Testing only goal and files called a row with a real subject
+      // empty: a live split whose rows read "Cover the two counts with a
+      // fixture test" and "Update docs/domain.md and lint" was flagged. The
+      // filter reads the same three inputs the row builder does.
+      .filter(({ pair, i }) => i > 0 && !pair.goal && !pair.subject && !(pair.files && pair.files.length))
       .map(({ pair, i }) => `${i + 1} (\`${pair.run}\`)`);
     if (empty.length) {
       warnings.push(
