@@ -29,6 +29,8 @@
 
 ---
 
+<p align="center"><img src="assets/demo.svg" alt="One real exchange with Foreman on a small command-line notes tool, three tasks on its roadmap. You: what&#x27;s next? Foreman answers after 32 seconds: Two tasks are ready to go — neither is blocked, and nothing else is in flight. Which task next? 1. Save notes to a file so they survive a restart (001) — (Recommended) Right now notes only live in memory, so closing the … You: 1. Copy the prompt to my clipboard. Foreman answers after 51 seconds: Task 001 — Save notes to a file so they survive a restart. Right now the notes tool keeps everything in memory, so quitting the terminal throws away every note you took. This makes the store write itself to a JSON file i… The prompt Foreman wrote names the files it checked, with line numbers. Claude Opus 5, replayed on the recorded wall clock." width="700"></p>
+
 ## What is this?
 
 Close the laptop, and every plan that only lived in your head closes with it.

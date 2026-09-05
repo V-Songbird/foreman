@@ -7,6 +7,12 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## 2.5.3 — 2026-09-04
+
+The README now opens with a replay of a real "what's next?" exchange: what
+you type, what Foreman answers, and the opening of the prompt it writes,
+played back on the recorded clock. Nothing Foreman does in a session changed.
+
 ## 2.5.2 — 2026-09-04
 
 The README now shows a real "what's next?" exchange on a small project: the
