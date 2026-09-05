@@ -1099,16 +1099,32 @@ describe('the symbol chain', () => {
     commitWith(project, 'src/alpha.js', 'function alpha() {\n  return 2;\n}\n', 'Harden alpha\n\nForeman: 042');
     writeRoadmap(project, [
       entryFields({ what, planned_touches: ['src/alpha.js'] }),
-      entryFields({ id: '041', title: 'Create alpha', status: 'done', planned_touches: ['src/alpha.js'], observed_touches: ['src/alpha.js'] }),
-      entryFields({ id: '042', title: 'Harden alpha', status: 'done', planned_touches: ['src/alpha.js'], observed_touches: ['src/alpha.js'] }),
+      entryFields({ id: '041', title: 'Create alpha', why: 'The percentile math needed one home.', status: 'done', planned_touches: ['src/alpha.js'], observed_touches: ['src/alpha.js'] }),
+      entryFields({ id: '042', title: 'Harden alpha', why: 'It crashed on an empty list.', status: 'done', planned_touches: ['src/alpha.js'], observed_touches: ['src/alpha.js'] }),
     ]);
   }
 
-  test('names the entries whose commits shaped a symbol the task names, newest first', () => {
+  test('names the entries whose commits shaped a symbol the task names, newest first, each with its why', () => {
     shapedProject();
     const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
     assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
-    assert.match(json.prompt, /- alpha \(src\/alpha\.js\): shaped by 042 Harden alpha, 041 Create alpha/);
+    assert.match(
+      json.prompt,
+      /- alpha \(src\/alpha\.js\): shaped by 042 Harden alpha — It crashed on an empty list\.; 041 Create alpha — The percentile math needed one home\./
+    );
+  });
+
+  test('a title or why past its cap is cut with the same mark the other blocks use', () => {
+    const { symbolChainText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
+    initGitRepo(project);
+    commitWith(project, 'src/alpha.js', 'function alpha() {}\n', 'Create alpha\n\nForeman: 041');
+    writeRoadmap(project, [
+      entryFields({ what: 'Rework `alpha`.', planned_touches: ['src/alpha.js'] }),
+      entryFields({ id: '041', title: 'T'.repeat(80), why: 'W'.repeat(300), status: 'done' }),
+    ]);
+    const files = [{ path: 'src/alpha.js', symbols: [{ name: 'alpha', line: 1 }] }];
+    const text = symbolChainText(project, { id: '001', title: 'x', what: 'Rework `alpha`.' }, files);
+    assert.match(text, new RegExp(`shaped by 041 T{39}… — W{119}…$`, 'm'));
   });
 
   test('sits inside <background>, outside <context>, and never promotes the profile', () => {
@@ -1147,7 +1163,8 @@ describe('the symbol chain', () => {
     ]);
     const files = [{ path: 'src/alpha.js', symbols: [{ name: 'alpha', line: 1 }] }];
     const text = symbolChainText(project, { id: '001', title: 'x', what: 'Rework `alpha`.' }, files);
-    assert.match(text, /shaped by 015 Step 015, 014 Step 014, … 011 Step 011$/m);
+    assert.match(text, /shaped by 015 Step 015 — [^;]+; 014 Step 014 — [^;]+; … 011 Step 011 — [^;]+$/m);
+    assert.ok(!text.includes('013'), 'the middle of a long chain is what the cap cuts');
   });
 
   test('with no git the block is simply absent', () => {

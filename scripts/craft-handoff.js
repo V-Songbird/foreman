@@ -532,8 +532,13 @@ const CHAIN_MAX_SYMBOLS = 4;
 // Ids per symbol: the newest two and the one that created it. The middle of a
 // long chain is what a cap cuts, never either end.
 const CHAIN_KEEP = 3;
-const CHAIN_TITLE = 50;
-const CHAIN_MAX_CHARS = 600;
+// Each entry rides with its title AND its why: the id alone is a pointer a
+// pasted or background session cannot follow, and the why is the reason the
+// function looks the way it does — the fact this whole channel exists to
+// carry. Both cut short; the line cap does the rest.
+const CHAIN_TITLE = 40;
+const CHAIN_WHY = 120;
+const CHAIN_MAX_CHARS = 900;
 const CHAIN_TIME_BUDGET_MS = 6000;
 const CHAIN_HEADER =
   "Entries whose commits shaped the symbols this task names, from the history — newest first, the one that created it last:";
@@ -568,7 +573,11 @@ function symbolChainText(root, record, files) {
   const pairs = chainCandidates(record, files);
   if (!pairs.length) return "";
 
-  const titles = new Map(historyEntries(root).map((e) => [e.id, e.title]));
+  const known = new Map(historyEntries(root).map((e) => [e.id, e]));
+  const cut = (text, max) => {
+    const flat = String(text || "").replace(/\s+/g, " ").trim();
+    return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
+  };
   const deadline = Date.now() + CHAIN_TIME_BUDGET_MS;
   const lines = [];
   let total = CHAIN_HEADER.length;
@@ -584,17 +593,19 @@ function symbolChainText(root, record, files) {
     }
     if (!ids.length) continue;
     let kept = ids;
-    let cut = 0;
+    let dropped = 0;
     if (ids.length > CHAIN_KEEP) {
       kept = [...ids.slice(0, CHAIN_KEEP - 1), ids[ids.length - 1]];
-      cut = ids.length - CHAIN_KEEP;
+      dropped = ids.length - CHAIN_KEEP;
     }
     const named = kept.map((id, i) => {
-      const title = titles.get(id);
-      const label = title ? `${id} ${String(title).slice(0, CHAIN_TITLE)}` : id;
-      return cut && i === kept.length - 1 ? `… ${label}` : label;
+      const entry = known.get(id);
+      const title = entry ? cut(entry.title, CHAIN_TITLE) : "";
+      const why = entry ? cut(entry.why, CHAIN_WHY) : "";
+      const label = `${id}${title ? ` ${title}` : ""}${why ? ` — ${why}` : ""}`;
+      return dropped && i === kept.length - 1 ? `… ${label}` : label;
     });
-    const line = `- ${name} (${file}): shaped by ${named.join(", ")}`;
+    const line = `- ${name} (${file}): shaped by ${named.join("; ")}`;
     // Whole lines only, same as every block above.
     if (total + 1 + line.length > CHAIN_MAX_CHARS) break;
     lines.push(line);
