@@ -319,6 +319,19 @@ function recallExcerpt(notes) {
   return longest.length > RECALL_EXCERPT ? `${longest.slice(0, RECALL_EXCERPT - 1)}…` : longest;
 }
 
+// [Foreman: 284] A lead's prose is the entry's `why` — the reason the work
+// existed — and only when that is empty does the longest human note line
+// stand in. Read on this repo's own roadmap: the longest note is the shipping
+// log ("Shipped in e1f2f2b. Suite 1170/1170.") often enough that the reason a
+// function looks the way it does never reached a later handoff, while the
+// `why` said it in one sentence every time. Same cap and the same cut mark as
+// the note excerpt, so the ceiling arithmetic below is unchanged.
+function leadExcerpt(entry) {
+  const why = String(entry.why || "").replace(/\s+/g, " ").trim();
+  if (why) return why.length > RECALL_EXCERPT ? `${why.slice(0, RECALL_EXCERPT - 1)}…` : why;
+  return recallExcerpt(entry.notes);
+}
+
 // A recalled lead with no freshness signal is the measured harm this stamp
 // exists to fix: a hard-repeated stale path anchors the destination on the
 // decoy. Three-valued and never optimistic — every way of failing to date a
@@ -366,8 +379,12 @@ function priorWorkText(entries, record, root) {
   }
   if (!byEntry.size) return "";
 
+  // [Foreman: 284] Rarest path first, then NEWEST entry first. The old
+  // ascending-id tie-break served the three oldest entries on a busy path and
+  // dropped the latest change — the one that explains the code as it stands.
+  // The lessons block already serves newest first; the two now agree.
   const ranked = [...byEntry.values()]
-    .sort((a, b) => a.reach - b.reach || String(a.entry.id).localeCompare(String(b.entry.id)))
+    .sort((a, b) => a.reach - b.reach || String(b.entry.id).localeCompare(String(a.entry.id)))
     .slice(0, RECALL_KEEP);
 
   // Each excerpt is a past entry's own note, and past notes read as
@@ -378,7 +395,7 @@ function priorWorkText(entries, record, root) {
   // The wrapper counts against the same ceiling the block is held to.
   let total = "<prior_work>\n".length + header.length + "\n</prior_work>".length;
   for (const { entry } of ranked) {
-    const excerpt = recallExcerpt(entry.notes);
+    const excerpt = leadExcerpt(entry);
     const title = String(entry.title || "").slice(0, RECALL_TITLE);
     const line = `- ${entry.id} ${title}${excerpt ? ` — ${excerpt}` : ""}${recallStamp(root, entry)}`;
     // A lead that would push the block past the ceiling is dropped whole:

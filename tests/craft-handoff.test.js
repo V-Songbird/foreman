@@ -788,15 +788,40 @@ describe('prior-work recall', () => {
       const id = String(200 + i);
       const observed = i < 9 ? ['src/common.js'] : [`src/other-${i}.js`];
       if (i === 0 || i === 1) observed.push('src/auth/middleware.js');
-      rows.push(finished(id, observed, { notes: `${today()} Entry ${id} rewrote the retry loop.` }));
+      rows.push(finished(id, observed, {
+        why: `Entry ${id} existed because retries double-counted.`,
+        notes: `${today()} Entry ${id} rewrote the retry loop.`,
+      }));
     }
     return rows;
   }
 
-  test('a rare path names the finished entries that touched it', () => {
+  // [Foreman: 284] The lead carries the entry's why — the reason the work
+  // existed — not its longest note, which on a real roadmap is the shipping
+  // log more often than not.
+  test('a rare path names the finished entries that touched it, each with its why', () => {
     const text = priorWorkText(corpus(), { id: '001', planned_touches: ['src/auth/middleware.js'] });
-    assert.match(text, /- 200 Earlier work 200 — Entry 200 rewrote the retry loop\./);
-    assert.match(text, /- 201 Earlier work 201/);
+    assert.match(text, /- 200 Earlier work 200 — Entry 200 existed because retries double-counted\./);
+    assert.match(text, /- 201 Earlier work 201 — Entry 201 existed because/);
+    assert.ok(!text.includes('rewrote the retry loop'), 'the note must not displace the why');
+  });
+
+  test('the longest note stands in only when the why is empty', () => {
+    const rows = [
+      finished('300', ['src/auth/middleware.js'], { why: '', notes: `${today()} The retry loop double-counted attempts.` }),
+      ...pad(4, 900),
+    ];
+    const text = priorWorkText(rows, { id: '001', planned_touches: ['src/auth/middleware.js'] });
+    assert.match(text, /- 300 Earlier work 300 — The retry loop double-counted attempts\./);
+  });
+
+  test('a why past the excerpt cap is cut with the same mark as a note', () => {
+    const rows = [
+      finished('300', ['src/auth/middleware.js'], { why: 'w'.repeat(400) }),
+      ...pad(4, 900),
+    ];
+    const text = priorWorkText(rows, { id: '001', planned_touches: ['src/auth/middleware.js'] });
+    assert.match(text, new RegExp(`— w{239}…$`, 'm'));
   });
 
   // The excerpts are past entries' own notes, and those read as imperatives.
@@ -848,6 +873,18 @@ describe('prior-work recall', () => {
     const named = text.split('\n').filter((line) => line.startsWith('- '));
     assert.equal(named.length, 3);
     assert.match(named[0], /- 500 /);
+  });
+
+  // [Foreman: 284] Among entries that reached the same path, the newest lead:
+  // the latest change is the one that explains the code as it stands, and it
+  // used to be the first one dropped.
+  test('among equals the newest entries lead and the oldest are the ones dropped', () => {
+    const rows = [];
+    for (let i = 0; i < 5; i += 1) rows.push(finished(String(400 + i), ['src/wide.js']));
+    for (let i = 0; i < 24; i += 1) rows.push(finished(String(600 + i), [`src/pad-${i}.js`]));
+    const text = priorWorkText(rows, { id: '001', planned_touches: ['src/wide.js'] });
+    const ids = text.split('\n').filter((line) => line.startsWith('- ')).map((line) => line.slice(2, 5));
+    assert.deepEqual(ids, ['404', '403', '402']);
   });
 
   test('the excerpt strips the date stamp and every machine-written line', () => {
@@ -916,6 +953,7 @@ describe('prior-work recall', () => {
     for (let i = 0; i < 3; i += 1) {
       rows.push(finished(String(1000 + i), ['src/auth/middleware.js'], {
         title: 'T'.repeat(200),
+        why: 'W'.repeat(600),
         notes: `${today()} ${'N'.repeat(600)}`,
       }));
     }
@@ -936,9 +974,9 @@ describe('prior-work recall', () => {
 
   test('a lead that would overflow the ceiling is dropped whole, never halved', () => {
     const rows = [
-      finished('300', ['src/auth/middleware.js'], { title: 'A'.repeat(60), notes: `${today()} ${'a'.repeat(240)}` }),
-      finished('301', ['src/auth/middleware.js'], { title: 'B'.repeat(60), notes: `${today()} ${'b'.repeat(240)}` }),
-      finished('302', ['src/auth/middleware.js'], { title: 'C'.repeat(60), notes: `${today()} ${'c'.repeat(240)}` }),
+      finished('300', ['src/auth/middleware.js'], { title: 'A'.repeat(60), why: 'a'.repeat(240) }),
+      finished('301', ['src/auth/middleware.js'], { title: 'B'.repeat(60), why: 'b'.repeat(240) }),
+      finished('302', ['src/auth/middleware.js'], { title: 'C'.repeat(60), why: 'c'.repeat(240) }),
       ...pad(17, 3000),
     ];
     const text = priorWorkText(rows, { id: '001', planned_touches: ['src/auth/middleware.js'] });

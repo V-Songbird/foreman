@@ -9,6 +9,10 @@ that's why `plugin.json` here carries none.
 
 ## [Unreleased]
 
+- A handed-off prompt's prior-work lines now quote each earlier task's
+  reason for existing, its `why`, instead of its longest note, which was
+  usually a record of what shipped. When more tasks touched a file than the
+  block can hold, the newest ones are the ones kept.
 - The trial log now records how often a delivered handoff carried lessons and
   how often a finished task closed without recording one. Two rows, written
   only when `trialLog` is on, and `roadmap-health.js` reports the two rates.
