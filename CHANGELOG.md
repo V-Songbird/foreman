@@ -9,6 +9,9 @@ that's why `plugin.json` here carries none.
 
 ## [Unreleased]
 
+- Archiving finished tasks no longer hides them from later prompts. Prior-work
+  lines, anchor titles and the first-time ledger question now read the archive
+  as well as the active roadmap.
 - A handed-off prompt's prior-work lines now quote each earlier task's
   reason for existing, its `why`, instead of its longest note, which was
   usually a record of what shipped. When more tasks touched a file than the

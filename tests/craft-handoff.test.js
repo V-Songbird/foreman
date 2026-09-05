@@ -25,7 +25,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('node:child_process');
 
-const { runNodeScript, makeTmpProject, writeRoadmap, writeConfig, initGitRepo, commitFile, SCRIPTS_DIR } = require('./helpers.js');
+const { runNodeScript, makeTmpProject, writeRoadmap, writeArchiveFile, writeConfig, initGitRepo, commitFile, SCRIPTS_DIR } = require('./helpers.js');
 const { today } = require(path.join(SCRIPTS_DIR, 'roadmap.js'));
 const { TEMPLATE_PATH, WORKFLOW_STAGE_SENTENCE } = require(path.join(SCRIPTS_DIR, 'check-prompt.js'));
 const { assemble, relevantFilesText, rankSymbols, SYMBOL_KEEP, checkpointEmbedText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
@@ -1053,6 +1053,19 @@ describe('prior-work recall', () => {
       assert.match(text, /- 300 /);
       assert.ok(!text.includes('['), 'selection-only callers get no freshness claim either way');
     });
+  });
+
+  // [Foreman: 285] The archive is history too. Session start offers archiving
+  // at twenty terminal entries, so an active-only recall lost the oldest lead
+  // — the one that created the code — first.
+  test('an archived finished entry is still recalled, with its why', () => {
+    writeRoadmap(project, [entryFields(), ...pad(4, 900)]);
+    writeArchiveFile(project, [
+      finished('300', ['src/auth/middleware.js'], { why: 'It was archived, not forgotten.' }),
+    ]);
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+    assert.match(json.prompt, /- 300 Earlier work 300 — It was archived, not forgotten\./);
   });
 
   test('recall never promotes a handoff to the reinforced profile', () => {

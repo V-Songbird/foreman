@@ -27,7 +27,19 @@ const fs = require("fs");
 const path = require("path");
 const { render, projectDir, readConfig } = require("./render-sections.js");
 const { resolve: resolveSymbols, candidateIdentifiers } = require("./resolve-symbols.js");
-const { readEntries, cmdList, touchesOverlap, today, anchorIdsIn } = require("./roadmap.js");
+const { readEntries, readArchive, cmdList, touchesOverlap, today, anchorIdsIn } = require("./roadmap.js");
+
+// [Foreman: 285] Every finished entry this project ever had, active file
+// first. Recall, the overlap check and anchor titles are readings of history,
+// and the archive is exactly that history: hooks/session-start.js offers
+// archiving once twenty terminal entries pile up, so an active-only read
+// loses the oldest lead — the one that created the code — first. One extra
+// file read at craft time, [] when no archive exists. The selected entry
+// itself still comes from the active file alone: an archived entry cannot be
+// picked.
+function historyEntries(root) {
+  return [...readEntries(root), ...readArchive(root)];
+}
 const { anchorShaFor, changedSince } = require("./commit-evidence.js");
 const ledger = require("./ledger");
 const { readLedger } = require("./ledger-config");
@@ -478,7 +490,7 @@ function ledgerText(root, record) {
   const { records, error } = ledger.read(root);
   if (error || !records.length) return "";
 
-  const corpus = readEntries(root).filter(
+  const corpus = historyEntries(root).filter(
     (e) => RECALL_STATUSES.has(e.status) && (e.observed_touches || []).length > 0
   );
   const selected = selectNotes(records, record, corpus);
@@ -579,7 +591,7 @@ function anchorsText(root, record, dir) {
   }
   if (!found.size) return "";
 
-  const titles = new Map(readEntries(root).map((e) => [e.id, e.title]));
+  const titles = new Map(historyEntries(root).map((e) => [e.id, e.title]));
   const lines = [];
   let total = ANCHOR_HEADER.length;
   for (const [id, rel] of found) {
@@ -607,7 +619,7 @@ function anchorsText(root, record, dir) {
 function notesOverlapExists(root, record) {
   const planned = record.planned_touches || [];
   if (!planned.length) return false;
-  return readEntries(root).some(
+  return historyEntries(root).some(
     (e) =>
       RECALL_STATUSES.has(e.status)
       && e.id !== record.id
@@ -937,7 +949,7 @@ function assemble(root, input) {
 
   const taskContextBlock = taskContextText(config.usePersona, judgment);
   const backgroundInner = relevantFilesText(symbolResult.files, symbolResult.references, symbolResult.unresolved, record);
-  const priorWork = priorWorkText(readEntries(root), record, root);
+  const priorWork = priorWorkText(historyEntries(root), record, root);
   const lessons = ledgerText(root, record);
   const anchors = anchorsText(root, record, config.ledger.dir);
   const ctxText = contextText(judgment.context, record.depends_on_docs);

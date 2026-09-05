@@ -21,7 +21,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('node:child_process');
 
-const { runRoadmap, makeTmpProject, writeRoadmap, initGitRepo, commitFile, SCRIPTS_DIR } = require('./helpers.js');
+const { runRoadmap, makeTmpProject, writeRoadmap, writeArchiveFile, initGitRepo, commitFile, SCRIPTS_DIR } = require('./helpers.js');
 const ledger = require(path.join(SCRIPTS_DIR, 'ledger.js'));
 const { today } = require(path.join(SCRIPTS_DIR, 'roadmap.js'));
 
@@ -422,6 +422,15 @@ describe('lesson lines in the handoff', () => {
     assert.equal(notesOverlapExists(project, { id: '001', planned_touches: ['src/nothing.js'] }), false);
   });
 
+  // [Foreman: 285] An archived finished entry is still finished work that
+  // touched these files.
+  test('the overlap fact reads the archive too', () => {
+    const project = makeTmpProject();
+    writeRoadmap(project, [entry({ id: '001', status: 'planned', observed_touches: [] })]);
+    writeArchiveFile(project, [entry({ id: '002', status: 'done' })]);
+    assert.equal(notesOverlapExists(project, { id: '001', planned_touches: ['src/Auth/session.js'] }), true);
+  });
+
   test('the close ask appears only where the ledger is on', () => {
     const { entryParagraphText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
     const args = { id: '001', resume: false, requireVerification: false, destination: 'task' };
@@ -489,6 +498,16 @@ describe('anchors served at dispatch', () => {
     const text = anchorsText(project, { id: '001', planned_touches: ['src/Auth/session.js'] }, 'docs/foreman');
     assert.match(text, /^Anchored in the files this task plans to touch/);
     assert.match(text, /src\/Auth\/session\.js carries \[Foreman: 019\] — Expire sessions server-side/);
+  });
+
+  // [Foreman: 285] An anchor outlives the archive of the entry it names.
+  test('an anchor naming an archived entry still carries that title', () => {
+    const project = makeTmpProject();
+    writeRoadmap(project, [entry()]);
+    writeArchiveFile(project, [{ ...entry(), id: '019', status: 'done', title: 'Expire sessions server-side' }]);
+    anchored(project, '// [Foreman: 019]\nconst refresh = () => 1;\n');
+    const text = anchorsText(project, { id: '001', planned_touches: ['src/Auth/session.js'] }, 'docs/foreman');
+    assert.match(text, /\[Foreman: 019\] — Expire sessions server-side/);
   });
 
   test('a document behind the anchor is named too', () => {
