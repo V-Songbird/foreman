@@ -755,12 +755,21 @@ function contextText(judgmentContext, dependsOnDocs) {
 
 // ---- <task_context>
 
-function taskContextText(usePersona, judgment) {
+// [Foreman: 291] The purpose line is the entry's own `why`, verbatim, whenever
+// the record has one. Before this the destination learned why the task existed
+// only through the crafting session's paraphrase of that field into the goal
+// sentence — a second author standing between the user's stated intention and
+// the session doing the work. The why is the current task's brief, not history:
+// truth_grounding still governs it like every other claim in the prompt. An
+// entry-less handoff (craft-prompt) carries no why, so the interview's
+// `purpose` stands in there, as before.
+function taskContextText(usePersona, judgment, record) {
   const role = judgment.role || "a senior engineer";
   const opener = usePersona ? `You are ${role}.` : `Domain: ${role}.`;
   let goal = String(judgment.goal || "complete the task").trim();
   if (!/[.!?]$/.test(goal)) goal += ".";
-  const purpose = judgment.purpose ? `\n${judgment.purpose}` : "";
+  const why = record && typeof record.why === "string" ? record.why.replace(/\s+/g, " ").trim() : "";
+  const purpose = why ? `\nWhy this task exists: ${why}` : judgment.purpose ? `\n${judgment.purpose}` : "";
   return `<task_context>\n${opener}\nYour goal is ${goal}${purpose}\n</task_context>`;
 }
 
@@ -779,9 +788,18 @@ function taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkp
   let body = lines.join("\n");
 
   const constraintLines = (judgment.constraints || []).map((c) => `- ${c}`);
-  if (judgment.expectedFileSurface) {
+  // [Foreman: 291] The scope baseline comes from the entry's own planned_touches
+  // whenever the judgment does not name one. It used to depend on the crafting
+  // session remembering to copy that field across, and a handoff that lost it
+  // had no pre-committed surface at all. A judgment value still wins, so a
+  // crafter can narrow or widen the line on purpose; only an entry with no
+  // planned files omits it.
+  const surface =
+    judgment.expectedFileSurface
+    || (Array.isArray(record.planned_touches) && record.planned_touches.length ? record.planned_touches.join(", ") : "");
+  if (surface) {
     constraintLines.push(
-      `Expected file surface: ${judgment.expectedFileSurface}. Anything beyond this list gets flagged to the user before it is written, not after.`
+      `Expected file surface: ${surface}. Anything beyond this list gets flagged to the user before it is written, not after.`
     );
   }
   if (constraintLines.length) {
@@ -1065,7 +1083,7 @@ function assemble(root, input) {
       })
     : "";
 
-  const taskContextBlock = taskContextText(config.usePersona, judgment);
+  const taskContextBlock = taskContextText(config.usePersona, judgment, record);
   const backgroundInner = relevantFilesText(symbolResult.files, symbolResult.references, symbolResult.unresolved, record);
   // One read of the roadmap and the archive for every history consumer below.
   const history = historyEntries(root);

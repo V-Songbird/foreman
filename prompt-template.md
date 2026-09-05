@@ -149,7 +149,11 @@ under 500ms", so completion is checkable rather than declared].
 [One more sentence when the purpose is known — what this output feeds and
 who it's for, e.g. "This informs a PR description — focus on user-facing
 changes." It lets the session calibrate depth and emphasis; drop the line
-when there's nothing beyond the goal itself.]
+when there's nothing beyond the goal itself. For a roadmap entry,
+`craft-handoff.js` fills this line itself with the entry's own `why`, word
+for word, as "Why this task exists: …" — the user's stated intention reaches
+the session unparaphrased. Only an entry-less handoff takes a `purpose` from
+the crafting session.]
 </task_context>
 
 <truth_grounding>
@@ -292,8 +296,12 @@ Constraints:
   task is expected to touch, followed by: anything beyond this list gets
   flagged to the user before it is written, not after. This is the
   pre-committed scope baseline `observed_touches` cannot be, since that
-  field derives from the commit after the fact. Omit the line when the surface
-  genuinely isn't known yet.]
+  field derives from the commit after the fact. `craft-handoff.js` fills
+  it from the entry's `planned_touches` whenever the judgment names none,
+  so a crafting session passes `expectedFileSurface` only to narrow or
+  widen that list on purpose. The line is absent only when the entry
+  itself names no file — the one case where the surface genuinely isn't
+  known yet.]
 
 Verification (REQUIRED):
 Run: [exact command — e.g. "npm test -- --testPathPattern=auth"]

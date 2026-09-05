@@ -366,8 +366,10 @@ if it had.
   task type the user described as a review or audit): "Flag only gaps
   that affect correctness or security — reporting that the work is sound
   is a valid outcome."
-- `judgment.expectedFileSurface` ← Call 2 Q3's paths, as given; omit when
-  no paths were named
+- `judgment.expectedFileSurface` — usually omit it: the script fills the
+  "Expected file surface:" constraint line from `touches` on its own. Pass
+  it only to narrow or widen that list on purpose; with no paths named
+  there is no line
 - `judgment.verification` ← Call 3's `Run:`/`Expected:` pairs, in running
   order; a pure-investigation task omits this and carries `judgment.question`
   instead — the question under investigation, not a prescribed sequence

@@ -1643,3 +1643,78 @@ describe('judgment.context and the standard profile', () => {
     assert.ok(!dropped(json), `warned with no context given: ${JSON.stringify(json.warnings)}`);
   });
 });
+
+// [Foreman: 291] Two facts the entry already carries now reach the handoff
+// mechanically instead of through the crafting session's memory: the why, as
+// the task's stated intention, and planned_touches, as the scope baseline.
+describe('the entry relays its own why and file surface', () => {
+  test("task_context carries the entry's why word for word, under the goal", () => {
+    writeRoadmap(project, [entryFields({ why: 'Sessions   expire mid-request under load.' })]);
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.equal(json.ok, true, JSON.stringify(json));
+    const block = json.prompt.slice(json.prompt.indexOf('<task_context>'), json.prompt.indexOf('</task_context>'));
+    assert.match(block, /Your goal is to fix the token refresh bug so all tests pass\.\nWhy this task exists: Sessions expire mid-request under load\.\n$/);
+  });
+
+  test('the why wins over a purpose the crafting session passed for an entry', () => {
+    writeRoadmap(project, [entryFields()]);
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment({ purpose: 'This informs a PR description.' }) });
+    assert.ok(json.prompt.includes('Why this task exists: Sessions expire mid-request under load.'));
+    assert.ok(!json.prompt.includes('This informs a PR description.'));
+  });
+
+  test('an entry-less handoff keeps the purpose line the interview gathered', () => {
+    writeRoadmap(project, []);
+    const { json } = run(project, {
+      title: 'Fix token refresh',
+      what: 'Refresh before expiry.',
+      touches: ['src/auth/middleware.js'],
+      destination: 'clipboard',
+      judgment: goodJudgment({ purpose: 'This informs a PR description.' }),
+    });
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.ok(json.prompt.includes('Your goal is to fix the token refresh bug so all tests pass.\nThis informs a PR description.'));
+    assert.ok(!json.prompt.includes('Why this task exists:'));
+  });
+
+  test('an entry-less handoff with neither why nor purpose adds no line', () => {
+    writeRoadmap(project, []);
+    const { json } = run(project, {
+      title: 'Fix token refresh',
+      what: 'Refresh before expiry.',
+      touches: ['src/auth/middleware.js'],
+      destination: 'clipboard',
+      judgment: goodJudgment(),
+    });
+    assert.match(json.prompt, /Your goal is to fix the token refresh bug so all tests pass\.\n<\/task_context>/);
+  });
+
+  test('the expected file surface is filled from planned_touches when the judgment names none', () => {
+    writeRoadmap(project, [entryFields({ planned_touches: ['src/auth/middleware.js', 'src/auth/'] })]);
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.ok(
+      json.prompt.includes('Expected file surface: src/auth/middleware.js, src/auth/. Anything beyond this list gets flagged to the user before it is written, not after.'),
+      json.prompt
+    );
+  });
+
+  test('a judgment expectedFileSurface still wins over planned_touches', () => {
+    writeRoadmap(project, [entryFields()]);
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment({ expectedFileSurface: 'src/auth/middleware.js only' }) });
+    assert.ok(json.prompt.includes('Expected file surface: src/auth/middleware.js only.'));
+    assert.equal((json.prompt.match(/Expected file surface:/g) || []).length, 1);
+  });
+
+  test('an entry-less handoff derives the surface from touches the same way', () => {
+    writeRoadmap(project, []);
+    const { json } = run(project, {
+      title: 'Fix token refresh',
+      what: 'Refresh before expiry.',
+      touches: ['src/auth/middleware.js'],
+      destination: 'clipboard',
+      judgment: goodJudgment(),
+    });
+    assert.ok(json.prompt.includes('Expected file surface: src/auth/middleware.js.'), json.prompt);
+  });
+});

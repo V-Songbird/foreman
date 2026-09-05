@@ -246,9 +246,11 @@ session's model, and a pasted prompt runs wherever the user pastes it.
    investigation, same rule as the top of this branch:
    - `role`/`goal` ← a role and one goal sentence for what "done" looks
      like, drawn from the entry's `title`/`why`.
-   - `purpose` ← one sentence for what the finished work feeds or who
-     reads it, when the entry's `why` names that; omit the field when
-     `why` says nothing beyond the goal itself, which is the common case.
+   - `purpose` — do not gather it for a roadmap pick. The script writes
+     the entry's own `why`, word for word, into `task_context` as the
+     purpose line ("Why this task exists: …"), so the user's stated
+     intention reaches the session unparaphrased; a `purpose` passed here
+     would be dropped in its favour.
    - `context` ← the entry's `what`, plus its `notes` when non-empty,
      attributed as prior recorded findings on this entry (a survey verdict,
      a defer trigger, a previous session's evidence) — the selected-entry
@@ -261,11 +263,12 @@ session's model, and a pasted prompt runs wherever the user pastes it.
      states that step once in its `<plan>` block, and a standard one carries
      the concise truth line that binds every claim in the prompt, so don't
      add a copy here.
-   - `expectedFileSurface` ← the entry's `planned_touches`, when known, as
-     a plain string — the script turns it into the constraint line itself:
+   - `expectedFileSurface` — do not gather it either. The script fills the
+     constraint line from the entry's `planned_touches` on its own:
      "Expected file surface: <paths>. Anything beyond this list gets
-     flagged to the user before it is written, not after." Omit the field
-     when the surface genuinely isn't known yet.
+     flagged to the user before it is written, not after." Pass the field
+     only to narrow or widen that list on purpose; an entry with no
+     `planned_touches` gets no line, which is the one honest case.
    - `invariants` ← any assertions already stated in `why`/`what`/`notes`,
      rewritten as observable assertions — never a contract name. Nothing
      assertable means the field is omitted; that is normal.

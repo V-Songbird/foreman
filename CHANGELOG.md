@@ -13,6 +13,12 @@ that's why `plugin.json` here carries none.
   names. Foreman reads the task numbers out of the file's own commit history,
   so a task that changes a function starts out knowing who created it and who
   last changed it. Nothing to switch on, and nothing new is stored.
+- A handed-off prompt now carries the task's own reason for existing — the
+  roadmap entry's `why`, word for word — under the goal sentence in
+  `task_context`, instead of only a paraphrase of it.
+- The `Expected file surface:` constraint is now filled from the entry's
+  `planned_touches` whenever the crafting session leaves it out, so every
+  handoff whose entry names files carries its scope baseline.
 - The history blocks in a handoff no longer read as rules. Each earlier task
   in the symbol chain is named by number and title only, never by its
   recorded reason, and the anchor block introduces its `[Foreman: <id>]`
