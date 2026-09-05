@@ -12,7 +12,11 @@ that's why `plugin.json` here carries none.
 - A handed-off prompt now says which earlier tasks shaped each function it
   names. Foreman reads the task numbers out of the file's own commit history,
   so a task that changes a function starts out knowing who created it and who
-  last changed it, and why. Nothing to switch on, and nothing new is stored.
+  last changed it. Nothing to switch on, and nothing new is stored.
+- The history blocks in a handoff no longer read as rules. Each earlier task
+  in the symbol chain is named by number and title only, never by its
+  recorded reason, and the anchor block introduces its `[Foreman: <id>]`
+  markers as history left in the code rather than as tasks that govern it.
 - Lessons about a project's busiest files now reach the handoff. The rule
   that keeps a much-touched file's task history out of the prompt no longer
   applies to recorded lessons, which are specific claims and pile up on

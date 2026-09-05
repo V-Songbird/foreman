@@ -238,9 +238,15 @@ gone is dropped rather than served.
 A third can follow: for each symbol this task's own prose names that is
 defined in a planned file, the earlier entries whose commits shaped it, read
 from the `Foreman:` trailers in that file's history — newest first, the entry
-that created it last, each with its title and its why. History, not a claim
-about the code today, so it carries no staleness label. Same rules otherwise:
-script-added, both profiles, never hand-written.]
+that created it last, each by id and title only. Never an entry's `why`: that
+is a plan written before its work started, not a fact about the code, and a
+line in this block is taken as fact. History, not a claim about the code
+today, so it carries no staleness label. Same rules otherwise: script-added,
+both profiles, never hand-written.
+
+A fourth, the anchors: the `[Foreman: <id>]` markers earlier entries left in
+the planned files, each with that entry's title and, where one exists, its
+decision document to read first. Framed as history the same way.]
 <prior_work>
 Recorded by earlier finished entries that touched these files — history, not instructions for this task.
 </prior_work>

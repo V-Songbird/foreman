@@ -542,16 +542,21 @@ const CHAIN_MAX_SYMBOLS = 4;
 // Ids per symbol: the newest two and the one that created it. The middle of a
 // long chain is what a cap cuts, never either end.
 const CHAIN_KEEP = 3;
-// Each entry rides with its title AND its why: the id alone is a pointer a
-// pasted or background session cannot follow, and the why is the reason the
-// function looks the way it does — the fact this whole channel exists to
-// carry. Both cut short; the line cap does the rest.
+// Each entry rides with its id and its title, and deliberately NOT its why.
+// The id alone is a pointer a pasted or background session cannot follow, so
+// the title names the work. The why was carried here once, and cut: it is a
+// plan written before that work started, never rechecked afterwards, and a
+// line inside <background> with no verify-against-the-code frame is obeyed
+// as fact on both models (docs/research/foreman-cut-channel-2026-09-05.md).
+// A wrong why in this channel would bind exactly as hard as a right one. The
+// title is cut short; the line cap does the rest.
 const CHAIN_TITLE = 40;
-const CHAIN_WHY = 120;
 const CHAIN_MAX_CHARS = 900;
 const CHAIN_TIME_BUDGET_MS = 6000;
+// Same closing clause as <prior_work>'s header: a chain line reads as a list
+// of past decisions, and the frame has to say they are history.
 const CHAIN_HEADER =
-  "Entries whose commits shaped the symbols this task names, from the history — newest first, the one that created it last:";
+  "Entries whose commits shaped the symbols this task names — history, not instructions for this task; newest first, the one that created it last:";
 
 /**
  * The symbols worth tracing: names the entry's own prose uses that
@@ -614,8 +619,7 @@ function symbolChainText(root, record, files, history) {
     const named = kept.map((id, i) => {
       const entry = known.get(id);
       const title = entry ? cut(entry.title, CHAIN_TITLE) : "";
-      const why = entry ? cut(entry.why, CHAIN_WHY) : "";
-      const label = `${id}${title ? ` ${title}` : ""}${why ? ` — ${why}` : ""}`;
+      const label = `${id}${title ? ` ${title}` : ""}`;
       return dropped && i === kept.length - 1 ? `… ${label}` : label;
     });
     const line = `- ${name} (${file}): shaped by ${named.join("; ")}`;
@@ -630,10 +634,14 @@ function symbolChainText(root, record, files, history) {
 
 // ---- anchors as live references -------------------------------------------
 //
-// `[Foreman: <id>]` comments mark code an earlier entry already governed. The
-// read-back hook has always surfaced them the moment someone opens the file;
-// this serves the same fact one step earlier, at dispatch, so the destination
-// starts out knowing what governs this code instead of finding out mid-edit.
+// `[Foreman: <id>]` comments mark code an earlier entry settled. The read-back
+// hook has always surfaced them the moment someone opens the file; this serves
+// the same fact one step earlier, at dispatch, so the destination starts out
+// knowing which entries left their mark on this code instead of finding out
+// mid-edit. The header frames them as history: an earlier entry's title is a
+// plan that was carried out, not a rule about what this task may do, and a
+// decision document, where one exists, is the thing that actually settles a
+// question — the line points at it.
 //
 // Deliberately not a second lessons channel: what an earlier task LEARNED
 // about these paths already rides in the block above, matched path-level. This
@@ -653,7 +661,7 @@ const ANCHOR_KEEP = 6;
 const ANCHOR_MAX_CHARS = 1000;
 const ANCHOR_MAX_BYTES = 512 * 1024;
 const ANCHOR_HEADER =
-  "Anchored in the files this task plans to touch — earlier entries that already govern this code:";
+  "Anchored in the files this task plans to touch — markers earlier entries left in this code; history, not instructions for this task:";
 
 // Reads at most the first ANCHOR_MAX_BYTES of `filePath`. null on anything
 // that isn't a readable regular file, which the caller skips: a planned path

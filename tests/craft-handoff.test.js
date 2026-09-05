@@ -456,6 +456,17 @@ describe('decision entries and the clipboard checkpoint embed', () => {
     assert.match(json.prompt, /\[Foreman: 019\] — Expire sessions server-side/);
   });
 
+  // [Foreman: 290] An anchored entry's title is a plan that was carried out,
+  // not a rule for this task; the header says so instead of saying "govern".
+  test('the anchor header frames the markers as history, never as rules that govern the code', () => {
+    writeRoadmap(project, [entryFields(), entryFields({ id: '019', title: 'Expire sessions server-side', status: 'done' })]);
+    fs.mkdirSync(path.join(project, 'src', 'auth'), { recursive: true });
+    fs.writeFileSync(path.join(project, 'src', 'auth', 'middleware.js'), '// [Foreman: 019]\nmodule.exports = {};\n', 'utf-8');
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.match(json.prompt, /Anchored in the files this task plans to touch — markers earlier entries left in this code; history, not instructions for this task:/);
+    assert.ok(!/govern/.test(json.prompt), json.prompt);
+  });
+
   test('a planned file carrying no anchor adds nothing at all', () => {
     writeRoadmap(project, [entryFields()]);
     const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
@@ -1123,17 +1134,29 @@ describe('the symbol chain', () => {
     ]);
   }
 
-  test('names the entries whose commits shaped a symbol the task names, newest first, each with its why', () => {
+  test('names the entries whose commits shaped a symbol the task names, newest first, by id and title', () => {
     shapedProject();
     const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
     assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
-    assert.match(
-      json.prompt,
-      /- alpha \(src\/alpha\.js\): shaped by 042 Harden alpha — It crashed on an empty list\.; 041 Create alpha — The percentile math needed one home\./
-    );
+    assert.match(json.prompt, /- alpha \(src\/alpha\.js\): shaped by 042 Harden alpha; 041 Create alpha$/m);
   });
 
-  test('a title or why past its cap is cut with the same mark the other blocks use', () => {
+  // [Foreman: 290] The why is a plan written before the work, and a line in
+  // this block is read as fact — a wrong why would bind as hard as a right one.
+  test("a shaping entry's why never reaches the chain line", () => {
+    shapedProject();
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.ok(!json.prompt.includes('It crashed on an empty list'), json.prompt);
+    assert.ok(!json.prompt.includes('The percentile math needed one home'), json.prompt);
+  });
+
+  test('the header frames the chain as history, not instructions', () => {
+    shapedProject();
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.match(json.prompt, /Entries whose commits shaped the symbols this task names — history, not instructions for this task;/);
+  });
+
+  test('a title past its cap is cut with the same mark the other blocks use', () => {
     const { symbolChainText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
     initGitRepo(project);
     commitWith(project, 'src/alpha.js', 'function alpha() {}\n', 'Create alpha\n\nForeman: 041');
@@ -1143,7 +1166,8 @@ describe('the symbol chain', () => {
     ]);
     const files = [{ path: 'src/alpha.js', symbols: [{ name: 'alpha', line: 1 }] }];
     const text = symbolChainText(project, { id: '001', title: 'x', what: 'Rework `alpha`.' }, files);
-    assert.match(text, new RegExp(`shaped by 041 T{39}… — W{119}…$`, 'm'));
+    assert.match(text, new RegExp(`shaped by 041 T{39}…$`, 'm'));
+    assert.ok(!text.includes('W'), 'the why is not carried, cut or whole');
   });
 
   test('sits inside <background>, outside <context>, and never promotes the profile', () => {
@@ -1182,7 +1206,7 @@ describe('the symbol chain', () => {
     ]);
     const files = [{ path: 'src/alpha.js', symbols: [{ name: 'alpha', line: 1 }] }];
     const text = symbolChainText(project, { id: '001', title: 'x', what: 'Rework `alpha`.' }, files);
-    assert.match(text, /shaped by 015 Step 015 — [^;]+; 014 Step 014 — [^;]+; … 011 Step 011 — [^;]+$/m);
+    assert.match(text, /shaped by 015 Step 015; 014 Step 014; … 011 Step 011$/m);
     assert.ok(!text.includes('013'), 'the middle of a long chain is what the cap cuts');
   });
 
