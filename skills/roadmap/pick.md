@@ -294,7 +294,7 @@ session's model, and a pasted prompt runs wherever the user pastes it.
 
    Then, one call:
    ```
-   echo '{"entry":"<id>","destination":"task|agent|clipboard","resume":<true only if this pick came from in_progress>,"split":<true only when Q2 picked "Execute here, split by check">,"judgment":{"role":"<role>","goal":"<goal sentence>","context":"<context prose>","steps":["<what to implement/fix>"],"constraints":["<hard limits, patterns to follow>"],"expectedFileSurface":"<planned_touches, when known>","verification":[{"run":"<exact command>","expected":"<pass/fail signal>"}],"testFirst":<true only for a silent-failure entry>,"invariants":["<one observable assertion per line>"]}}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/craft-handoff.js
+   echo '{"entry":"<id>","destination":"task|agent|clipboard","resume":<true only if this pick came from in_progress>,"split":<true only when Q2 picked "Execute here, split by check">,"judgment":{"role":"<role>","goal":"<goal sentence>","context":"<context prose>","steps":["<what to implement/fix>"],"constraints":["<hard limits, patterns to follow>"],"verification":[{"run":"<exact command>","expected":"<pass/fail signal>"}],"testFirst":<true only for a silent-failure entry>,"invariants":["<one observable assertion per line>"]}}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/craft-handoff.js
    ```
    Remember: the copy of this skill you are reading has
    the variable already resolved to a version-pinned cache path — type

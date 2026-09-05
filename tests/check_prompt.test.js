@@ -268,6 +268,31 @@ describe('persona and assumed context', () => {
     assert.equal(check(project, domain, ['--destination', 'clipboard']).json.ok, true);
   });
 
+  // [Foreman: 291] The why line under the goal is the entry's own prose, and a
+  // quoted "you are" inside it is not a persona. Only the opener is judged.
+  test('usePersona:false judges the opener only, never the why line under the goal', () => {
+    const project = makeTmpProject();
+    writeConfig(project, { usePersona: false });
+    const prompt = goodPrompt({
+      task_context:
+        '<task_context>\nDomain: authentication middleware.\nYour goal is to fix the retry bug so all tests pass.\n' +
+        'Why this task exists: Support tickets keep saying "you are a slow app" whenever a token expires mid-request.\n</task_context>',
+    });
+    const { json } = check(project, prompt, ['--destination', 'clipboard']);
+    assert.equal(json.ok, true, JSON.stringify(json.errors));
+  });
+
+  test('usePersona:true looks for the persona in the opener, so a why line cannot stand in for it', () => {
+    const project = makeTmpProject();
+    const prompt = goodPrompt({
+      task_context:
+        '<task_context>\nDomain: authentication middleware.\nYour goal is to fix the retry bug so all tests pass.\n' +
+        'Why this task exists: users say you are logging them out.\n</task_context>',
+    });
+    const { json } = check(project, prompt, ['--destination', 'clipboard']);
+    assert.ok(json.warnings.some((w) => w.includes('no "You are [role]" sentence')), JSON.stringify(json.warnings));
+  });
+
   test('assumed-context phrasing is a warning, not an error', () => {
     const project = makeTmpProject();
     const prompt = goodPrompt({ request: 'Fix the token refresh bug as we discussed.' });

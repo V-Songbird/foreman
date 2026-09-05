@@ -238,11 +238,18 @@ function checkPrompt(prompt, opts) {
 
   // --- task_context ---
   const taskContext = extractBlock(prompt, "task_context");
+  // [Foreman: 291] The persona rule is about the block's OPENER — the one
+  // sentence that either names a persona or frames a domain. The lines under
+  // it carry the goal and, since 291, the entry's own why word for word, and a
+  // why that quotes a support ticket saying "you are a slow app" is not a
+  // persona. Testing the whole block turned that entry into a gate failure the
+  // crafter could not fix without rewriting the roadmap.
+  const opener = taskContext ? taskContext.split("\n").map((line) => line.trim()).find(Boolean) || "" : "";
   if (!taskContext || !norm(taskContext)) {
     errors.push(problem("missing or empty <task_context>", "Open the prompt with <task_context> naming who the destination is and what done looks like.", "<task_context>\nYou are a senior engineer.\nYour goal is to fix the retry bug so all tests pass.\n</task_context>"));
-  } else if (config.usePersona === false && /\byou are an?\b/i.test(taskContext)) {
+  } else if (config.usePersona === false && /\byou are an?\b/i.test(opener)) {
     errors.push(problem("task_context opens a persona (\"You are a…\") but the project declares usePersona:false — use domain framing", "Replace the persona opener with domain framing; the project set usePersona:false.", "<task_context>\nDomain: payments reconciliation.\nYour goal is to fix the retry bug so all tests pass.\n</task_context>"));
-  } else if (config.usePersona !== false && !/\byou are\b/i.test(taskContext)) {
+  } else if (config.usePersona !== false && !/\byou are\b/i.test(opener)) {
     warnings.push("task_context has no \"You are [role]\" sentence — expected with usePersona:true");
   }
 

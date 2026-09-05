@@ -71,7 +71,7 @@ task number. It lets you trace any change back to the job it came from, with
 plain `git log`. This one is always on.
 
 You can also put a `[Foreman: 019]` comment next to code some task settled.
-From then on, anyone handed work on that file is told which task governs it,
+From then on, anyone handed work on that file is told which task settled it,
 by name.
 
 ## Commands

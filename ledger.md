@@ -61,7 +61,7 @@ Put a comment like this next to code that some job settled:
 It is an ordinary comment in your own file. One spot can carry a few:
 `// [Foreman: 019, 034]`.
 
-From then on, anyone handed work on that file is told which job governs it,
+From then on, anyone handed work on that file is told which job settled it,
 by name. If you keep a written decision at `docs/foreman/019.md`, they are
 pointed at that too.
 

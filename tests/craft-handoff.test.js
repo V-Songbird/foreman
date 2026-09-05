@@ -1468,6 +1468,23 @@ describe('relevant_files symbol cap', () => {
     assert.match(text, /^src\/big\.js — sym77 \(78\), sym0 \(1\)/);
   });
 
+  // Review of 293: a why that names earlier symbols must not push the what's
+  // own symbol down the list or out of the chain's four slots.
+  test("what-named symbols lead why-named ones, whatever their file order", () => {
+    const record = { title: 'Fix it', why: 'Callers `sym1`, `sym2`, `sym3`, `sym4` all break on it.', what: 'Fix `sym50`.' };
+    const text = relevantFilesText([file(120)], [], [], record);
+    assert.match(text, /^src\/big\.js — sym50 \(51\), sym1 \(2\), sym2 \(3\), sym3 \(4\), sym4 \(5\), sym0 \(1\)/);
+  });
+
+  test('the chain traces what-named symbols before why-named ones, then caps', () => {
+    const { chainCandidates, CHAIN_MAX_SYMBOLS } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
+    const record = { title: 'Fix it', why: 'Callers `sym1`, `sym2`, `sym3`, `sym4` all break on it.', what: 'Fix `sym50`.' };
+    const pairs = chainCandidates(record, [file(120)]);
+    assert.equal(pairs.length, CHAIN_MAX_SYMBOLS);
+    assert.deepEqual(pairs.map((p) => p.name), ['sym50', 'sym1', 'sym2', 'sym3']);
+    assert.ok(pairs.every((p) => !('rank' in p)), 'rank is internal to the ranking');
+  });
+
   // [Foreman: 276] A split row after the first carries only goal/files/Run/
   // Expected, so a pair with neither goal nor files becomes a task whose whole
   // description is a command. Splitting on typecheck/test/lint is the case
@@ -1675,11 +1692,28 @@ describe('the entry relays its own why and file surface', () => {
     assert.match(block, /Your goal is to fix the token refresh bug so all tests pass\.\nWhy this task exists: Sessions expire mid-request under load\.\n$/);
   });
 
-  test('the why wins over a purpose the crafting session passed for an entry', () => {
+  test('the why wins over a purpose the crafting session passed for an entry, and says so', () => {
     writeRoadmap(project, [entryFields()]);
     const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment({ purpose: 'This informs a PR description.' }) });
     assert.ok(json.prompt.includes('Why this task exists: Sessions expire mid-request under load.'));
     assert.ok(!json.prompt.includes('This informs a PR description.'));
+    assert.ok(json.warnings.some((w) => w.startsWith('judgment.purpose was dropped')), JSON.stringify(json.warnings));
+  });
+
+  test('no purpose passed, no drop warning', () => {
+    writeRoadmap(project, [entryFields()]);
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.ok(!json.warnings.some((w) => w.startsWith('judgment.purpose was dropped')), JSON.stringify(json.warnings));
+  });
+
+  // The gate reads the opener only, so an entry whose why quotes "you are"
+  // still assembles in a usePersona:false project.
+  test('a why quoting "you are" passes the gate in a usePersona:false project', () => {
+    writeConfig(project, { usePersona: false });
+    writeRoadmap(project, [entryFields({ why: 'Support tickets keep saying "you are a slow app" whenever a token expires mid-request.' })]);
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.equal(json.ok, true, JSON.stringify(json.gate));
+    assert.ok(json.prompt.includes('Domain: a senior backend engineer.'));
   });
 
   test('an entry-less handoff keeps the purpose line the interview gathered', () => {

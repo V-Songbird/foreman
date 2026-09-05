@@ -234,21 +234,33 @@ const SYMBOL_KEEP = 12;
 // the task was about, because the entry named it in its why and nowhere else.
 const BACKTICKED_NAME = /`([A-Za-z_$][\w$]*)`/g;
 
+// Returns a Map of name -> rank: 0 for a name the title or what uses, 1 for
+// one only the why uses. The what says what this task changes; the why says
+// why, and often names the code around it. With one flat set, four symbols a
+// why mentions could fill the chain's slots ahead of the one function the
+// what is about (found in review of 293), so the what's names come first and
+// file order decides within each rank.
 function promptedNames(record) {
-  if (!record) return new Set();
-  const prose = `${record.title || ""} ${record.why || ""} ${record.what || ""}`;
-  const names = new Set(candidateIdentifiers(prose));
-  BACKTICKED_NAME.lastIndex = 0;
-  let match;
-  while ((match = BACKTICKED_NAME.exec(prose)) !== null) names.add(match[1]);
+  const names = new Map();
+  if (!record) return names;
+  const collect = (prose, rank) => {
+    for (const name of candidateIdentifiers(prose)) if (!names.has(name)) names.set(name, rank);
+    BACKTICKED_NAME.lastIndex = 0;
+    let match;
+    while ((match = BACKTICKED_NAME.exec(prose)) !== null) if (!names.has(match[1])) names.set(match[1], rank);
+  };
+  collect(`${record.title || ""} ${record.what || ""}`, 0);
+  collect(String(record.why || ""), 1);
   return names;
 }
 
-// The symbols worth printing for one file: prompted names first (file order
-// among themselves), then the rest, capped. Returns the kept list plus how
-// many were left out, so the caller can say so.
+// The symbols worth printing for one file: prompted names first — what-named
+// before why-named, file order within each — then the rest, capped. Returns
+// the kept list plus how many were left out, so the caller can say so.
 function rankSymbols(symbols, prompted) {
-  const wanted = symbols.filter((s) => prompted.has(s.name));
+  const wanted = symbols
+    .filter((s) => prompted.has(s.name))
+    .sort((a, b) => (prompted.get(a.name) || 0) - (prompted.get(b.name) || 0));
   const rest = symbols.filter((s) => !prompted.has(s.name));
   const kept = [...wanted, ...rest].slice(0, SYMBOL_KEEP);
   return { kept, dropped: symbols.length - kept.length };
@@ -587,11 +599,15 @@ function chainCandidates(record, files) {
       const key = `${s.name}\0${f.path}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      pairs.push({ name: s.name, file: f.path });
-      if (pairs.length >= CHAIN_MAX_SYMBOLS) return pairs;
+      pairs.push({ name: s.name, file: f.path, rank: prompted.get(s.name) || 0 });
     }
   }
-  return pairs;
+  // What-named symbols take the slots first; the sort is stable, so file order
+  // holds within a rank. Then the cap.
+  return pairs
+    .sort((a, b) => a.rank - b.rank)
+    .slice(0, CHAIN_MAX_SYMBOLS)
+    .map(({ name, file }) => ({ name, file }));
 }
 
 function symbolChainText(root, record, files, history) {
@@ -1245,6 +1261,15 @@ function assemble(root, input) {
     warnings.push(
       "judgment.context was dropped: <context> renders on the reinforced profile only, and this handoff assembled at standard. "
         + "Put anything the session must actually receive in judgment.constraints, task_rules or the description instead."
+    );
+  }
+  // [Foreman: 291] Same courtesy for the purpose line: an entry's own why fills
+  // it, so a purpose the crafter gathered anyway never ships. Silent drops are
+  // how a crafter learns nothing; say it once.
+  if (judgment.purpose && typeof record.why === "string" && record.why.trim()) {
+    warnings.push(
+      "judgment.purpose was dropped: the entry's own why fills the purpose line word for word. "
+        + "Anything the why does not already say belongs in judgment.context or judgment.constraints."
     );
   }
 
