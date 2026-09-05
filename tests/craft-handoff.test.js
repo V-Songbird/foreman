@@ -1460,6 +1460,14 @@ describe('relevant_files symbol cap', () => {
     assert.ok(text.includes('and 108 more top-level definitions'), text);
   });
 
+  // [Foreman: 293] The why is the entry's prose too: a live handoff left out the
+  // one function the task was about because only the why named it.
+  test("a name the entry's why uses leads as well", () => {
+    const record = { title: 'Fix it', why: '`sym77` returns the wrong value for even-length input.', what: 'Fix the branch.' };
+    const text = relevantFilesText([file(120)], [], [], record);
+    assert.match(text, /^src\/big\.js — sym77 \(78\), sym0 \(1\)/);
+  });
+
   // [Foreman: 276] A split row after the first carries only goal/files/Run/
   // Expected, so a pair with neither goal nor files becomes a task whose whole
   // description is a command. Splitting on typecheck/test/lint is the case

@@ -16,6 +16,9 @@ that's why `plugin.json` here carries none.
 - A handed-off prompt now carries the task's own reason for existing — the
   roadmap entry's `why`, word for word — under the goal sentence in
   `task_context`, instead of only a paraphrase of it.
+- A function the entry names in its `why` now leads that file's symbol list
+  in `relevant_files`, the same way names from the title and description
+  already did, instead of being cut with the rest of a long file.
 - The `Expected file surface:` constraint is now filled from the entry's
   `planned_touches` whenever the crafting session leaves it out, so every
   handoff whose entry names files carries its scope baseline.

@@ -222,18 +222,21 @@ function computeSignals(root, record, input, symbolFiles, hasVerification) {
 // count stated rather than silently dropped.
 const SYMBOL_KEEP = 12;
 
-// Symbol names the entry's own title/what already names. Two signals, and
+// Symbol names the entry's own title/why/what already names. Two signals, and
 // both are needed: candidateIdentifiers covers the call-shaped and
 // camelCase/snake_case tokens resolve-symbols.js uses to spot an invented
 // API, and backticks cover the rest — a symbol named `grade` or `scan` has
 // no shape to it, and prose is where an entry names those. Nothing matches
 // on an entry with no prose, which is the honest answer: no signal, so file
 // order decides.
+// [Foreman: 293] The why counts as prose too. A live handoff cited the first
+// twelve top-level names of a 1300-line module and left out the one function
+// the task was about, because the entry named it in its why and nowhere else.
 const BACKTICKED_NAME = /`([A-Za-z_$][\w$]*)`/g;
 
 function promptedNames(record) {
   if (!record) return new Set();
-  const prose = `${record.title || ""} ${record.what || ""}`;
+  const prose = `${record.title || ""} ${record.why || ""} ${record.what || ""}`;
   const names = new Set(candidateIdentifiers(prose));
   BACKTICKED_NAME.lastIndex = 0;
   let match;
