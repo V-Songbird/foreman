@@ -274,11 +274,19 @@ function relevantFilesText(files, references, unresolved, record) {
   // handful of symbols living in one file printed that file over and over —
   // a live prompt carried 11 Pattern lines naming 5 files. The pattern being
   // pointed at is the file, so the file is what dedups.
+  // [Foreman: 292] The line states the evidence it rests on. A reference is a
+  // file that imports the same local helper a touched file imports — nothing
+  // more — and "build the new code the same way" turned that inference into an
+  // instruction the destination could not check. Naming the shared import
+  // lets the session judge whether the file is an analogue at all. A hand-
+  // written Pattern line (prompt-template.md, craft-prompt) keeps the directive
+  // form, because there the user asserts the analogue.
   const patterned = new Set();
   for (const ref of references || []) {
     if (ref.files && ref.files.length && !patterned.has(ref.files[0])) {
       patterned.add(ref.files[0]);
-      lines.push(`Pattern: ${ref.files[0]} — build the new code the same way`);
+      const shared = ref.helper ? `imports ${ref.helper}, as this task's files do` : "shares an import with this task's files";
+      lines.push(`Pattern: ${ref.files[0]} — ${shared}; read it as the existing analogue before writing new code`);
     }
   }
   if (unresolved && unresolved.length) {

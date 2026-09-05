@@ -116,7 +116,10 @@ an instruction for the spawned session to act on later):**
    - `references` — other files that already import a helper the touched
      files import. Cite one as `relevant_files`' `Pattern:` line: a named
      analogue in this codebase beats a bullet telling the session to follow
-     existing conventions. Empty is normal and means nothing to cite.
+     existing conventions. `craft-handoff.js` writes that line itself and
+     names the shared import on it — the evidence, so the session can judge
+     whether the file is an analogue — rather than an instruction to build
+     the same way. Empty is normal and means nothing to cite.
    - `files[].lastChanged` — the file's last-changed date from git, absent
      outside a repo. A touched file that moved since the entry was written
      is where this prompt's claims are most likely to have aged, so weigh

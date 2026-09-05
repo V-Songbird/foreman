@@ -1562,9 +1562,20 @@ describe('relevant_files symbol cap', () => {
     ];
     const lines = relevantFilesText([], refs, []).split('\n');
     assert.deepEqual(lines, [
-      'Pattern: electron/main/workspace/kinds.ts — build the new code the same way',
-      'Pattern: electron/main/workspace/sessions.ts — build the new code the same way',
+      "Pattern: electron/main/workspace/kinds.ts — shares an import with this task's files; read it as the existing analogue before writing new code",
+      "Pattern: electron/main/workspace/sessions.ts — shares an import with this task's files; read it as the existing analogue before writing new code",
     ]);
+  });
+
+  // [Foreman: 292] The script-added Pattern line names the shared import it
+  // rests on instead of instructing the session to build the same way.
+  test('a Pattern line states the shared import, never a bare directive', () => {
+    const refs = [{ helper: 'src/lib/sign.ts', files: ['src/webhooks/github.ts', 'src/webhooks/slack.ts'] }];
+    const lines = relevantFilesText([], refs, []).split('\n');
+    assert.deepEqual(lines, [
+      "Pattern: src/webhooks/github.ts — imports src/lib/sign.ts, as this task's files do; read it as the existing analogue before writing new code",
+    ]);
+    assert.ok(!lines[0].includes('build the new code the same way'));
   });
 
   test('rankSymbols reports the count it dropped, never a silent truncation', () => {

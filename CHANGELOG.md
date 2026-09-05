@@ -19,6 +19,10 @@ that's why `plugin.json` here carries none.
 - The `Expected file surface:` constraint is now filled from the entry's
   `planned_touches` whenever the crafting session leaves it out, so every
   handoff whose entry names files carries its scope baseline.
+- A `Pattern:` line Foreman adds to `relevant_files` now says why the file
+  is there — it imports the same helper this task's files do — and asks the
+  session to read it as the existing analogue, instead of instructing it to
+  build the new code the same way.
 - The history blocks in a handoff no longer read as rules. Each earlier task
   in the symbol chain is named by number and title only, never by its
   recorded reason, and the anchor block introduces its `[Foreman: <id>]`
