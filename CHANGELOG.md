@@ -7,6 +7,12 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## 2.5.6 — 2026-09-05
+
+Stressed Ember now holds a proper persevering face, eyes squeezed shut and
+mouth pressed, instead of a flickering mouth. Nothing Foreman does in a
+session changed.
+
 ## 2.5.5 — 2026-09-05
 
 Meet Ember. The README now opens with a short cartoon of the Foundry mascot
