@@ -7,6 +7,13 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## 2.5.2 — 2026-09-04
+
+The README now shows a real "what's next?" exchange on a small project: the
+two tasks Foreman offered and why one came first, the reply after picking
+one, and the opening of the prompt it wrote, files and line numbers included.
+Nothing Foreman does in a session changed.
+
 ## 2.5.1 — 2026-09-03
 
 The warning about split tasks with nothing to build in them no longer fires

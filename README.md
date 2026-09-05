@@ -57,6 +57,62 @@ That is the whole idea. The plan stops living in your head.
 - **It keeps up with your work.** When a task looks finished, Foreman says so and asks. You confirm, and it gets ticked off.
 - **Nothing moves without you.** No task gets added, changed, or checked off behind your back.
 
+Here is a real one. A small command-line notes tool with three tasks on its
+roadmap: save notes to a file, add a `--due` flag, search by tag. The search
+waits on the save.
+
+**You:** what's next?
+
+**Foreman:**
+
+> Two tasks are ready to go — neither is blocked, and nothing else is in flight.
+>
+> **Which task next?**
+>
+> 1. **Save notes to a file so they survive a restart (001)** — *(Recommended)* Right now notes only live in memory, so closing the terminal wipes everything; this makes the tool usable past a single sitting. It leads because one other task is waiting behind it.
+> 2. **Add a `--due` flag to `add` (002)** — People are typing dates into the note text by hand, so nothing can sort or warn by date. It's just the oldest other ready task; nothing is waiting on it.
+
+**You:** 1. Copy the prompt to my clipboard.
+
+**Foreman:**
+
+> **Task 001 — Save notes to a file so they survive a restart.** Right now the notes tool keeps everything in memory, so quitting the terminal throws away every note you took. This makes the store write itself to a JSON file in your home directory whenever it changes and read it back at startup, without touching any of the CLI's commands or output.
+>
+> The prompt is on your clipboard — paste it into a fresh session.
+
+The prompt it wrote opens like this. The files and line numbers in it were
+checked against the project a moment earlier:
+
+```
+<task_context>
+You are a Node.js developer working on a small command-line notes tool.
+Your goal is Notes added in one run of the CLI are still there in the next run,
+because the store now persists itself to a JSON file in the user's home
+directory and reads it back on start.
+</task_context>
+
+<relevant_files>
+src/store.js — nextId (5), notes (6), add (8), list (14), markDone (18), reset (25)
+test/store.test.js — assert (4), store (5)
+Pattern: src/cli.js — build the new code the same way
+</relevant_files>
+
+<task_rules>
+- Add persistence to the note store: on start, load existing notes from a JSON
+  file under the user home directory (creating nothing and failing softly if the
+  file is absent or unreadable); on every mutation, write the current state back
+  to that file.
+- Keep the existing in-memory store functions and their signatures unchanged so
+  no CLI command has to change.
+- Add tests covering the round trip: notes saved by one store instance are
+  visible to a freshly constructed one, and a missing or corrupt file starts from
+  an empty store rather than throwing.
+...
+```
+
+Both replies are as they came back, on Claude Opus 5. The second one also
+named where it saved a copy of the prompt; that line is left out here.
+
 ## Install
 
 Inside Claude Code, run:
