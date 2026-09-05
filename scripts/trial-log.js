@@ -89,6 +89,13 @@ const LESSON_OUTCOMES = [
   "unsupported_format",
   "unreadable",
   "write_failed",
+  // [Foreman: 283] The close carried no `lesson` field at all. Written by the
+  // close path itself, not by recordLesson, and only on an entry's FIRST
+  // arrival at a closing status while the ledger is on — so the store rate
+  // finally has a denominator. It counts every such close, asked or not: a
+  // hand close from a session that never saw the ask lands here too, which
+  // makes the omit rate a ceiling on skipped asks, never an exact count.
+  "omitted",
 ];
 
 const EVENTS = {
@@ -104,6 +111,10 @@ const EVENTS = {
   commit_interrupted: { hook: oneOf(...HOOKS), reason_class: oneOf(...REASON_CLASSES) },
   recovery_attempted: { kind: oneOf(...RECOVERY_KINDS), success: bool },
   lesson_present: { stored: bool, outcome: oneOf(...LESSON_OUTCOMES) },
+  // [Foreman: 283] One row per delivered handoff the lessons block could have
+  // reached, count 0 included. The zero rows are the denominator: without
+  // them "how often does the ledger pay" has a numerator and nothing under it.
+  lesson_served: { count: int, chars: int },
 };
 
 function projectDir() {

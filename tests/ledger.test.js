@@ -69,6 +69,20 @@ function storedRecords(project) {
   return ledger.read(project).records;
 }
 
+// The trial rows one event wrote, in order. [] when the project never opted in.
+function trialRows(project, event) {
+  try {
+    return fs
+      .readFileSync(path.join(project, '.foreman', 'trial-log.jsonl'), 'utf-8')
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line))
+      .filter((row) => row.event === event);
+  } catch {
+    return [];
+  }
+}
+
 describe('ledger store', () => {
   test('an appended record keeps its paths exactly as recorded', () => {
     const project = makeTmpProject();
@@ -252,6 +266,56 @@ describe('update-status lesson', () => {
       !(json.entry.observed_touches || []).some((p) => p.includes('notes.jsonl')),
       'an abandoned staged close must not pollute the next close forever'
     );
+  });
+
+  // [Foreman: 283] The store rate finally has a denominator: a close that
+  // carried no lesson writes one `omitted` row, on its first arrival at a
+  // closing status only.
+  describe('the omitted row', () => {
+    const outcomes = (project) => trialRows(project, 'lesson_present').map((r) => [r.stored, r.outcome]);
+
+    test('an enabled close with no lesson records omitted, once', () => {
+      const project = enabledProject({ trialLog: true });
+      close(project, { status: 'awaiting_acceptance' });
+      assert.deepEqual(outcomes(project), [[false, 'omitted']]);
+      // The accept transition is the user's yes, not the closing session's
+      // answer — it must not read as a second skipped ask.
+      close(project, { status: 'done' });
+      assert.deepEqual(outcomes(project), [[false, 'omitted']]);
+    });
+
+    test('a stored lesson is a stored row, never also an omission', () => {
+      const project = enabledProject({ trialLog: true });
+      close(project, { lesson: 'refresh() owns the token clock' });
+      assert.deepEqual(outcomes(project), [[true, 'stored']]);
+    });
+
+    test('a status that is not a close records nothing', () => {
+      const project = enabledProject({ trialLog: true });
+      runRoadmap(
+        ['update-status'],
+        JSON.stringify({ id: '001', status: 'in_progress', notes: 'still going' }),
+        { CLAUDE_PROJECT_DIR: project }
+      );
+      assert.deepEqual(outcomes(project), []);
+    });
+
+    test('a project with the ledger off was never asked, so it records no omission', () => {
+      const project = makeTmpProject();
+      writeRoadmap(project, [entry()]);
+      fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
+      fs.writeFileSync(path.join(project, '.foreman', 'config.json'), JSON.stringify({ trialLog: true }), 'utf-8');
+      close(project, {});
+      assert.deepEqual(outcomes(project), []);
+    });
+
+    test('without the trial log nothing is written and the close is untouched', () => {
+      const project = enabledProject();
+      const { status, json } = close(project, {});
+      assert.equal(status, 0);
+      assert.equal(json.entry.status, 'done');
+      assert.equal(fs.existsSync(path.join(project, '.foreman', 'trial-log.jsonl')), false);
+    });
   });
 });
 
@@ -576,5 +640,55 @@ describe('the first-relevant ask', () => {
   test('an answer recorded under either older key still counts as answered', () => {
     assert.equal('ledger_ask' in craft(overlapping({ areaNotes: { enabled: false } })), false);
     assert.equal('ledger_ask' in craft(overlapping({ decisionLog: { enabled: true } })), false);
+  });
+
+  // [Foreman: 283] One `lesson_served` row per delivered handoff the block
+  // could have reached, zero included — the zero rows are the denominator.
+  describe('the served row', () => {
+    const served = (project) => trialRows(project, 'lesson_served').map((r) => [r.count, r.chars]);
+
+    test('a handoff that matched nothing still records a zero row', () => {
+      const project = overlapping({ ledger: { enabled: true }, trialLog: true });
+      const json = craft(project);
+      assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+      assert.deepEqual(served(project), [[0, 0]]);
+    });
+
+    test('a handoff that served a record counts its lines and length', () => {
+      const project = overlapping({ ledger: { enabled: true }, trialLog: true });
+      // Padding closed entries on other files, so the one shared path sits
+      // under the reach ceiling the lessons block still applies at this point.
+      writeRoadmap(project, [
+        entry({ status: 'planned' }),
+        { ...entry(), id: '002', title: 'Earlier work', status: 'done' },
+        ...[3, 4, 5, 6].map((n) => ({
+          ...entry(),
+          id: `00${n}`,
+          title: `Padding ${n}`,
+          status: 'done',
+          planned_touches: [`src/pad-${n}.js`],
+          observed_touches: [`src/pad-${n}.js`],
+        })),
+      ]);
+      ledger.append(project, {
+        lesson: 'the token clock lives in refresh(); fake it in tests',
+        paths: ['src/Auth/session.js'],
+        entry: '002',
+        anchor: { kind: 'entry' },
+        date: '2026-08-01',
+      });
+      const json = craft(project);
+      assert.ok(json.prompt.includes('Lessons recorded by earlier closed tasks'), 'the block itself must have shipped');
+      const rows = served(project);
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0][0], 1);
+      assert.ok(rows[0][1] > 0);
+    });
+
+    test('with the ledger off no row is written at all', () => {
+      const project = overlapping({ ledger: { enabled: false }, trialLog: true });
+      craft(project);
+      assert.deepEqual(served(project), []);
+    });
   });
 });

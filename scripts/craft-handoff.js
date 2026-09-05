@@ -32,7 +32,7 @@ const { anchorShaFor, changedSince } = require("./commit-evidence.js");
 const ledger = require("./ledger");
 const { readLedger } = require("./ledger-config");
 const noteStaleness = require("./note-staleness.js");
-const { recordFirstPick } = require("./trial-log.js");
+const { recordFirstPick, record: recordTrial } = require("./trial-log.js");
 const {
   checkPrompt,
   readCanonical,
@@ -1070,6 +1070,16 @@ function assemble(root, input) {
   // every crafting flow already ends here. Silent no-op unless the project
   // opted in, no-op again on every later handoff, and never throws.
   if (gate.ok) recordFirstPick({ root });
+
+  // [Foreman: 283] One row per delivered handoff the lessons block could have
+  // reached, count 0 included — the zero rows are the denominator a served
+  // rate needs. Only while the ledger is on: a project with it off cannot
+  // serve, so its handoffs would dilute the rate with impossibilities. Same
+  // opt-in no-op as every other trial row.
+  if (gate.ok && isEntry && readLedger(root).enabled) {
+    const count = lessons ? lessons.split("\n").filter((line) => line.startsWith("- ")).length : 0;
+    recordTrial("lesson_served", { count, chars: lessons.length }, { root });
+  }
 
   // The first moment the ledger could actually pay: a finished entry already
   // touched files this one plans to, and nobody has been asked yet. An absent

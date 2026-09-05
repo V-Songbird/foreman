@@ -7,6 +7,12 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## [Unreleased]
+
+- The trial log now records how often a delivered handoff carried lessons and
+  how often a finished task closed without recording one. Two rows, written
+  only when `trialLog` is on, and `roadmap-health.js` reports the two rates.
+
 ## 2.5.6 — 2026-09-05
 
 Stressed Ember now holds a proper persevering face, eyes squeezed shut and

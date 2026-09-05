@@ -1075,6 +1075,9 @@ function cmdUpdateStatusUnlocked(root, payload) {
       };
     }
   }
+  // [Foreman: 283] Read before the status moves: the omitted-lesson row below
+  // is written only on an entry's FIRST arrival at a closing status.
+  const wasClosed = LESSON_STATUSES.has(entry.status);
   entry.status = status;
   if (doc !== undefined) entry.doc = doc;
   // What ran, not what was recommended -- the gap between the two is the
@@ -1135,6 +1138,14 @@ function cmdUpdateStatusUnlocked(root, payload) {
     : recordLesson(root, entry, { lesson, commit });
   if (lessonOutcome && lessonOutcome.note) {
     entry.notes = appendNote(entry.notes, lessonOutcome.note);
+  }
+  // [Foreman: 283] The denominator the store rate never had: a close the ask
+  // could have reached that carried no lesson. Only the first arrival at a
+  // closing status counts — the accept transition (awaiting_acceptance ->
+  // done) is the user's yes, not the closing session's answer — and only
+  // while the ledger is on, because a disabled project was never asked.
+  if (lesson === undefined && LESSON_STATUSES.has(status) && !wasClosed && readLedger(root).enabled) {
+    recordTrial("lesson_present", { stored: false, outcome: "omitted" }, { root });
   }
   entry.updated_at = today();
   const migrated = writeEntries(root, entries, resolve);

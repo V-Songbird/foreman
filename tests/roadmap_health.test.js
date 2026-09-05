@@ -216,6 +216,41 @@ describe("roadmap health — trial log", () => {
     assert.deepEqual(metrics.recommendation_acceptance, { rate: null, reason: "no_events", menus_shown: 1 });
     assert.deepEqual(metrics.override_rate, { rate: null, reason: "no_events" });
     assert.deepEqual(metrics.hint_success, { rate: null, reason: "no_events" });
+    assert.deepEqual(metrics.lessons, { omit_rate: null, served_rate: null, reason: "no_events" });
+  });
+
+  // [Foreman: 283] The ledger's two rates, with their counts beside them so a
+  // rate over three closes reads as exactly that.
+  test("counts ledger closes and served handoffs, with their two rates", () => {
+    const metrics = trialMetrics(loadTrialLog(writeTrialLog([
+      { event: "lesson_present", ts: DATE, session: "aaa", stored: true, outcome: "stored" },
+      { event: "lesson_present", ts: DATE, session: "aaa", stored: false, outcome: "omitted" },
+      { event: "lesson_present", ts: DATE, session: "bbb", stored: false, outcome: "over_500_chars" },
+      { event: "lesson_present", ts: DATE, session: "bbb", stored: false, outcome: "omitted" },
+      { event: "lesson_served", ts: DATE, session: "aaa", count: 2, chars: 300 },
+      { event: "lesson_served", ts: DATE, session: "bbb", count: 0, chars: 0 },
+    ])));
+
+    assert.deepEqual(metrics.lessons, {
+      closes: 4,
+      stored: 1,
+      omitted: 2,
+      refused: 1,
+      omit_rate: 0.5,
+      handoffs: 2,
+      served: 1,
+      served_rate: 0.5,
+    });
+  });
+
+  test("closes with no handoffs yet leave the served rate null, not zero", () => {
+    const metrics = trialMetrics(loadTrialLog(writeTrialLog([
+      { event: "lesson_present", ts: DATE, session: "aaa", stored: true, outcome: "stored" },
+    ])));
+
+    assert.equal(metrics.lessons.omit_rate, 0);
+    assert.equal(metrics.lessons.served_rate, null);
+    assert.equal(metrics.lessons.handoffs, 0);
   });
 
   test("a truncated line is counted and the rest of the log survives", () => {
@@ -235,6 +270,7 @@ describe("roadmap health — trial log", () => {
     for (const name of ["recommendation_acceptance", "override_rate", "hint_success"]) {
       assert.deepEqual(report.metrics[name], { rate: null, reason: "no_trial_log" }, name);
     }
+    assert.deepEqual(report.metrics.lessons, { omit_rate: null, served_rate: null, reason: "no_trial_log" });
   });
 });
 

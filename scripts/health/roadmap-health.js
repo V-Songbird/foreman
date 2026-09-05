@@ -197,9 +197,39 @@ function ratio(hits, total) {
 }
 
 const NO_LOG = { rate: null, reason: "no_trial_log" };
+const NO_LOG_LESSONS = { omit_rate: null, served_rate: null, reason: "no_trial_log" };
 
 /**
- * The three usage-dependent rates, over a trial log in TRIALS.md's format.
+ * [Foreman: 283] The ledger's two rates, over the rows scripts/roadmap.js and
+ * scripts/craft-handoff.js write. `omit_rate` is closes that carried no
+ * lesson over every enabled close — a ceiling on skipped asks, since a hand
+ * close that never saw the ask counts too. `served_rate` is handoffs that
+ * carried at least one lesson line over every handoff the block could have
+ * reached. `refused` is the remainder: a lesson was offered and the store
+ * said no. Counts ride beside the rates so a rate over three closes reads as
+ * exactly that.
+ */
+function lessonMetrics(log) {
+  const closes = log.events.filter((e) => e.event === "lesson_present");
+  const handoffs = log.events.filter((e) => e.event === "lesson_served");
+  if (!closes.length && !handoffs.length) return { omit_rate: null, served_rate: null, reason: "no_events" };
+  const stored = closes.filter((e) => e.stored === true).length;
+  const omitted = closes.filter((e) => e.outcome === "omitted").length;
+  const served = handoffs.filter((e) => Number.isInteger(e.count) && e.count > 0).length;
+  return {
+    closes: closes.length,
+    stored,
+    omitted,
+    refused: closes.length - stored - omitted,
+    omit_rate: ratio(omitted, closes.length),
+    handoffs: handoffs.length,
+    served,
+    served_rate: ratio(served, handoffs.length),
+  };
+}
+
+/**
+ * The usage-dependent rates, over a trial log in TRIALS.md's format.
  * `log` is null when no --trial-log was given: the rates are reported as
  * null with a reason, never as zero.
  */
@@ -209,6 +239,7 @@ function trialMetrics(log) {
       recommendation_acceptance: { ...NO_LOG },
       override_rate: { ...NO_LOG },
       hint_success: { ...NO_LOG },
+      lessons: { ...NO_LOG_LESSONS },
     };
   }
   const count = (name) => log.events.filter((e) => e.event === name).length;
@@ -231,6 +262,7 @@ function trialMetrics(log) {
     hint_success: hints.length
       ? { rate: ratio(hits, hints.length), hints: hints.length, hits }
       : { rate: null, reason: "no_events" },
+    lessons: lessonMetrics(log),
   };
 }
 
