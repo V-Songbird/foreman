@@ -334,7 +334,7 @@ function recallExcerpt(notes) {
 // [Foreman: 284] A lead's prose is the entry's `why` — the reason the work
 // existed — and only when that is empty does the longest human note line
 // stand in. Read on this repo's own roadmap: the longest note is the shipping
-// log ("Shipped in e1f2f2b. Suite 1170/1170.") often enough that the reason a
+// log ("Shipped in e1f2f2b, suite green") often enough that the reason a
 // function looks the way it does never reached a later handoff, while the
 // `why` said it in one sentence every time. Same cap and the same cut mark as
 // the note excerpt, so the ceiling arithmetic below is unchanged.
