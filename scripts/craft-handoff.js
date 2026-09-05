@@ -38,9 +38,19 @@ const { readEntries, readArchive, cmdList, touchesOverlap, today, anchorIdsIn } 
 // itself still comes from the active file alone: an archived entry cannot be
 // picked.
 function historyEntries(root) {
-  return [...readEntries(root), ...readArchive(root)];
+  // The archive is a file the user is invited to hand-manage, and every
+  // consumer here is best-effort recall — so a line in it that will not parse
+  // costs the archived leads, never the handoff. The active file keeps its
+  // hard failure: a roadmap that will not parse is not a project to hand off.
+  let archived = [];
+  try {
+    archived = readArchive(root);
+  } catch {
+    archived = [];
+  }
+  return [...readEntries(root), ...archived];
 }
-const { anchorShaFor, changedSince, symbolShapers } = require("./commit-evidence.js");
+const { anchorShaFor, changedSince, symbolShapers, SYMBOL_LOG_TIMEOUT_MS } = require("./commit-evidence.js");
 const ledger = require("./ledger");
 const { readLedger } = require("./ledger-config");
 const noteStaleness = require("./note-staleness.js");
@@ -339,7 +349,7 @@ function recallExcerpt(notes) {
 // `why` said it in one sentence every time. Same cap and the same cut mark as
 // the note excerpt, so the ceiling arithmetic below is unchanged.
 function leadExcerpt(entry) {
-  const why = String(entry.why || "").replace(/\s+/g, " ").trim();
+  const why = typeof entry.why === "string" ? entry.why.replace(/\s+/g, " ").trim() : "";
   if (why) return why.length > RECALL_EXCERPT ? `${why.slice(0, RECALL_EXCERPT - 1)}…` : why;
   return recallExcerpt(entry.notes);
 }
@@ -568,22 +578,25 @@ function chainCandidates(record, files) {
   return pairs;
 }
 
-function symbolChainText(root, record, files) {
+function symbolChainText(root, record, files, history) {
   if (!root) return "";
   const pairs = chainCandidates(record, files);
   if (!pairs.length) return "";
 
-  const known = new Map(historyEntries(root).map((e) => [e.id, e]));
+  const known = new Map((history || historyEntries(root)).map((e) => [e.id, e]));
   const cut = (text, max) => {
-    const flat = String(text || "").replace(/\s+/g, " ").trim();
+    const flat = typeof text === "string" ? text.replace(/\s+/g, " ").trim() : "";
     return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
   };
   const deadline = Date.now() + CHAIN_TIME_BUDGET_MS;
   const lines = [];
   let total = CHAIN_HEADER.length;
   for (const { name, file } of pairs) {
-    if (Date.now() > deadline) break;
-    const shapers = symbolShapers(root, file, name);
+    // The wall budget is a ceiling on the whole block, so a call started near
+    // the end gets only what is left of it, not its full own timeout.
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    const shapers = symbolShapers(root, file, name, { timeout: Math.min(SYMBOL_LOG_TIMEOUT_MS, remaining) });
     if (!shapers || !shapers.length) continue;
     // Newest first, deduped, and never the task's own id — a resumed task
     // reading "shaped by you" learns nothing.
@@ -674,7 +687,7 @@ function readCappedFile(filePath) {
  * a roadmap entry nor a document behind it is stray bracket text and is
  * dropped, the same rule the read-back hook applies.
  */
-function anchorsText(root, record, dir) {
+function anchorsText(root, record, dir, history) {
   const planned = (record.planned_touches || []).slice(0, ANCHOR_MAX_FILES);
   if (!planned.length) return "";
 
@@ -688,7 +701,7 @@ function anchorsText(root, record, dir) {
   }
   if (!found.size) return "";
 
-  const titles = new Map(historyEntries(root).map((e) => [e.id, e.title]));
+  const titles = new Map((history || historyEntries(root)).map((e) => [e.id, e.title]));
   const lines = [];
   let total = ANCHOR_HEADER.length;
   for (const [id, rel] of found) {
@@ -713,10 +726,10 @@ function anchorsText(root, record, dir) {
  * first-relevant-moment question about the ledger is worth putting. Only the
  * fact, never the ask: pick.md owns the question, this owns the trigger.
  */
-function notesOverlapExists(root, record) {
+function notesOverlapExists(root, record, history) {
   const planned = record.planned_touches || [];
   if (!planned.length) return false;
-  return historyEntries(root).some(
+  return (history || historyEntries(root)).some(
     (e) =>
       RECALL_STATUSES.has(e.status)
       && e.id !== record.id
@@ -1046,10 +1059,12 @@ function assemble(root, input) {
 
   const taskContextBlock = taskContextText(config.usePersona, judgment);
   const backgroundInner = relevantFilesText(symbolResult.files, symbolResult.references, symbolResult.unresolved, record);
-  const priorWork = priorWorkText(historyEntries(root), record, root);
+  // One read of the roadmap and the archive for every history consumer below.
+  const history = historyEntries(root);
+  const priorWork = priorWorkText(history, record, root);
   const lessons = ledgerText(root, record);
-  const anchors = anchorsText(root, record, config.ledger.dir);
-  const chain = symbolChainText(root, record, symbolResult.files);
+  const anchors = anchorsText(root, record, config.ledger.dir, history);
+  const chain = symbolChainText(root, record, symbolResult.files, history);
   const ctxText = contextText(judgment.context, record.depends_on_docs);
   const includeTone = !workflowStage && reinforced && (destination === "agent" || !omit.has("tone"));
   const includeBackground = !omit.has("background");
@@ -1226,7 +1241,7 @@ function assemble(root, input) {
     && ledgerConfig.decisionLog === undefined
     && process.env.FOREMAN_LEDGER === undefined
     && process.env.FOREMAN_AREA_NOTES === undefined
-    && notesOverlapExists(root, record);
+    && notesOverlapExists(root, record, history);
 
   return {
     ok: gate.ok,

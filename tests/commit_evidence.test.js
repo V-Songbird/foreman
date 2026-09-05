@@ -117,6 +117,23 @@ describe('symbol shapers', () => {
     assert.deepEqual(shapers.map((s) => s.ids), [['042']]);
   });
 
+  test('a longer name that merely ends with the symbol is not the symbol either', () => {
+    initGitRepo(project);
+    commitWithMessage(project, 'src/p.js', 'function reparse() {}\n', 'Create reparse\n\nForeman: 101');
+    commitWithMessage(project, 'src/p.js', 'function reparse() {}\nfunction parse() {}\n', 'Add parse\n\nForeman: 102');
+    commitWithMessage(project, 'src/p.js', 'function reparse() {}\nfunction parse() { return 1; }\n', 'Change parse\n\nForeman: 103');
+    const shapers = symbolShapers(project, 'src/p.js', 'parse');
+    assert.deepEqual(shapers.map((s) => s.ids), [['103'], ['102']]);
+  });
+
+  test('a definition at column 0 is found on the second pass', () => {
+    initGitRepo(project);
+    commitWithMessage(project, 'src/conf.py', 'reparse = 1\nparse = 2\n', 'Add both\n\nForeman: 104');
+    commitWithMessage(project, 'src/conf.py', 'reparse = 1\nparse = 3\n', 'Change parse\n\nForeman: 105');
+    const shapers = symbolShapers(project, 'src/conf.py', 'parse');
+    assert.deepEqual(shapers.map((s) => s.ids), [['105'], ['104']]);
+  });
+
   test('a symbol git finds no definition line for is null, never a throw', () => {
     initGitRepo(project);
     commitWithMessage(project, 'src/alpha.js', ALPHA_V1, 'Create alpha\n\nForeman: 041');

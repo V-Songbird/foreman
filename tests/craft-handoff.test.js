@@ -1068,6 +1068,25 @@ describe('prior-work recall', () => {
     assert.match(json.prompt, /- 300 Earlier work 300 — It was archived, not forgotten\./);
   });
 
+  test('a corrupt archive costs the archived leads, never the handoff', () => {
+    writeRoadmap(project, [entryFields(), finished('300', ['src/auth/middleware.js']), ...pad(4, 900)]);
+    fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
+    fs.writeFileSync(path.join(project, '.foreman', 'archive.jsonl'), '{not json\n', 'utf-8');
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+    assert.match(json.prompt, /- 300 Earlier work 300/);
+  });
+
+  test('a why that is not a string falls back to the note rather than printing it', () => {
+    const rows = [
+      finished('300', ['src/auth/middleware.js'], { why: { a: 1 }, notes: `${today()} The note stands in.` }),
+      ...pad(4, 900),
+    ];
+    const text = priorWorkText(rows, { id: '001', planned_touches: ['src/auth/middleware.js'] });
+    assert.match(text, /- 300 Earlier work 300 — The note stands in\./);
+    assert.ok(!text.includes('[object Object]'));
+  });
+
   test('recall never promotes a handoff to the reinforced profile', () => {
     writeRoadmap(project, [
       entryFields(),

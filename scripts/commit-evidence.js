@@ -367,25 +367,33 @@ function symbolShapers(root, relPath, symbol, { timeout = SYMBOL_LOG_TIMEOUT_MS 
   const scoped = scope.prefix ? file.slice(scope.prefix.length + 1) : file;
   if (!scoped) return null;
 
-  // The name must end where an identifier would — `alpha(`, `alpha =`,
-  // `alpha:` match, `alphaBeta` does not. A bracket expression only: git
-  // compiles this as a basic regex, and word-boundary escapes are not portable
-  // across the regex libraries it may be built with.
-  const pattern = `${name.replace(/\$/g, "[$]")}[^A-Za-z0-9_$]`;
-  const out = gitRead(
-    scope.cwd,
-    ["log", "-L", `:${pattern}:${scoped}`, "--format=%h%x00%B%x1e", "-s"],
-    { timeout }
-  );
-  if (out === null) return null;
-
-  const shapers = [];
-  for (const chunk of out.split("\x1e")) {
-    const [sha, body] = chunk.split("\x00");
-    if (!sha || !sha.trim()) continue;
-    shapers.push({ sha: sha.trim(), ids: roadmap().trailerIdsIn(body || "") });
+  // The name must begin and end where an identifier would — `function alpha(`
+  // and `alpha = ` match, `alphaBeta(` and `realpha(` do not. Bracket
+  // expressions only: git compiles this as a basic regex, and word-boundary
+  // escapes are not portable across the regex libraries it may be built with.
+  // Two passes because a basic regex cannot say "start of line OR a
+  // non-identifier character" portably: first the name after some other
+  // character (`function alpha(`, `def alpha(`), then the name at column 0
+  // (`alpha = ...`). git takes the first funcname line the pattern matches, so
+  // without the left boundary `parse` would serve `reparse`'s history.
+  const escaped = name.replace(/\$/g, "[$]");
+  const boundary = "[^A-Za-z0-9_$]";
+  for (const pattern of [`${boundary}${escaped}${boundary}`, `^${escaped}${boundary}`]) {
+    const out = gitRead(
+      scope.cwd,
+      ["log", "-L", `:${pattern}:${scoped}`, "--format=%h%x00%B%x1e", "-s"],
+      { timeout }
+    );
+    if (out === null) continue;
+    const shapers = [];
+    for (const chunk of out.split("\x1e")) {
+      const [sha, body] = chunk.split("\x00");
+      if (!sha || !sha.trim()) continue;
+      shapers.push({ sha: sha.trim(), ids: roadmap().trailerIdsIn(body || "") });
+    }
+    return shapers;
   }
-  return shapers;
+  return null;
 }
 
 /**
@@ -422,6 +430,7 @@ module.exports = {
   anchorShaFor,
   changedSince,
   symbolShapers,
+  SYMBOL_LOG_TIMEOUT_MS,
   evidenceSummary,
   SHA_RE,
 };
