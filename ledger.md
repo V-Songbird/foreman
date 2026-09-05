@@ -28,7 +28,7 @@ matters.
 
 | When | What you see |
 | --- | --- |
-| A new job is written up | Anything recorded about the files that job will touch |
+| A new job is written up | Anything recorded about the files that job will touch, and which earlier jobs shaped the functions it names |
 | You open a file | Anything recorded about that file |
 | Six months later | Search your saved changes for the job number |
 

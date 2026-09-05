@@ -7,7 +7,12 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
-## [Unreleased]
+## 2.6.0 — 2026-09-05
+
+A handed-off prompt now carries more of what the task needs and less that
+could mislead it: the task's own reason for existing, its scope baseline, and
+which earlier tasks shaped the functions it names — with every history line
+framed as history. In detail:
 
 - A handed-off prompt now says which earlier tasks shaped each function it
   names. Foreman reads the task numbers out of the file's own commit history,

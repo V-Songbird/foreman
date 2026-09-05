@@ -69,53 +69,73 @@ waits on the save.
 
 **Foreman:**
 
-> Two tasks are ready to go — neither is blocked, and nothing else is in flight.
->
 > **Which task next?**
 >
-> 1. **Save notes to a file so they survive a restart (001)** — *(Recommended)* Right now notes only live in memory, so closing the terminal wipes everything; this makes the tool usable past a single sitting. It leads because one other task is waiting behind it.
-> 2. **Add a `--due` flag to `add` (002)** — People are typing dates into the note text by hand, so nothing can sort or warn by date. It's just the oldest other ready task; nothing is waiting on it.
+> 1. **Save notes to a file so they survive a restart (001)** *(Recommended)* Right now notes only live in memory, so quitting the terminal wipes everything — the tool can't be used across sittings. Ranked first because it unblocks 1 other open task.
+> 2. **Add a `--due` flag to `add` (002)** People are typing due dates into the note body by hand, so nothing can sort or warn by date. Ranked second as the oldest ready task with nothing waiting behind it.
+>
+> Or describe something else you'd rather work on.
+>
+> Once you pick, I'll ask where to run it (here as one task, here split by check, a background agent, or copied to your clipboard).
 
 **You:** 1. Copy the prompt to my clipboard.
 
 **Foreman:**
 
-> **Task 001 — Save notes to a file so they survive a restart.** Right now the notes tool keeps everything in memory, so quitting the terminal throws away every note you took. This makes the store write itself to a JSON file in your home directory whenever it changes and read it back at startup, without touching any of the CLI's commands or output.
+> Copied to your clipboard.
 >
-> The prompt is on your clipboard — paste it into a fresh session.
+> **What this task changes:** right now every note the CLI holds lives only in memory, so closing the terminal throws them all away. The handoff has the next session write the store to a JSON file in your home directory on every change and reload it at startup — leaving the existing store functions and the CLI's commands and output exactly as they are.
 
 The prompt it wrote opens like this. The files and line numbers in it were
-checked against the project a moment earlier:
+checked against the project a moment earlier, and the second line under the
+goal is the task's own reason from the roadmap, word for word:
 
 ```
 <task_context>
-You are a Node.js developer working on a small command-line notes tool.
-Your goal is Notes added in one run of the CLI are still there in the next run,
-because the store now persists itself to a JSON file in the user's home
-directory and reads it back on start.
+You are a Node.js CLI developer working on a small notes tool.
+Your goal is Notes added in one run of the CLI are still listed by a later,
+separate run — the store persists to a JSON file on disk and reloads it on
+startup, with no change to the CLI's commands or output.
+Why this task exists: Everything lives in memory. Close the terminal and every
+note is gone, which makes the tool useless for anything past one sitting.
 </task_context>
 
 <relevant_files>
 src/store.js — nextId (5), notes (6), add (8), list (14), markDone (18), reset (25)
 test/store.test.js — assert (4), store (5)
-Pattern: src/cli.js — build the new code the same way
+Pattern: src/cli.js — imports src/store, as this task's files do; read it as the
+existing analogue before writing new code
 </relevant_files>
 
 <task_rules>
-- Add persistence to the note store: on start, load existing notes from a JSON
-  file under the user home directory (creating nothing and failing softly if the
-  file is absent or unreadable); on every mutation, write the current state back
-  to that file.
-- Keep the existing in-memory store functions and their signatures unchanged so
-  no CLI command has to change.
-- Add tests covering the round trip: notes saved by one store instance are
-  visible to a freshly constructed one, and a missing or corrupt file starts from
-  an empty store rather than throwing.
+- Load the persisted JSON file from a path under the user home directory when
+  the store initializes, treating a missing or unreadable file as an empty store
+  rather than an error.
+- Write the full store back to that JSON file after every change (add, done, and
+  any other mutation).
+- Leave the existing in-memory store functions' names, signatures, and return
+  values unchanged so the CLI code needs no edits.
+- Cover load-on-start and save-on-change in test/store.test.js, including the
+  missing-file case.
+
+Constraints:
+- Do not change the CLI's commands, flags, argument handling, or printed output.
+- Keep the existing in-memory store functions' signatures and return values
+  intact - persistence wraps them, it does not replace them.
+- The store file lives under the user's home directory, not in the repository or
+  the current working directory.
+- Tests must not write to the real user home directory - point the store at a
+  temporary path.
+Expected file surface: src/store.js, test/store.test.js. Anything beyond this
+list gets flagged to the user before it is written, not after.
 ...
 ```
 
-Both replies are as they came back, on Claude Opus 5. The second one also
-named where it saved a copy of the prompt; that line is left out here.
+Both replies are as they came back, on Claude Opus 5, recorded without an
+interactive question tool. Two things are left out here: the first reply's
+opening line, which said it would show the menu as text for that reason, and
+the second reply's tail, which named where it saved a copy of the prompt and
+quoted one builder warning it had already folded into the constraints.
 
 ## Install
 

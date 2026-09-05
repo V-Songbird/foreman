@@ -70,6 +70,11 @@ Every commit Foreman makes ends with a line like `Foreman: 019`. That is the
 task number. It lets you trace any change back to the job it came from, with
 plain `git log`. This one is always on.
 
+Foreman reads those lines back, too. When a task names a function, the prompt
+it hands over says which earlier tasks created and changed that function, by
+number and title, straight from the file's own commit history. It is offered
+as history, not as instructions, and the prompt says so.
+
 You can also put a `[Foreman: 019]` comment next to code some task settled.
 From then on, anyone handed work on that file is told which task settled it,
 by name.
