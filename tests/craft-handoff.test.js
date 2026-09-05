@@ -1081,6 +1081,83 @@ describe('prior-work recall', () => {
   });
 });
 
+// [Foreman: 287] The symbol chain: which entries shaped a function the task
+// names, read from the trailers in its file's own history. No store, no
+// prose from a model, and no path ceiling — a symbol is narrower than its file.
+describe('the symbol chain', () => {
+  function commitWith(cwd, relPath, content, message) {
+    const full = path.join(cwd, relPath);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, content, 'utf-8');
+    spawnSync('git', ['add', relPath], { cwd });
+    spawnSync('git', ['commit', '-q', '-m', message], { cwd });
+  }
+
+  function shapedProject(what = 'Rework `alpha` so it retries once.') {
+    initGitRepo(project);
+    commitWith(project, 'src/alpha.js', 'function alpha() {\n  return 1;\n}\n', 'Create alpha\n\nForeman: 041');
+    commitWith(project, 'src/alpha.js', 'function alpha() {\n  return 2;\n}\n', 'Harden alpha\n\nForeman: 042');
+    writeRoadmap(project, [
+      entryFields({ what, planned_touches: ['src/alpha.js'] }),
+      entryFields({ id: '041', title: 'Create alpha', status: 'done', planned_touches: ['src/alpha.js'], observed_touches: ['src/alpha.js'] }),
+      entryFields({ id: '042', title: 'Harden alpha', status: 'done', planned_touches: ['src/alpha.js'], observed_touches: ['src/alpha.js'] }),
+    ]);
+  }
+
+  test('names the entries whose commits shaped a symbol the task names, newest first', () => {
+    shapedProject();
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+    assert.match(json.prompt, /- alpha \(src\/alpha\.js\): shaped by 042 Harden alpha, 041 Create alpha/);
+  });
+
+  test('sits inside <background>, outside <context>, and never promotes the profile', () => {
+    shapedProject();
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    const background = json.prompt.slice(json.prompt.indexOf('<background>'), json.prompt.indexOf('</background>'));
+    const at = background.indexOf('Entries whose commits shaped');
+    assert.ok(at > -1, 'the chain must ride inside <background>');
+    const contextAt = background.indexOf('<context>');
+    if (contextAt > -1) assert.ok(at < contextAt, 'the chain must sit outside <context>');
+    assert.equal(json.profile, 'standard');
+  });
+
+  test('a symbol the task never names is not traced', () => {
+    shapedProject('Tidy the module header comment.');
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.ok(!json.prompt.includes('Entries whose commits shaped'));
+  });
+
+  test("a chain made only of the task's own id is silence", () => {
+    initGitRepo(project);
+    commitWith(project, 'src/alpha.js', 'function alpha() {}\n', 'Start alpha\n\nForeman: 001');
+    writeRoadmap(project, [entryFields({ what: 'Finish `alpha`.', planned_touches: ['src/alpha.js'] })]);
+    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    assert.ok(!json.prompt.includes('Entries whose commits shaped'));
+  });
+
+  test('a long chain keeps the newest two and the one that created it', () => {
+    const { symbolChainText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
+    initGitRepo(project);
+    const ids = ['011', '012', '013', '014', '015'];
+    ids.forEach((id, i) => commitWith(project, 'src/alpha.js', `function alpha() {\n  return ${i};\n}\n`, `Step ${id}\n\nForeman: ${id}`));
+    writeRoadmap(project, [
+      entryFields({ what: 'Rework `alpha`.', planned_touches: ['src/alpha.js'] }),
+      ...ids.map((id) => entryFields({ id, title: `Step ${id}`, status: 'done' })),
+    ]);
+    const files = [{ path: 'src/alpha.js', symbols: [{ name: 'alpha', line: 1 }] }];
+    const text = symbolChainText(project, { id: '001', title: 'x', what: 'Rework `alpha`.' }, files);
+    assert.match(text, /shaped by 015 Step 015, 014 Step 014, … 011 Step 011$/m);
+  });
+
+  test('with no git the block is simply absent', () => {
+    const { symbolChainText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
+    writeRoadmap(project, [entryFields()]);
+    const files = [{ path: 'src/alpha.js', symbols: [{ name: 'alpha', line: 1 }] }];
+    assert.equal(symbolChainText(project, { id: '001', title: 'x', what: 'Rework `alpha`.' }, files), '');
+  });
+});
+
 // [Foreman: 074] The file list is the one interview answer that must produce a
 // real path, and a hand-typed path aimed at the wrong file is the failure
 // truth_grounding spends the destination's tokens rescuing. The skill now

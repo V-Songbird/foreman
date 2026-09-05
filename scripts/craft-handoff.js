@@ -40,7 +40,7 @@ const { readEntries, readArchive, cmdList, touchesOverlap, today, anchorIdsIn } 
 function historyEntries(root) {
   return [...readEntries(root), ...readArchive(root)];
 }
-const { anchorShaFor, changedSince } = require("./commit-evidence.js");
+const { anchorShaFor, changedSince, symbolShapers } = require("./commit-evidence.js");
 const ledger = require("./ledger");
 const { readLedger } = require("./ledger-config");
 const noteStaleness = require("./note-staleness.js");
@@ -509,6 +509,101 @@ function ledgerText(root, record) {
   return `${NOTES_HEADER}\n${lines.join("\n")}\n${NOTES_CLOSER}`;
 }
 
+// ---- the symbol chain — which entries shaped each function this task names,
+// read from the commit history. [Foreman: 287]
+//
+// Every other recall channel matches on paths, and a path has two blind
+// spots: a file everything touches is dropped from <prior_work> as noise, and
+// nothing links a FUNCTION to the entries that created and changed it except
+// a hand-typed anchor comment. `git log -L :<symbol>:<file>` follows the
+// function's own range through history, and the `Foreman:` trailers staged
+// closes already write name the entries — so the chain "005 created it, 030
+// changed it" is already in git. Probed on this repo's 30 most recent closed
+// entries before it was built: 21 of the 26 symbols their prose named
+// resolved to at least one other entry, 11 to a chain of two or more, at
+// 40 ms a symbol.
+//
+// Same discipline as the two blocks above: inside <background>, both
+// profiles, NEVER a computeSignals key. Bounded three ways — at most
+// CHAIN_MAX_SYMBOLS git calls, each with its own timeout, under one wall-clock
+// budget for the whole block — because -L walks history and a huge repo must
+// cost a missing block, never a slow handoff.
+const CHAIN_MAX_SYMBOLS = 4;
+// Ids per symbol: the newest two and the one that created it. The middle of a
+// long chain is what a cap cuts, never either end.
+const CHAIN_KEEP = 3;
+const CHAIN_TITLE = 50;
+const CHAIN_MAX_CHARS = 600;
+const CHAIN_TIME_BUDGET_MS = 6000;
+const CHAIN_HEADER =
+  "Entries whose commits shaped the symbols this task names, from the history — newest first, the one that created it last:";
+
+/**
+ * The symbols worth tracing: names the entry's own prose uses that
+ * resolve-symbols found defined in a planned file that exists. File order,
+ * capped, one pair per (symbol, file).
+ */
+function chainCandidates(record, files) {
+  const prompted = promptedNames(record);
+  if (!prompted.size) return [];
+  const pairs = [];
+  const seen = new Set();
+  for (const f of files || []) {
+    if (!f || !Array.isArray(f.symbols) || !f.symbols.length) continue;
+    if (f.missing || f.outside_project || f.directory || f.unsupported || f.unreadable) continue;
+    for (const s of f.symbols) {
+      if (!prompted.has(s.name)) continue;
+      const key = `${s.name}\0${f.path}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      pairs.push({ name: s.name, file: f.path });
+      if (pairs.length >= CHAIN_MAX_SYMBOLS) return pairs;
+    }
+  }
+  return pairs;
+}
+
+function symbolChainText(root, record, files) {
+  if (!root) return "";
+  const pairs = chainCandidates(record, files);
+  if (!pairs.length) return "";
+
+  const titles = new Map(historyEntries(root).map((e) => [e.id, e.title]));
+  const deadline = Date.now() + CHAIN_TIME_BUDGET_MS;
+  const lines = [];
+  let total = CHAIN_HEADER.length;
+  for (const { name, file } of pairs) {
+    if (Date.now() > deadline) break;
+    const shapers = symbolShapers(root, file, name);
+    if (!shapers || !shapers.length) continue;
+    // Newest first, deduped, and never the task's own id — a resumed task
+    // reading "shaped by you" learns nothing.
+    const ids = [];
+    for (const shaper of shapers) {
+      for (const id of shaper.ids) if (id !== record.id && !ids.includes(id)) ids.push(id);
+    }
+    if (!ids.length) continue;
+    let kept = ids;
+    let cut = 0;
+    if (ids.length > CHAIN_KEEP) {
+      kept = [...ids.slice(0, CHAIN_KEEP - 1), ids[ids.length - 1]];
+      cut = ids.length - CHAIN_KEEP;
+    }
+    const named = kept.map((id, i) => {
+      const title = titles.get(id);
+      const label = title ? `${id} ${String(title).slice(0, CHAIN_TITLE)}` : id;
+      return cut && i === kept.length - 1 ? `… ${label}` : label;
+    });
+    const line = `- ${name} (${file}): shaped by ${named.join(", ")}`;
+    // Whole lines only, same as every block above.
+    if (total + 1 + line.length > CHAIN_MAX_CHARS) break;
+    lines.push(line);
+    total += 1 + line.length;
+  }
+  if (!lines.length) return "";
+  return `${CHAIN_HEADER}\n${lines.join("\n")}`;
+}
+
 // ---- anchors as live references -------------------------------------------
 //
 // `[Foreman: <id>]` comments mark code an earlier entry already governed. The
@@ -943,6 +1038,7 @@ function assemble(root, input) {
   const priorWork = priorWorkText(historyEntries(root), record, root);
   const lessons = ledgerText(root, record);
   const anchors = anchorsText(root, record, config.ledger.dir);
+  const chain = symbolChainText(root, record, symbolResult.files);
   const ctxText = contextText(judgment.context, record.depends_on_docs);
   const includeTone = !workflowStage && reinforced && (destination === "agent" || !omit.has("tone"));
   const includeBackground = !omit.has("background");
@@ -997,11 +1093,16 @@ function assemble(root, input) {
       // block of past-entry prose that needs a frame to stop it reading as
       // instructions. Same both-profiles rule.
       const lessonsBlock = lessons ? `${lessons}\n` : "";
+      // [Foreman: 287] The symbol chain, untagged like the lessons: history
+      // read from git, not a claim about the code as it stands, so it needs no
+      // staleness label — a commit that shaped a function did so whatever the
+      // function looks like today.
+      const chainBlock = chain ? `${chain}\n` : "";
       // Same untagged treatment, same both-profiles rule: an anchor is a
       // pointer at code the destination is about to read, and it is only worth
       // anything before the reading starts.
       const anchorsBlock = anchors ? `${anchors}\n` : "";
-      parts.push(`<background>\n<relevant_files>\n${backgroundInner}\n</relevant_files>\n${recallBlock}${lessonsBlock}${anchorsBlock}${ctxBlock}</background>`);
+      parts.push(`<background>\n<relevant_files>\n${backgroundInner}\n</relevant_files>\n${recallBlock}${lessonsBlock}${chainBlock}${anchorsBlock}${ctxBlock}</background>`);
     }
     if (reinforced) parts.push(noInventionLine);
     if (invariantsText) parts.push(invariantsText);
@@ -1161,6 +1262,12 @@ module.exports = {
   ledgerText,
   anchorsText,
   ANCHOR_KEEP,
+  symbolChainText,
+  chainCandidates,
+  CHAIN_HEADER,
+  CHAIN_KEEP,
+  CHAIN_MAX_SYMBOLS,
+  CHAIN_MAX_CHARS,
   ANCHOR_MAX_CHARS,
   notesOverlapExists,
   // Read by benchmarks/foreman/lessons/gen.js, so a reworded header or closer

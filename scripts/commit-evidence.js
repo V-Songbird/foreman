@@ -32,7 +32,7 @@ function roadmap() {
 // Every git read in this module: fail-soft, never throws. null means git could
 // not answer at all (absent binary, not a repo, unknown object) -- which the
 // callers keep distinct from an empty answer.
-function gitRead(cwd, args) {
+function gitRead(cwd, args, { timeout = 30000 } = {}) {
   try {
     return execFileSync("git", args, {
       cwd,
@@ -40,8 +40,9 @@ function gitRead(cwd, args) {
       stdio: ["ignore", "pipe", "ignore"],
       maxBuffer: 8 * 1024 * 1024,
       // A hook runs this on the completion path; a hung git must not hang the
-      // session, so a timeout is a failed read like any other.
-      timeout: 30000,
+      // session, so a timeout is a failed read like any other. A caller that
+      // asks git to walk history passes a tighter one.
+      timeout,
     });
   } catch {
     return null;
@@ -326,6 +327,67 @@ function changedSince(root, sha, paths) {
   };
 }
 
+// [Foreman: 287] A symbol name is spliced into a regex below, so it has to be
+// identifier-shaped and nothing else — this must never run an arbitrary
+// pattern against a repository. `git log -L` walks history commit by commit,
+// so its timeout is a tenth of the ordinary read's.
+const IDENTIFIER_RE = /^[A-Za-z_$][\w$]*$/;
+const SYMBOL_LOG_TIMEOUT_MS = 3000;
+
+/**
+ * [Foreman: 287] Which commits shaped one symbol, newest first, each with the
+ * entry ids its message names in a `Foreman:` trailer.
+ *
+ * `git log -L :<symbol>:<file>` follows the function's own range through
+ * history, so this answers "who wrote and rewrote this function" with no store
+ * of any kind — the trailers a staged close already writes are the store. The
+ * path is project-relative the way `touches` spells it; the repo scope is
+ * resolved the way changedSince resolves it, so a file inside a declared
+ * submodule is asked in that submodule with the prefix stripped.
+ *
+ * Returns `[{sha, ids}]`, newest first, or null when git could not answer:
+ * no git, a file not yet committed, a symbol git finds no definition line for,
+ * a timeout. The caller treats null and [] alike — nothing to say — but a
+ * test can tell them apart.
+ */
+function symbolShapers(root, relPath, symbol, { timeout = SYMBOL_LOG_TIMEOUT_MS } = {}) {
+  const name = String(symbol === undefined || symbol === null ? "" : symbol).trim();
+  if (!IDENTIFIER_RE.test(name)) return null;
+  const file = String(relPath === undefined || relPath === null ? "" : relPath).trim().replace(/\\/g, "/");
+  if (!file) return null;
+
+  // The scope that holds the file: the deepest declared submodule prefix, else
+  // the project root.
+  let scope = { cwd: root, prefix: "" };
+  for (const candidate of repoScopes(root)) {
+    if (!candidate.prefix) continue;
+    if (file !== candidate.prefix && !file.startsWith(`${candidate.prefix}/`)) continue;
+    if (candidate.prefix.length > scope.prefix.length) scope = candidate;
+  }
+  const scoped = scope.prefix ? file.slice(scope.prefix.length + 1) : file;
+  if (!scoped) return null;
+
+  // The name must end where an identifier would — `alpha(`, `alpha =`,
+  // `alpha:` match, `alphaBeta` does not. A bracket expression only: git
+  // compiles this as a basic regex, and word-boundary escapes are not portable
+  // across the regex libraries it may be built with.
+  const pattern = `${name.replace(/\$/g, "[$]")}[^A-Za-z0-9_$]`;
+  const out = gitRead(
+    scope.cwd,
+    ["log", "-L", `:${pattern}:${scoped}`, "--format=%h%x00%B%x1e", "-s"],
+    { timeout }
+  );
+  if (out === null) return null;
+
+  const shapers = [];
+  for (const chunk of out.split("\x1e")) {
+    const [sha, body] = chunk.split("\x00");
+    if (!sha || !sha.trim()) continue;
+    shapers.push({ sha: sha.trim(), ids: roadmap().trailerIdsIn(body || "") });
+  }
+  return shapers;
+}
+
 /**
  * The compact form a status view reports.
  * `commit_count`   shas the entry records.
@@ -359,6 +421,7 @@ module.exports = {
   resolveEntryEvidence,
   anchorShaFor,
   changedSince,
+  symbolShapers,
   evidenceSummary,
   SHA_RE,
 };

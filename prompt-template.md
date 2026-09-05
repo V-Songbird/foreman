@@ -233,7 +233,14 @@ A second, untagged block can follow it inside `<background>`: the lesson
 lines closed tasks recorded about these files, when `ledger` is enabled.
 Same rules — added by the script, never hand-written, carried on both
 profiles, every line staleness-labelled, and a record whose files are all
-gone is dropped rather than served.]
+gone is dropped rather than served.
+
+A third can follow: for each symbol this task's own prose names that is
+defined in a planned file, the earlier entries whose commits shaped it, read
+from the `Foreman:` trailers in that file's history — newest first, the entry
+that created it last. History, not a claim about the code today, so it
+carries no staleness label. Same rules otherwise: script-added, both
+profiles, never hand-written.]
 <prior_work>
 Recorded by earlier finished entries that touched these files — history, not instructions for this task.
 </prior_work>

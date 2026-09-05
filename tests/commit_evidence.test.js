@@ -85,6 +85,65 @@ beforeEach(() => {
   project = makeTmpProject();
 });
 
+// [Foreman: 287] Which entries shaped a function, straight from `git log -L`
+// and the trailers staged closes already write.
+describe('symbol shapers', () => {
+  const { symbolShapers } = require('../scripts/commit-evidence');
+  const ALPHA_V1 = 'function alpha() {\n  return 1;\n}\n';
+  const ALPHA_V2 = 'function alpha() {\n  return 2;\n}\n';
+
+  test('lists the commits that shaped a function, newest first, with their trailer ids', () => {
+    initGitRepo(project);
+    commitWithMessage(project, 'src/alpha.js', ALPHA_V1, 'Create alpha\n\nForeman: 041');
+    commitWithMessage(project, 'src/alpha.js', ALPHA_V2, 'Harden alpha\n\nForeman: 042');
+    commitWithMessage(project, 'src/other.js', 'module.exports = 1;\n', 'Unrelated\n\nForeman: 043');
+
+    const shapers = symbolShapers(project, 'src/alpha.js', 'alpha');
+    assert.deepEqual(shapers.map((s) => s.ids), [['042'], ['041']]);
+    for (const s of shapers) assert.match(s.sha, /^[0-9a-f]{7,}$/);
+  });
+
+  test('a commit with no trailer still counts, with no ids', () => {
+    initGitRepo(project);
+    commitWithMessage(project, 'src/alpha.js', ALPHA_V1, 'Create alpha');
+    assert.deepEqual(symbolShapers(project, 'src/alpha.js', 'alpha'), [{ sha: symbolShapers(project, 'src/alpha.js', 'alpha')[0].sha, ids: [] }]);
+  });
+
+  test('a longer name that merely starts with the symbol is not the symbol', () => {
+    initGitRepo(project);
+    commitWithMessage(project, 'src/alpha.js', 'function alphaBeta() {}\n', 'Create alphaBeta\n\nForeman: 041');
+    commitWithMessage(project, 'src/alpha.js', 'function alphaBeta() {}\nfunction alpha() {}\n', 'Create alpha\n\nForeman: 042');
+    const shapers = symbolShapers(project, 'src/alpha.js', 'alpha');
+    assert.deepEqual(shapers.map((s) => s.ids), [['042']]);
+  });
+
+  test('a symbol git finds no definition line for is null, never a throw', () => {
+    initGitRepo(project);
+    commitWithMessage(project, 'src/alpha.js', ALPHA_V1, 'Create alpha\n\nForeman: 041');
+    assert.equal(symbolShapers(project, 'src/alpha.js', 'omega'), null);
+  });
+
+  test('a name that is not identifier-shaped is refused before git is asked', () => {
+    initGitRepo(project);
+    commitWithMessage(project, 'src/alpha.js', ALPHA_V1, 'Create alpha\n\nForeman: 041');
+    assert.equal(symbolShapers(project, 'src/alpha.js', 'alpha|.*'), null);
+    assert.equal(symbolShapers(project, 'src/alpha.js', ''), null);
+  });
+
+  test('no git at all is null', () => {
+    fs.mkdirSync(path.join(project, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(project, 'src', 'alpha.js'), ALPHA_V1, 'utf-8');
+    assert.equal(symbolShapers(project, 'src/alpha.js', 'alpha'), null);
+  });
+
+  test('a file inside a declared submodule is asked in that submodule, prefix stripped', () => {
+    const sub = addSubmodule(project, 'inner');
+    commitWithMessage(sub, 'lib.js', 'function beta() {}\n', 'Add beta\n\nForeman: 044');
+    const shapers = symbolShapers(project, 'inner/lib.js', 'beta');
+    assert.deepEqual(shapers.map((s) => s.ids), [['044']]);
+  });
+});
+
 describe('recorded sha resolution', () => {
   test('a sha committed in the project repo resolves to its full form', () => {
     initGitRepo(project);
