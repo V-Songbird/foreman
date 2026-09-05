@@ -445,35 +445,29 @@ const NOTES_CLOSER =
 /**
  * Records worth serving for this entry, best first.
  *
- * Selection is path-level and only path-level: `area` is cosmetic. A record
- * whose ONLY match is a path more than RECALL_MAX_REACH of closed entries
- * touched is dropped — a file everything reaches teaches nothing about this
- * task, and it is how one busy path would otherwise serve every lesson in
- * the store.
+ * Selection is path-level and only path-level: `area` is cosmetic.
+ *
+ * [Foreman: 286] Deliberately NO reach ceiling here, unlike priorWorkText.
+ * The ceiling made sense for entry-level leads — a busy file's whole history
+ * is noise — but a lesson is one specific claim, and the busiest files are
+ * exactly where claims pile up. With the ceiling copied over, this repo's four
+ * most-worked files (craft-handoff.js among them) could never reach a
+ * handoff, while hooks/ledger-recall.js served the same records unfiltered
+ * the moment the file was opened. Replayed over the last 20 handoffs: 33
+ * lessons served with the ceiling, 75 without, the block 349 vs 575 chars,
+ * and 4 of 20 handoffs went from no lesson to some. NOTES_KEEP and
+ * NOTES_MAX_CHARS are the bound.
  */
-function selectNotes(records, record, corpus) {
+function selectNotes(records, record) {
   const planned = record.planned_touches || [];
   if (!planned.length) return [];
-  const reach = new Map();
-  for (const closed of corpus) {
-    for (const seen of closed.observed_touches || []) {
-      const key = String(seen);
-      reach.set(key, (reach.get(key) || 0) + 1);
-    }
-  }
-  const ceiling = corpus.length * RECALL_MAX_REACH;
 
   const scored = [];
   for (const stored of records) {
     const matches = [];
     for (const plan of planned) {
       for (const kept of stored.paths || []) {
-        if (!touchesOverlap(plan, kept)) continue;
-        // A path nothing else reached has reach 1 (this record's own close),
-        // which is well under any ceiling — the filter only ever fires on a
-        // genuinely busy file.
-        if (ceiling && (reach.get(kept) || 0) > ceiling) continue;
-        matches.push({ plan, kept });
+        if (touchesOverlap(plan, kept)) matches.push({ plan, kept });
       }
     }
     if (matches.length) scored.push({ stored, matches });
@@ -490,10 +484,7 @@ function ledgerText(root, record) {
   const { records, error } = ledger.read(root);
   if (error || !records.length) return "";
 
-  const corpus = historyEntries(root).filter(
-    (e) => RECALL_STATUSES.has(e.status) && (e.observed_touches || []).length > 0
-  );
-  const selected = selectNotes(records, record, corpus);
+  const selected = selectNotes(records, record);
   if (!selected.length) return "";
 
   const budget = noteStaleness.newBudget();

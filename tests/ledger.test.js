@@ -400,6 +400,27 @@ describe('lesson lines in the handoff', () => {
     }
   });
 
+  // [Foreman: 286] No reach ceiling on lessons. One finished entry on the
+  // planned path is the smallest corpus there is, and under the copied
+  // 20% rule that path read as "too busy" and its lesson never shipped.
+  test('a record about a path every finished entry touched is still served', () => {
+    const { project } = seeded();
+    writeRoadmap(project, [
+      entry({ id: '001', status: 'planned', observed_touches: [] }),
+      entry({ id: '900', status: 'done', observed_touches: ['src/Auth/session.js'] }),
+    ]);
+    const text = ledgerText(project, { id: '001', planned_touches: ['src/Auth/session.js'] });
+    assert.match(text, /the token clock lives in refresh\(\)/);
+  });
+
+  test('the reach ceiling applies to prior-work leads only, never to lessons', () => {
+    const src = fs.readFileSync(path.join(SCRIPTS_DIR, 'craft-handoff.js'), 'utf-8');
+    const body = src.slice(src.indexOf('function selectNotes'), src.indexOf('function ledgerText'));
+    assert.ok(body.length > 0, 'selectNotes must precede ledgerText');
+    assert.ok(!body.includes('RECALL_MAX_REACH'), 'a reach ceiling on lessons drops the busiest files');
+    assert.ok(!/ceiling/.test(body.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '')), 'no ceiling in the selection code');
+  });
+
   test('a record whose every file is gone is never served', () => {
     const project = enabledProject();
     ledger.append(project, {
@@ -675,20 +696,6 @@ describe('the first-relevant ask', () => {
 
     test('a handoff that served a record counts its lines and length', () => {
       const project = overlapping({ ledger: { enabled: true }, trialLog: true });
-      // Padding closed entries on other files, so the one shared path sits
-      // under the reach ceiling the lessons block still applies at this point.
-      writeRoadmap(project, [
-        entry({ status: 'planned' }),
-        { ...entry(), id: '002', title: 'Earlier work', status: 'done' },
-        ...[3, 4, 5, 6].map((n) => ({
-          ...entry(),
-          id: `00${n}`,
-          title: `Padding ${n}`,
-          status: 'done',
-          planned_touches: [`src/pad-${n}.js`],
-          observed_touches: [`src/pad-${n}.js`],
-        })),
-      ]);
       ledger.append(project, {
         lesson: 'the token clock lives in refresh(); fake it in tests',
         paths: ['src/Auth/session.js'],

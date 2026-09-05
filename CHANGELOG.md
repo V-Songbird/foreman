@@ -9,6 +9,10 @@ that's why `plugin.json` here carries none.
 
 ## [Unreleased]
 
+- Lessons about a project's busiest files now reach the handoff. The rule
+  that keeps a much-touched file's task history out of the prompt no longer
+  applies to recorded lessons, which are specific claims and pile up on
+  exactly those files. The block keeps its six-line, 1000-character bound.
 - Archiving finished tasks no longer hides them from later prompts. Prior-work
   lines, anchor titles and the first-time ledger question now read the archive
   as well as the active roadmap.
