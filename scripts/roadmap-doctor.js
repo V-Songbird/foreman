@@ -92,7 +92,7 @@ function checkEntry(entry, index, out) {
     return;
   }
   const {
-    STATUSES, SOURCES, KINDS, MODELS, EFFORTS, validateDoc, isValidId,
+    STATUSES, SOURCES, KINDS, isValidModel, EFFORTS, validateDoc, isValidId,
     ROADMAP_FORMAT_KEY, CURRENT_ROADMAP_FORMAT, isFormatMeta,
   } = roadmap();
   const id = typeof entry.id === "string" ? entry.id : "";
@@ -197,8 +197,8 @@ function checkEntry(entry, index, out) {
   if (entry.kind !== undefined && !KINDS.has(entry.kind)) {
     out.push(finding("unknown_kind", "error", ids, `${at}: kind ${JSON.stringify(entry.kind)} is not one of ${[...KINDS].join("|")}`, { field: "kind" }));
   }
-  if (entry.model !== undefined && !MODELS.has(entry.model)) {
-    out.push(finding("unknown_model", "error", ids, `${at}: model ${JSON.stringify(entry.model)} is not one of ${[...MODELS].join("|")}`, { field: "model" }));
+  if (entry.model !== undefined && !isValidModel(entry.model)) {
+    out.push(finding("unknown_model", "error", ids, `${at}: model must be a non-empty model identifier of at most 128 characters`, { field: "model" }));
   }
   if (entry.effort !== undefined && !EFFORTS.has(entry.effort)) {
     out.push(finding("unknown_effort", "error", ids, `${at}: effort ${JSON.stringify(entry.effort)} is not one of ${[...EFFORTS].join("|")}`, { field: "effort" }));
@@ -636,9 +636,8 @@ function applyRepairs(entries, findings) {
 }
 
 // The host events Foreman's hooks are registered against, read from the
-// manifest that registers them so the list cannot drift. TaskCreated and
-// TaskCompleted are not in Claude Code's public hook documentation: if a
-// future host stops delivering one, Foreman goes quiet rather than failing,
+// manifest that registers them so the list cannot drift. If a host omits a
+// registered event or the user disables hooks, assistance goes quiet,
 // and nothing else would ever say why. So doctor says it, every run, at a
 // severity that counts toward neither errors nor warnings — this is a
 // disclosure, not a defect.
@@ -658,10 +657,10 @@ function hookDependencies() {
       "hook_dependencies",
       "info",
       [],
-      `Foreman's automatic behavior depends on these Claude Code hook events: ${events.join(", ")}. `
-        + "TaskCreated and TaskCompleted are not publicly documented — if a host stops "
-        + "delivering one, tasks stop opening and closing their roadmap entries on their "
-        + "own, and every command here keeps working by hand."
+      `Foreman's automatic behavior depends on these Codex hook events: ${events.join(", ")}. `
+        + "Task lifecycle registration is explicit through hooks/codex-task.js; Codex does not emit "
+        + "TaskCreated or TaskCompleted. Hooks must be enabled and trusted. The CLI and skills "
+        + "remain usable when a host does not deliver hooks."
     ),
   ];
 }

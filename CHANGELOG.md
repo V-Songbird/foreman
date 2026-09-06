@@ -3,9 +3,23 @@
 All notable changes to Foreman are documented here. Foreman was named
 Relay through 0.4.8-alpha — the 0.5.0-alpha entry below records the
 rename, and older entries keep the name they shipped under. Looking for a
-version number? It lives in the
-[foundry marketplace](https://github.com/V-Songbird/foundry) listing —
-that's why `plugin.json` here carries none.
+version number? The Codex port uses `.codex-plugin/plugin.json`; original Claude releases used the Foundry marketplace listing.
+
+## [Unreleased]
+
+### Added
+
+- Codex plugin manifest, five Codex-adapted skills and native command hooks.
+- Explicit task start/check bridge and scoped optional Stop gate where Codex has no task-created/completed events.
+- Codex model identifier/effort recording and project-root selection, retaining legacy data.
+- Windows and Linux CI, Codex payload regressions and compatibility documentation.
+
+### Changed
+
+- Handoff prompts use Codex capabilities, verified installed script paths, native delegation, and shell-appropriate JSON delivery while preserving profiles, grounding, evidence and acceptance.
+- Direct patch guarding understands Codex apply_patch, including rename destinations.
+- Clear user authorization carries forward; ambiguous scope and final acceptance retain user decisions.
+- Codex context capacity stays unknown when the host supplies no reliable measurement.
 
 ## 2.6.0 — 2026-09-05
 

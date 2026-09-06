@@ -1,80 +1,54 @@
-# Contributing
+# Contributing to the Codex port
 
-This plugin is part of the [Foundry Collection](https://github.com/V-Songbird/foundry) and is maintained by a single author. Contributions are welcome in the form of bug reports, suggestions, and pull requests.
+This branch ports Foreman from the [Foundry collection](https://github.com/V-Songbird/foundry)
+while preserving its roadmap, handoff, acceptance, and continuity behavior.
+Keep the original Foundry checkout and Claude Code submodule unchanged.
 
----
-
-## Before opening a PR
-
-- Check existing issues first — the problem may already be tracked or intentionally deferred.
-- For substantial changes (new skills, significant refactors), open an issue first to align on direction before writing code.
-
----
+Work on `codex/port` or an authorized non-main branch. Never write or commit on
+`main`. Do not push, merge, or publish as a side effect of local development.
 
 ## Structure
 
-```
-.claude-plugin/
-└── plugin.json        # name, description, author, keywords — NO version
-                        # field (the version is owned by foundry's
-                        # .claude-plugin/marketplace.json)
-CHANGELOG.md            # dated entries, newest first
-LICENSE                 # MIT
-README.md               # plain-language intro first, technical depth after
-skills/                 # if the plugin has skills
-├── skill-name/
-│   ├── SKILL.md        # Claude Code skill definition
-│   └── references/     # Reference files loaded by the skill
-hooks/
-└── hooks.json          # Hook event wiring (PreToolUse, PostToolUse, etc.)
-scripts/                # if the plugin has helper CLIs
-tests/                  # required when the plugin has scripted behavior
-```
+- `.codex-plugin/plugin.json`: Codex metadata and this port's version.
+- `skills/`: five workflows, supporting references, and Codex UI metadata.
+- `hooks/hooks.json`: automatically discovered Codex command hooks.
+- `hooks/codex-task.js`: explicit start/check lifecycle bridge.
+- `scripts/`: dependency-free Node.js roadmap, prompt, evidence and metrics core.
+- `tests/`: behavioral regressions, hook payload fixtures and prompt contracts.
+- `CODEX.md`: supported runtime contract and limitations.
 
-Every README shares one skeleton, tone, and style, defined in foundry's [`.github/PLUGIN_README_TEMPLATE.md`](https://github.com/V-Songbird/foundry/blob/main/.github/PLUGIN_README_TEMPLATE.md).
+Use Codex's native capabilities where they improve the implementation. Preserve
+Foreman's intent and data contracts. Historical Claude model/source values stay
+readable; runtime compatibility is not a reason to rewrite past records.
 
----
+## Validation
 
-## What to keep in mind
+Run with Node.js 22 or later and Git on PATH:
 
-**Skills are Claude-facing instruction files.** Changes to `SKILL.md` affect how Claude interprets a skill — be precise, and test manually by invoking the affected skill in a real session before submitting.
-
-**Hooks are scripts that run on every tool call or session event.** Keep them fast (no network, no blocking I/O) and test on both Unix and Windows.
-
----
-
-## Tests
-
-If this plugin has scripted behavior, run its tests before submitting:
-
-```
+```sh
 node --test tests/*.test.js
+node scripts/git-hooks/check-readme-nav.js
 ```
 
-PRs that change script behavior without updating tests will not be merged.
+CI runs on Linux and Windows. Use the installed plugin-creator validator for
+`.codex-plugin/plugin.json` and skill-creator's `quick_validate.py` for edited
+skills when available. Those validators live in the Codex installation, not in
+this repository. Real installed-host smoke testing complements local hook
+fixtures; report which was actually performed.
 
----
+Preserve meaningful assertions when adapting Claude-specific test contracts.
+Test observable behavior and edge cases, not only new prose. Keep hooks quick,
+local, bounded, and tolerant of missing host data. Do not install anything or
+write a user's marketplace/configuration as part of a test.
 
-## Git hooks
+## Optional Git hooks
 
-Run this once after cloning:
-
-```
+```sh
 git config core.hooksPath scripts/git-hooks
 ```
 
-This enables a `pre-commit` hook that runs `node --test tests/*.test.js` and blocks the commit on failure. It no-ops if this plugin has no `tests/` directory.
-
-The same `pre-commit` hook then scans your staged content against a private blocklist of reference-project names and blocks the commit if one appears outside a `README.md`. A second hook, `commit-msg`, applies the same scan to the commit message itself. The blocklist is not committed, so both hooks pass silently when it is absent — if a commit of yours is refused, reword the offending line to a generic description ("a rival tool") and try again.
-
----
-
-## Changelog
-
-Add an entry to `CHANGELOG.md` under `[Unreleased]` for every user-visible change. Follow the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. Version bumps and marketplace listing changes happen in [foundry](https://github.com/V-Songbird/foundry), not here.
-
----
-
-## Code of conduct
-
-This project follows the [Contributor Covenant 2.1](./CODE_OF_CONDUCT.md).
+The pre-commit hook runs the test suite and the existing repository checks.
+Reference-name checks pass silently when the private blocklist is absent.
+Add user-visible changes under `[Unreleased]` in `CHANGELOG.md`. The original
+release history remains historical; the Codex manifest owns this branch's
+prerelease version. See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).

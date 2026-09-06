@@ -1,0 +1,27 @@
+{
+  "name": "foreman",
+  "version": "3.0.0-codex.1",
+  "description": "Project continuity for Codex: maintain a correctable roadmap, choose useful work, and craft grounded handoffs with verifiable completion evidence.",
+  "author": {
+    "name": "Victor Villegas",
+    "email": "victor.villegas@tuta.com"
+  },
+  "homepage": "https://github.com/V-Songbird/foreman",
+  "repository": "https://github.com/V-Songbird/foreman",
+  "license": "MIT",
+  "keywords": ["codex", "roadmap", "planning", "project-continuity", "handoff"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Foreman",
+    "shortDescription": "A roadmap that stays grounded in your code",
+    "longDescription": "Keep your plan beside the code, reconcile stale work, and turn tasks into checked Codex prompts. Preserve commit evidence, acceptance, and optional lessons across sessions.",
+    "developerName": "Victor Villegas",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write", "Interactive"],
+    "websiteURL": "https://github.com/V-Songbird/foreman",
+    "defaultPrompt": ["Use Foreman to find the next useful task.", "Check my roadmap against the code.", "Craft a Codex prompt for this task."],
+    "brandColor": "#2F855A",
+    "logo": "./assets/logo.svg",
+    "logoDark": "./assets/logo-dark.svg"
+  }
+}

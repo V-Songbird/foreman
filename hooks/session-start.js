@@ -19,15 +19,13 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { readInput, projectDir } = require("./lib");
+const { readInput, projectDir, pluginDir } = require("./lib");
 const crypto = require("crypto");
 
 const { readEntries, today, TERMINAL_STATUSES } = require("../scripts/roadmap");
 const { record: recordTrial, startSession: startTrialSession } = require("../scripts/trial-log");
 
-const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
-  ? path.resolve(process.env.CLAUDE_PLUGIN_ROOT)
-  : path.resolve(__dirname, "..");
+const PLUGIN_ROOT = pluginDir();
 const SCRIPT_PATH = path.join(PLUGIN_ROOT, "scripts", "roadmap.js");
 
 // An entry untouched this long gets its last-activity date called out.
@@ -59,8 +57,8 @@ function buildMessage(open, todayStr) {
     `[Foreman] Roadmap entries still open: ${items.join(", ")}. ` +
     "Informational only — don't act on this unless the user asks. If one " +
     "of these actually concluded, it can be closed via " +
-    `echo '{"id":"<id>","status":"<done|dropped>","commit":"<sha>","notes":"..."}' | node ${SCRIPT_PATH} update-status ` +
-    "(commit first if code changed); /foreman:roadmap offers to resume, accept, or review."
+    `echo '{"id":"<id>","status":"<done|dropped>","commit":"<sha>","notes":"..."}' | node "${SCRIPT_PATH}" update-status ` +
+    "(commit first if code changed); ask Foreman to resume, accept, or review."
   );
 }
 
@@ -113,8 +111,7 @@ function shouldOfferArchive(root, todayStr) {
   return true;
 }
 
-function main() {
-  const data = readInput();
+function main(data = readInput()) {
   // The matcher already gates to startup|clear; keep a defensive check so a
   // broader matcher edit can't silently make this fire on every compaction.
   if (data.source && data.source !== "startup" && data.source !== "clear") return;

@@ -1,54 +1,43 @@
 # Foreman settings
 
-Foreman keeps optional project settings in `.foreman/config.json`.
-`/foreman:init` writes that file empty, because every setting below already
-has a safe default in the code that reads it. Most projects never open it.
+Optional project settings live in `.foreman/config.json`. Initialization starts
+with `{}` unless you request particular options. Existing configuration and
+legacy ledger aliases remain readable.
 
-## The ones you might change
+## Settings
 
-| Setting | What it does |
+| Setting | Behavior |
 | --- | --- |
-| `requireVerification` | Hold off marking a task done after a commit until you confirm it's verified. The task waits on you, with its commit recorded. Your confirmation closes it, and "not ready" sends it back. On by default. Set `false` to close a task as soon as its commit lands. |
-| `discoverySuggestions` | After each commit, offer new roadmap entries Claude spotted in the work. On by default. Set `false` to turn it off. The roadmap itself is never pasted into the commit's context. |
-| `checkpoints` | How a split run saves its work: `{baseBranch, branch, onFinish}`. By default it uses a `foreman/<slug>` branch and asks once, at the end of the first run, what to do with it — squash, merge, PR, or keep. Your answer is remembered here. Checkpoint commits stay local, and a run that starts on a dirty tree makes **no** automated commits at all. |
-| `usePersona` | Whether handoff prompts open with a "You are a…" role sentence (default `true`), or plain domain framing. |
-| `omitSections` | Prompt sections to leave out entirely: `tone`, `example`, `background`, `output_format`. Default none. |
-| `ledger` **[Beta]** | One place for what a finished task learned, described in [`ledger.md`](ledger.md): `{enabled, dir}`. Off by default, and the youngest setting here — expect rough edges. A finished task can leave one sentence about the code it touched. The next task that plans to touch those files is handed it, and so is anyone who opens one of them. Every sentence comes with a note saying whether that code has moved since, and one that turns out to be wrong can be retired so it stops being quoted. `dir` says where a `[Foreman: 019]` comment should look for a written decision, if your project keeps one — Foreman only reads there, never writes. Turning it back off deletes nothing already recorded. If your settings still say `decisionLog` or `areaNotes`, leave them; both still work, and `decisionLog.gate` no longer does anything. |
+| `requireVerification` | Default `true`. Record implementation evidence and hold the entry at `awaiting_acceptance` until you accept it. `false` allows the ordinary evidence-backed close without a separate acceptance hold. |
+| `discoverySuggestions` | Default `true`. After a successful commit, offer newly discovered work. Suggestions do not authorize adding unrelated work. |
+| `checkpoints` | `{baseBranch, branch, onFinish}`. Split execution uses a work branch (normally `foreman/<slug>`), local checkpoints, and a user-selected finish action: squash, merge, PR, or keep. A dirty starting tree disables automated commits. Existing branch restrictions still apply; no protected branch is chosen implicitly. |
+| `usePersona` | Default `true`. Include a brief role sentence in a handoff; `false` uses domain framing. This never selects the executing model. |
+| `omitSections` | Optional list drawn from `tone`, `example`, `background`, `output_format`. Required grounding and acceptance constraints remain. |
+| `ledger` | `{enabled, dir}`. Off by default. Store useful lessons and recall them with freshness labels. `dir` locates existing decision documents (default `docs/foreman`); Foreman reads those documents, it does not author them. Disabling the ledger deletes nothing. Legacy `decisionLog` and `areaNotes` still work; `decisionLog.gate` is ignored. |
+| `taskCloseGate` | `"off"` by default; `"block"` enables a scoped Codex `Stop`/`SubagentStop` reminder after an explicit unresolved `codex-task.js check`. The hook consumes that attempt once and respects `stop_hook_active`. It never blocks an entry awaiting acceptance or unrelated work in the roadmap. |
+| `trialLog` | Off by default. Keeps `.foreman/trial-log.jsonl` locally with bounded counts, booleans and enum values; no task titles, paths, entry IDs, or user text. See [TRIALS.md](TRIALS.md). |
 
-Two of them are asked for you, once, at the moment they first matter:
-`checkpoints` at the end of the first split run, and `ledger` at the first
-pick where a finished task already touched the files this one plans to. A
-missing key means off, and its absence is also how Foreman knows the
-question was never put to you.
+The checkpoint finish preference is requested when it first matters. The ledger
+is offered once when a pick would benefit from previously completed overlapping
+work. A declined ledger offer is remembered.
 
-## Everything else
+## Context and runtime
 
-`taskCloseGate` decides what happens when a tracked task finishes with its
-roadmap entry still open — `"off"` (default) says nothing, `"block"` stops
-the first completion attempt with instructions to close the entry; the
-retry then passes.
+The destination choice retains Foreman's context-capacity signal when a host
+actually supplies it. Codex 0.145.0 hook payloads do not supply a reliable current
+context-fill measurement, so this port makes no estimate and does not read
+Claude settings/transcripts for Codex events. Use the native Codex context
+indicator or a fresh task when needed; unknown capacity is not treated as zero.
 
-"How do you want to run this?" points a session that is filling up at the
-clipboard, so the work starts in a fresh window instead of a crowded one. It
-can only say that when it knows how much room your window has, and nothing
-Foreman can read carries that by default. Two things tell it: the
-`CLAUDE_CODE_AUTO_COMPACT_WINDOW` environment variable, or an
-`autoCompactWindow` key in your Claude Code `settings.json` — the value is
-the point your session compacts at, between 100000 and 1000000 tokens. With
-neither set, the question stays quiet about context and recommends on
-everything else.
-
-`trialLog` keeps a local log of how Foreman is used, so its own health
-numbers can be measured. Off by default. It records counts, booleans, and
-Foreman's own branch names — never a task title, a file path, an id, or
-anything you typed. The file is `.foreman/trial-log.jsonl`, it never leaves
-your machine, and deleting it at any moment is supported. See
-[`TRIALS.md`](TRIALS.md).
+CLI project resolution is `FOREMAN_PROJECT_DIR`, then optional `CODEX_CWD`, then
+legacy `CLAUDE_PROJECT_DIR`, then the current working directory. Run from your
+target project or set the first variable explicitly. Plugin hooks resolve paths
+from Codex's `PLUGIN_ROOT`; skills resolve their installed resource paths from
+the loaded skill's location.
 
 ## Sharing a session with another plugin
 
-When another plugin already supplies the session persona and output voice,
-Foreman can stay out of those lanes:
+To leave the persona and presentation voice to another plugin:
 
 ```json
 {
@@ -57,5 +46,4 @@ Foreman can stay out of those lanes:
 }
 ```
 
-Foreman does not detect other plugins. This works with any persona or
-output-style plugin.
+Foreman does not detect other plugins or rewrite your Codex configuration.

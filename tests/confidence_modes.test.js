@@ -4,83 +4,49 @@ const { test, describe } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
-
-// [Foreman: 141] Two confidence modes, named the way PRODUCT-STRATEGY.md
-// names them: Fast pick is the default cheap recommendation, Reconcile and
-// pick is the explicit deeper pass that repairs first. The deeper one is
-// composition — a scoped survey, then the normal pick — so these pin the
-// sequence, the scoping hook, and the never-auto-run rule rather than any
-// new mechanism.
 const read = (...rel) => fs.readFileSync(path.join(__dirname, "..", ...rel), "utf-8");
-
-const roadmap = read("skills", "roadmap", "pick.md");
+const pick = read("skills", "roadmap", "pick.md");
 const survey = read("skills", "survey", "SKILL.md");
 const entrance = read("skills", "foreman", "SKILL.md");
-const howItWorks = read("HOW-IT-WORKS.md");
+const destination = read("skills", "roadmap", "destination-question.md");
 
 describe("two confidence modes", () => {
-  // The README is the plain-language front page; the two pick modes are a
-  // mechanism, so they live in HOW-IT-WORKS.md. Both must still name them.
-  test("both modes are named, in the roadmap skill and HOW-IT-WORKS.md", () => {
-    for (const [name, text] of [
-      ["roadmap skill", roadmap],
-      ["HOW-IT-WORKS.md", howItWorks],
-    ]) {
-      assert.match(text, /\*\*Fast pick\*\*/, `${name} does not name Fast pick`);
-      assert.match(text, /\*\*Reconcile and pick\*\*/, `${name} does not name Reconcile and pick`);
+  test("both modes remain discoverable in skills and product documentation", () => {
+    for (const [name, text] of [["pick", pick], ["entrance", entrance], ["documentation", read("HOW-IT-WORKS.md")]]) {
+      assert.match(text, /Fast pick/, `${name} lacks fast mode`);
+      assert.match(text, /Reconcile and pick/, `${name} lacks reconcile mode`);
     }
   });
-
-  test("fast pick is stated as the default and left unchanged", () => {
-    assert.match(roadmap, /This is \*\*Fast pick\*\*, the default and the whole of this branch/);
-    assert.match(roadmap, /nothing\s+below changes because the other mode exists/);
-    // The no-investigation rule is what makes it the cheap mode.
-    assert.match(roadmap, /\*\*This branch does not investigate the codebase\. At all\.\*\*/);
+  test("default pick is mechanical rather than a codebase survey", () => {
+    assert.match(pick, /\*\*Fast pick\*\* is the default/);
+    assert.match(pick, /does not investigate the codebase/);
+    assert.match(pick, /Do not read the full backlog/);
   });
-
-  test("the deeper mode keeps the investigate → propose → apply → recommend order", () => {
-    assert.match(
-      roadmap,
-      /\*\*investigate → propose → apply →\s+recommend\.\*\*/,
-      "the reconcile sequence is not stated in order"
-    );
-    const steps = ["\\*\\*Investigate\\*\\*", "\\*\\*Propose\\*\\*", "\\*\\*apply\\*\\*", "\\*\\*Recommend\\*\\*"];
-    let cursor = -1;
-    for (const step of steps) {
-      const at = roadmap.slice(cursor + 1).search(new RegExp(step));
-      assert.ok(at >= 0, `reconcile step out of order or missing: ${step}`);
-      cursor += 1 + at;
-    }
-    assert.match(roadmap, /It is composition, not a second pick flow/);
+  test("reconcile retains investigate, review, authorized repair, then refreshed ranking", () => {
+    assert.match(pick, /investigate → propose → apply → recommend/);
+    assert.match(pick, /let its evidence, review, and\s+authorized repairs finish, then refresh the menu/);
   });
-
-  test("the near-term set is defined mechanically from one menu call", () => {
-    assert.match(
-      roadmap,
-      /every `candidates\[\]\.id`, plus every\s+`in_progress\[\]\.id`, plus every `awaiting_acceptance\[\]\.id`/
-    );
-    assert.match(roadmap, /no second call computes it/);
+  test("near-term scope comes from the single compact menu", () => {
+    assert.match(pick, /from one `next-candidates --menu` result/);
+    for (const key of ["candidates[].id", "in_progress[].id", "awaiting_acceptance[].id"]) assert.ok(pick.includes(key));
+    assert.match(survey, /If the caller supplies ids, those ids are the scope/);
   });
-
-  test("survey takes a handed-over set of ids as its scope", () => {
-    assert.match(survey, /If a caller handed over a set of ids, that set \*\*is\*\* the scope/);
-    assert.match(survey, /\*\*Reconcile and pick\*\*'s near-term set/);
-    assert.match(survey, /skip\s+the `next-candidates` call below/);
-    // Scoping must not fork the finding/approval/apply machinery.
-    assert.match(survey, /steps 2–4 run exactly as\s+written/);
+  test("stale or uncertain evidence can offer a survey but never auto-run one", () => {
+    assert.match(pick, /more than 30 days/);
+    assert.match(pick, /survey \(unconfirmed\):/);
+    assert.match(pick, /Age alone never starts a survey/);
+    assert.match(entrance, /Run it only when\s+the user requests it/);
   });
-
-  test("the deeper mode is offered in one line and never auto-run", () => {
-    assert.match(roadmap, /\*\*Offering it from Fast pick — one line, never a run\.\*\*/);
-    assert.match(roadmap, /Never as a blocking question, never started on your own/);
-    assert.match(roadmap, /survey \(unconfirmed\):` breadcrumb/);
-    assert.match(roadmap, /more\s+than \*\*30 days\*\* before today/);
-    // The entrance holds the same rule from its side.
-    assert.match(entrance, /the\s+user asks for that or it doesn't happen/);
+  test("all four destination choices remain available", () => {
+    for (const option of ["Execute here", "Execute here, split by check",
+      "Execute with a background agent", "Copy prompt to clipboard"]) assert.ok(destination.includes(option));
+    assert.match(destination, /Do not lose a\s+destination because a question tool has a smaller option limit/);
   });
-
-  test("the entrance names the modes the same way", () => {
-    assert.match(entrance, /\*\*pick work\*\* is \*\*Fast pick\*\*, the default confidence mode/);
-    assert.match(entrance, /\*\*reconcile and pick\*\* is the other confidence mode, \*\*Reconcile and pick\*\*/);
+  test("recommendation uses actual context, parallelism, checks, and clean-tree facts", () => {
+    assert.match(destination, /Exactly one option gets `\(Recommended\)`/);
+    assert.match(destination, /selected candidate's `collision` is explicitly\s+false/);
+    assert.match(destination, /at least two checks/i);
+    assert.match(destination, /Unknown context is unknown/);
+    assert.match(destination, /Do not hide a cautioned option/);
   });
 });

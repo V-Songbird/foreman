@@ -19,7 +19,7 @@ const { makeTmpProject, writeRoadmap, writeArchiveFile, writeConfig, initGitRepo
 
 const SAFE_COMMIT = path.join(SCRIPTS_DIR, 'safe-commit.js');
 const TEMPLATE = fs.readFileSync(path.join(__dirname, '..', 'prompt-template.md'), 'utf-8');
-const { entryParagraphText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
+const { entryParagraphText, checkpointEmbedText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
 
 let project;
 let env;
@@ -674,19 +674,16 @@ describe('the close and checkpoint choreography is documented without git add -A
   test('the template checkpoint section gates on safe-commit begin', () => {
     const section = TEMPLATE.slice(TEMPLATE.indexOf('## Checkpointing a task-split run'));
     assert.ok(section.includes('scripts/safe-commit.js begin'), 'checkpoints take the boundary first');
-    assert.ok(section.includes('this run makes no automated commits at\n  all'), 'a dirty tree makes no checkpoint commits');
-    assert.ok(section.includes('safe-commit.js finish --no-commit'), 'the roadmap close stages through the primitive');
-    assert.ok(section.includes('Never `git add -A`'), 'and says so outright');
+    assert.match(section, /Existing changes mean no checkpoint commits for this run/);
+    assert.match(section, /stages through finish --no-commit/);
+    assert.match(section, /Do not use git add -A/);
     assert.doesNotMatch(section, /`git add -A`,? (and|then) commit/, 'nothing here stages everything and commits it');
     assert.doesNotMatch(section, /stage everything/, 'nor stages everything for the roadmap close');
     assert.doesNotMatch(section, /will ride along/, 'the warn-and-absorb sentence is gone');
   });
 
   test('the clipboard checkpoint embed stages narrowly too', () => {
-    const embed = TEMPLATE.slice(
-      TEMPLATE.indexOf('**Clipboard checkpoint embed**'),
-      TEMPLATE.indexOf('## Splitting an `Execute here` handoff')
-    );
+    const embed = checkpointEmbedText({ baseBranch: 'main', branch: true, onFinish: 'ask' }, 2, '001');
     assert.ok(embed.includes('never `git add -A`'));
     assert.doesNotMatch(embed, /`git add -A` and commit/);
   });
@@ -703,8 +700,8 @@ describe('the close and checkpoint choreography is documented without git add -A
       isDecision: false,
       destination: 'clipboard',
     });
-    assert.ok(paragraph.includes('scripts/safe-commit.js begin'));
-    assert.ok(paragraph.includes('safe-commit.js finish --baseline <baseline.head> --no-commit'));
+    assert.match(paragraph, /scripts\/safe-commit\.js' begin/);
+    assert.match(paragraph, /safe-commit\.js' finish --baseline <baseline.head> --no-commit/);
     assert.ok(paragraph.includes('never `git add -A`'));
     assert.doesNotMatch(paragraph, /stage everything \(`git add -A`\)/);
   });

@@ -1,78 +1,37 @@
 ---
 name: foreman
-description: The one entrance to Foreman — say what you want in plain language and this routes it. Covers the six things Foreman does to a project: add work, show status, correct work, check the roadmap, pick work, or reconcile and pick. It owns no flow of its own; each intent is handed to the skill that already implements it, so there is nothing here to learn beyond describing what you want.
-when_to_use: Trigger on any plain-language Foreman request that does not already name a command — "what should I work on", "add this to the roadmap", "where does the project stand", "that entry's description is wrong", "my roadmap is broken", "is the roadmap file healthy", "check the roadmap's still right and then give me something", "foreman" on its own, or invokes /foreman:foreman. Skip it when the user named the specialized skill they want (/foreman:roadmap, /foreman:survey, /foreman:init, /foreman:craft-prompt) — go straight there.
-argument-hint: "<what you want, in plain language>"
-allowed-tools: AskUserQuestion, Skill
+description: Keep a project's plan and task history with Foreman. Route requests to add work, review status, correct a task, check the roadmap, pick the next task, or reconcile the plan against code. Use for Foreman or roadmap requests, not ordinary implementation work.
 ---
 
-# foreman — the one entrance
+# Foreman
 
-This skill routes. It does not add, pick, correct, or survey anything
-itself, and it never reads or writes `ROADMAP.jsonl`. Every step
-of every flow lives in the skill that owns it; duplicating any of it here
-would give Foreman two versions of the same truth. Classify the request,
-say in one short line which flow is taking it, then hand off and let that
-skill run from its own first step.
+Route the user's intent to the existing flow below. Read the linked skill and
+the relevant branch; this entrance owns no flow and never reads or writes
+`ROADMAP.jsonl` itself.
 
-## The six intents
-
-| The user says something like… | Intent | Route to |
+| Intent | Typical request | Read |
 | --- | --- | --- |
-| "add this", "put X on the roadmap", "we also need to…", "track this for later" | **add work** | `foreman:roadmap` → "Branch: Add a task" |
-| "where are we", "roadmap status", "what's left", "what's waiting on me" | **show status** | `foreman:roadmap` → "Branch: Review status" |
-| "that entry is wrong", "reword 003", "retarget 007 at the proxy", "its description is stale" | **correct work** | `foreman:roadmap` → "Branch: Correct a task" |
-| "my roadmap is broken", "check the roadmap", "is the roadmap file healthy" | **check the roadmap** | `foreman:roadmap` → "Branch: Check the roadmap" |
-| "what's next", "pick a task", "something quick on auth", "give me work" | **pick work** | `foreman:roadmap` → "Branch: Pick the next task" |
-| "is the roadmap still accurate — then give me something", "double-check the top tasks before I start", "audit it and pick" | **reconcile and pick** | `foreman:survey` first, then `foreman:roadmap` → "Branch: Pick the next task" |
+| **add work** | "track this for later" | [roadmap](../roadmap/SKILL.md), then `add.md` |
+| **show status** | "where are we?" | [roadmap](../roadmap/SKILL.md), then `status.md` |
+| **correct work** | "003's description is wrong" | [roadmap](../roadmap/SKILL.md), then `correct.md` |
+| **check the roadmap** | "is the roadmap file healthy?" | [roadmap](../roadmap/SKILL.md), then `doctor.md` |
+| **pick work** | "what's next?" | [roadmap](../roadmap/SKILL.md), then `pick.md` |
+| **reconcile and pick** | "check the plan against the code, then give me work" | [roadmap](../roadmap/SKILL.md), then `pick.md`'s reconcile path and [survey](../survey/SKILL.md) |
 
-Notes that change how a route is handed over:
+**Fast pick** is the default confidence mode. It ranks stored work and checks
+the selected prompt mechanically; it does not audit the codebase.
+**Reconcile and pick** investigates first and costs more. Run it only when
+the user requests it; age alone does not authorize a survey.
 
-- **pick work** is **Fast pick**, the default confidence mode and the sense of
-  a bare "what's next": that branch deliberately does not investigate the
-  codebase. Don't
-  promote it to **reconcile and pick** because the roadmap looks old — the
-  user asks for that or it doesn't happen.
-- **reconcile and pick** is the other confidence mode, **Reconcile and pick**
-  — those two flows in sequence, nothing new:
-  `foreman:survey` ground-truths the near-term candidates and applies only
-  the repairs the user approves, one finding at a time, and then the pick
-  branch runs on the repaired roadmap. Hand off to the survey skill first
-  and let it finish — including its own report — before the pick starts.
-  Say up front that the reconcile half costs real tokens, since that is the
-  whole difference from a plain pick.
-- **check the roadmap** is a structural check — is the file itself well
-  formed (duplicate ids, broken dependency edges, a stale schema version)
-  — not a check against the codebase. That's the difference from
-  **reconcile and pick**: this one never touches `foreman:survey` and never
-  leads into a pick unless the user separately asks for one.
-- Four of the five roadmap intents can also be reached by the user picking
-  from `foreman:roadmap`'s own menu; **check the roadmap** is phrase-reached
-  only. Route to the branch when the request already names one; hand over
-  without a branch when it genuinely doesn't.
+When two intents fit and the distinction changes the work, ask one concise
+question about those two. Skip routing questions when the intent is clear.
+If the user names a specialized skill, go straight to it.
 
-## When the request fits two intents
+Other Foreman capabilities have their own entrance:
 
-Ask **one** `AskUserQuestion` naming the closest two intents in the user's
-own terms — never a menu of all six, and never a guess dressed up as a
-route. Then hand off to the one they pick.
+- Set up a project: [init](../init/SKILL.md).
+- Explicitly build or refine a standalone prompt: [craft-prompt](../craft-prompt/SKILL.md).
+- Accept, resume, defer, archive, and restore work: the roadmap flow.
 
-The pairs worth expecting: "what's next" after describing new work (add
-work vs. pick work), "the plan looks off" (correct work vs. reconcile and
-pick), and "sort out what's next" (pick work vs. reconcile and pick).
-
-## Anything else is out of scope here
-
-This entrance covers those six intents and nothing else. When a request
-falls outside them, name the skill that owns it in one line and stop —
-don't stretch a route to fit:
-
-- setting a project up for the first time, or re-initializing it —
-  `foreman:init`.
-- building a handoff prompt for something that isn't a roadmap entry —
-  `foreman:craft-prompt`.
-- accepting, resuming, deferring, or archiving entries — those live inside
-  `foreman:roadmap`'s branches above; route to the intent that carries them
-  rather than describing the mechanics here.
-- anything that isn't a Foreman request at all — this skill has no opinion
-  on it and shouldn't have taken the turn.
+Read [runtime.md](runtime.md) when executing a flow. It contains the shared
+Codex capability, authorization, path, and bookkeeping rules.

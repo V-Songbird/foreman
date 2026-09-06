@@ -2,13 +2,16 @@ name: Test
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'codex/**']
   pull_request:
     branches: [main]
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -17,12 +20,7 @@ jobs:
           node-version: 22
 
       - name: manifests parse
-        run: node -e 'for (const f of [".claude-plugin/plugin.json","hooks/hooks.json"]) JSON.parse(require("fs").readFileSync(f,"utf-8"))'
+        run: node -e 'for (const f of [".codex-plugin/plugin.json","hooks/hooks.json"]) JSON.parse(require("fs").readFileSync(f,"utf-8"))'
 
-      - name: run tests (no-op if this plugin has no tests/ directory)
-        run: |
-          if [ -d tests ]; then
-            node --test tests/*.test.js
-          else
-            echo "no tests/ directory, nothing to run"
-          fi
+      - name: run tests
+        run: node --test tests/*.test.js

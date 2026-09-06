@@ -134,7 +134,7 @@ describe('corrupt ROADMAP.jsonl', () => {
     fs.writeFileSync(path.join(project, 'ROADMAP.jsonl'), 'not json at all\n', 'utf-8');
     const out = run(bashPayload('git commit -m "wip"'));
     assert.match(out, /could not be parsed/i);
-    assert.match(out, /roadmap\.js doctor/);
+    assert.match(out, /roadmap\.js\\?" doctor/);
     assert.match(out, /only reports, it never rewrites/);
     assert.doesNotMatch(out, /update-status/);
   });
@@ -300,7 +300,7 @@ describe('requireVerification gate', () => {
     writeConfig(project, { requireVerification: true });
     const out = run(bashPayload('git commit -m "finish task"'));
     assert.match(out, /requireVerification is on/);
-    assert.match(out, /AskUserQuestion/);
+    assert.match(out, /ask the user/);
     assert.match(out, /don't close it out yet/);
     assert.match(out, /confirmation/i);
   });
@@ -768,7 +768,7 @@ describe('the discovery inclusion bar switch', () => {
     for (const shared of [
       'MUST go through the duplicate check',
       'do NOT run extra',
-      'Never act without asking',
+      'ask before acting on a new suggestion',
       'skip the suggestions',
     ]) {
       assert.ok(plain.includes(shared), `control lost "${shared}"`);

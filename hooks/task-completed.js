@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 "use strict";
 
+// Legacy adapter retained for explicit TaskCompleted payload callers. Codex
+// uses codex-task.js check and the scoped, opt-in Stop adapter instead.
+
 // TaskCompleted — the mechanical mirror of task-created.js: instead of
 // mechanizing the OPEN transition, this gates the CLOSE. A task completing
 // while its named roadmap entry is still open (planned or in_progress) is
@@ -39,7 +42,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { readInput, projectDir } = require("./lib");
+const { readInput, projectDir, pluginDir } = require("./lib");
 const crypto = require("crypto");
 
 const { readEntries } = require("../scripts/roadmap");
@@ -65,9 +68,7 @@ const { ENTRY_MARKER_RE, entryIdFromDescription } = require("./task-created");
 const OPEN_STATUSES = new Set(["planned", "in_progress"]);
 const GATE_MODES = new Set(["off", "block"]);
 
-const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
-  ? path.resolve(process.env.CLAUDE_PLUGIN_ROOT)
-  : path.resolve(__dirname, "..");
+const PLUGIN_ROOT = pluginDir();
 const SCRIPT_PATH = path.join(PLUGIN_ROOT, "scripts", "roadmap.js");
 
 function readConfig(root) {
@@ -110,7 +111,7 @@ function shouldGate(root, taskId) {
 
 function closeCommand(id) {
   return (
-    `echo '{"id":"${id}","status":"done","commit":"<sha>"}' | node ${SCRIPT_PATH} update-status ` +
+    `echo '{"id":"${id}","status":"done","commit":"<sha>"}' | node "${SCRIPT_PATH}" update-status ` +
     "(or `annotate` findings instead, for an investigation-only close with no commit)"
   );
 }
@@ -133,8 +134,7 @@ function write(payload) {
   }
 }
 
-function main() {
-  const data = readInput();
+function main(data = readInput()) {
   if (data.hook_event_name && data.hook_event_name !== "TaskCompleted") return;
 
   const id = entryIdFromDescription(data.task_description);

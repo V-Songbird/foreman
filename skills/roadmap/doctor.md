@@ -1,39 +1,25 @@
-# Branch: Check the roadmap
+# Check the roadmap
 
-Read-only unless the user asks to fix something. This branch repairs
-nothing itself and never edits `ROADMAP.jsonl` directly — each repair below
-is its own named `roadmap.js` subcommand, run separately once the user
-picks one.
+Run `roadmap.js doctor`. It reports findings and
+`summary:{errors,warnings}`; informational hook-capability disclosures do not
+make a healthy file unhealthy. Explain actionable findings in plain language.
+The structural check does not inspect implementation code or select work.
 
-1. `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js doctor` — no stdin, no
-   required flags. Returns `{ok, findings, summary:{errors,warnings}}`.
-   Every run closes with one `severity: "info"` finding naming the Claude
-   Code hook events Foreman depends on. It is a disclosure, not a defect,
-   and it counts toward neither summary total — so read health off
-   `summary`, never off whether `findings` is empty. Both totals zero: say
-   the roadmap is healthy, pass on the disclosure in one line, and stop.
-2. Render the remaining findings in plain words, grouped by what's wrong —
-   never dump the raw JSON. Read out each finding's id(s) and its one-line `message`, then
-   name the repair by what it's about:
-   - format version wrong (`unsupported_schema_version`) → `migrate`
-   - an id claimed twice (`duplicate_id`) → `reassign-id`; the same id in
-     both `ROADMAP.jsonl` and the archive (`duplicate_across_files`) →
-     re-run the interrupted `archive` (or `restore`) on that id
-   - wrong/missing `title`, `why`, `what`, `kind`, or `planned_touches` →
-     `correct`
-   - an unrecognized status (`unknown_status`) → `update-status`
-   - a bad `depends_on` edge (missing target, self-reference, repeat,
-     cycle, or stuck on a dropped/rejected entry) → `update-deps`
-   - a `done`/`awaiting_acceptance` entry with no commits and no notes →
-     `annotate`
-   - a missing-but-defaulted array (`depends_on`/`planned_touches`/
-     `observed_touches`/`commits`/`notes`), a self-dependency, or a
-     repeated dependency (`repairable: true`) → offer
-     `roadmap.js doctor --fix`, which applies only those mechanical repairs
-   - anything else — a malformed id, an unrecognized `source`/`model`/
-     `effort`, a bad date, two entries that just read alike
-     (`similar_titles`), or a `.foreman/config.json` finding — has no
-     `roadmap.js` repair command; say so and name the field rather than
-     guessing one
-3. Ask which repair to run, one finding at a time (`AskUserQuestion`) —
-   this branch never chains repairs on its own.
+For an authorized repair, use the named operation:
+
+| Finding | Operation |
+| --- | --- |
+| Unsupported schema version | `migrate` |
+| Duplicate id | `reassign-id`, identifying the specific row |
+| Same id active and archived | inspect and recover the interrupted archive/restore |
+| Stale description, kind, or planned files | `correct` with expected values |
+| Bad status | `update-status` |
+| Missing, repeated, cyclic, or stuck dependency | `update-deps` |
+| Completion has no recorded evidence | `annotate` actual findings |
+| Mechanical default/self/repeated-dependency repair | `doctor --fix` for findings marked repairable |
+
+Show a concrete proposed repair before asking for any missing authorization.
+An explicit request to fix these mechanical defects permits applying the
+reported repairs. A health-check request alone remains read-only. Invalid ids,
+unknown metadata, malformed configuration, or merely similar titles may require
+human judgment; do not invent a repair command or hand-edit the stores.

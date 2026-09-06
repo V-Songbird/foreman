@@ -1,230 +1,101 @@
 ---
 name: init
-description: Bootstraps a project's ROADMAP.jsonl and .foreman/config.json. Asks three things — what the project is, its near-term goals, and whether the drafted roadmap looks right — then writes and commits both files, leaving every optional behavior at its built-in default. The ledger and checkpoint policy are never asked here; each is asked the first time it could actually matter.
-when_to_use: Trigger when the user wants to set up Foreman's roadmap for a project, says "init foreman", "set up the roadmap", "initialize foreman", "start a roadmap", or invokes /foreman:init. Usually a one-time-per-project action.
-argument-hint: "<brief project description — optional seed>"
-allowed-tools: AskUserQuestion, Read, Write, Bash
+description: Initialize a project's Foreman roadmap and config from its goals and repository context, or append to an existing roadmap. Use for Foreman setup or an explicitly requested reinitialization; preserves existing history and settings unless replacement was authorized.
 ---
 
-# foreman:init — bootstrap a project roadmap
+# Initialize Foreman
 
-Creates `ROADMAP.jsonl` and `.foreman/config.json` at the project root. Both
-are committed to git — they're a shared project artifact, not personal
-state. All reads/writes go through
-`${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js` (see "Write phase" below) — it
-enforces the write invariants (id computation, parse-before/after-write)
-mechanically, so you don't have to. Run it with `--help` for the command
-shapes; read the **Fields** section of
-`${CLAUDE_PLUGIN_ROOT}/roadmap-schema.md` if you need field semantics
-beyond what's obvious from the names (`why`/`what`/`depends_on`/`planned_touches`).
+Read [the shared runtime](../foreman/runtime.md). This flow creates
+`ROADMAP.jsonl` and `.foreman/config.json` using the project's existing context.
+Use `scripts/roadmap.js` for every entry write and [the schema](../../roadmap-schema.md)
+when needed. Keep setup focused on the project, near-term goals, and the draft.
 
-If args were provided, treat them as the project description seed and skip
-asking for it in Call 1.
+## Existing project
 
----
+If a roadmap exists, use an explicit user instruction to choose append or
+replace; otherwise ask: start fresh, add to the existing roadmap, or cancel.
+Appending preserves all existing entries and the config. Cancel changes nothing.
 
-<!-- [Foreman: 209] -->
-**Trial log.** Setup is one of the flows no script can see from outside, so
-these lines are the only record it left. Each is a no-op unless the project
-set `trialLog`, so none needs a check first and it never blocks the flow.
+Replacement requires a recoverable copy before clearing. First attempt the
+pathspec commit `git commit -m "chore: snapshot roadmap before foreman re-init" -- ROADMAP.jsonl`.
+Never stage broad paths or sweep unrelated staged work into the snapshot.
+Treat a clean, already committed roadmap as recoverable only after verifying
+its bytes match the committed version and naming that revision.
 
-At the **first question actually put to the user** — the Pre-check's Q1 below
-on a project that already has a roadmap, Call 1's Q1 otherwise — one line:
+If the snapshot fails, stop before clearing anything. Offer these recovery
+choices, using text if the question tool cannot represent all four:
 
-```
-node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js init_started '{}'
-```
+- `Retry the snapshot` after the git problem is resolved.
+- `Save a timestamped backup instead`: copy to
+  `ROADMAP.jsonl.backup-YYYYMMDD-HHMMSS` and, when present,
+  `.foreman/config.json.backup-YYYYMMDD-HHMMSS`, using the actual current stamp.
+  Use native shell copy operations, verify both copies, and report their paths.
+  The backups stay untracked and temporary; the user deletes them when satisfied.
+- `Continue without a snapshot — the old roadmap is lost`: proceed only on
+  the user's explicit choice, never by inference from an earlier overwrite.
+- `Cancel`: leave everything untouched.
 
-and, after every `AskUserQuestion` call in this skill, one event per call:
+Clear only after a verified snapshot, verified backup, or explicit acceptance
+of data loss. Record the old highest id first, including archive history:
+old trailers and anchors survive, so new entries must not reuse those ids.
+The first replacement `add` carries `"ids_after":"<old max>"`.
 
-```
-node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js question_asked '{"flow":"init"}'
-```
+## Understand and draft
 
-A Pre-check `Cancel` therefore leaves an `init_started` with no
-`init_completed`. That is the correct record of an abandoned setup, not a
-gap to paper over.
+Use the user's supplied project description and goals. For missing context,
+ask what the project does and its near-term goals, offering to read the repo
+and propose them. Ground proposals in README, manifests, entrypoints, and recent
+git history; distinguish those proposals from goals the user actually stated.
+An empty or unreadable project requires the missing description.
 
----
+Draft roughly 3–8 useful tasks in plain words: title and why. Use fewer when
+the user's scope calls for fewer. Dependencies connect only work that must
+happen first; do not manufacture a graph. Predicted paths can be areas or
+empty for unknown new code. Identify decision tasks as such.
 
-## Pre-check
+A request to initialize from already specified tasks authorizes their creation.
+When goals or scope were inferred, show the concrete draft and ask for the
+needed direction before writing. Explain that the new config will be `{}`:
+built-in defaults apply, final acceptance stays on, and optional ledger and
+checkpoint-policy choices wait until they matter. The user is reviewing both
+artifacts, not just the task names. Revise the draft when requested.
 
-If `ROADMAP.jsonl` already exists at the project root, ask before doing
-anything else:
+## Write and preserve
 
-**Q1** — "ROADMAP.jsonl already exists. What do you want to do?"
-Options: `Overwrite it (start fresh — discards done entries and their
-accumulated notes)`, `Keep it, just add to it`, `Cancel`
+1. Add entries in dependency order through `roadmap.js add`, supplying title,
+   why, what, source, depends_on, planned_touches, and optional decision kind.
+   Direct user goals use `source:"user"`; assistant-proposed goals retain their
+   actual origin with `source:"codex-suggested"`. The CLI computes ids, dates,
+   replay deduplication, and status.
+   An earlier successful `add` must exist before another references its id.
+2. Write `.foreman/config.json` as `{}` only if missing. If it exists, leave it
+   exactly as it is, including a recorded answer to a first-relevant ask.
+   Re-init must not throw away ledger or checkpoint choices. A malformed
+   existing config is reported and preserved. `ledger` stays absent initially:
+   an absent key records that the user was never asked.
+3. Commit only the artifacts this flow wrote, respecting the user's branch
+   constraints and the shared runtime's ownership rules. A pathspec commit of
+   those files avoids capturing unrelated staged work. Do not overwrite,
+   stage, or commit an existing config that this flow did not change.
+   If committing is blocked, report the written artifacts and the reason;
+   never claim setup was committed or completed when it was not.
 
-- Overwrite → continue to Call 1, the draft phase replaces the file.
-- Keep, add to it → skip straight to the draft phase, append new entries
-  instead of replacing, don't touch `.foreman/config.json` if it already
-  exists (write the defaults below only if the config file is missing).
-- Cancel → stop here.
+Report task count and relevant warnings, preserve every successful partial add
+if a later one fails, and point to the roadmap skill for the first pick.
 
----
+## Trial events
 
-## Call 1 — project and goals (batch 2)
+Each is a no-op unless the project set `trialLog` and never blocks the flow.
+Record actual interactions, not hypothetical interview steps:
 
-**Q1** — "What is this project?"
-Options: `I'll describe it`, `Read the repo and work it out`
-`I'll describe it` nudges the user into Other for a short description —
-what it does, what stack, new or existing codebase.
+- When setup starts:
+  `node <plugin-root>/scripts/trial-log.js init_started '{}'`
+- After each question:
+  `node <plugin-root>/scripts/trial-log.js question_asked '{"flow":"init"}'`
+- Once snapshot recovery resolves:
+  `node <plugin-root>/scripts/trial-log.js recovery_attempted '{"kind":"reinit-snapshot","success":<boolean>}'`
+- Only once the written artifacts are committed:
+  `node <plugin-root>/scripts/trial-log.js init_completed '{"tasks":<successful adds>}'`
 
-**Q2** — "What are the near-term goals for the roadmap?"
-Options: `I'll describe them`, `Propose some from the code`
-`I'll describe them` nudges toward Other — 2-5 concrete things they want
-to get done soon.
-
-On either read-the-code answer, ground the draft in what is actually
-there — the README, the manifest, the entry points, `git log` — and say in
-the draft which parts came from the repo rather than from the user. Call 2
-is where they correct it, so a wrong guess costs one round trip. If the
-repo is empty or unreadable, say so and ask the question again rather than
-drafting from nothing.
-
----
-
-## Defaults — never asked, never written
-
-There is no policy interview, and there is no settings file to compose.
-Every optional behavior already has a safe default in the code that reads
-it, so init writes `.foreman/config.json` as an empty object `{}` and lets
-those defaults stand: finished work waits for the user's confirmation,
-nothing blocks a task's completion, handoffs open with a persona sentence,
-and no prompt section is omitted.
-
-Writing those values out would only create a second copy that can drift
-from the readers. `ledger` stays absent for a second reason too: an absent
-key is the record that the user was never asked, so it gets asked once, the
-first time it could matter — by `foreman:roadmap` at the first pick whose
-files a finished task already touched. Checkpoint policy is asked the same
-way, at the first split run.
-
-Any of it can be set by hand later — see
-[`settings.md`](../../settings.md).
-
----
-
-## Draft phase (no AskUserQuestion)
-
-From the Call 1 answers, draft 3–8 initial `ROADMAP.jsonl` lines following
-the schema exactly:
-- `source: "user"` for every entry (nothing Claude-suggested exists yet —
-  these came from the user's own stated goals).
-- `status: "planned"`, `depends_on` filled in only where one task is
-  obviously sequential to another (don't invent dependencies that aren't
-  there).
-- `planned_touches` as a best-guess area hint per task, or `[]` if genuinely
-  unknown (a brand-new project has no files to point at yet — that's fine).
-  It is a prediction; what the work actually reaches gets recorded separately
-  at close, so a wrong guess costs nothing and `correct` can replace it.
-- ids `"001"` through `"00N"` (or continuing past the existing max, if
-  appending to an existing file per the pre-check).
-
-Present the draft as readable text, one task per line — `title` plus `why`
-— not a raw JSON dump. The user should be able to skim it in a few seconds.
-
----
-
-## Call 2 — approval
-
-Before asking, add one line saying what the config will be: verification
-confirmation on, every optional behavior off and asked about the first time
-it matters. The user is approving both files here, not just the roadmap.
-
-**Q1** — "Draft roadmap ready above. Proceed?"
-Options: `Looks good, write it`, `Let me adjust it first`
-
-If adjust: gather free-text revisions (add/remove/reword tasks), re-present
-the updated draft, ask again. Repeat until approved.
-
----
-
-## Write phase
-
-1. If the pre-check chose Overwrite: snapshot the existing file into git
-   before clearing it, so the discarded history is recoverable —
-   `Bash`: `git commit -m "chore: snapshot roadmap before foreman re-init" -- ROADMAP.jsonl`.
-   Use that pathspec form, never `git add` + commit: this branch runs in an
-   established project where unrelated staged work is likely, and a broad
-   `git add` would sweep it into a commit titled "snapshot roadmap".
-
-   **If the snapshot fails, stop before clearing anything.** A non-zero
-   exit is common (no repo, nothing to commit, a rejecting pre-commit
-   hook) and it is the difference between "your old roadmap is in git" and
-   "it is gone" — so it is the user's call, not a line in the report-back.
-   Ask one AskUserQuestion — "Snapshotting the existing roadmap failed:
-   <exit reason>. How do you want to proceed?" — with exactly these four
-   options:
-   - `Retry the snapshot` — the user fixes git (commits or stashes the
-     unrelated work, repairs the hook), then run the same command again.
-     Fails again → ask again.
-   - `Save a timestamped backup instead` — `Bash`:
-     `cp ROADMAP.jsonl "ROADMAP.jsonl.backup-$(date +%Y%m%d-%H%M%S)"`, and
-     if `.foreman/config.json` exists,
-     `cp .foreman/config.json ".foreman/config.json.backup-$(date +%Y%m%d-%H%M%S)"`.
-     Those exact destinations — never invent a folder or another name. The
-     backups stay untracked, since init stages only the two files it
-     writes; say where they landed and that they are temporary — the user
-     deletes them once satisfied with the new roadmap. If the copy itself
-     fails, ask again instead of clearing.
-   - `Continue without a snapshot — the old roadmap is lost` — proceed
-     only when the user picks this option explicitly. Never infer it from
-     an earlier answer or from the failure looking expected.
-   - `Cancel` — stop here, change nothing, and say the roadmap is
-     untouched.
-
-   <!-- [Foreman: 209] -->
-   **Trial log** — once the four-option question above reaches a definite
-   outcome, one line, one event per resolution rather than per retry:
-   ```
-   node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js recovery_attempted '{"kind":"reinit-snapshot","success":<true|false>}'
-   ```
-   `true` for a retry that exited 0 or a backup that copied; `false` for
-   `Continue without a snapshot` and for `Cancel`.
-
-   Clear the file only after a snapshot that exited 0, a backup that
-   copied, or that explicit continue — and before clearing, note the old
-   roadmap's highest id: `Foreman: <id>` commit trailers and
-   `[Foreman: <id>]` anchors from the old generation persist in git
-   history, so the new file must not reuse those ids. Then clear —
-   `Bash`: `> ROADMAP.jsonl` (or delete it) — and pass that highest id as
-   `"ids_after":"<old max>"` on the FIRST `add` call in step 2 below;
-   numbering continues past it and every later add follows on from there.
-2. For each drafted task, call `add` with its fields as JSON over stdin:
-   ```
-   echo '{"title":"...","why":"...","what":"...","source":"user","depends_on":[],"planned_touches":[]}' \
-     | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js add
-   ```
-   The script computes the id, sets `status:"planned"`, stamps
-   `created_at`/`updated_at`, and validates the file after every write —
-   no manual parsing, no hand-computed ids. A drafted task may only
-   `depends_on` a task drafted above it: entries are written in this
-   order, and `add` rejects an id that doesn't exist yet. If any call
-   returns `warnings`, mention them once at the end rather than per entry.
-3. Write `.foreman/config.json` as `{}` — an empty object, per the defaults
-   section above (skip this file write if the pre-check "keep, add to it"
-   branch found an existing config already).
-   **If the file already exists, leave it exactly as it is.** There is
-   nothing for init to put in it, and everything already in it is either a
-   deliberate hand edit or the recorded answer to a first-relevant ask
-   (`ledger`, `checkpoints`) that a re-init
-   must not throw away. If the file exists but won't parse, say so in the
-   report-back and change nothing.
-4. Stage and commit just these two files:
-   `git add ROADMAP.jsonl .foreman/config.json && git commit -m "chore: init foreman roadmap"`
-   (Only the files this skill wrote — never a broader `git add`.)
-
-<!-- [Foreman: 209] -->
-5. **Trial log** — after step 4's commit lands, one line:
-   ```
-   node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js init_completed '{"tasks":<how many add calls succeeded>}'
-   ```
-   `tasks` is how many `add` calls actually succeeded, never how many were
-   drafted. Record it only once both files are committed: an init that never
-   reached the commit did not complete.
-
-Report back: task count, one line that everything optional is off and gets
-asked about when it first matters, and point the user at
-`/foreman:roadmap` to pick up the first task.
+Count successful adds, not the drafted total. Cancelled or blocked setup can
+leave `init_started` with no `init_completed`; that is an honest unfinished run.

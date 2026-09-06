@@ -4,96 +4,65 @@ const { test, describe } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
-
 const skill = fs.readFileSync(path.join(__dirname, "..", "skills", "survey", "SKILL.md"), "utf-8");
+const flat = skill.replace(/\s+/g, " ");
 
-describe("survey skill contract", () => {
-  test("stale findings must carry evidence and a concrete replacement value", () => {
-    assert.match(skill, /`stale-description` \| `stale-touches`/);
-    assert.match(skill, /the \*\*evidence\*\* — the file paths and\s+symbols it actually opened, and what it found there instead/);
-    assert.match(
-      skill,
-      /\*\*concrete proposed replacement value\*\*, a finished `what` string or a\s+complete `planned_touches` array, ready to be written as-is/
-    );
-    assert.match(skill, /A vague "this looks\s+stale" is not a finding of this kind/);
-    assert.match(skill, /\*\*whole corrected `planned_touches` array\*\*/);
-    assert.match(skill, /a \*\*rewritten\s+`what`\*\*/);
+describe("survey operational contract", () => {
+  test("stale findings require evidence and a finished replacement", () => {
+    assert.match(flat, /both evidence .* and a concrete replacement value/);
+    assert.match(flat, /complete `what` string or full `planned_touches` array/);
+    assert.match(flat, /retaining unaffected paths/);
+    assert.match(flat, /not an actionable repair/);
   });
-
-  test("every proposal is shown with current value, proposed value, and evidence", () => {
-    assert.match(skill, /the entry's \*\*id and title\*\*, the \*\*current value →\s+proposed value\*\*, and the \*\*evidence line\(s\)\*\*/);
-    assert.match(skill, /Show\s+`planned_touches` in full on both sides/);
+  test("review shows identity, both values, and supporting evidence", () => {
+    assert.match(flat, /show id\/title, current → proposed value, and evidence/);
+    assert.match(flat, /complete planned-file arrays on both sides/);
   });
-
-  test("approval is per finding and never one blanket yes", () => {
-    assert.match(skill, /\*\*Approval is per finding\.\*\*/);
-    assert.match(skill, /One `AskUserQuestion` per entry, using\s+`multiSelect`/);
-    assert.match(skill, /Batch at most a handful of entries into one question/);
-    assert.match(skill, /\*\*Never\s+offer a single blanket "apply everything"\*\*/);
+  test("only authorized repairs proceed and unrelated findings remain separate", () => {
+    assert.match(flat, /request to inspect remains read-only for substantive changes/);
+    assert.match(flat, /already explicitly authorized grounded repairs/);
+    assert.match(flat, /Do not merge unrelated or uncertain findings into a blanket approval/);
   });
-
-  test("approved description and planned-file repairs go through correct", () => {
-    assert.match(skill, /apply it with `correct`, the one command that can replace\s+`what`\/`planned_touches` on a live entry/);
-    assert.match(skill, /roadmap\.js correct/);
-    assert.match(skill, /"expected_updated_at":"<the updated_at that read just returned>"/);
-    assert.match(skill, /roadmap\.js list --ids <candidate>`\s+— re-read the entry immediately before writing/);
-    assert.match(skill, /`planned_touches` is sent as the whole\s+replacement array/);
+  test("stale-file corrections preserve compare-and-set guards", () => {
+    assert.match(flat, /re-read immediately with `roadmap\.js list --ids <id>`/);
+    assert.match(flat, /`roadmap\.js correct` with `expected_updated_at`, `expected\.<field>`/);
+    assert.match(flat, /`planned_touches` is always the full replacement array/);
+    assert.match(flat, /Never overwrite a declined field/);
   });
-
-  test("a stale-guard rejection is re-read and re-asked, never forced through", () => {
-    assert.match(skill, /If the script refuses with `was last updated … , not …`/);
-    assert.match(skill, /\*\*Re-read\s+\(1\), re-show current → proposed against the newer text, and ask\s+again\*\*/);
-    assert.match(skill, /Never re-send with\s+the `updated_at` from the error message to force it through/);
+  test("a changed guard cannot be bypassed to force a write", () => {
+    assert.match(flat, /timestamp or expected value changed, re-read and re-show/);
+    assert.match(flat, /Never take values from the rejection merely to force a write/);
   });
-
-  test("uncertain findings are annotated as unconfirmed, never applied", () => {
-    assert.match(skill, /\*\*Uncertain findings are never applied\.\*\*/);
-    assert.match(skill, /`confident: false`/);
-    assert.match(skill, /"notes":"survey \(unconfirmed\): <one-line evidence>"/);
-    assert.match(skill, /status untouched, no field rewritten/);
+  test("uncertain findings stay labeled leads without a status rewrite", () => {
+    assert.match(flat, /Uncertain findings are never applied as facts/);
+    assert.match(flat, /confident:false/);
+    assert.match(flat, /survey \(unconfirmed\): <one-line evidence>/);
+    assert.match(flat, /Status stays untouched and no field is rewritten/);
+    assert.match(flat, /do not reorder the mechanical ranking/);
   });
-
-  test("a declined proposal writes nothing at all", () => {
-    assert.match(skill, /\*\*A declined proposal writes nothing\.\*\*/);
-    assert.match(skill, /No note, no "Claude proposed\s+this and the user said no" breadcrumb, no status change/);
-    assert.match(skill, /Never write on an unconfirmed finding/);
+  test("a declined proposal leaves no persistent refusal breadcrumb", () => {
+    assert.match(flat, /a declined proposal writes nothing, including no refusal breadcrumb/);
   });
-
-  test("keeps the existing structural and terminal write paths", () => {
-    assert.match(skill, /\*\*`hidden-dependency`\*\* → on confirm:[\s\S]*roadmap\.js update-deps/);
-    assert.match(skill, /\*\*`already-done` \/ `duplicate`\*\* → on confirm:[\s\S]*roadmap\.js update-status/);
-    assert.match(skill, /never touch `ROADMAP\.jsonl`\s+directly/);
+  test("structural and terminal changes use the existing CLI verbs", () => {
+    assert.match(flat, /Hidden dependency: `update-deps`/);
+    assert.match(flat, /Already done or duplicate: `update-status`/);
+    assert.match(flat, /Do not manufacture a completion SHA/);
+    assert.match(flat, /Use `scripts\/roadmap\.js` for all roadmap reads and mutations/);
   });
-
-  test("step 1 collects a not-done digest on both scoping paths", () => {
-    assert.match(skill, /gathered once regardless of which path above set\s+the scope/);
-    assert.match(
-      skill,
-      /\*\*not-done digest\*\* — `id`, `title`, `planned_touches` for\s+every entry currently `planned`, `in_progress`, `awaiting_acceptance`, or\s+`deferred`/
-    );
-    assert.match(
-      skill,
-      /roadmap\.js list --status\s+planned,in_progress,awaiting_acceptance,deferred --summary/
-    );
+  test("supplied scopes retain a shared not-done digest", () => {
+    assert.match(flat, /Regardless of how scope was chosen/);
+    assert.match(flat, /list --status planned,in_progress,awaiting_acceptance,deferred --summary/);
+    assert.match(flat, /investigation workers do not fetch the roadmap themselves/);
   });
-
-  test("step 2 context supplies the not-done digest instead of a self-serve roadmap read", () => {
-    assert.match(
-      skill,
-      /The \*\*not-done digest\*\* from step 1 — `id`\/`title`\/`planned_touches` for\s+every other not-done entry/
-    );
-    assert.match(skill, /it does\s+not read `ROADMAP\.jsonl` to get it/);
+  test("hidden dependency checks run both directions and missing files can be future work", () => {
+    assert.match(flat, /against the supplied not-done digest in both directions/);
+    assert.match(flat, /absence alone is not stale scope/);
+    assert.match(flat, /unresolved commit means not resolvable here, not fabricated/);
   });
-
-  test("checks 3 and 4 reference the supplied digest, not a self-serve roadmap read", () => {
-    assert.match(
-      skill,
-      /something that another entry in the \*\*supplied not-done digest\*\* claims\s+via its own `planned_touches`/
-    );
-    assert.match(skill, /Check against the digest handed to you, not a fresh\s+`ROADMAP\.jsonl` read/);
-    assert.match(
-      skill,
-      /does it closely overlap another entry's\s+`title` in the supplied not-done digest/
-    );
+  test("lesson retirement requires contradiction, and pruning is a distinct authorized removal", () => {
+    assert.match(flat, /A `stale` label alone does not prove a lesson wrong/);
+    assert.match(flat, /`note-supersede`/);
+    assert.match(flat, /`note-prune --dry-run`/);
+    assert.match(flat, /authorization for that specific removal/);
   });
 });

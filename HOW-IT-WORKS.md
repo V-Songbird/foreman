@@ -1,108 +1,80 @@
-# Foreman — how it works
+# How Foreman works in Codex
 
-The [README](README.md) says what Foreman is for. This page says how it does
-it, for anyone who wants to know before they trust it with a plan.
+Foreman keeps the plan in `ROADMAP.jsonl`, with optional configuration, archived
+entries, and notes under `.foreman/`. The JavaScript CLI owns roadmap writes:
+it validates dependencies and IDs, locks mutations, checks stale-read guards,
+and writes atomically. Skills supply the judgment and conversation.
 
-## The roadmap is a file
+## Selection and confidence
 
-Foreman keeps your plan in a file in your project called `ROADMAP.jsonl`. One
-task per line. It is an ordinary text file, so you can read it with Foreman
-switched off, put it in version control, or open it in any editor.
+**Fast pick** reads the roadmap and ranks ready work by downstream work unblocked,
+direct dependents, lack of collision with in-flight planned file surfaces, and
+age. A hint reranks ready candidates, retaining the normal list when nothing
+matches. Existing in-progress work and entries awaiting acceptance are offered
+first; the user may still choose new work. Fast pick does not silently turn
+into a repository survey.
 
-Every field in it is explained in [`roadmap-schema.md`](roadmap-schema.md).
+**Reconcile and pick** first checks the relevant code against the plan, presents
+grounded findings and corrections, then selects from the resulting roadmap.
+Uncertain findings remain uncertain. Structural `doctor` checks are a separate,
+cheap operation; they do not claim to verify implementation.
 
-Do not edit it by hand. Foreman keeps it consistent for you, and hand edits
-break that. Tell Foreman what is wrong instead and it fixes the entry.
+## Crafting and delivery
 
-## What happens, and when
+After a task is chosen, the builder resolves its expected files and symbols,
+examines available patterns and history, renders optional project context, and
+checks the assembled prompt. Missing planned files are distinguished from
+invented existing files. The task's own reason, acceptance checks and boundaries
+travel with the handoff.
 
-| Moment | What happens |
+Foreman preserves its standard/reinforced profiles and the destination choice:
+one unit here, units split by acceptance check, background delegation, or an
+exported prompt. A destination already specified by the user is honored without
+another question. Codex's available tools determine what can run in that host.
+
+Codex subagents get bounded tasks and explicit ownership. The coordinator
+integrates and verifies their output, and serializes shared roadmap mutations.
+Long-lived sidebar tasks and detached automation are not assumed to be subagents;
+creating either requires the corresponding user request.
+
+## Execution and acceptance
+
+Starting actual work opens the selected entry through the Codex lifecycle
+helper. Exporting a prompt leaves its entry planned. Dependencies are rechecked
+at dispatch. An explicit unresolved completion `check` arms the optional `Stop`
+reminder in that session/agent scope. The hook consumes that attempt once; a
+normal turn ending or unrelated unfinished work does not arm it.
+
+Safe commits begin with an ownership baseline. Foreman stages only declared,
+owned changes, preserving pre-existing dirty work. Split checkpoints remain local
+on a work branch, and the user chooses the finish action. Commits carry an exact
+`Foreman: <id>` trailer. Commit evidence and actual touched files are recorded;
+the original planned surface remains separately correctable.
+
+The default `requireVerification: true` leaves implemented work
+`awaiting_acceptance`. A user's acceptance closes it; rejection or more work
+resumes it. Completion evidence says what shipped, what was checked, and what
+remains. A worker's success report alone does not prove acceptance.
+
+## Continuity
+
+Session hooks surface unfinished work and opportunities to archive old terminal
+entries. Post-commit hooks prompt evidence bookkeeping. The optional ledger
+serves relevant lessons with freshness information, and can retire contradicted
+notes without deleting history. Codex file-tool coverage is documented in
+[CODEX.md](CODEX.md); prompt-time recall remains available without hooks.
+
+## Skills and standalone scripts
+
+| Skill | Responsibility |
 | --- | --- |
-| You ask "what's next?" | Foreman sorts the roadmap. It knows what is finished, what is waiting on something else, and what would put two jobs in the same files. It recommends one and writes the prompt. You still choose |
-| You describe new work | It gets added to the roadmap, once you approve it |
-| You save your changes | If a task looks finished, Foreman asks you to confirm. It also points out new work it noticed along the way, unless you switch that off |
-| You think the plan has gone stale | It reads the code, finds what no longer matches, and offers you each fix |
+| `foreman` | Route a plain-language Foreman request |
+| `init` | Initialize or explicitly reinitialize a project's roadmap |
+| `roadmap` | Add, correct, inspect, diagnose, select and manage work |
+| `survey` | Compare tracked work with code evidence |
+| `craft-prompt` | Craft a one-off or current-task handoff |
 
-## Two ways to get a task
-
-The cheap one is what you get by default.
-
-- **Fast pick** — Foreman sorts the roadmap it already has and recommends one.
-  It reads no code, so it is quick and nearly free. This is what you get unless
-  you ask for the other one.
-- **Reconcile and pick** — it reads your code first, finds where the plan has
-  gone stale, and offers you each fix before recommending anything. This one
-  costs real money, so Foreman never starts it on its own. You have to ask.
-
-## The prompt is checked before you see it
-
-A task on the roadmap names the files it expects to touch. Before handing you
-a prompt, Foreman opens those files and checks them.
-
-- A file that moved or was renamed is caught here, not by whoever does the
-  work.
-- A file the task is going to *create* is expected not to exist yet, and says
-  so in the prompt rather than being treated as a mistake.
-- A path that points outside your project is refused. Foreman never read it,
-  and no task writes there.
-- A name in the task description that matches nothing in any of those files is
-  flagged, so an invented function name does not travel into the work.
-
-The same check runs over the prompt itself: a missing step, or a verification
-command that cannot actually run, is caught before delivery.
-
-## Big tasks get split
-
-A task with several separate checks can be handed off in pieces, each with its
-own check. Every finished piece is saved on its own branch, so nothing is lost
-if you stop halfway. At the end you decide what happens to that branch.
-
-## Where a task can go
-
-When a prompt is ready, Foreman asks where you want it to run. It recommends
-one based on how full the session is, whether other work is in flight, how many
-checks the task has, and whether your working tree is clean. A poor fit is
-marked, never hidden — the choice stays yours.
-
-## Task numbers in your history
-
-Every commit Foreman makes ends with a line like `Foreman: 019`. That is the
-task number. It lets you trace any change back to the job it came from, with
-plain `git log`. This one is always on.
-
-Foreman reads those lines back, too. When a task names a function, the prompt
-it hands over says which earlier tasks created and changed that function, by
-number and title, straight from the file's own commit history. It is offered
-as history, not as instructions, and the prompt says so.
-
-You can also put a `[Foreman: 019]` comment next to code some task settled.
-From then on, anyone handed work on that file is told which task settled it,
-by name.
-
-## Commands
-
-You never need these — plain sentences work. They are here if you would rather
-type a command.
-
-| You want to… | Command |
-| --- | --- |
-| Set up a roadmap for a project (one-time) | `/foreman:init` |
-| Get the next task, add one, fix one, or see where things stand | `/foreman:roadmap` |
-| Check the plan against your actual code | `/foreman:survey` |
-| Write a one-off prompt for something not on the roadmap | `/foreman:craft-prompt` |
-
-## Requirements
-
-Node.js and git, both of which Claude Code already needs. Built and tested
-against Claude Code 2.1.x. If a future Claude Code stops sending Foreman
-something it relies on, `/foreman:roadmap` will tell you rather than going
-quiet.
-
-## Also worth reading
-
-| | |
-| --- | --- |
-| [Settings](settings.md) | Every option, in one table |
-| [The roadmap file](roadmap-schema.md) | Every field, and what it means |
-| [The ledger](ledger.md) | The optional notes store, in full |
-| [The prompt template](prompt-template.md) | The exact shape of every prompt Foreman writes |
+Scripts run with Node.js, no npm dependencies or server. Run them from the
+target project, or set `FOREMAN_PROJECT_DIR` for an explicit target. Read the
+[schema](roadmap-schema.md), [settings](settings.md), and [Codex port notes](CODEX.md)
+for the exact data and integration contracts.

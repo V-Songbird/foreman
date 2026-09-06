@@ -1,49 +1,28 @@
-# Branch: Correct a task
+# Correct a task
 
-The user wants an existing entry fixed, not a new one: reworded, retargeted
-at different files, or reclassified. **This branch does not investigate the
-codebase** — no `Read`, no `Grep`. The user says what is wrong; the entry
-says what it currently claims.
+This branch applies the user's correction; it does not investigate the codebase.
 
-1. `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --ids <id>` — the
-   entry as stored. If the user named the task by words rather than id, run
-   `list --summary` first to resolve it.
-2. Show the current value against the proposed one for each field being
-   corrected (`title`, `why`, `what`, `kind`, `planned_touches` — nothing else
-   is correctable here: status is `update-status`, dependencies are
-   `update-deps`, notes only ever append, and `observed_touches` is mechanical
-   history the command refuses outright). Then **one** `AskUserQuestion`:
-   `Apply the correction` / `Never mind`. `planned_touches` is a full
-   replacement, so show the whole new list, not just the additions.
-3. `echo '{"id":"...","expected_updated_at":"<the updated_at from step 1>","expected":{"what":"<the what step 1 just returned>"},"what":"..."}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js correct`
-   — pass the fetched `updated_at` verbatim as `expected_updated_at`; it is
-   what stops a correction composed against an older version from
-   overwriting a newer one. `expected_updated_at` is date-only, so a second
-   same-day correction still needs `expected`: one entry per field being
-   corrected, each holding the CURRENT value step 1 just read back (`kind`
-   and `planned_touches` need one too, the latter the whole current array) —
-   this is what catches the case the date alone cannot. On a mismatch (either
-   guard) the script names the current value: re-fetch (step 1), re-check
-   the correction still makes sense against the newer text, and ask again.
-   Correctable statuses: `planned`, `in_progress`, `awaiting_acceptance`,
-   `deferred` — a terminal entry is history its own commits already
-   describe. A title another entry already has is refused.
-4. Confirm back in one line: the id and the response's `changed` list (a
-   field the user restated identically will not be in it). Surface any
-   `warnings` verbatim. Git holds what the entry used to say — don't copy
-   the old wording into `notes`.
+1. Fetch only the selected entry with `roadmap.js list --ids <id>`. Resolve a
+   title through `list --summary` first if needed.
+2. Prepare current → proposed values for `title`, `why`, `what`, `kind`, or
+   `planned_touches`. A planned-file array is replaced in full, so show the
+   complete replacement. Apply an explicit, sufficiently specified correction;
+   ask only when the proposed meaning is still uncertain or was inferred.
+3. Call `roadmap.js correct` with this shape:
+   `{"id":"...","expected_updated_at":"<read timestamp>","expected":{"what":"<read value>"},"what":"<new value>"}`.
+   Include `expected.<field>` for every field changed, including `kind` and
+   the whole `planned_touches` array. The date is date-only; expected values
+   are the guard against two same-day corrections.
+4. On a stale timestamp or expected-value rejection, re-read the entry and
+   re-evaluate current → proposed. Ask again if the intervening change makes
+   intent unclear. Never copy values from the error just to force the write.
+5. Report id and changed fields. Unchanged input is a no-op.
 
----
+Correctable statuses: `planned`, `in_progress`, `awaiting_acceptance`, `deferred`.
+Terminal entries remain history. Use `update-status` for status,
+`update-deps` for dependency edges, and `annotate` for appended notes.
+`observed_touches` is mechanical history and cannot be corrected.
 
-<!-- [Foreman: 209] -->
-## Trial log
-
-After each `AskUserQuestion` call in this branch, one silent line:
-
-```
-node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js question_asked '{"flow":"correct"}'
-```
-
-One event per call, never one per question — the cost being measured is the
-interruption, not how many fields it carried. It is a no-op unless the
-project set `trialLog`, so it needs no check first and never blocks the flow.
+After an actual question, record
+`node <plugin-root>/scripts/trial-log.js question_asked '{"flow":"correct"}'`.
+This is a no-op unless the project set `trialLog` and never blocks the flow.

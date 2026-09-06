@@ -1,20 +1,12 @@
 #!/usr/bin/env node
 "use strict";
 
-// [Foreman: 062] Standalone CLI contract: this file is plain Node and must
-// stay runnable with no harness present. CLAUDE_PROJECT_DIR is optional and
-// falls back to cwd; no other harness dependency is permitted here. Pinned by
-// tests/standalone.test.js, which spawns it with every CLAUDE_* variable
-// deleted.
+// Standalone Node CLI; project selection is shared by runtime.projectDir.
 
-const fs = require("fs");
-const path = require("path");
 const { readLedger } = require("./ledger-config");
 const { configPath, readConfigFile } = require("./foreman-config");
 
-function projectDir() {
-  return path.resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
-}
+const { projectDir } = require("./runtime");
 
 // Declaration, not detection: the project states whether crafted prompts
 // open task_context with a "You are a [role]" persona sentence (true,

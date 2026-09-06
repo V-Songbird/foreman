@@ -22,7 +22,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { readInput, projectDir } = require("./lib");
+const { readInput, projectDir, touchedPaths } = require("./lib");
 const crypto = require("crypto");
 
 const { anchorIdsIn } = require("../scripts/roadmap");
@@ -30,7 +30,7 @@ const { readLedger } = require("../scripts/ledger-config");
 const ledger = require("../scripts/ledger");
 const noteStaleness = require("../scripts/note-staleness");
 
-const WATCHED_TOOLS = new Set(["Read", "Edit", "Write"]);
+const WATCHED_TOOLS = new Set(["apply_patch", "Read", "Edit", "Write"]);
 const MAX_BYTES = 512 * 1024;
 
 // [Foreman: 247] The lesson channel's own bounds, deliberately tighter than
@@ -156,18 +156,26 @@ function write(payload) {
   }
 }
 
-function main() {
-  const data = readInput();
+function main(data = readInput()) {
   if (data.hook_event_name && data.hook_event_name !== "PostToolUse") return;
   if (!WATCHED_TOOLS.has(data.tool_name)) return;
-
-  const filePath = data.tool_input && data.tool_input.file_path;
-  if (!filePath) return;
 
   const root = projectDir(data);
   // A project that never ran init is not Foreman's to talk in.
   if (!fs.existsSync(path.join(root, "ROADMAP.jsonl"))) return;
 
+  // Bound a single large patch's recall cost and context contribution.
+  const parts = touchedPaths(data).slice(0, 20).flatMap((filePath) => recallFile(data, root, filePath));
+  if (!parts.length) return;
+  write({
+    hookSpecificOutput: {
+      hookEventName: "PostToolUse",
+      additionalContext: parts.join("\n\n"),
+    },
+  });
+}
+
+function recallFile(data, root, filePath) {
   const target = path.isAbsolute(filePath) ? filePath : path.resolve(root, filePath);
   const sessionId = String(data.session_id || "");
   const parts = [];
@@ -219,13 +227,7 @@ function main() {
     }
   }
 
-  if (!parts.length) return;
-  write({
-    hookSpecificOutput: {
-      hookEventName: "PostToolUse",
-      additionalContext: parts.join("\n\n"),
-    },
-  });
+  return parts;
 }
 
 if (require.main === module) {

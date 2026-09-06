@@ -1,4 +1,5 @@
 {
+  "description": "Foreman for Codex. Review and trust these command hooks with /hooks. Task checkpoints use hooks/codex-task.js explicitly.",
   "hooks": {
     "SessionStart": [
       {
@@ -6,32 +7,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.js\"",
-            "commandWindows": "node \"$env:CLAUDE_PLUGIN_ROOT\\hooks\\session-start.js\"",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "TaskCreated": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/task-created.js\"",
-            "commandWindows": "node \"$env:CLAUDE_PLUGIN_ROOT\\hooks\\task-created.js\"",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "TaskCompleted": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/task-completed.js\"",
-            "commandWindows": "node \"$env:CLAUDE_PLUGIN_ROOT\\hooks\\task-completed.js\"",
+            "command": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','session-start.js')).main()}catch{}\"",
+            "commandWindows": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','session-start.js')).main()}catch{}\"",
             "timeout": 5
           }
         ]
@@ -39,12 +16,12 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "^(Edit|Write)$",
+        "matcher": "^(apply_patch|Edit|Write)$",
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/guard-roadmap-edit.js\"",
-            "commandWindows": "node \"$env:CLAUDE_PLUGIN_ROOT\\hooks\\guard-roadmap-edit.js\"",
+            "command": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','guard-roadmap-edit.js')).main()}catch{}\"",
+            "commandWindows": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','guard-roadmap-edit.js')).main()}catch{}\"",
             "timeout": 5
           }
         ]
@@ -56,25 +33,43 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/post-commit.js\"",
-            "commandWindows": "node \"$env:CLAUDE_PLUGIN_ROOT\\hooks\\post-commit.js\"",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/context-fill.js\"",
-            "commandWindows": "node \"$env:CLAUDE_PLUGIN_ROOT\\hooks\\context-fill.js\"",
+            "command": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','post-commit.js')).main()}catch{}\"",
+            "commandWindows": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','post-commit.js')).main()}catch{}\"",
             "timeout": 5
           }
         ]
       },
       {
-        "matcher": "^(Read|Edit|Write)$",
+        "matcher": "^(apply_patch|Read|Edit|Write)$",
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/ledger-recall.js\"",
-            "commandWindows": "node \"$env:CLAUDE_PLUGIN_ROOT\\hooks\\ledger-recall.js\"",
+            "command": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','ledger-recall.js')).main()}catch{}\"",
+            "commandWindows": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','ledger-recall.js')).main()}catch{}\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','stop.js')).main()}catch{}\"",
+            "commandWindows": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','stop.js')).main()}catch{}\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','stop.js')).main()}catch{}\"",
+            "commandWindows": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','stop.js')).main()}catch{}\"",
             "timeout": 5
           }
         ]

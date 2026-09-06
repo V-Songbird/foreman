@@ -1656,18 +1656,18 @@ describe('model and effort fields', () => {
     assert.equal('effort' in json.entry, false);
   });
 
-  test('rejects an unknown model and does not write', () => {
-    const { status, json } = run(['update-status'], { id: '001', status: 'done', model: 'gpt4' });
+  test('rejects an invalid model identifier and does not write', () => {
+    const { status, json } = run(['update-status'], { id: '001', status: 'done', model: 'model with spaces' });
     assert.equal(status, 1);
-    assert.match(json.error, /model must be one of haiku\|sonnet\|opus\|fable/);
+    assert.match(json.error, /model must be a non-empty model identifier/);
     const after = run(['list', '--ids=001']);
     assert.equal(after.json.entries[0].status, 'in_progress');
   });
 
   test('rejects an unknown effort and does not write', () => {
-    const { status, json } = run(['update-status'], { id: '001', status: 'done', effort: 'ultra' });
+    const { status, json } = run(['update-status'], { id: '001', status: 'done', effort: 'extreme' });
     assert.equal(status, 1);
-    assert.match(json.error, /effort must be one of low\|medium\|high\|xhigh\|max/);
+    assert.match(json.error, /effort must be one of/);
   });
 
   test('add never accepts them — an entry has not run yet', () => {

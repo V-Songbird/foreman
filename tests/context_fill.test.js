@@ -224,13 +224,14 @@ describe('context-fill — end to end', () => {
 });
 
 describe('context-fill — wiring', () => {
-  test('hooks.json runs it on PostToolUse for Bash and PowerShell', () => {
+  test('Codex hooks omit the unsupported occupancy reader', () => {
     const wiring = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf-8'));
     const block = wiring.hooks.PostToolUse.find((b) => b.matcher === '^(Bash|PowerShell)$');
     assert.ok(block, 'no Bash/PowerShell PostToolUse block');
-    assert.ok(
+    assert.equal(
       block.hooks.some((h) => h.command.includes('context-fill.js') && h.commandWindows.includes('context-fill.js')),
-      'context-fill.js is not wired on both platforms'
+      false,
+      'a guaranteed silent legacy reader should not run after every Codex shell call'
     );
   });
 
@@ -239,7 +240,7 @@ describe('context-fill — wiring', () => {
       path.join(__dirname, '..', 'skills', 'roadmap', 'destination-question.md'),
       'utf-8'
     );
-    assert.match(shared, /## Which option leads/);
+    assert.match(shared, /Exactly one option gets `\(Recommended\)`/);
     assert.match(shared, /Copy prompt to clipboard/);
     // Exactly one option may carry the tag, so the label must not bake it in.
     assert.doesNotMatch(shared, /`Execute here \(Recommended\)`/);
@@ -250,12 +251,12 @@ describe('context-fill — wiring', () => {
       path.join(__dirname, '..', 'skills', 'roadmap', 'destination-question.md'),
       'utf-8'
     );
-    assert.match(shared, /safe-commit\.js begin/);
+    assert.match(shared, /safe-commit\.js" begin/);
     assert.match(shared, /dirty:false/);
     // Unconditional: rule 2 can fire on a single check, so a probe gated on
     // the split's two-or-more count would be missing exactly when it is needed.
-    assert.match(shared, /## Probe the tree before asking/);
-    assert.match(shared, /Always, before the question/);
+    assert.match(shared, /## Read the signals/);
+    assert.match(shared, /Before asking, run/);
   });
 
   test('the background Agent leads on one rule and is barred outside it', () => {
@@ -264,14 +265,14 @@ describe('context-fill — wiring', () => {
       'utf-8'
     );
     // The four conditions rule 2 needs, each named where the rule is stated.
-    const ruleTwo = shared.slice(shared.indexOf('2. **Other work'), shared.indexOf('3. **Two or more'));
+    const ruleTwo = shared.slice(shared.indexOf('2. Other work'), shared.indexOf('3. At least two'));
     assert.ok(ruleTwo, 'rule 2 is missing');
-    for (const condition of ['in_progress', 'collision', 'dirty:false', 'verification']) {
+    for (const condition of ['Other work', 'collision', 'dirty:false', 'runnable check']) {
       assert.match(ruleTwo, new RegExp(condition.replace('.', '\\.')), `rule 2 does not name ${condition}`);
     }
-    assert.match(shared, /Never recommend the background Agent outside rule 2/);
+    assert.match(shared, /background agent leads only under rule 2/);
     // Barred from leading, never removed from the list.
-    assert.match(shared, /still offered every time/);
+    assert.match(shared, /Do not hide a cautioned option/);
   });
 
   test('every option is always offered — no flow withholds one', () => {
@@ -279,7 +280,7 @@ describe('context-fill — wiring', () => {
       path.join(__dirname, '..', 'skills', 'roadmap', 'destination-question.md'),
       'utf-8'
     );
-    assert.match(shared, /All four options are always offered/);
+    assert.match(shared, /Keep Foreman's four options, in this order/);
     // The split's old visibility gate is gone from every copy that had one.
     for (const rel of [
       ['skills', 'roadmap', 'destination-question.md'],
@@ -301,14 +302,11 @@ describe('context-fill — wiring', () => {
       path.join(__dirname, '..', 'skills', 'roadmap', 'destination-question.md'),
       'utf-8'
     );
-    assert.match(shared, /## Which options carry a caution/);
+    assert.match(shared, /## Cautions preserve choice/);
     assert.match(shared, /`\(Caution\)`/);
     // The whole reason the word is "Caution": a label scanner reads
     // "recommend" and misses the negation in front of it.
-    assert.match(shared, /Never write "\(Not recommended\)"/);
-    // Only that one mention, as the thing being banned — never as a label.
-    const uses = shared.match(/\(Not recommended\)/g) || [];
-    assert.equal(uses.length, 1, 'the banned label leaked back in as a label');
+    assert.doesNotMatch(shared, /\(Not recommended\)/);
   });
 
   test('the two labels can never land on the same option', () => {
@@ -316,7 +314,7 @@ describe('context-fill — wiring', () => {
       path.join(__dirname, '..', 'skills', 'roadmap', 'destination-question.md'),
       'utf-8'
     );
-    assert.match(shared, /One `\(Recommended\)`, never on a cautioned option/);
-    assert.match(shared, /`Execute here` and `Copy prompt to clipboard` never carry it/);
+    assert.match(shared, /Never label the same\s+option both recommended and cautioned/);
+    assert.match(shared, /Execute here and clipboard have no automatic caution/);
   });
 });

@@ -1,5 +1,12 @@
 # Project trials: recommendation quality, attention cost, and recovery
 
+> Codex port: this schema and privacy contract are preserved. Skills now emit
+> their model-side events through `scripts/trial-log.js`; skipped questions are
+> never logged as interactions. Native start/check replaces the undocumented
+> task lifecycle events, and the optional Stop reminder does not fabricate a
+> verification-declined event. Historical measurements below describe the
+> original implementation, not measured Codex performance. See [CODEX.md](CODEX.md).
+
 Three of the nine metrics in [`roadmap-health.js`](scripts/health/roadmap-health.js) cannot be
 read off the roadmap files. Whether a user *accepts* Foreman's recommendation,
 how often they pick something else, and whether a hint finds what they meant
@@ -101,7 +108,7 @@ assuming it away.
 | ✗ | `init_started` | — | `/foreman:init` began its first question |
 | ✗ | `init_completed` | `tasks` (integer, entries written) | `/foreman:init`'s write phase finished and committed |
 | ✓ | `first_pick` | `seconds_since_init` (integer, or `null`), `sessions_since_init` (integer, or `null`) | The first handoff of this project was delivered |
-| ✗ | `question_asked` | `flow` (one of `init`, `pick`, `add`, `correct`, `status`, `survey`) | One `AskUserQuestion` call was put to the user |
+| ✗ | `question_asked` | `flow` (one of `init`, `pick`, `add`, `correct`, `status`, `survey`) | One actual question interaction was put to the user |
 | ✓ | `commit_interrupted` | `hook` (one of `safe-commit`, `post-commit`, `task-completed`), `reason_class` (see below) | A Foreman commit path stopped and handed the decision back |
 | partly | `recovery_attempted` | `kind` (one of `reinit-snapshot`, `resume-in-progress`, `failed-verification-retry`), `success` (boolean) | A recovery path ran to a definite outcome |
 
@@ -226,7 +233,7 @@ nothing else:
   in-process `check-prompt.js` gate passes and only when the log holds no
   earlier `first_pick`. A pick that never survived the gate is not a first
   useful task.
-- **`question_asked`** — every `AskUserQuestion` call in `skills/`, one event
+- **`question_asked`** — every actual question-tool call or text question interaction in `skills/`, one event
   per call, `flow` naming the branch it sits in and never the question:
   `init` for all three of `skills/init/SKILL.md`'s calls, `pick` / `add` /
   `correct` / `status` for `skills/roadmap/pick.md`, `add.md`, `correct.md` and
@@ -255,7 +262,7 @@ nothing else:
   has not come back yet.
   `awaiting_acceptance` is excluded even though it is an open status and
   always carries commits: that work *has* come back and is waiting on the
-  user. `success: true` from `hooks/task-completed.js` when such work closes.
+  user. `success: true` from `hooks/codex-task.js check` when such work closes (legacy callers still use `hooks/task-completed.js`).
   A resume that takes three days is therefore three failures and one success:
   the rate is a per-day view of recovery, not a per-run one, and `attempts` is
   reported beside it so that stays visible.

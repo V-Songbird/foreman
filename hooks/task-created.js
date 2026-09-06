@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 "use strict";
 
+// Legacy adapter retained for callers that explicitly provide TaskCreated
+// payloads. Codex does not emit that event; use codex-task.js start instead.
+
 // TaskCreated — mechanically mark a roadmap entry in_progress when a task
 // is created from its own Foreman handoff prompt.
 //
@@ -43,8 +46,7 @@ function entryIdFromDescription(description) {
   return m ? m[1] : null;
 }
 
-function main() {
-  const data = readInput();
+function main(data = readInput()) {
   if (data.hook_event_name && data.hook_event_name !== "TaskCreated") return;
 
   const id = entryIdFromDescription(data.task_description);

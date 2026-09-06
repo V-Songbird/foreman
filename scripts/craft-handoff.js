@@ -67,7 +67,17 @@ const {
 } = require("./check-prompt.js");
 
 const DESTINATIONS = new Set(["task", "agent", "clipboard"]);
-const PLUGIN_ROOT = "${CLAUDE_PLUGIN_ROOT}"; // literal, never expanded — [Foreman: 107]
+const PLUGIN_ROOT = path.resolve(__dirname, "..").replace(/\\/g, "/");
+function shellQuote(value, shell = process.platform === "win32" ? "powershell" : "posix") {
+  return shell === "powershell" ? `'${String(value).replace(/'/g, "''")}'` : `'${String(value).replace(/'/g, "'\"'\"'")}'`;
+}
+function pluginCommand(script, args = "", shell = process.platform === "win32" ? "powershell" : "posix") {
+  const file = path.resolve(PLUGIN_ROOT, "scripts", script).replace(/\\/g, "/");
+  return `node ${shellQuote(file, shell)}${args ? ` ${args}` : ""}`;
+}
+function jsonCommand(script, args, payload) {
+  return `Command: \`${pluginCommand(script, args)}\`\nJSON stdin: \`${JSON.stringify(payload)}\``;
+}
 const AUTONOMY_MARKER = "You are operating autonomously.";
 
 // ---- template-derived defaults, read out of prompt-template.md's own XML
@@ -115,7 +125,7 @@ function templateDefaults() {
   const toneQuote = toneInner.match(/"([\s\S]*)"/);
   const defaultTone = toneQuote
     ? norm(toneQuote[1])
-    : "Minimal, professional conversation — silent by default, say only what the user actually needs to know.";
+    : "Be concise and direct. Report useful progress and the final outcome.";
   const outputFormatInner = extractTemplateBlock(xml, "output_format") || "";
   const defaultOutputFormat = norm(stripBracketed(outputFormatInner));
   const noInventionLine = fullLineContaining(xml, NO_INVENTION_SENTENCE);
@@ -902,9 +912,10 @@ function checkpointEmbedText(cfg, checkCount, entryId) {
       : `apply \`${cfg.onFinish}\` directly, no question`;
   return [
     "Checkpoint protocol for this multi-task run (the pasted session cannot read prompt-template.md, so this rides in the prompt itself):",
-    `- create one tracked task per Run:/Expected: pair (${checkCount} total) with \`TaskCreate\`, then chain every task from the second onward with one \`TaskUpdate\` \`addBlockedBy: ["<the previous task's id>"]\``,
+    `- track one local acceptance row per Run:/Expected: pair (${checkCount} total) using an available plan tool or checklist; complete each row before its dependent successor, without creating user-owned tasks`,
     `- settle the branch first: ${branchLine}; ${branchAction}`,
-    "- before task 1, stop if `git status --porcelain` is non-empty: say so once and make no checkpoint commits at all for this run",
+    "- explicit user branch restrictions override these settings and finish choices; before writes, create or use an authorized branch and never merge into a branch the user forbids modifying",
+    "- before task 1, inspect `git status --porcelain`; if non-empty, preserve existing changes and continue the work without checkpoint commits for this run",
     "- after each task's check passes, stage only the files that task changed (`git add -- <those paths>`, never `git add -A`) and commit `task <n>/<total>: <task subject>`; leave it local, never push",
     ...(entryId
       ? [
@@ -918,69 +929,51 @@ function checkpointEmbedText(cfg, checkCount, entryId) {
 
 // ---- the entry paragraph — id substitution, requireVerification
 // acceptance hold, decision-doc close field,
-// ${CLAUDE_PLUGIN_ROOT} as the literal string. This is the canonical copy
+// installed script paths plus separate JSON stdin payloads. This is the canonical copy
 // now (skills/roadmap/pick.md calls this script instead of assembling the
 // paragraph itself), collapsed to the one concrete variant that applies for
 // this handoff rather than a human-facing skill's illustrative examples.
 
 function entryParagraphText({ id, resume, requireVerification, askLesson, destination }) {
+  const code = (value) => "`" + value + "`";
   const opening = resume
-    ? `This task is ROADMAP.jsonl entry \`${id}\`, already marked \`in_progress\` by an earlier session — don't re-mark it; earlier findings may sit in its \`notes\` (included above), read them before re-deriving anything.`
-    : `This task is ROADMAP.jsonl entry \`${id}\`. Mark it \`in_progress\` before doing anything else — Foreman's picking flow deliberately leaves it \`planned\` until you do:\n\`echo '{"id":"${id}","status":"in_progress"}' | node ${PLUGIN_ROOT}/scripts/roadmap.js update-status\``;
-
-  const beginStep = `Then take the commit boundary before touching any file:\n\`node ${PLUGIN_ROOT}/scripts/safe-commit.js begin\`\nKeep its \`baseline.head\`. A \`dirty:true\` result means the tree already carries someone else's changes: tell the user in one line, then do the work and make NO commit at all — leave everything in the tree for them. Never stage around it.`;
-
-  // [Foreman] A background agent has no one to ask, so it keeps the prose
-  // hand-back; every other destination lands in a session with a user in it,
-  // and that session puts the accept/review choice in front of them rather
-  // than leaving it for the next pick to raise days later.
-  const acceptCall = `\`echo '{"id":"${id}","status":"done"}' | node ${PLUGIN_ROOT}/scripts/roadmap.js update-status\``;
-  const askSentence =
-    destination === "agent"
-      ? ` Say so in your final message too — name the entry and say it now needs the user's accept or decline before you start anything new.`
-      : ` Then put the choice to them in the same turn, with AskUserQuestion. Wrote at least one \`unverified:\` line? The first option is Test — you read those lines back to them and stop, the entry still awaiting. With none, offer accept-the-entry and review-it-first only. Accepting closes it — ${acceptCall}. Review leaves it awaiting and you walk them through what changed. Start nothing new until they answer.`;
-  // [Foreman] What makes the Test option mechanical rather than a mood: it
-  // can only appear where a `unverified:` line was actually recorded, and a
-  // check with a runnable command is never one — the session runs those
-  // itself instead of handing the user its own homework. One `annotate` per
-  // check, because one append is exactly one line (roadmap.js appendNote
-  // folds embedded newlines).
-  //
-  // [Foreman] Two bars on top of "has no command", both from live misfires:
-  // a check blocked on unbuilt work fired Test on an entry nobody could
-  // test, and an Electron project sent its owner to the window session after
-  // session until one of them wrote a skill that drives the app instead. A
-  // note is for what the session cannot reach, not for what it did not try.
-  const splitStep =
-    requireVerification && destination !== "agent"
-      ? `Before you close, split your checks in two. Anything with a command, you run — never hand a command to the user to run for you. Anything that can only be settled by a human's eyes or hands — how it renders, how it feels to use, whether the motion looks right — has no command, so record it on the entry, one call per check:\n\`echo '{"id":"${id}","notes":"unverified: <the check, and what to look for>"}' | node ${PLUGIN_ROOT}/scripts/roadmap.js annotate\`\nTwo bars before you write one of those lines. It has to be answerable today: a check that waits on work nobody has built yet goes in your findings, not here. And it has to be genuinely past your reach: where a skill, script or harness in this project already drives the thing, use it and answer the check yourself, and where none exists but one could, say that in your findings instead of sending the user to look by hand again.\nWrite none at all when every check ran — an empty list is the normal outcome and is what tells the user there is nothing to look at.`
-      : "";
-
+    ? "This task is ROADMAP.jsonl entry " + code(id) + ", already marked " + code("in_progress") + " by an earlier session. Read recorded findings before resuming."
+    : "This task is ROADMAP.jsonl entry " + code(id) + ". Mark it " + code("in_progress") + " through the explicit lifecycle before implementation.";
+  const startStep = "Before any roadmap mutation, verify the branch satisfies the user's restrictions; create or use an authorized working branch when needed.\nCommand: "
+    + code(pluginCommand("../hooks/codex-task.js", "start --id " + shellQuote(id)))
+    + "\nProceed only when this command succeeds and returns dispatchReady:true. A dependency, defer, or terminal-state refusal must be resolved before dispatch.";
+  const payloadNote = "For bookkeeping calls, write each JSON stdin payload to a UTF-8 file and pipe that file using the active shell (PowerShell: Get-Content -LiteralPath FILE -Raw -Encoding utf8; POSIX: cat FILE). Commands are quoted for the crafting host (PowerShell on Windows, POSIX shell elsewhere); re-quote paths if using another shell. Never interpolate findings into an inline shell command. If the installed plugin moved, refresh command paths from the currently loaded Foreman skill.";
+  const beginStep = "Before touching files, verify the branch satisfies the user's restrictions; create or use an authorized working branch when needed. Then take the commit boundary:\n" + code(pluginCommand("safe-commit.js", "begin")) + "\nKeep its " + code("baseline.head") + ". With " + code("dirty:true") + ", preserve existing changes and make NO commit at all; continue authorized work without staging around unrelated changes.";
+  const splitStep = requireVerification
+    ? "Run every check reachable through available commands, skills, or UI tools. Record a human-only check only if it is answerable now and beyond those tools. Use one annotate call per check, and none when every check ran:\n" + jsonCommand("roadmap.js", "annotate", { id, notes: "unverified: <the check and what to look for>" })
+    : "";
   const holdSentence = requireVerification
-    ? ` When that earned status is \`done\`, write \`awaiting_acceptance\` instead — this project holds finished work for the user's acceptance, and their confirmation makes it \`done\`; \`dropped\` and \`rejected\` close as themselves.${askSentence}`
+    ? " For earned " + code("done") + ", record " + code("awaiting_acceptance") + " and present the concrete result for final user acceptance. "
+      + (destination === "agent"
+        ? "Return the result to the coordinator so they can request the user's acceptance."
+        : "If recorded " + code("unverified:") + " checks remain, offer Test first and describe those checks; otherwise offer acceptance or review. On acceptance, close with:\n" + jsonCommand("roadmap.js", "update-status", { id, status: "done" }))
     : "";
-  const closeIntro = `When the work concludes, close the entry the same way — the status it actually earned (\`done\`, \`dropped\`, \`rejected\`) and your full findings in \`notes\`.${holdSentence}`;
-
-  const stageStep = `Stage the task's own files with the safe-commit primitive — never \`git add -A\`:\n\`echo '{"id":"${id}","expected":["<the files this task owns>"]}' | node ${PLUGIN_ROOT}/scripts/safe-commit.js finish --baseline <baseline.head> --no-commit\`\nThen close with \`staged:true\` (the script folds the staged files into \`observed_touches\` and stages ROADMAP.jsonl alongside), then commit once with \`Foreman: ${id}\` as the final line of the message.`;
-
-  const fields = ['"status":"<status>"', '"staged":true', '"notes":"<findings>"'];
-  const closeCall = `\`echo '{"id":"${id}",${fields.join(",")}}' | node ${PLUGIN_ROOT}/scripts/roadmap.js update-status\``;
-
-  // [Foreman: 260] roadmap-schema.md:112-113 — model/effort are self-reported
-  // at close, never guessed, and now always: Foreman stopped asking which model
-  // should run a task, so nothing upstream knows the answer to bake in.
-  const modelEffortNote = "Also add `model` and `effort` to that close call — what actually ran this task. Omit either one you genuinely don't know rather than guessing — an absent field reads as unrecorded, a wrong one silently poisons the corpus.";
-
-  // Two sentences, single-purpose, emitted only where the ledger is on. A
-  // skipped ask is silence, which is the designed outcome: forcing a lesson
-  // manufactures platitudes, and the counter measures the real rate instead.
+  const closeIntro = "Close with the status actually earned (" + code("done") + ", " + code("dropped") + ", or " + code("rejected") + ") and observed findings in " + code("notes") + "." + holdSentence;
+  const stageStep = "When committing is authorized and the baseline was clean, stage only owned files using safe-commit; never " + code("git add -A") + ":\n"
+    + jsonCommand("safe-commit.js", "finish --baseline <baseline.head> --no-commit", { id, expected: ["<the files this task owns>"] })
+    + "\nThen close with " + code("staged:true") + " to derive " + code("observed_touches") + " from staged files, and commit once with " + code("Foreman: " + id) + " as the final message line. If no commit is allowed, omit staged and record observed files explicitly.";
+  const closeCall = jsonCommand("roadmap.js", "update-status", { id, status: "<status>", notes: "<observed findings>", add_touches: ["<observed files>"] });
+  const checkStep = "After recording the close, verify the lifecycle checkpoint:\nCommand: "
+    + code(pluginCommand("../hooks/codex-task.js", "check --id " + shellQuote(id)))
+    + "\nA failure means the entry is still open; resolve it before claiming closure."
+    + (requireVerification ? " awaiting_acceptance passes this recorded-work check and still awaits the user's acceptance." : "");
+  const modelEffortNote = "Also add " + code("model") + " and " + code("effort") + " to that close call — what actually ran this task. Omit either one you do not know rather than guessing.";
   const lessonAsk = askLesson
-    ? 'If this task taught you one durable fact about this code area that a future task would need, add `"lesson":"one sentence, naming the file or symbol it concerns"` to that close call. If nothing generalizes beyond this task, omit it — that is a valid outcome.'
+    ? "If this task taught one durable fact about the code area, add " + code('"lesson":"one sentence, naming the file or symbol it concerns"') + " to that close call. If nothing generalizes, omit it."
     : "";
-
-  return [opening, beginStep, splitStep, closeIntro, stageStep, closeCall, modelEffortNote, lessonAsk]
-    .filter(Boolean)
-    .join("\n");
+  if (destination === "agent") {
+    return [
+      "Coordinator-owned roadmap protocol (the subagent must not run these mutations, stage, or commit; return findings and verification to the coordinator):",
+      opening, startStep, payloadNote, closeIntro, closeCall, modelEffortNote, lessonAsk, checkStep,
+    ].filter(Boolean).join("\n");
+  }
+  return [opening, startStep, payloadNote, beginStep, splitStep, closeIntro, stageStep, closeCall, modelEffortNote, lessonAsk, checkStep]
+    .filter(Boolean).join("\n");
 }
 
 function slugify(text, maxLen = 40) {
@@ -1141,7 +1134,7 @@ function assemble(root, input) {
     input.request ||
     (isDecision ? `Decide: ${requestSubject}, and state why the chosen option wins.` : `Implement: ${requestSubject}.`);
   const invariantsText =
-    reinforced && judgment.invariants && judgment.invariants.length
+    judgment.invariants && judgment.invariants.length
       ? `<invariants>\n${judgment.invariants.join("\n")}\n</invariants>`
       : "";
   const exampleText =
@@ -1155,6 +1148,7 @@ function assemble(root, input) {
     if (reinforced) {
       parts.push(`<truth_grounding>\n${canonical.truthGrounding}\n</truth_grounding>`);
       parts.push(`<scope_discipline>\n${canonical.scopeDiscipline}\n</scope_discipline>`);
+      parts.push(`Foreman bookkeeping command: \`${pluginCommand("roadmap.js")}\`. Send each JSON payload from a UTF-8 file using the active shell. Commands are quoted for the crafting host; re-quote for a different shell, and refresh installed paths from the currently loaded Foreman skill if they moved.`);
     } else {
       parts.push(CONCISE_TRUTH_EMITTED);
     }
@@ -1163,7 +1157,7 @@ function assemble(root, input) {
       parts.push(`<tone>\n${input.customTone || defaultTone}\n</tone>`);
     }
     if (includeBackground) {
-      const ctxBlock = reinforced && ctxText ? `<context>\n${ctxText}\n</context>\n` : "";
+      const ctxBlock = ctxText ? `<context>\n${ctxText}\n</context>\n` : "";
       // Prior work rides in the background block itself, never in <context>:
       // that block is emitted only on a reinforced profile, so anything put
       // there is dropped from every standard handoff.
@@ -1251,18 +1245,8 @@ function assemble(root, input) {
     }
   }
 
-  // [Foreman] `<context>` renders on the reinforced profile only, so a fact
-  // the crafting session put in `judgment.context` is absent from every
-  // standard handoff. That is deliberate — but it was silent, and a session
-  // that supplied one had no way to learn the fact never shipped. Found by
-  // rendering a benchmark arm and diffing it against the facts it was built
-  // from: the arm's `fix location:` line had vanished.
-  if (judgment.context && gateResult.profile !== "reinforced") {
-    warnings.push(
-      "judgment.context was dropped: <context> renders on the reinforced profile only, and this handoff assembled at standard. "
-        + "Put anything the session must actually receive in judgment.constraints, task_rules or the description instead."
-    );
-  }
+  // Task-specific context and observable invariants are evidence, so they
+  // survive the shorter profile. Project-level section omissions still win.
   // [Foreman: 291] Same courtesy for the purpose line: an entry's own why fills
   // it, so a purpose the crafter gathered anyway never ships. Silent drops are
   // how a crafter learns nothing; say it once.

@@ -1,6 +1,9 @@
 "use strict";
 
-// context-fill.js — PostToolUse hook on Bash/PowerShell.
+// context-fill.js — legacy Claude transcript reader for explicit adapters.
+// The native Codex hook returns no estimate: Codex has no stable context-fill
+// input field, and its transcript must not be read as Claude usage. This file
+// remains to preserve compatibility with existing adapters and their tests.
 //
 // The destination question ("How do you want to run this?") recommends one
 // option, and one of the facts that should move that recommendation is how
@@ -161,9 +164,14 @@ function emit(additionalContext) {
   }
 }
 
-function main() {
-  const data = readInput();
+function main(data = readInput()) {
   if (!WATCHED_TOOLS.has(data.tool_name)) return;
+
+  // Codex has no stable context-occupancy hook field. Its transcript is a
+  // different, explicitly unstable format: never interpret it as Claude usage
+  // or apply a Claude compaction setting. Keep the old reader available only
+  // for explicit legacy adapters; the native Codex path reports no estimate.
+  if (data.model || data.turn_id || process.env.PLUGIN_ROOT || process.env.FOREMAN_HOST === "codex") return;
 
   const command = data.tool_input?.command || "";
   if (!PRE_QUESTION_SCRIPT.test(command)) return;
@@ -177,6 +185,7 @@ function main() {
 if (require.main === module) main();
 
 module.exports = {
+  main,
   CONTEXT_SHARE,
   PRE_QUESTION_SCRIPT,
   autoCompactWindow,

@@ -1,14 +1,8 @@
-# Branch: Review status
+# Review status
 
-Read-only. `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --summary`
-— compact rows (id, title, status, depends_on, planned_touches); the
-render below reads the first four, and the full entries' prose would
-multiply the payload for nothing on a large roadmap. Render a compact list
-grouped by status, and **name each group in everyday words, never the
-stored value** — the user did not choose this vocabulary and should not
-have to learn it:
+Run `roadmap.js list --summary` and render compact rows in this order:
 
-| Stored | What you write |
+| Stored status | User-facing label |
 | --- | --- |
 | `awaiting_acceptance` | Waiting on you |
 | `in_progress` | Being worked on |
@@ -18,26 +12,13 @@ have to learn it:
 | `dropped` | Dropped |
 | `rejected` | Turned down |
 
-In that order, with **Waiting on you** first — those are the only rows that
-need the user to act. Under **Not started**, note which are blocked and on
-what, derivable from `depends_on` plus the other entries' statuses. When a
-blocker resolves to an entry that was dropped or turned down — or to an id
-no entry has — say so explicitly rather than calling it plain
-"blocked": it will not reappear in the pick list until that dependency is
-moved back with `update-status`, or its edge is removed with
-`update-deps`'s `remove_depends_on`. Finished work that has been archived
-is not in this render at all — `list --archived --summary` returns it in
-the same shape when the user asks for the history. If any parked entries
-exist, fetch just those in full for the "waiting on what" word —
-`list --ids <their ids>` — drawn from their `why`/`notes`.
+Name blockers under Not started. A missing, dropped, or rejected dependency
+needs an explicit explanation: it will not become done on its own.
+Resolve archived dependencies through targeted `list --ids` when necessary;
+an absent active row is not proof of a missing dependency. Fetch parked entries
+in full only when their notes are needed to explain the resume trigger.
 
-Close with one line on who did the work. Run `node
-${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --stats` — counts of the
-model and reasoning effort each finished entry self-reported at close, plus
-how many recorded nothing. Write it as one sentence in everyday words, the
-models named plainly and the blanks stated: "Finished work ran on Opus 40,
-Fable 10, Sonnet 7 — 177 entries did not say." Both fields are optional and
-honest about it, so a large blank count is a fact to report, never a
-problem to flag. Skip the line entirely when `closed` is `0` — a roadmap
-with nothing finished has nothing to say here. No writes, no further
-questions.
+`list --archived --summary` shows history when asked. `list --stats` reports
+actual self-reported model and effort counts. Summarize those counts in one
+sentence, including missing metadata, only when `closed` is nonzero. Do not
+guess which model ran an entry. This branch writes nothing and asks no questions.

@@ -1,11 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 
-// [Foreman: 062] Standalone CLI contract: this file is plain Node and must
-// stay runnable with no harness present. CLAUDE_PROJECT_DIR is optional and
-// falls back to cwd; no other harness dependency is permitted here. Pinned by
-// tests/standalone.test.js, which spawns it with every CLAUDE_* variable
-// deleted.
+// Standalone Node CLI; project selection is shared by runtime.projectDir.
 
 // Mechanical gate for an assembled handoff prompt — the checklist items a
 // script can actually verify, verified by a script instead of prose trust.
@@ -26,6 +22,7 @@ const TEMPLATE_PATH = path.join(__dirname, "..", "prompt-template.md");
 // [Foreman: 106]
 const PLACEHOLDER_FRAGMENTS = [
   "[If step 0's",
+  "[If the configuration",
   "[specific role",
   "[one sentence",
   "[One more sentence when the purpose is known",
@@ -53,10 +50,8 @@ const PLACEHOLDER_FRAGMENTS = [
   "[WORKFLOW-STAGE FLAVOR",
 ];
 
-// Instructions asking the destination to echo its internal reasoning as
-// response text — the official Fable prompting guide (template source-d)
-// says these can trigger reasoning_extraction refusals on Fable-class
-// models. Warning, not error: other targets tolerate them.
+// Warn on requests to expose internal reasoning; ask for outcomes, evidence,
+// and concise decision rationale instead.
 const REASONING_ECHO_RE =
   /\b(?:show|explain|reproduce|transcribe|echo)\b[^.\n]{0,60}\b(?:your|its)\s+(?:reasoning|thought process|chain of thought|internal thinking)\b|\bthink(?:ing)? out loud\b/i;
 
@@ -66,10 +61,9 @@ const ASSUMED_CONTEXT_RE =
   /\bas (we|you and i) discussed\b|\bas discussed (earlier|above)\b|\bper our conversation\b|\bfrom (our|the) (earlier|previous) (conversation|discussion)\b|\bas mentioned (earlier|above)\b/i;
 
 const WORKFLOW_STAGE_SENTENCE =
-  "Your return value is enforced by the attached schema; your final text is the return value, not a human-facing message.";
+  "Return only JSON matching the accompanying schema. Use tool-enforced structured output when available; otherwise validate the result against that schema before returning it.";
 
-// Sentinel for the official autonomous-operation reminder a background-
-// Agent destination must carry (the agent harness doesn't inject it).
+// Sentinel for the delegated subtask's scope and coordinator handback contract.
 const AUTONOMY_SENTENCE = "You are operating autonomously.";
 
 // [Foreman: 103]
@@ -120,12 +114,8 @@ function detectProfile(prompt) {
     : "standard";
 }
 
-// [Foreman: 107]
-// A plugins-cache path carrying a version segment — what ${CLAUDE_PLUGIN_ROOT}
-// resolves to. A skill's markdown reaches the crafting session already
-// substituted, so the expanded path is what a crafter copies by default; baked
-// into a prompt it version-pins every bookkeeping command and the prompt stops
-// running at the next version bump.
+// Retained export for callers inspecting historical artifacts; current Codex
+// prompts use installed absolute paths and refresh them if an installation moves.
 const PLUGIN_CACHE_PATH_RE =
   /plugins[\\/]cache[\\/][\w.@-]+[\\/][\w.@-]+[\\/]\d+\.\d+\.\d+[\w.-]*/;
 
@@ -150,17 +140,16 @@ function readCanonical() {
   const plan = extractBlock(xml, "plan");
   const closing = xml
     .split("\n")
-    .find((line) => line.startsWith("Reason through the approach"));
+    .find((line) => line.startsWith("Complete the requested outcome"));
   if (!truthGrounding || !scopeDiscipline || !plan || !closing) {
     throw new Error(`template at ${TEMPLATE_PATH} is missing a canonical block`);
   }
   return { xml, truthGrounding, scopeDiscipline, plan, closing };
 }
 
-// scope_discipline embeds ${CLAUDE_PLUGIN_ROOT} paths the assembler
-// substitutes — compare the literal segments around them, in order.
+// Compare canonical wording. Resolved plugin commands are emitted separately.
 function segmentsInOrder(canonical, actual) {
-  const segments = canonical.split("${CLAUDE_PLUGIN_ROOT}").map(norm).filter(Boolean);
+  const segments = [norm(canonical)];
   const hay = norm(actual);
   let from = 0;
   for (const seg of segments) {
@@ -210,10 +199,10 @@ function checkPrompt(prompt, opts) {
   if (!scope) {
     if (reinforced) errors.push(problem("missing <scope_discipline> — every reinforced handoff carries it, unmodified", "Copy prompt-template.md's <scope_discipline> block in unchanged.", null));
   } else if (!segmentsInOrder(canonical.scopeDiscipline, scope)) {
-    errors.push(problem("<scope_discipline> differs from the template — it must be carried verbatim (only the ${CLAUDE_PLUGIN_ROOT} paths are substituted)", "Restore prompt-template.md's <scope_discipline> and change nothing but the ${CLAUDE_PLUGIN_ROOT} paths.", null));
+    errors.push(problem("<scope_discipline> differs from the template — it must be carried verbatim", "Restore prompt-template.md's <scope_discipline> without rewording.", null));
   }
   if (reinforced && !segmentsInOrder(canonical.closing, prompt)) {
-    errors.push(problem("the fixed closing paragraph (\"Reason through the approach…\") is missing or altered", "Append the template's fixed closing paragraph, unaltered, as the last thing in the prompt.", null));
+    errors.push(problem("the fixed closing paragraph (\"Complete the requested outcome…\") is missing or altered", "Append the template's fixed closing paragraph, unaltered, as the last thing in the prompt.", null));
   }
   // [Foreman: 138] The one guardrail neither profile may drop.
   if (!norm(prompt).includes(norm(CLOSURE_EVIDENCE_SENTENCE))) {
@@ -227,9 +216,9 @@ function checkPrompt(prompt, opts) {
     errors.push(problem("<plan> differs from the template — it must be carried verbatim", "Restore prompt-template.md's <plan> verbatim.", null));
   }
   // [Foreman: 107]
-  const pinned = prompt.match(PLUGIN_CACHE_PATH_RE);
-  if (pinned) {
-    errors.push(problem(`resolved plugin path in the prompt body ("${pinned[0]}") — write \${CLAUDE_PLUGIN_ROOT} instead, or every bookkeeping command dies at the next version bump`, "Replace the resolved path with the literal ${CLAUDE_PLUGIN_ROOT} so the command survives the next version bump.", 'node "${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js" update-status'));
+  const unresolvedRoot = prompt.match(/\$\{(?:CLAUDE|CODEX)_PLUGIN_ROOT\}/);
+  if (unresolvedRoot) {
+    errors.push(problem("unresolved plugin root in the prompt body — Codex does not expand this placeholder", "Replace the placeholder with the installed plugin path resolved by craft-handoff.js; refresh it if the installation moves.", null));
   }
   // [Foreman: 103]
   if (reinforced && !norm(prompt).includes(norm(NO_INVENTION_SENTENCE))) {
@@ -331,16 +320,16 @@ function checkPrompt(prompt, opts) {
   if (opts.workflowStage) {
     if (toneBlock !== null) errors.push(problem("<tone> present in a Workflow-stage prompt — the flavor drops it unconditionally", "Delete <tone>; the Workflow-stage flavor drops it unconditionally.", null));
   } else if (omit.has("tone") && opts.destination !== "agent") {
-    if (toneBlock !== null) errors.push(problem("<tone> present but the project omits it (omitSections) and the destination is not a background Agent", "Delete <tone>; the project omits it and this destination already has a voice.", null));
+    if (toneBlock !== null) errors.push(problem("<tone> present but the project omits it (omitSections) and the destination is not a delegated subagent", "Delete <tone>; the project omits it and this destination already has a voice.", null));
   } else if (toneBlock === null && reinforced) {
     errors.push(problem(
       opts.destination === "agent" && omit.has("tone")
-        ? "<tone> missing — an omitted tone STAYS for a background-Agent destination (no output style reaches that session)"
+        ? "<tone> missing — an omitted tone STAYS for a delegated-subagent destination (the coordinator needs a reporting contract)"
         : "missing <tone> — include the template default (or the user's custom tone)",
       opts.destination === "agent" && omit.has("tone")
-        ? "Add <tone> anyway — an omitted tone still ships to a background Agent, because no output style reaches that session."
+        ? "Add <tone> anyway — an omitted tone still ships to a delegated subagent, because the coordinator needs a reporting contract."
         : "Add <tone> with the template default, or the tone the user asked for.",
-      "<tone>\nMinimal, professional conversation — silent by default. If an output style already governs this session's voice, defer to it.\n</tone>"
+      "<tone>\nBe concise and direct. Report useful progress and the final outcome; follow the user's communication instructions.\n</tone>"
     ));
   }
 
@@ -386,10 +375,10 @@ function checkPrompt(prompt, opts) {
     warnings.push(`assumes the crafting conversation's context ("${assumed[0]}") — the handed-off session has none`);
   }
 
-  // --- background-Agent autonomy reminder ---
+  // --- delegated-subagent autonomy reminder ---
   const hasAutonomy = prompt.includes(AUTONOMY_SENTENCE);
   if (opts.destination === "agent" && !hasAutonomy) {
-    errors.push(problem('missing the autonomous-operation paragraph ("You are operating autonomously.") — a background Agent has no user to answer questions', "Add the autonomous-operation paragraph; a background Agent has nobody to ask.", AUTONOMY_SENTENCE));
+    errors.push(problem('missing the autonomous-operation paragraph ("You are operating autonomously.") — a delegated subagent has no user to answer questions', "Add the autonomous-operation paragraph; a delegated subagent has nobody to ask.", AUTONOMY_SENTENCE));
   } else if (opts.destination !== "agent" && hasAutonomy) {
     warnings.push("carries the autonomous-operation paragraph but the destination has a user present — drop it for task/clipboard");
   }
@@ -397,7 +386,7 @@ function checkPrompt(prompt, opts) {
   // --- reasoning-echo instructions ---
   const echo = prompt.match(REASONING_ECHO_RE);
   if (echo) {
-    warnings.push(`asks the destination to echo its reasoning ("${echo[0]}") — this can trigger reasoning_extraction refusals on Fable-class models; ask for the outcome instead`);
+    warnings.push(`asks the destination to echo its reasoning ("${echo[0]}") — ask for the outcome, evidence, and concise decision rationale instead`);
   }
 
   return { errors, warnings, configWarnings: config.warnings, profile };
@@ -422,7 +411,7 @@ instruction, not a complaint.
                   Echoed back as "profile" in the result.
   --destination   required: where the prompt is going (task = Execute here
                   in this session, in any of its execution modes,
-                  agent = background Agent, clipboard = copy).
+                  agent = delegated subagent, clipboard = copy).
                   Decides whether an omitted tone must stay (agent) or go.
   --entry <id>    the ROADMAP.jsonl entry this handoff opens/closes --
                   requires the embedded entry paragraph (roadmap picks).

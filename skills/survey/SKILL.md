@@ -1,348 +1,139 @@
 ---
 name: survey
-description: Advanced surface, normally reached through the `foreman` entrance's Reconcile and pick mode, which hands it a near-term set of ids to scope the pass to. Ground-truths the roadmap's near-term candidates against the actual codebase — an Explore agent checks whether each candidate's planned_touches/depends_on still match reality, then proposes a concrete repair for every finding (hidden dependency, already-done, stale description or planned files), applies only the ones you approve, and persists them back into ROADMAP.jsonl so future sessions pick them up automatically. Also retires any recorded lesson the same evidence contradicts, so a wrong claim stops being quoted into later handoffs. It costs materially more than a plain pick, which is why it is explicit.
-when_to_use: Reached through the `foreman` entrance for Reconcile and pick; trigger directly when a power user explicitly asks to reconcile, audit, double-check, or verify the roadmap's ordering — "survey the roadmap", "audit the next tasks", "double-check what's next", "is the roadmap still accurate", or invokes /foreman:survey. Never trigger automatically from foreman:roadmap's pick-next-task flow, a commit, or any other implicit signal.
-argument-hint: "<optional — a task id or two to focus on, otherwise surveys the top unblocked candidates>"
-allowed-tools: AskUserQuestion, Read, Bash, PowerShell, Agent
+description: Reconcile selected Foreman roadmap entries against current code and propose evidence-backed repairs, including dependency fixes and stale lessons. Use when the user requests a roadmap survey or reconcile-and-pick; a fast pick or old roadmap alone does not trigger it.
 ---
 
-# foreman:survey — ground-truth the roadmap's near-term candidates
+# Survey the roadmap
 
-This is the one Foreman flow that deliberately investigates the codebase
-against the roadmap. `foreman:roadmap`'s pick-next-task branch explicitly
-does **not** do this — see the 0.4.4-alpha changelog entry, where doing
-exactly this at pick time burned ~100k tokens on every invocation. Keeping
-it a separate, explicitly-triggered skill is what makes both halves cheap:
-the fast path stays mechanical, and ground-truthing only runs when someone
-actually asks for it.
+Read [the shared runtime](../foreman/runtime.md). This is the advanced code
+investigation flow; Fast pick deliberately does not run it. It reads more
+code and costs more than ranking stored tasks. Survey only the requested scope,
+produce concrete evidence, and apply only authorized repairs.
 
-All reads/writes to `ROADMAP.jsonl` go through
-`${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js` — never `Read`/`Edit` the file
-directly — run it with `--help` for the command shapes. Read the **Fields**
-section of `${CLAUDE_PLUGIN_ROOT}/roadmap-schema.md` for field semantics.
+Use `scripts/roadmap.js` for all roadmap reads and mutations. Missing roadmap:
+offer the init flow rather than surveying an invented plan.
 
-**Pre-check**: if `ROADMAP.jsonl` doesn't exist at the project root, tell
-the user to run `/foreman:init` first and stop here.
+## 1. Resolve scope and mechanical facts
 
----
+If the caller supplies ids, those ids are the scope, including the near-term
+set handed over by **Reconcile and pick**. Read them with `list --ids`; report
+missing or terminal entries and omit those from repair. Otherwise run
+`next-candidates` and survey its top candidates (default limit 3). Say when
+additional unblocked work was outside this scope.
 
-## 1. Pick the scope
+Resolve only the distinct `depends_on` ids with a targeted `list --ids`.
+Completed dependency rows already carry `commit_evidence`: use its unresolved
+SHAs and trailer matches, including submodule-aware evidence. An unresolved
+commit means not resolvable here, not fabricated. Zero recorded SHAs plus a
+trailer match is recorded work from a staged close.
 
-<!-- [Foreman: 141] -->
-If a caller handed over a set of ids, that set **is** the scope — args naming
-specific tasks, or **Reconcile and pick**'s near-term set (`foreman:roadmap`'s
-pick branch derives it from one `next-candidates --menu` result: the candidate
-rows plus the `in_progress` and `awaiting_acceptance` rows). Run `list --ids
-<those ids>`, drop any that don't exist or are terminal
-(`done`/`dropped`/`rejected` — history its commits already describe) and say
-which you dropped, and skip the `next-candidates` call below. Scoping decides
-which entries get investigated and nothing else: steps 2–4 run exactly as
-written, on whatever the scope holds. Otherwise:
+Check each unique planned path once, relative to the project root, and make a
+`path_exists` map. Refuse paths outside the project before reading them.
+A missing path may be a file this task will create; absence alone is not stale
+scope. `observed_touches` is historical and not a predicted surface to repair.
 
-`node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js next-candidates`
-(default `--limit 3`) — candidates already include each one's own
-`depends_on`, no separate call needed just to get that.
+Regardless of how scope was chosen, gather a compact not-done digest with
+`roadmap.js list --status planned,in_progress,awaiting_acceptance,deferred --summary`.
+It provides id, title, planned paths, status, and dependencies without loading
+the whole backlog's prose. Use it for cross-entry dependency and duplicate
+checks; investigation workers do not fetch the roadmap themselves.
 
-Survey the top candidates only — same 3 by default as `foreman:roadmap`
-shows. This is deliberately not the whole backlog: a hidden dependency or
-stale claim matters most for what's about to be picked, and checking every
-`planned` entry every time would make this as expensive as the thing it's
-trying to avoid. If `total_unblocked` is larger than what you surveyed,
-say so when reporting back — don't imply full coverage silently.
+## 2. Investigate independently
 
-Collect the exact set of dependency ids referenced across all candidates'
-`depends_on` (dedup). If non-empty, resolve just those —
-`node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --ids <comma-joined ids>`
-— never the unfiltered `list`, which loads the whole file just to answer a
-question about a handful of ids.
+For each candidate, give a read-only worker its id/title/why/what/planned files/
+dependencies, existence map, resolved dependency evidence, and not-done digest.
+Use available collaboration subagents for independent candidates while the
+coordinator handles other candidates or shared evidence. Limit concurrency to
+actual capacity and inherit settings. If delegation is unavailable or there is
+only one small candidate, investigate locally. Collect every result before
+claiming the survey complete.
 
-**Mechanical pre-check, not an agent's job:** that `list --ids` call already
-answered whether each entry's commits exist — every finished entry it
-returns carries `commit_evidence`
-(`commit_count`/`resolved_count`/`unresolved`/`has_trailer_match`). Read it;
-do not re-derive it with `git cat-file` (which only ever asks the project
-repo, so a commit living in a submodule comes back "missing" when it is
-right there) and do not spend agents on it. `unresolved` lists the shas git
-could not find; `has_trailer_match: true` means a commit message names the
-entry, which is the whole evidence a staged close leaves — an entry with
-`commit_count: 0` and a trailer match is recorded, not empty.
+Check these questions:
 
-Same reasoning applies to `planned_touches`: collect every path named across
-the candidates being surveyed (dedup), and check existence directly —
-`test -e <path>` (Bash) / `Test-Path <path>` (PowerShell), relative to the
-project root, one call per unique path (or a short loop in one call).
-Build a `path_exists: true/false` map from this too — no agent needs a
-`Read`/`Glob` round trip just to learn a file isn't there. A missing path
-is a **question, not a verdict**: `planned_touches` is a forward-looking best
-guess written at `add`/`init` time and routinely names files the task will
-create, so absence alone is expected on a healthy backlog and proves
-nothing by itself. Survey only ever ranges over that predicted half —
-`observed_touches` is derived from commits that already landed, so there is
-nothing there to ground-truth and nothing `correct` could repair.
+1. **Paths and description**: for a missing path, look for a deletion or rename
+   in git history before calling it stale. A planned new file stays valid.
+   For existing files, read relevant symbols and history against the task's
+   claim. A stale-path finding supplies the whole corrected `planned_touches`
+   array, retaining unaffected paths; a stale-description finding supplies a
+   finished rewritten `what`.
+2. **Dependencies satisfied**: mechanically unresolved evidence already
+   warrants attention. For resolved commits, inspect whether the code plausibly
+   implements the prerequisite. Keep mechanical resolution and semantic
+   implementation as separate conclusions.
+3. **Hidden dependencies**: compare imports, calls, and consumers against the
+   supplied not-done digest in both directions. Report an overlooked prerequisite
+   of this candidate and another entry that depends on this candidate when the
+   evidence supports either. Uncertain relations carry `confident:false`.
+4. **Done or duplicate**: compare the implemented behavior and other unfinished
+   titles/surfaces with this task. Do not treat a similar title alone as proof.
 
-One more mechanical fact, gathered once regardless of which path above set
-the scope: a **not-done digest** — `id`, `title`, `planned_touches` for
-every entry currently `planned`, `in_progress`, `awaiting_acceptance`, or
-`deferred` (the whole not-done backlog, not just the candidates being
-surveyed) — `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --status
-planned,in_progress,awaiting_acceptance,deferred --summary` (`--summary`
-rows already carry exactly this: `id`/`title`/`status`/`depends_on`/
-`planned_touches` — never the unfiltered `list`, which would also load the
-prose fields for entries nobody is investigating). Checks 3 and 4 in step 2
-compare each candidate against this digest, not against a fresh roadmap
-read — it exists precisely so an Explore agent never has to open
-`ROADMAP.jsonl` itself to answer "does this overlap something else
-unfinished".
+Verdicts are `valid`, `hidden-dependency`, `stale-description`, `stale-touches`,
+`already-done`, or `duplicate`. Every non-valid verdict cites file:line or a
+commit, or explicitly says `confident:false` and what could not be grounded.
 
----
+A stale finding needs both evidence (opened files/symbols and observed mismatch)
+and a concrete replacement value: a complete `what` string or full
+`planned_touches` array. "This looks stale" is not an actionable repair.
+Keep evidence even when no replacement can be grounded; mark that uncertain.
 
-## 2. Investigate each candidate in parallel
+## 3. Review and apply
 
-Dispatch one `Agent` (`subagent_type: Explore`) per candidate, in parallel
-(single message, multiple tool calls). Each gets a self-contained prompt —
-it has no memory of this conversation — built from the candidate's own
-fields plus the resolved-dependency, exists-map, and not-done-digest
-context gathered in step 1:
+For each proposed change, show id/title, current → proposed value, and evidence.
+Show complete planned-file arrays on both sides. A request to inspect remains
+read-only for substantive changes. Ask for each needed decision; when the user
+already explicitly authorized grounded repairs, apply those within that scope
+without asking for the same authorization again. Do not merge unrelated or
+uncertain findings into a blanket approval.
 
-- The candidate's `id`, `title`, `why`, `what`, `planned_touches`, `depends_on`.
-- For each path in `planned_touches`: the pre-computed `path_exists` flag from step
-  1 — the agent consumes this fact, it does not re-check it with its own
-  `Read`/`Glob` call.
-- For each id in `depends_on`: that entry's `title`, `status`, `commits`,
-  and its `commit_evidence` from step 1 — the agent consumes this fact, it
-  does not re-derive it.
-- The **not-done digest** from step 1 — `id`/`title`/`planned_touches` for
-  every other not-done entry — for checks 3 and 4 below. The agent judges
-  hidden dependencies and overlaps against this supplied digest; it does
-  not read `ROADMAP.jsonl` to get it.
-- Ask it to check, and report a verdict for each:
-  1. **Touches still real?** A path step 1 flagged missing is
-     `stale-touches` only if it can be shown to have *once existed and
-     moved* — `git log --diff-filter=D -- <path>`, or `--follow` showing a
-     rename. Nothing found means the task simply hasn't created it yet:
-     verdict stays `valid`, nothing to annotate. When a path did move, the
-     agent returns the **whole corrected `planned_touches` array** — the new path
-     in place of the old one, every unaffected path kept — because
-     `correct` replaces that field wholesale rather than merging a diff
-     into it. For paths confirmed to exist, does their current content
-     still match what `what` describes? (`git log --oneline -- <path>`
-     plus a read of the file's current state.) Where it no longer does,
-     that is `stale-description`, and the agent returns a **rewritten
-     `what`**: the same task re-described against the code as it now
-     stands, ready to be stored verbatim — not a summary of the drift.
-  2. **Dependencies actually satisfied?** If step 1's `commit_evidence`
-     already lists a `done` entry's commit as `unresolved`, that alone is a
-     red flag — no further check needed. Otherwise, for commits that resolved,
-     do they plausibly implement what that entry's `title`/`what` claims?
-     (this half stays semantic — read the commit, judge the match)
-  3. **Hidden dependency?** Reading the code the candidate's
-     `planned_touches` point to, does it already reference/import/call
-     something that another entry in the **supplied not-done digest** claims
-     via its own `planned_touches`, which isn't in this candidate's
-     `depends_on`? Then the same question in reverse: does anything
-     *outside* this candidate's `planned_touches` consume the code it
-     changes, in a way that makes another entry in the digest depend on
-     this one? Check against the digest handed to you, not a fresh
-     `ROADMAP.jsonl` read. Report every relation you can see in either
-     direction, including one you can see but cannot pin to a line — mark
-     that `confident: false` and say what you could not pin down. Step 3
-     filters; a dependency you leave out here is not recoverable there,
-     because it is the one verdict that reorders future picks.
-  4. **Already done, or duplicate?** Does the working tree already contain
-     what `what` describes, or does it closely overlap another entry's
-     `title` in the supplied not-done digest?
+Apply through these CLI operations:
 
-  Verdict per candidate: `valid` (nothing found) | `hidden-dependency` |
-  `stale-description` | `stale-touches` | `already-done` | `duplicate`.
-  Every non-`valid` verdict must cite the file:line or commit that grounds
-  it, or be marked `confident: false` with what it could not pin down —
-  never a bare verdict carrying neither.
+- Hidden dependency: `update-deps` with `{"id":"...","add_depends_on":["..."]}`.
+  The graph stores the relation so future picks honor it; a note alone does not.
+- Already done or duplicate: `update-status` to `done` with the actual commit
+  evidence, or `dropped` with the reason, according to the reviewed finding.
+  Do not manufacture a completion SHA.
+- Stale description/files: re-read immediately with `roadmap.js list --ids <id>`,
+  then `roadmap.js correct` with `expected_updated_at`, `expected.<field>` for
+  every approved field, and the new values. `planned_touches` is always the
+  full replacement array. Never overwrite a declined field.
+- If the timestamp or expected value changed, re-read and re-show the proposal
+  against current state. Ask when the intervening change affects the authorized
+  meaning. Never take values from the rejection merely to force a write.
 
-  A `stale-description` or `stale-touches` verdict carries **two** things
-  or it is not reportable as one: the **evidence** — the file paths and
-  symbols it actually opened, and what it found there instead — and a
-  **concrete proposed replacement value**, a finished `what` string or a
-  complete `planned_touches` array, ready to be written as-is. A vague "this looks
-  stale" is not a finding of this kind. When the evidence is real but no
-  replacement can be grounded, the agent returns it with
-  `confident: false` and says what it could not determine, keeping the
-  evidence either way. That flag is what step 3 reads to choose between
-  proposing a repair and leaving a breadcrumb — an agent that invents a
-  replacement it cannot ground turns a survey into a rewrite.
+Uncertain findings are never applied as facts. An evidence-backed uncertain
+lead can be recorded using `annotate` with
+`{"id":"...","notes":"survey (unconfirmed): <one-line evidence>"}` when recording
+survey findings is within the request. Status stays untouched and no field is
+rewritten. Explain that such notes inform future prompts but do not reorder
+the mechanical ranking. Do not silently record a finding the user declined:
+a declined proposal writes nothing, including no refusal breadcrumb.
 
----
+## 3b. Reconcile lessons from the same evidence
 
-## 3. Confirm before writing anything
+Call `roadmap.js notes --paths <combined candidate paths>` once. Empty results
+skip this step; the reader handles a disabled ledger. Offer retirement only
+when the just-collected evidence contradicts the lesson. A `stale` label alone
+does not prove a lesson wrong, and a `fresh` lesson can still have been wrong
+when written.
 
-Present findings to the user — one line per candidate, `valid` ones need
-no more than a mention. For anything else, **ask before persisting**
-(`AskUserQuestion`) — a survey finding is Claude's read of the evidence,
-not an automatic mutation.
+Show the lesson verbatim, its freshness label, and the contradictory evidence.
+A user's decision to retire calls `note-supersede` with
+`{"key":"<reported key>","by_entry":"<surveyed id>"}`. Retirement stops recall
+without deleting history; new truth belongs to the next completed task's lesson.
 
-For every finding that carries a concrete proposal, show three things
-before asking: the entry's **id and title**, the **current value →
-proposed value**, and the **evidence line(s)** the agent cited. Show
-`planned_touches` in full on both sides — `correct` replaces the array, so a
-partial list would read as the entire new one. The user is approving a
-specific string; the specific string has to be on screen.
-
-**Approval is per finding.** One `AskUserQuestion` per entry, using
-`multiSelect` when several fields of the same entry changed together (a
-rewritten `what` and a corrected `planned_touches` — the user may well want one
-and not the other). Batch at most a handful of entries into one question,
-and only while every option still names its own entry and field. **Never
-offer a single blanket "apply everything"**: an approval that covers
-findings the user did not read one at a time is not the confirmation this
-step exists to collect.
-
-- **`hidden-dependency`** → on confirm:
-  `echo '{"id":"<candidate>","add_depends_on":["<dep-id>"]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-deps`
-  This is structural — `next-candidates` will now correctly treat the
-  candidate as blocked until `<dep-id>` is `done`. This is the mechanism
-  that makes a finding from this session visible to a completely different
-  session later: it's baked into the graph the ranking algorithm reads,
-  not a note someone has to remember to check.
-- **`already-done` / `duplicate`** → on confirm:
-  `echo '{"id":"<candidate>","status":"dropped","notes":"survey: <one-line evidence>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
-  (or `"done"` with the actual `commit` if the evidence points to a specific
-  commit that already did the work).
-- **`stale-description` / `stale-touches`** with a concrete proposal → on
-  confirm, apply it with `correct`, the one command that can replace
-  `what`/`planned_touches` on a live entry (`foreman:roadmap`'s "Correct a
-  task" branch uses the same call):
-  1. `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --ids <candidate>`
-     — re-read the entry immediately before writing. Its `updated_at` is
-     the value the write is guarded by, the surveying agents ran for a
-     while in between, and `next-candidates` does not return that field at
-     all.
-  2. `echo '{"id":"<candidate>","expected_updated_at":"<the updated_at that read just returned>","expected":{"what":"<the what that read just returned>","planned_touches":[<the planned_touches that read just returned>]},"what":"<approved what>","planned_touches":[<approved paths>]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js correct`
-     — only the approved fields go in the payload, each paired with its own
-     `expected.<field>` holding the CURRENT value that same read (1) just
-     returned; a field the user declined is simply absent from both, and
-     `planned_touches` is sent as the whole replacement array in both
-     places.
-  3. If the script refuses with `was last updated … , not …`, another
-     session changed the entry between that read and this write. **Re-read
-     (1), re-show current → proposed against the newer text, and ask
-     again** — the proposal was composed against text that no longer
-     exists, so it may now be wrong or already applied. Never re-send with
-     the `updated_at` from the error message to force it through: that
-     value is the guard, and overriding it silently overwrites someone
-     else's correction.
-
-  `correct` refuses terminal (`done`/`dropped`/`rejected`) entries and a
-  title another entry already holds, on its own — a stale description
-  found on a terminal entry is history its commits describe, not a repair.
-- **Uncertain findings are never applied.** Evidence gathered but no
-  grounded replacement (the agent's `confident: false`), or a proposal
-  neither you nor the user can pin down here: it lands as exactly one
-  breadcrumb, marked unconfirmed so a later session reads it as a lead and
-  not as a fact — status untouched, no field rewritten:
-  `echo '{"id":"<candidate>","notes":"survey (unconfirmed): <one-line evidence>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js annotate`
-  (the script date-stamps each appended note itself — don't write one in)
-  `annotate` exists precisely for this write: unlike `update-status`, it
-  can't regress the entry to a status read before the survey ran (e.g.
-  re-asserting `planned` on an entry another session has since moved to
-  `in_progress`).
-  This is a soft signal, not a mechanical reorder — `next-candidates` now
-  returns this candidate's `notes`, so the next `foreman:roadmap` pick sees
-  it as context, but ranking itself (`unblocks_total`, then `unblocks`,
-  then no-collision, then `created_at`) doesn't change. Say this explicitly if the user expects a guaranteed reorder —
-  that would need a stored priority field this schema deliberately doesn't
-  have (see `roadmap-schema.md`'s **Fields** section).
-- **A declined proposal writes nothing.** No note, no "Claude proposed
-  this and the user said no" breadcrumb, no status change. The user read
-  the evidence and answered; recording the refusal on the entry would
-  resurface it as a lead in every later session and quietly make saying no
-  expensive. It goes in the report (step 4), not in the roadmap.
-
-Never write on an unconfirmed finding, and never touch `ROADMAP.jsonl`
-directly — every write above goes through `roadmap.js`, same as every other
-Foreman flow.
-
----
-
-<!-- [Foreman: 247] -->
-## 3b. The lessons recorded about the same files
-
-Survey is the only flow that has already read the code a recorded lesson
-describes, so it is the only place a wrong one gets retired. Nothing else in
-Foreman can tell a claim that aged badly from one that was never true.
-
-One call, for the candidates you surveyed, with their `planned_touches` joined:
-
-```
-node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js notes --paths <comma-joined paths>
-```
-
-Skip the whole step when it returns no records — that one call answers both
-"is the feature on" and "is there anything here", and it costs nothing to ask.
-
-Two kinds of record are worth the user's attention, and no others:
-
-- **`staleness: "stale"` whose claim the step-2 evidence contradicts.** The
-  files under it moved, and the agents that just read those files reported
-  something different.
-- **Any record the step-2 evidence contradicts outright**, whatever its label.
-  A `fresh` label says the files have not changed since the claim was
-  recorded. It never says the claim was right when it was written.
-
-**A stale label on its own is not a finding.** It is a prompt to look, and the
-looking already happened in step 2. Offering every stale line would turn this
-step into a list the user clicks through, which is how a confirmation stops
-being one.
-
-For each record worth offering, show the lesson verbatim, its label, and the
-evidence line that contradicts it, then ask (`AskUserQuestion`): keep it, or
-retire it. Same rule as every other write here — one finding, one answer,
-never a blanket apply. On retire:
-
-```
-echo '{"key":"<the key notes reported>","by_entry":"<the surveyed entry>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js note-supersede
-```
-
-Retiring stops the line being served and stops it spending the handoff's
-capped serving window. It does not delete it, and it does not record what the
-truth is instead: the corrected fact belongs on the `lesson` of whichever task
-next closes in that code, where it arrives with its own anchor and date.
-
-**Pruning is a separate ask and it comes last.** It is the one command in
-Foreman that rewrites the lesson store, so it never runs on an inference about
-what the user probably wants:
-
-```
-node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js note-prune --dry-run
-```
-
-That writes nothing and reports what would go — records whose every file is
-gone, and records already retired. Show the count and ask once. Only on a yes,
-run the same command without `--dry-run`. When the dry run reports nothing,
-skip the ask entirely rather than asking a question whose answer changes
-nothing.
-
----
+Pruning is a distinct, explicit action because it rewrites the lesson store.
+Run `note-prune --dry-run`, show the count, and obtain authorization for that
+specific removal before running without the flag. Skip the question when
+nothing would be removed. Existing authorization to prune that set still counts.
 
 ## 4. Report
 
-Short summary: candidates surveyed (and how many were left unsurveyed, if
-any), verdicts, what got written. Lessons retired and records pruned get one
-line each when either happened, and no line at all when neither did. Separate the three outcomes in one line
-each: corrections applied, findings left unconfirmed as breadcrumbs, and
-proposals declined (declined ones exist only here — nothing about them was
-written). If nothing was confirmed, say the roadmap is unchanged — this
-skill running is not itself news.
+Report surveyed and omitted counts, verdicts, applied corrections, unconfirmed
+leads recorded, and declined proposals. Mention retirement or pruning only when
+it occurred. If no writes happened, say the roadmap is unchanged. For
+reconcile-and-pick, return these results to the pick flow before it refreshes
+its menu; do not quietly continue on the old ranking.
 
----
-
-<!-- [Foreman: 209] -->
-## Trial log
-
-After each `AskUserQuestion` call in this branch, one silent line:
-
-```
-node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js question_asked '{"flow":"survey"}'
-```
-
-One event per call, never one per question — the cost being measured is the
-interruption, not how many fields it carried. It is a no-op unless the
-project set `trialLog`, so it needs no check first and never blocks the flow.
+After an actual question, record
+`node <plugin-root>/scripts/trial-log.js question_asked '{"flow":"survey"}'`.
+This is a no-op unless the project set `trialLog` and never blocks the flow.

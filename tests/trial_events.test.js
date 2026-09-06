@@ -14,7 +14,7 @@
 // Covers:
 //   - every event the skills name is a real event, and every flow a real flow
 //   - each branch records its own flow, and doctor.md records nothing
-//   - pick.md carries all four recommendation events
+//   - pick.md records only model-side recommendation events; menu/hint are CLI-owned
 //   - init/SKILL.md carries init_started, init_completed and the snapshot
 //     recovery
 //   - the shapes the prose writes actually pass the writer's own validator
@@ -110,15 +110,37 @@ describe('the model-side trial events', () => {
     );
   });
 
-  test('pick.md carries all four recommendation events', () => {
+  test('pick.md records choices without duplicating CLI-owned menu and hint events', () => {
     const text = skill('roadmap', 'pick.md');
-    for (const event of ['menu_shown', 'hint_used', 'pick_accepted', 'pick_overridden']) {
+    for (const event of ['pick_accepted', 'pick_overridden', 'question_asked']) {
       assert.match(text, new RegExp(`trial-log\\.js ${event} `), `pick.md never records ${event}`);
     }
+    const modelEvents = invocations().filter((inv) => inv.file === 'roadmap/pick.md').map((inv) => inv.event);
+    assert.deepEqual(modelEvents.sort(), ['pick_accepted', 'pick_overridden', 'question_asked']);
+    assert.match(text, /events are emitted by the CLI; do not record them\s+again/);
     // The two branches that must NOT record a pick are named out loud.
     const flat = text.replace(/\s+/g, ' ');
-    assert.ok(/settles existing work rather than answering "what next", so it records neither/.test(flat));
-    assert.ok(/defer\*\* sub-branch records neither/.test(flat));
+    assert.ok(/Accept, resume, and defer choices record neither acceptance nor override/.test(flat));
+    assert.ok(/A skipped question is never logged/.test(flat));
+  });
+
+  test('one menu CLI call emits exactly one menu and one hint event', () => {
+    const project = makeTmpProject();
+    fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
+    fs.writeFileSync(path.join(project, '.foreman', 'config.json'), '{"trialLog":true}', 'utf-8');
+    const roadmapCLI = path.join(SCRIPTS_DIR, 'roadmap.js');
+    const env = { FOREMAN_PROJECT_DIR: project };
+    const added = runNodeScript(roadmapCLI, ['add'], JSON.stringify({
+      title: 'Add alpha output', why: 'Expose alpha results', what: 'Print alpha output', source: 'user',
+    }), env);
+    assert.equal(added.status, 0, added.stdout);
+    const menu = runNodeScript(roadmapCLI, ['next-candidates', '--menu', '--hint', 'alpha'], null, env);
+    assert.equal(menu.status, 0, menu.stdout);
+    const rows = trial.readEvents(project);
+    assert.equal(rows.filter((row) => row.event === 'menu_shown').length, 1);
+    assert.equal(rows.filter((row) => row.event === 'hint_used').length, 1);
+    assert.equal(rows.filter((row) => row.event === 'question_asked').length, 0);
+    assert.equal(rows.filter((row) => row.event === 'pick_accepted' || row.event === 'pick_overridden').length, 0);
   });
 
   test('init/SKILL.md carries the setup pair and the snapshot recovery', () => {
@@ -129,7 +151,7 @@ describe('the model-side trial events', () => {
     assert.match(text, /"kind":"reinit-snapshot"/);
     const flat = text.replace(/\s+/g, ' ');
     assert.ok(
-      /how many `add` calls actually succeeded, never how many were drafted/.test(flat),
+      /Count successful adds, not the drafted total/.test(flat),
       'init_completed no longer says tasks counts successes, not drafts'
     );
     assert.ok(
@@ -147,7 +169,7 @@ describe('the model-side trial events', () => {
         `${rel} does not say the write is a no-op when the trial is off`
       );
       assert.ok(
-        /never blocks the flow/.test(flat),
+        /never blocks? the flow/.test(flat),
         `${rel} does not say the write never blocks the flow`
       );
     }

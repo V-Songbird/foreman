@@ -370,10 +370,10 @@ describe('skill contracts', () => {
   test('the roadmap skill offers acceptance and the send-back path', () => {
     const skill = readSkill('skills', 'roadmap', 'pick.md');
 
-    assert.match(skill, /`Accept: <title> \(<id>\)`/);
-    assert.match(skill, /"status":"done"/);
-    assert.match(skill, /accept options lead/);
-    assert.match(skill, /declining sends it back/);
+    assert.ok(skill.includes("**Accept**"));
+    assert.match(skill, /status:"done"/);
+    assert.match(skill, /`awaiting_acceptance` entries, then up to two `in_progress` entries/);
+    assert.match(skill, /declining calls it with `status:"in_progress"`/);
   });
 
   // [Foreman: 185] The primary close path honors requireVerification: the
@@ -394,20 +394,20 @@ describe('skill contracts', () => {
       isDecision: false,
       destination: 'clipboard',
     });
-    assert.match(held, /write\s+`awaiting_acceptance` instead/);
+    assert.match(held, /record `awaiting_acceptance`/);
     // A destination with a user in it asks; it never falls back to prose.
-    assert.match(held, /The first option is Test/);
+    assert.match(held, /offer Test first/);
     assert.match(held, /"status":"done"/);
     assert.doesNotMatch(held, /Say so in your final message too/);
     // The Test option is gated on a recorded line, so the same paragraph has
     // to say how one gets recorded — and that a runnable check never is one.
-    assert.match(held, /"unverified: <the check, and what to look for>"/);
-    assert.match(held, /never hand a command to the user to run for you/);
+    assert.match(held, /"unverified: <the check and what to look for>"/);
+    assert.match(held, /Run every check reachable through available commands, skills, or UI tools/);
     // Two more bars, both from live misfires: a check nothing can answer yet
     // fired Test on an untestable entry, and one the session could have
     // driven itself sent the user to the window session after session.
-    assert.match(held, /answerable today/);
-    assert.match(held, /genuinely past your reach/);
+    assert.match(held, /answerable now/);
+    assert.match(held, /beyond those tools/);
 
     // A background agent has no one to ask, so the hand-back stays prose.
     const agentHeld = entryParagraphText({
@@ -417,7 +417,7 @@ describe('skill contracts', () => {
       isDecision: false,
       destination: 'agent',
     });
-    assert.match(agentHeld, /Say so in your final message too/);
+    assert.match(agentHeld, /Return the result to the coordinator so they can request the user's acceptance/);
     assert.doesNotMatch(agentHeld, /AskUserQuestion/);
     assert.doesNotMatch(agentHeld, /unverified:/);
 
@@ -440,9 +440,9 @@ describe('skill contracts', () => {
   test('the pick menu offers the recorded hand-tests before accepting', () => {
     const skill = readSkill('skills', 'roadmap', 'pick.md');
 
-    assert.match(skill, /`Test it first \(Recommended\)`/);
-    assert.match(skill, /`unverified:` line out of its `notes`/);
-    assert.match(skill, /With none, that option does not appear at all/);
+    assert.match(skill, /Test it first \(Recommended\)/);
+    assert.match(skill, /notes contain `unverified:` lines/);
+    assert.match(skill, /With no recorded\s+unverified lines, do not offer that test option/);
   });
 
   test('the schema documents the lifecycle and the downgrade cost', () => {

@@ -29,8 +29,10 @@ matters.
 | When | What you see |
 | --- | --- |
 | A new job is written up | Anything recorded about the files that job will touch, and which earlier jobs shaped the functions it names |
-| You open a file | Anything recorded about that file |
+| A supported Codex file tool or patch touches a file | Anything recorded about that file |
 | Six months later | Search your saved changes for the job number |
+
+General shell reads do not expose reliable file paths to these hooks; prompt-time recall still works. See [Codex coverage](CODEX.md).
 
 That first one is the point. The next job starts already knowing what the
 last one found out, instead of working it out again.

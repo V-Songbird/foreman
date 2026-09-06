@@ -1,11 +1,8 @@
 #!/usr/bin/env node
 "use strict";
 
-// [Foreman: 062] Standalone CLI contract: this file is plain Node and must
-// stay runnable with no harness present. CLAUDE_PROJECT_DIR is optional and
-// falls back to cwd; no other harness dependency is permitted here. Pinned by
-// tests/standalone.test.js, which spawns it with every CLAUDE_* variable
-// deleted.
+// [Foreman: 062] Standalone CLI contract: plain Node with no host required.
+// runtime.projectDir supplies optional project overrides, falling back to cwd.
 
 const fs = require("fs");
 const path = require("path");
@@ -37,9 +34,7 @@ const {
   trailerShasFor,
 } = require("./commit-evidence");
 
-function projectDir() {
-  return path.resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
-}
+const { projectDir } = require("./runtime");
 
 function roadmapPath(root) {
   return path.join(root, "ROADMAP.jsonl");
@@ -517,7 +512,7 @@ const STATUSES = new Set([
   "dropped",
   "rejected",
 ]);
-const SOURCES = new Set(["user", "claude-suggested"]);
+const SOURCES = new Set(["user", "codex-suggested", "claude-suggested"]);
 // Statuses nothing is waiting on any more: the entry will not move again, so
 // a dependent of a dropped/rejected one is stranded rather than blocked.
 // `awaiting_acceptance` is deliberately NOT here: the user can still send it
@@ -538,13 +533,16 @@ const CREATE_STATUSES = new Set(["planned", "rejected"]);
 const KINDS = new Set(["build", "decision"]);
 
 // [Foreman: 102]
-// What actually executed the entry, self-reported at close time. Neither is
-// observable: hook input carries no model, and the Agent tool takes no effort
-// argument, so effort is whatever the executing session was already set to.
-// Closed sets rather than free strings — the corpus is only comparable if the
-// labels are; extend the set when a new model or effort tier ships.
+// What actually executed the entry, reported at close time when known from
+// the executing host. These fields do not select a model or override effort.
+// Preserve legacy labels; Codex model IDs are recorded verbatim, never inferred
+// from task difficulty. Syntax validation is not a claim of model availability.
 const MODELS = new Set(["haiku", "sonnet", "opus", "fable"]);
-const EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
+const EFFORTS = new Set(["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]);
+
+function isValidModel(value) {
+  return typeof value === "string" && /^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$/.test(value);
+}
 
 // Soft caps, not hard limits — every entry gets re-read on every `list`,
 // so a wall-of-text why/notes multiplies cost across every future call.
@@ -1027,7 +1025,9 @@ function cmdUpdateStatusUnlocked(root, payload) {
   }
   if (doc !== undefined) validateDoc(doc);
   if (kind !== undefined) validateKind(kind);
-  if (model !== undefined) validateRan("model", model, MODELS);
+  if (model !== undefined && !isValidModel(model)) {
+    throw new Error("model must be a non-empty model identifier (at most 128 letters, digits, dots, underscores, colons, slashes or hyphens)");
+  }
   if (effort !== undefined) validateRan("effort", effort, EFFORTS);
   const resolve = archiveResolver(root);
   const entries = readEntries(root);
@@ -1533,7 +1533,7 @@ function statsFor(entries) {
   };
   return {
     closed: ran.length,
-    by_model: tally("model", MODELS),
+    by_model: tally("model", new Set(ran.map((entry) => entry.model).filter(isValidModel))),
     by_effort: tally("effort", EFFORTS),
     no_model: ran.filter((e) => e.model === undefined).length,
     no_effort: ran.filter((e) => e.effort === undefined).length,
@@ -2422,7 +2422,7 @@ below) and adds a "migrated" field ({from, to, backup}) to its own result --
 absent when the file was already current.
 
   add               stdin JSON: {title, why, what, source, depends_on?, planned_touches?, notes?, status?, doc?, kind?}
-                    source: "user" | "claude-suggested"
+                    source: "user" | "codex-suggested" | "claude-suggested" (legacy)
                     planned_touches: the PREDICTED file/area surface (the
                     editable half; "touches" is still accepted as an input
                     alias for it). observed_touches is never an input -- it
@@ -2484,11 +2484,12 @@ absent when the file was already current.
                     doc: same "none" | relative .md path contract as add
                     kind: "build" | "decision" -- reclassify the entry;
                     "decision" is stored, "build" drops the key (the default)
-                    model: "haiku" | "sonnet" | "opus" | "fable" -- what
-                    ACTUALLY ran this entry, not what was recommended
-                    effort: "low" | "medium" | "high" | "xhigh" | "max" --
-                    likewise; both are self-reported (nothing can detect
-                    them) and omitted entirely when not given
+                    model: the exact executing model identifier, when known;
+                    legacy Claude labels remain valid. Never a recommendation
+                    effort: "none" | "minimal" | "low" | "medium" | "high" |
+                    "xhigh" | "max" | "ultra" -- the actual session setting;
+                    omit either field when unknown. Recording a value does
+                    not select a model or assert host availability
                     dependency changes caused by the transition return
                     compact newly_unblocked/newly_blocked/
                     stranded_dependents facts only when non-empty
@@ -2931,6 +2932,7 @@ module.exports = {
   TERMINAL_STATUSES,
   KINDS,
   MODELS,
+  isValidModel,
   EFFORTS,
   DUPLICATE_THRESHOLD,
   MAX_MATCHES,

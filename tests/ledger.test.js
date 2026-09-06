@@ -457,8 +457,9 @@ describe('lesson lines in the handoff', () => {
     const args = { id: '001', resume: false, requireVerification: false, destination: 'task' };
     assert.ok(!entryParagraphText({ ...args, askLesson: false }).includes('"lesson"'));
     const asked = entryParagraphText({ ...args, askLesson: true });
-    assert.match(asked, /If this task taught you one durable fact about this code area/);
-    assert.match(asked, /that is a valid outcome/);
+    assert.match(asked, /If this task taught one durable fact about the code area/);
+    assert.match(asked, /"lesson":"one sentence, naming the file or symbol it concerns"/);
+    assert.match(asked, /If nothing generalizes, omit it/);
   });
 
   test('every lesson note is machine-prefixed so recall can never quote it', () => {

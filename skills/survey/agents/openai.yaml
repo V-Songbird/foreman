@@ -1,0 +1,3 @@
+interface:
+  display_name: "Foreman Survey"
+  short_description: "Reconcile roadmap claims with current code"

@@ -1,0 +1,3 @@
+interface:
+  display_name: "Foreman"
+  short_description: "Plan the next task and preserve project history"

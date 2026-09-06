@@ -1,49 +1,21 @@
-# Branch: Add a task
+# Add a task
 
-1. Gather via free text: `title`, `why`, `what`, and optionally
-   `depends_on` (existing ids) and `planned_touches` (path/area hints — the
-   predicted surface; the observed one is derived at close, never given here).
-   Don't force
-   the user through every field if they've already given enough in a
-   one-line description (args or a natural request) — ask only for what's
-   missing. If the task reads as resolving an open question rather than
-   building something — the phrasing is a choice ("X or Y?", "decide
-   whether…", "pick an approach") — pass `kind: "decision"` so the pick
-   flow later hands it a decide-don't-build rule. A build is the default;
-   don't ask unless the entry genuinely looks like a decision.
-2. Before writing it, check it isn't already tracked:
-   `echo '{"title":"...","why":"..."}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js check-duplicate`
-   — matches carry each entry's status. On a match, name the existing
-   id/title/status in one line and ask whether to add anyway
-   (`AskUserQuestion`: `Add it anyway` / `Never mind`); a `rejected` match
-   means the user already declined this, say so. No match: add it without
-   comment. If the user confirms an exact-title match is genuinely separate,
-   ask them for a distinguishing title; exact adds are always replay-safe and
-   never have an override. Ask *before* the write, not after — `add` has no
-   undo: the only exit is `update-status dropped`, which leaves the row in
-   the file forever. Wording that later turns out wrong is repairable (see
-   "Correct a task"); a task that shouldn't exist is not.
-3. `echo '{"title":"...","why":"...","what":"...","source":"user","depends_on":[...],"planned_touches":[...]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js add`
-   — the script computes the id, validates required fields (including that
-   every `depends_on` id already exists), and confirms the file is still
-   well-formed after writing. An exact replay safely returns the existing
-   entry with `deduped: true` instead of adding another row.
-4. Confirm back to the user with the task's id and title (from the script's
-   JSON response). If `deduped: true`, say it was already tracked and no
-   duplicate was created. Surface any `warnings` the response carries,
-   verbatim, in the same line.
+1. Derive `title`, `why`, `what`, and any `depends_on` and `planned_touches`
+   from the user's request and available project context. Ask only for missing
+   information that affects the task. `kind:"decision"` means resolve a choice
+   and record it; implementation uses the default build kind.
+2. Run `roadmap.js check-duplicate` with `{"title":"...","why":"..."}`.
+   A rejected match means this was previously declined; do not revive it
+   silently. Other matches are already tracked. If the user means separate
+   work with an identical title, obtain a distinguishing title; exact-title
+   replay always returns the existing entry.
+3. Run `roadmap.js add` with the fields above, `source:"user"`, and arrays for
+   dependencies and planned files. The CLI computes ids and dates and verifies
+   the graph. Explicitly requested additions need no redundant approval.
+4. Report the returned id and title, whether it was deduplicated, and any
+   actionable warnings. Predicted files may be new; observed files are written
+   mechanically at close.
 
----
-
-<!-- [Foreman: 209] -->
-## Trial log
-
-After each `AskUserQuestion` call in this branch, one silent line:
-
-```
-node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js question_asked '{"flow":"add"}'
-```
-
-One event per call, never one per question — the cost being measured is the
-interruption, not how many fields it carried. It is a no-op unless the
-project set `trialLog`, so it needs no check first and never blocks the flow.
+After an actual question, record
+`node <plugin-root>/scripts/trial-log.js question_asked '{"flow":"add"}'`.
+This is a no-op unless the project set `trialLog` and never blocks the flow.

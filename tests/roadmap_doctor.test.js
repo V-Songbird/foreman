@@ -248,7 +248,7 @@ describe('doctor enum findings', () => {
   });
 
   test('unknown_model is an error', () => {
-    writeRoadmap(project, [base('001', { model: 'gpt' })]);
+    writeRoadmap(project, [base('001', { model: 'invalid model' })]);
     assertFinding(doctor(), 'unknown_model', 'error', ['001']);
   });
 
