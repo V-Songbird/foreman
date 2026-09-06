@@ -402,7 +402,7 @@ describe('skill contracts', () => {
     // The Test option is gated on a recorded line, so the same paragraph has
     // to say how one gets recorded — and that a runnable check never is one.
     assert.match(held, /"unverified: <the check and what to look for>"/);
-    assert.match(held, /Run every check reachable through available commands, skills, or UI tools/);
+    assert.match(held, /Run the required checks using available commands, skills, or UI tools/);
     // Two more bars, both from live misfires: a check nothing can answer yet
     // fired Test on an untestable entry, and one the session could have
     // driven itself sent the user to the window session after session.

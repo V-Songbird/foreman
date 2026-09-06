@@ -53,6 +53,13 @@ requirements before asking where to run it. A pure investigation has a clear
 question instead. Do not invent a test command or a success condition from a
 task title. Ask for the one missing piece when the stored evidence is insufficient.
 
+Craft a task brief that adds the entry's goal, relevant context, real constraints,
+and completion evidence to the destination's active Codex instructions. Treat
+implementation steps as suggested approach unless the user or a dependency
+requires their order. Preserve the recorded task type: investigation and review
+produce findings, and a decision produces a choice. None implies a request to
+implement a follow-up change.
+
 Read [skills/roadmap/destination-question.md](destination-question.md) and honor
 the supplied destination or ask its shared question. Then call
 `node "<plugin-root>/scripts/craft-handoff.js"` with JSON stdin:
@@ -63,6 +70,7 @@ the supplied destination or ask its shared question. Then call
   "destination": "task",
   "resume": false,
   "split": false,
+  "request": "<specific request preserving the selected task type>",
   "judgment": {
     "role": "<project specialization>",
     "goal": "<observable done state>",
@@ -79,14 +87,18 @@ is for split by check. The entry's own `why` is carried verbatim as its purpose;
 do not replace it with a guessed motivation. The builder resolves
 `planned_touches`, dependency docs, decision-task rules, prior work, symbols,
 lessons, and anchors. It derives the expected file surface unless a deliberate
-narrowing or widening was requested. Context may carry attributed prior notes,
+narrowing or widening was requested. This is a forecast; record an explicit
+restriction on file changes in `judgment.constraints` when the user supplied
+one. Context may carry attributed prior notes,
 but prior claims remain evidence to check.
 
 Include `judgment.invariants` only for observable assertions. Set
 `judgment.testFirst:true` only when this task could silently violate an invariant
 while the existing checks pass; a failing test that already catches the bug
 needs no artificial mutation exercise. Investigation passes `judgment.question`
-instead of invented implementation steps or verification.
+instead of invented implementation steps or verification; its `request` asks
+for the investigation's findings. Carry an explicitly read-only scope in
+`judgment.constraints`.
 
 The builder returns `{ok,prompt,profile,signals,tasks?,ledger_ask?,gate,warnings}`.
 Profiles are internal standard/reinforced choices based on stale, resumed,

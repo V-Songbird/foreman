@@ -1,5 +1,13 @@
 # Running Foreman in Codex
 
+Foreman supplies task context and its roadmap workflow within the destination's
+active Codex instructions. Honor applicable `AGENTS.md` files, the current mode,
+available tools, and existing authorization. A handoff adds the goal, relevant
+evidence, constraints, and completion criteria; it does not replace those
+instructions, select a fixed model, or assume another host's tool APIs. Leave
+general planning and tool use to Codex's native behavior; carry a specific
+sequence only when the task or Foreman's bookkeeping requires it.
+
 Resolve the plugin root from the loaded skill's actual location: a skill at
 `<plugin-root>/skills/<name>/SKILL.md` belongs to `<plugin-root>`. Supporting
 references are relative to the file that links them. Do not assume the shell

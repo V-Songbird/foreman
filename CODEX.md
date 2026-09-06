@@ -27,6 +27,10 @@ References checked for this implementation:
 
 ## Feature mapping
 
+Handoff wording is checked against official prompting guidance and the shipped
+Codex instruction template. See [Codex handoff prompting](CODEX-PROMPTING.md) for
+the source mapping, retained Foreman policies, and validation limits.
+
 | Original behavior | Codex implementation | Boundary |
 | --- | --- | --- |
 | Five skills and plain-language entrance | Codex skill frontmatter, UI metadata, linked runtime guidance | Load installed skills in a new session; tool availability varies by host |
@@ -104,7 +108,11 @@ commit ownership, grounding, Windows commands, Codex patch payloads and explicit
 lifecycle behavior. Plugin and skill validators check package shape and metadata.
 
 These tests do not establish end-to-end behavior in every installed Codex host.
-No model-backed Codex session has been launched as a benchmark for this port, and
-no original Claude benchmark result is presented as Codex evidence. After local
+Two bounded native-subagent smoke exercises checked generated investigation and
+implementation briefs in disposable projects: the research task reported an
+existing failing check without editing files; the implementation changed only
+its authorized source and passed the existing check. These are behavioral smoke
+checks, not a performance benchmark. No original Claude benchmark result is
+presented as Codex evidence. After local
 installation, a new-session smoke test should cover init, pick/export, start,
 commit evidence, acceptance, and enabled hooks in a disposable project.

@@ -134,6 +134,7 @@ function readCanonical() {
   const fence = raw.match(/```xml\n([\s\S]*?)```/);
   if (!fence) throw new Error(`no \`\`\`xml fence found in ${TEMPLATE_PATH}`);
   const xml = fence[1];
+  const codexRuntime = extractBlock(xml, "codex_runtime");
   const truthGrounding = extractBlock(xml, "truth_grounding");
   const scopeDiscipline = extractBlock(xml, "scope_discipline");
   // [Foreman: 104]
@@ -141,10 +142,10 @@ function readCanonical() {
   const closing = xml
     .split("\n")
     .find((line) => line.startsWith("Complete the requested outcome"));
-  if (!truthGrounding || !scopeDiscipline || !plan || !closing) {
+  if (!codexRuntime || !truthGrounding || !scopeDiscipline || !plan || !closing) {
     throw new Error(`template at ${TEMPLATE_PATH} is missing a canonical block`);
   }
-  return { xml, truthGrounding, scopeDiscipline, plan, closing };
+  return { xml, codexRuntime, truthGrounding, scopeDiscipline, plan, closing };
 }
 
 // Compare canonical wording. Resolved plugin commands are emitted separately.
@@ -186,6 +187,14 @@ function checkPrompt(prompt, opts) {
   const reinforced = profile !== "standard";
 
   // --- guardrail blocks, verbatim ---
+  const runtime = extractBlock(prompt, "codex_runtime");
+  if (!runtime) {
+    // Older saved artifacts can still be inspected; the assembler always
+    // supplies this block for newly crafted handoffs.
+    warnings.push("legacy handoff has no <codex_runtime> contract — re-craft it to inherit the current Codex mode, instructions, and tools explicitly");
+  } else if (norm(runtime) !== norm(canonical.codexRuntime)) {
+    errors.push(problem("<codex_runtime> differs from the template", "Restore the current Codex runtime contract from prompt-template.md.", null));
+  }
   const truth = extractBlock(prompt, "truth_grounding");
   if (!truth) {
     if (reinforced) errors.push(problem("missing <truth_grounding> — every reinforced handoff carries it, unmodified", "Copy prompt-template.md's <truth_grounding> block in unchanged.", null));

@@ -1834,7 +1834,7 @@ describe('the entry relays its own why and file surface', () => {
     const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
     assert.equal(json.ok, true, JSON.stringify(json));
     assert.ok(
-      json.prompt.includes('Expected file surface: src/auth/middleware.js, src/auth/. Anything beyond this list gets flagged to the user before it is written, not after.'),
+      json.prompt.includes('Expected file surface: src/auth/middleware.js, src/auth/. Flag a changed forecast before writing outside it; continue when the necessary work is already authorized.'),
       json.prompt
     );
   });

@@ -78,6 +78,7 @@ const FIX_CEILING_LINE = `Do NOT claim success without running this. If it fails
 /** The short profile, built here so this file does not depend on another test. */
 function standardPrompt(extra = '') {
   return [
+    `<codex_runtime>${readCanonical().codexRuntime}</codex_runtime>`,
     '<task_context>\nYou are a senior engineer.\nYour goal is to fix the retry bug so all tests pass.\n</task_context>',
     CONCISE_TRUTH_SENTENCE,
     '<background>\n<relevant_files>\nsrc/auth/middleware.ts — refreshToken (42), verifySession (77)\n</relevant_files>\n</background>',

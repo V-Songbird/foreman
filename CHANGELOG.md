@@ -16,6 +16,7 @@ version number? The Codex port uses `.codex-plugin/plugin.json`; original Claude
 
 ### Changed
 
+- Handoffs complement active Codex instructions and AGENTS.md, preserve investigation intent, distinguish suggested approaches and file forecasts from hard constraints, and calibrate verification to the change. Official prompting sources and limits are documented in CODEX-PROMPTING.md.
 - Handoff prompts use Codex capabilities, verified installed script paths, native delegation, and shell-appropriate JSON delivery while preserving profiles, grounding, evidence and acceptance.
 - Direct patch guarding understands Codex apply_patch, including rename destinations.
 - Clear user authorization carries forward; ambiguous scope and final acceptance retain user decisions.

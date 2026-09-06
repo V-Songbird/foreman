@@ -11,7 +11,10 @@ implementation request does not itself call for a prompt-crafting interview.
 
 Preserve the requested task, gather what the next session needs to act without
 this conversation, and use `scripts/craft-handoff.js` as the assembler and gate.
-Do not hand-write its canonical guardrail sections.
+Write a task brief with a concrete goal, relevant context, actual constraints,
+and observable completion evidence. Let the destination's active Codex
+instructions govern execution; do not embed a replacement system prompt or
+hand-write the assembler's canonical guardrail sections.
 
 ## Interview the missing intent
 
@@ -55,10 +58,17 @@ choice or corrected path wins. Do not run a second broad interview pass merely
 because the first found no obvious option.
 
 Gather the remaining required fields: specialization, one observable done
-state, relevant files or a bounded area, and actual steps or the investigation
+state, relevant files or a bounded area, and useful approach notes or the investigation
 question. A numeric goal includes its metric and threshold. Offer grounded file
 choices and allow the user to combine or replace them. Do not invent an analysis
 phase for an implement-only request.
+
+Keep requirements separate from suggested implementation steps. Prescribe an
+order only when a dependency, explicit user instruction, or verification method
+requires it. A file forecast guides discovery; put an actual restriction on
+which files may change in `judgment.constraints` only when one was supplied.
+For an investigation or review, define the question and expected findings;
+do not turn the assignment into implementing a fix.
 
 For implementation, gather each verification command and its expected result,
 in running order. A bug fix also carries observed failing output verbatim under
@@ -109,7 +119,8 @@ chose a destination. Do not ask which model should run the work.
 Pass JSON stdin to `node "<plugin-root>/scripts/craft-handoff.js"` with no
 `entry` key:
 
-- `title`, `what`, `touches`, and one imperative `request`.
+- `title`, `what`, `touches`, and one imperative `request` that preserves the
+  task type, such as "Investigate the retry failure and report its cause."
 - `destination:"task"|"agent"|"clipboard"`; `split:true` only for split by check.
 - `kind:"decision"` when the deliverable is a recorded choice.
 - Optional `customTone` and genuinely enforced `workflowStage`.
@@ -118,7 +129,9 @@ Pass JSON stdin to `node "<plugin-root>/scripts/craft-handoff.js"` with no
   `testFirst`, `example:{before,after}`, or `expectedFileSurface`.
 
 Use the user's actual goal. `purpose` describes the output's audience or next
-use only when known. The builder resolves paths, chooses a standard or
+use only when known. Investigation uses `judgment.question`; omit implementation
+steps and invented verification commands. Encode an explicitly read-only scope
+in `judgment.constraints`. The builder resolves paths, chooses a standard or
 reinforced profile, assembles canonical blocks, and runs the mechanical gate.
 If an optional selection is omitted by the project configuration or profile,
 say so. Do not expose internal profile scoring.
@@ -132,5 +145,6 @@ Read [delivery.md](../roadmap/delivery.md). Execute the returned prompt or
 ordered `tasks[]`, dispatch through available collaboration, or save and copy
 the prompt file as selected. Include the schema artifact when present.
 Checkpoint behavior is the same as a roadmap handoff, except no roadmap entry
-is opened or closed. The next session needs the complete prompt; ordinary chat
+is opened or closed. Pure investigations use checks as evidence and omit
+implementation checkpoints and test-mutation exercises. The next session needs the complete prompt; ordinary chat
 shows the effect and artifact location rather than dumping XML.

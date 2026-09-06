@@ -49,6 +49,7 @@ const FIX_CEILING_LINE = `Do NOT claim success without running this. If it fails
 
 function goodPrompt(overrides = {}) {
   const parts = {
+    codex_runtime: `<codex_runtime>${canonical.codexRuntime}</codex_runtime>`,
     task_context: '<task_context>\nYou are a senior engineer.\nYour goal is to fix the retry bug so all tests pass.\n</task_context>',
     truth_grounding: `<truth_grounding>${canonical.truthGrounding}</truth_grounding>`,
     scope_discipline: `<scope_discipline>${scopeText}</scope_discipline>`,
@@ -73,6 +74,7 @@ function goodPrompt(overrides = {}) {
 // that closes them — and the closure-evidence rule. Nothing else.
 function standardPrompt(overrides = {}) {
   const parts = {
+    codex_runtime: `<codex_runtime>${canonical.codexRuntime}</codex_runtime>`,
     task_context: '<task_context>\nYou are a senior engineer.\nYour goal is to fix the retry bug so all tests pass.\n</task_context>',
     truth_line: CONCISE_TRUTH_SENTENCE,
     background: '<background>\n<relevant_files>\nsrc/auth/middleware.ts — refreshToken (42), verifySession (77)\n</relevant_files>\n</background>',
@@ -491,12 +493,12 @@ describe('the ordered plan block', () => {
     assert.ok(json.errors.some((e) => e.error.includes('<plan> differs')), JSON.stringify(json.errors));
   });
 
-  test('the plan states the three universal steps and the entry-paragraph rider', () => {
-    assert.match(canonical.plan, /1\. Read every file `relevant_files` cites/);
-    assert.match(canonical.plan, /2\. Make the change `task_rules` describes/);
-    assert.match(canonical.plan, /3\. Run each `Run:` command/);
-    assert.match(canonical.plan, /open step runs before step 1 and its close step after step 3/);
-    assert.match(canonical.plan, /last task only, so a row without one starts at step 1/);
+  test('the plan preserves task intent and final-only closure without forcing implementation', () => {
+    assert.match(canonical.plan, /active Codex mode/);
+    assert.match(canonical.plan, /investigation or review produces findings/);
+    assert.match(canonical.plan, /Implementation requires authorization/);
+    assert.match(canonical.plan, /after all acceptance rows are complete/);
+    assert.doesNotMatch(canonical.plan, /Make the change|Read every file/);
   });
 
 });

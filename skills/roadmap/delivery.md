@@ -18,8 +18,16 @@ full prompt, and the last row alone carries the entry close. Maintain that
 ordering with a supported plan tool or an explicit local sequence; there is no
 assumed native task-dependency API.
 
-Read [the template's checkpoint protocol](../../prompt-template.md) before a
-split run. It owns the boundary, branch, safe commits, final staged close, and
+An investigation (`judgment.question`) uses split rows to collect diagnostic
+evidence. Skip implementation checkpointing, branch creation for checkpoints,
+staging, and commits; a failed check remains evidence. Preserve the explicit
+research scope and record only its authorized Foreman lifecycle bookkeeping.
+For a decision, checkpoint only explicitly authorized decision artifacts;
+diagnostics never authorize implementation changes.
+
+Read [the template's checkpoint protocol](../../prompt-template.md) before an
+implementation split run or a run producing authorized decision artifacts.
+It owns the boundary, branch, safe commits, final staged close, and
 finish policy. Checkpointing remains optional on dirty trees; the work can
 continue without commits. Preserve `checkpoints:{baseBranch,branch,onFinish}`
 from the project configuration and its first-relevant finish-policy question.

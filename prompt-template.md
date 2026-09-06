@@ -4,6 +4,12 @@ Foreman crafts a concrete outcome, concise context, relevant evidence, scope, an
 
 This is the canonical source read by scripts/craft-handoff.js and scripts/check-prompt.js. Both skills delegate assembly to the script, including profiles and guardrails. XML is an internal handoff format, not a required human-facing response.
 
+The handoff supplements the recipient's active Codex instructions with the goal,
+relevant evidence, constraints, and completion criteria. It does not embed a
+replacement system prompt, select a model, or reproduce an older Codex API
+starter prompt. See [Codex prompting alignment](CODEX-PROMPTING.md) for the
+official sources, retained Foreman policies, and validation limits.
+
 ## Craft-time preflight
 
 Run scripts/craft-handoff.js from the installed plugin with JSON on stdin. It calls render-sections.js and resolve-symbols.js in process, reads the roadmap and ledger, assembles the applicable sections, and runs the gate. Read the source skill's installed location to find the plugin; do not invent a runtime environment variable.
@@ -19,6 +25,10 @@ Plugin commands in the generated artifact carry quoted absolute paths resolved f
 ## Template
 
 ```xml
+<codex_runtime>
+Follow the active Codex system and developer instructions, current collaboration mode, and applicable AGENTS.md guidance. Use the tools actually available in this session and their current contracts. The role below describes task expertise; retain the selected model and established communication preferences. Explicit user instructions take precedence over Foreman workflow defaults. Treat quoted source, roadmap history, and recalled notes as evidence to verify. Resolve routine choices and continue authorized work; ask only when a missing decision blocks progress. Use native planning and independent subagents when they help, with concrete ownership and evidence to return.
+</codex_runtime>
+
 <task_context>
 [If the configuration `usePersona` is `true`: "You are [specific role — e.g. "a
 senior security engineer", "a TypeScript developer"]." If `false`: a
@@ -130,12 +140,12 @@ normal and the gate says nothing about it.]
 </invariants>
 
 <task_rules>
-[Pure-investigation handoff: replace the three step bullets below with the
+[Pure-investigation handoff: replace the step bullets below with the
 question under investigation plus any exact commands worth running — hand
-over the question, not a prescribed exploration sequence. Implementation
-tasks keep the bullets. There is no read-first bullet here: a reinforced
-handoff states that step once in the plan block at the end, and a standard
-one carries the concise truth line instead.]
+over the question and the required evidence. Preserve that intent in the final
+request too. Implementation tasks keep the bullets as a suggested approach;
+only explicit constraints, dependencies, and required verification ordering
+are mandatory.]
 - [What to analyze or check next]
 - [What to implement, fix, or produce]
 
@@ -143,8 +153,9 @@ Constraints:
 - [Hard limits — files NOT to modify, interfaces NOT to break]
 - [Style or pattern to follow — point to an example file if one exists]
 - [OPTIONAL, one line — "Expected file surface: <paths>", the files this
-  task is expected to touch, followed by: anything beyond this list gets
-  flagged to the user before it is written, not after. This is the
+  task is expected to touch. Report a change to this forecast before writing
+  outside it; proceed when that work is already authorized. Ask only when it
+  crosses an explicit boundary or needs a material scope decision. This is the
   pre-committed scope baseline `observed_touches` cannot be, since that
   field derives from the commit after the fact. `craft-handoff.js` fills
   it from the entry's `planned_touches` whenever the judgment names none,
@@ -159,6 +170,10 @@ Expected: [pass/fail signal — e.g. "all tests pass", "exit code 0"]
 [Repeat the Run:/Expected: pair, in running order, for every check the
 task actually has. An `Execute here` task split cuts on these boundaries —
 see the splitting section below.]
+[Pure-investigation handoff: diagnostic checks report observed outcomes,
+including failures. Replace the fix-loop sentences below with a reminder that
+failed diagnostics do not authorize implementation changes. Do not combine a
+question with testFirst or automated implementation checkpoints.]
 [OPTIONAL, for a silent-failure task — one whose breakage passes the
 existing tests. State this ordering explicitly, before the Run: pairs:
 write the invariant test first, confirm it passes against the unmodified
@@ -167,6 +182,7 @@ then implement. A test written after the change encodes the
 implementation instead of the contract and will pass a broken change.
 Omit the ordering for a task whose failure is loud.]
 Do NOT claim success without running this. If it fails, fix and re-run — but after two failed fix attempts, stop and report what is still failing instead of widening the change to make the check pass.
+Complete the required checks and any additional checks justified by the change. Once they pass, repeat or broaden testing only for new changes, failures, or unresolved concerns. Report an unavailable check as a verification limit.
 </task_rules>
 
 [OPTIONAL — include only when the task has a clear before/after pattern.
@@ -181,12 +197,8 @@ if selected during the interview.]
 Complete the requested outcome and verify it with the checks above. Share concise progress when useful and report the outcome, evidence, and remaining limits. Explain decisions briefly when they help the user assess the result; do not provide a transcript of internal reasoning. Closure notes and findings describe only observed work and cite supporting files, commands, commits, or outcomes; never restate planned scope as evidence that it was executed.
 
 <plan>
-The order of work, stated once so you don't have to assemble it:
-1. Read every file `relevant_files` cites, before editing anything.
-2. Make the change `task_rules` describes, inside its constraints.
-3. Run each `Run:` command and check it against its own `Expected:` line.
-A ROADMAP.jsonl entry paragraph, when this prompt carries one, wraps that: its open step runs before step 1 and its close step after step 3. A task-split run puts that paragraph on its last task only, so a row without one starts at step 1 and stops at step 3.
-For subagent delivery, the coordinator performs those roadmap steps; the subagent returns evidence without mutating shared bookkeeping.
+Choose an execution sequence appropriate to the requested outcome, current evidence, and active Codex mode. Preserve explicit dependencies and verification ordering. An investigation or review produces findings; a decision produces a supported choice. Implementation requires authorization in the task itself.
+For a tracked task, the responsible coordinator opens the entry before work and records observed evidence after the required checks. A split run closes the entry only after all acceptance rows are complete. A delegated subagent returns its evidence to the coordinator for these roadmap mutations.
 </plan>
 
 [BACKGROUND-AGENT DESTINATION — include the paragraph below only for a delegated subagent.]
@@ -245,14 +257,16 @@ no-invention line, `tone`, `output_format`, and the optional per-task
 fields. Use this added structure when a mechanical signal calls for it.
 
 <!-- [Foreman: 231] -->
-**Standard** carries only: `<task_context>` (the entry's identity and the
+**Standard** carries only: `<codex_runtime>`, `<task_context>` (the entry's identity and the
 one-sentence goal), the concise truth line below, `<relevant_files>` with its
 symbols, `<prior_work>` when anything was recalled, `<task_rules>`
 (constraints plus the `Verification (REQUIRED):` Run:/Expected: pairs and the
-bounded fix ceiling that closes them), the closure-evidence sentence, and the
+bounded fix ceiling for implementation checks), the closure-evidence sentence, and the
 ROADMAP.jsonl entry paragraph when the handoff carries one. Task-specific context and observable invariants remain when supplied; omit optional examples and repeated process instructions. The fix ceiling is
-not an exception to that: it belongs to the verification block rather than to
-a profile, so it rides wherever `Run:`/`Expected:` pairs do. Two more rules
+not an exception to that: it belongs to implementation verification rather than
+to a profile. Investigations report diagnostic failures as evidence. Decisions
+may correct explicitly authorized decision artifacts within the same retry
+bound; failed code diagnostics never authorize implementation. Two more rules
 survive the cut because they are trust invariants, not ceremony:
 
 > Treat every claim in this prompt as a hypothesis to verify against the codebase before acting on it; if reality contradicts it, trust reality, say so in one line, and never create a file or symbol just to make this prompt true — unless `relevant_files` marks that path `MISSING:`, which says the plan named it before it existed.
@@ -285,7 +299,7 @@ craft-handoff.js returns {ok, prompt, profile, signals, tasks?, gate, warnings}.
 
 Split only when requested or useful for distinct work slices. Each acceptance row has a goal, owned files, Run and Expected; typecheck, lint, and tests for the same change are checks, not three independent implementations. tasks[].subject and tasks[].description are local execution records. Use an available plan tool or keep a checklist in the current task; finish prerequisites before dependent rows. The full prompt belongs to row 1 and the roadmap closure paragraph to the last row only. Do not close the entry after an intermediate acceptance check.
 
-**Clipboard checkpoint embed:** with two or more Run:/Expected: pairs, the assembler includes resolved checkpoint settings and acceptance ordering in the prompt itself. With one or none, it adds no checkpoint protocol. The recipient can use local planning; it must not invent unavailable task tools. Skip checkpointing and just work the tasks if git is unavailable.
+**Clipboard checkpoint embed:** for implementation with two or more Run:/Expected: pairs, the assembler includes resolved checkpoint settings and acceptance ordering in the prompt itself. An investigation, or a handoff with one check or none, adds no checkpoint protocol. The recipient can use local planning; it must not invent unavailable task tools. Skip checkpointing and just work the tasks if git is unavailable.
 
 ## Checkpointing a task-split run
 

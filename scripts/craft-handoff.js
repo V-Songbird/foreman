@@ -130,6 +130,7 @@ function templateDefaults() {
   const defaultOutputFormat = norm(stripBracketed(outputFormatInner));
   const noInventionLine = fullLineContaining(xml, NO_INVENTION_SENTENCE);
   const fixCeilingLine = fullLineContaining(xml, FIX_CEILING_SENTENCE);
+  const verificationScopeLine = fullLineContaining(xml, "Complete the required checks and any additional checks justified");
   const autonomyAt = xml.indexOf(AUTONOMY_MARKER);
   const autonomyEnd = autonomyAt === -1 ? -1 : xml.indexOf("]", autonomyAt);
   const autonomyParagraph =
@@ -139,7 +140,7 @@ function templateDefaults() {
     defaultTone,
     defaultOutputFormat,
     noInventionLine,
-    fixCeilingLine,
+    fixCeilingLine: `${fixCeilingLine}\n${verificationScopeLine}`,
     autonomyParagraph,
   };
 }
@@ -820,7 +821,10 @@ function taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkp
     lines.push(
       "This is a decision, not a build: resolve the open question — state the choice and the reason it wins over the alternatives — and do not write implementation code for it. The deliverable is the decision."
     );
+  } else if (judgment.question) {
+    lines.push("Investigate the question and return findings with supporting evidence. Do not implement a fix unless the user separately authorizes it.");
   }
+  if (judgment.steps?.length) lines.push("Suggested approach (adapt to current evidence while preserving explicit constraints and required ordering):");
   for (const step of judgment.steps || []) lines.push(`- ${step}`);
   let body = lines.join("\n");
 
@@ -836,7 +840,7 @@ function taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkp
     || (Array.isArray(record.planned_touches) && record.planned_touches.length ? record.planned_touches.join(", ") : "");
   if (surface) {
     constraintLines.push(
-      `Expected file surface: ${surface}. Anything beyond this list gets flagged to the user before it is written, not after.`
+      `Expected file surface: ${surface}. Flag a changed forecast before writing outside it; continue when the necessary work is already authorized. Ask only before crossing an explicit file boundary or making a material scope change.`
     );
   }
   if (constraintLines.length) {
@@ -866,14 +870,22 @@ function taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkp
     }
     // [Foreman: 231] On both profiles — the ceiling bounds the retry loop these
     // pairs open, so it travels with them rather than with the profile.
-    verifyBlock += fixCeilingLine;
+    verifyBlock += judgment.question
+      ? "Report the observed results, including failing checks, as evidence for the investigation. A failing check does not authorize implementation changes."
+      : record.kind === "decision"
+        ? "Use diagnostic results as evidence for the decision; a failing code check does not authorize implementation changes. Only correct an explicitly authorized decision artifact, and " + FIX_CEILING_SENTENCE
+        : fixCeilingLine;
     body += `${body ? "\n\n" : ""}${verifyBlock}`;
-  } else if (judgment.question) {
+  }
+  if (judgment.question) {
     body += `${body ? "\n\n" : ""}Question: ${judgment.question}`;
   }
 
   if (checkpointEmbed) {
     body += `\n\n${checkpointEmbed}`;
+    if (record.kind === "decision") {
+      body += "\nFor this decision, checkpoint only explicitly authorized decision artifacts. If the deliverable is findings alone, skip implementation checkpoints; diagnostic failures never authorize changing the implementation.";
+    }
   }
 
   return `<task_rules>\n${body}\n</task_rules>`;
@@ -934,18 +946,18 @@ function checkpointEmbedText(cfg, checkCount, entryId) {
 // paragraph itself), collapsed to the one concrete variant that applies for
 // this handoff rather than a human-facing skill's illustrative examples.
 
-function entryParagraphText({ id, resume, requireVerification, askLesson, destination }) {
+function entryParagraphText({ id, resume, requireVerification, askLesson, destination, investigation }) {
   const code = (value) => "`" + value + "`";
   const opening = resume
     ? "This task is ROADMAP.jsonl entry " + code(id) + ", already marked " + code("in_progress") + " by an earlier session. Read recorded findings before resuming."
-    : "This task is ROADMAP.jsonl entry " + code(id) + ". Mark it " + code("in_progress") + " through the explicit lifecycle before implementation.";
+    : "This task is ROADMAP.jsonl entry " + code(id) + ". Mark it " + code("in_progress") + " through the explicit lifecycle before task work.";
   const startStep = "Before any roadmap mutation, verify the branch satisfies the user's restrictions; create or use an authorized working branch when needed.\nCommand: "
     + code(pluginCommand("../hooks/codex-task.js", "start --id " + shellQuote(id)))
     + "\nProceed only when this command succeeds and returns dispatchReady:true. A dependency, defer, or terminal-state refusal must be resolved before dispatch.";
   const payloadNote = "For bookkeeping calls, write each JSON stdin payload to a UTF-8 file and pipe that file using the active shell (PowerShell: Get-Content -LiteralPath FILE -Raw -Encoding utf8; POSIX: cat FILE). Commands are quoted for the crafting host (PowerShell on Windows, POSIX shell elsewhere); re-quote paths if using another shell. Never interpolate findings into an inline shell command. If the installed plugin moved, refresh command paths from the currently loaded Foreman skill.";
   const beginStep = "Before touching files, verify the branch satisfies the user's restrictions; create or use an authorized working branch when needed. Then take the commit boundary:\n" + code(pluginCommand("safe-commit.js", "begin")) + "\nKeep its " + code("baseline.head") + ". With " + code("dirty:true") + ", preserve existing changes and make NO commit at all; continue authorized work without staging around unrelated changes.";
   const splitStep = requireVerification
-    ? "Run every check reachable through available commands, skills, or UI tools. Record a human-only check only if it is answerable now and beyond those tools. Use one annotate call per check, and none when every check ran:\n" + jsonCommand("roadmap.js", "annotate", { id, notes: "unverified: <the check and what to look for>" })
+    ? "Run the required checks using available commands, skills, or UI tools. Add checks only when justified by the actual change or unresolved evidence. Record a human-only check only if it is answerable now and beyond those tools. Use one annotate call per check, and none when every required check ran:\n" + jsonCommand("roadmap.js", "annotate", { id, notes: "unverified: <the check and what to look for>" })
     : "";
   const holdSentence = requireVerification
     ? " For earned " + code("done") + ", record " + code("awaiting_acceptance") + " and present the concrete result for final user acceptance. "
@@ -957,7 +969,7 @@ function entryParagraphText({ id, resume, requireVerification, askLesson, destin
   const stageStep = "When committing is authorized and the baseline was clean, stage only owned files using safe-commit; never " + code("git add -A") + ":\n"
     + jsonCommand("safe-commit.js", "finish --baseline <baseline.head> --no-commit", { id, expected: ["<the files this task owns>"] })
     + "\nThen close with " + code("staged:true") + " to derive " + code("observed_touches") + " from staged files, and commit once with " + code("Foreman: " + id) + " as the final message line. If no commit is allowed, omit staged and record observed files explicitly.";
-  const closeCall = jsonCommand("roadmap.js", "update-status", { id, status: "<status>", notes: "<observed findings>", add_touches: ["<observed files>"] });
+  const closeCall = jsonCommand("roadmap.js", "update-status", { id, status: "<status>", notes: "<observed findings>", add_touches: investigation ? [] : ["<observed files>"] });
   const checkStep = "After recording the close, verify the lifecycle checkpoint:\nCommand: "
     + code(pluginCommand("../hooks/codex-task.js", "check --id " + shellQuote(id)))
     + "\nA failure means the entry is still open; resolve it before claiming closure."
@@ -971,6 +983,12 @@ function entryParagraphText({ id, resume, requireVerification, askLesson, destin
       "Coordinator-owned roadmap protocol (the subagent must not run these mutations, stage, or commit; return findings and verification to the coordinator):",
       opening, startStep, payloadNote, closeIntro, closeCall, modelEffortNote, lessonAsk, checkStep,
     ].filter(Boolean).join("\n");
+  }
+  if (investigation) {
+    return [opening, startStep, payloadNote,
+      "The investigation's project writes are limited to this Foreman lifecycle bookkeeping. Record findings in notes with add_touches:[]; do not stage, commit, or create implementation changes from a failed diagnostic check.",
+      splitStep, closeIntro, closeCall, modelEffortNote, lessonAsk, checkStep]
+      .filter(Boolean).join("\n");
   }
   return [opening, startStep, payloadNote, beginStep, splitStep, closeIntro, stageStep, closeCall, modelEffortNote, lessonAsk, checkStep]
     .filter(Boolean).join("\n");
@@ -1012,6 +1030,9 @@ function buildTaskRows(verification, basePrompt, entryParagraph, titleBase) {
 // checks structure, never field content).
 
 function validateJudgment(judgment) {
+  if (judgment.question && judgment.testFirst) {
+    throw new Error("judgment.testFirst creates or mutates tests and cannot be combined with a pure investigation question");
+  }
   if (judgment.verification !== undefined) {
     if (!Array.isArray(judgment.verification)) {
       throw new Error("judgment.verification must be an array of {run, expected}");
@@ -1056,6 +1077,9 @@ function assemble(root, input) {
   const judgment = input.judgment || {};
   validateJudgment(judgment);
   const record = loadRecord(root, input);
+  if (record.kind === "decision" && judgment.testFirst) {
+    throw new Error("judgment.testFirst creates or mutates implementation tests and cannot be combined with a decision task");
+  }
   const isEntry = Boolean(record.id);
   // [Foreman: 204] Workflow-stage flavor: no <tone>, <output_format> replaced
   // by the fixed enforcement sentence, wired through to check-prompt.js's own
@@ -1084,7 +1108,7 @@ function assemble(root, input) {
   const entryId = record.id;
 
   const checkCount = hasVerification ? judgment.verification.length : 0;
-  const wantsClipboardEmbed = destination === "clipboard" && checkCount >= 2;
+  const wantsClipboardEmbed = destination === "clipboard" && checkCount >= 2 && !judgment.question;
   const checkpointEmbed = wantsClipboardEmbed
     ? checkpointEmbedText(checkpointsConfig(root), checkCount, isEntry ? entryId : null)
     : null;
@@ -1099,6 +1123,7 @@ function assemble(root, input) {
         resume: Boolean(input.resume),
         requireVerification: config.requireVerification,
         destination,
+        investigation: Boolean(judgment.question),
         askLesson: isEntry && readLedger(root).enabled,
       })
     : "";
@@ -1132,7 +1157,11 @@ function assemble(root, input) {
   const requestSubject = record.title || judgment.goal || "the task described above";
   const requestSentence =
     input.request ||
-    (isDecision ? `Decide: ${requestSubject}, and state why the chosen option wins.` : `Implement: ${requestSubject}.`);
+    (isDecision
+      ? `Decide: ${requestSubject}, and state why the chosen option wins.`
+      : judgment.question
+        ? `Investigate: ${judgment.question}`
+        : `Implement: ${requestSubject}.`);
   const invariantsText =
     judgment.invariants && judgment.invariants.length
       ? `<invariants>\n${judgment.invariants.join("\n")}\n</invariants>`
@@ -1144,6 +1173,7 @@ function assemble(root, input) {
 
   function buildParts(includeEntry) {
     const parts = [];
+    parts.push(`<codex_runtime>\n${canonical.codexRuntime}\n</codex_runtime>`);
     parts.push(taskContextBlock);
     if (reinforced) {
       parts.push(`<truth_grounding>\n${canonical.truthGrounding}\n</truth_grounding>`);
@@ -1198,7 +1228,7 @@ function assemble(root, input) {
     root,
     profile,
     destination,
-    research: !hasVerification,
+    research: !hasVerification || Boolean(judgment.question),
     ...(workflowStage ? { workflowStage: true } : {}),
     ...(isEntry ? { entry: entryId, resume: Boolean(input.resume) } : {}),
   };
