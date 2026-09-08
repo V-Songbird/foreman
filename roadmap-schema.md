@@ -1,6 +1,6 @@
 # Foreman — ROADMAP.jsonl schema
 
-<!-- foreman:roadmap-schema lastmod:2026-07-28 -->
+<!-- foreman:roadmap-schema lastmod:2026-09-08 -->
 
 `ROADMAP.jsonl` lives at the **project root** (not inside this plugin) and is
 committed to git — it's a visible, shared record of the project's plan, not
@@ -30,6 +30,15 @@ itself can't parse it to operate on it.
 ---
 
 ## Format version
+
+Reviewed increments do not change this schema. A tracked task still occupies
+one entry. `reviewEachIncrement`, verification rows and `review:{action,expected}`
+are transient handoff inputs, not roadmap fields or project settings. Record
+result evidence, limits, decisions and references as short append-only notes
+through `annotate`. No separate increment store or persistent per-row status is
+introduced. Prefixes such as `accepted:` and `verification resolved:` organize
+prose; they do not mechanically certify acceptance or resolve another check.
+See [the workflow](HOW-IT-WORKS.md#review-between-increments).
 
 The file may declare its format on an **optional first line**:
 

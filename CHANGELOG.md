@@ -9,6 +9,9 @@ version number? The Codex port uses `.codex-plugin/plugin.json`; original Claude
 
 ### Added
 
+- Codex-only, explicitly requested review between meaningful increments, with automatic, human-only and mixed verification rows; every row in a reviewed run requires human review. Existing splits retain their default behavior.
+- Presentation and wait protocol, brief decision notes, and assisted recovery against current work. A missing human channel leaves review pending; explicit review waivers are omissions, never acceptances. Intermediate decisions remain separate from final task acceptance.
+- Source-worktree evaluation instructions and a complete handoff payload example, without installation, publication, a new setting or an increment store. Format-compatible older clients do not necessarily follow this protocol.
 - Codex plugin manifest, five Codex-adapted skills and native command hooks.
 - Explicit task start/check bridge and scoped optional Stop gate where Codex has no task-created/completed events.
 - Codex model identifier/effort recording and project-root selection, retaining legacy data.
@@ -16,6 +19,7 @@ version number? The Codex port uses `.codex-plugin/plugin.json`; original Claude
 
 ### Changed
 
+- Concurrent roadmap lock publication retries container-removal races within the existing deadline; non-ENOENT errors and the default timeout remain unchanged.
 - Handoffs complement active Codex instructions and AGENTS.md, preserve investigation intent, distinguish suggested approaches and file forecasts from hard constraints, and calibrate verification to the change. Official prompting sources and limits are documented in CODEX-PROMPTING.md.
 - Handoff prompts use Codex capabilities, verified installed script paths, native delegation, and shell-appropriate JSON delivery while preserving profiles, grounding, evidence and acceptance.
 - Direct patch guarding understands Codex apply_patch, including rename destinations.

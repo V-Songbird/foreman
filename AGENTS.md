@@ -1,9 +1,9 @@
 # Working on the Codex port
 
-Work on `codex/port` or another explicitly authorized non-main branch. Never
+Work on `Codex` or another explicitly authorized non-main branch. Never
 edit, commit, merge, or reset this project on `main`. Check the branch before
-making changes. Keep the original Foundry checkout and its Foreman submodule
-unchanged; this repository is an independent copy of Foreman's history.
+making changes. This repository is Foundry's Foreman submodule. Keep Codex work
+on `Codex`; the `main` branch retains the Claude Code release history.
 
 Preserve roadmap format 2 and legacy records. Keep CLI behavior dependency-free
 and testable with Node.js. Skills belong in `skills/`, plugin metadata in

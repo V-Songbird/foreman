@@ -12,6 +12,7 @@ const { execFileSync } = require("child_process");
 const { readEntries, today, trailerIdsIn } = require("../scripts/roadmap");
 const { resolveHookScope } = require("../scripts/commit-evidence");
 const { readConfigFile } = require("../scripts/foreman-config");
+const { discoveryInstructions } = require("../scripts/discovery");
 
 const PLUGIN_ROOT = pluginDir();
 const SCRIPT_PATH = path.join(PLUGIN_ROOT, "scripts", "roadmap.js");
@@ -318,71 +319,10 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
   return "[Foreman] " + parts.join(" ");
 }
 
-// [Foreman: 127] The planned titles used to ride along here as a negative
-// list, so the block's size grew with the backlog — on every commit, for a
-// gain check-duplicate already covers. Dedup is now check-duplicate only:
-// one compact call per candidate, paid only when there IS a candidate,
-// instead of the whole backlog injected whether or not anything is found.
-// [Foreman: 4.3 measurement] The inclusion bar was two qualitative words —
-// "CONFIRMED" and "not vague hunches" — on a model that follows exactly that
-// instruction and reports less. The concrete criterion already existed two
-// clauses later, but it governed how to WRITE an accepted candidate rather than
-// what got in. Both gates have to swap together or it is a no-op: the opening
-// bar and the closing "Say nothing if nothing is confirmed", which binds hardest
-// at the emit point. Set FOREMAN_DISCOVERY_CONCRETE_BAR to 1 or true to swap
-// them; the default is today's wording until a measurement says otherwise.
-// Nothing in the product writes this variable.
-const CONCRETE_BAR = /^(1|true)$/i.test(process.env.FOREMAN_DISCOVERY_CONCRETE_BAR || "");
-
+// Use the same policy as handoffs and checkpoints so background findings,
+// candidate evidence and acceptance cannot drift between delivery paths.
 function discoveryBlock() {
-  return (
-    "[Foreman] Roadmap discovery is enabled for this project. " +
-    (CONCRETE_BAR
-      ? "Scan this commit's work for anything worth tracking — a bug, a gap, "
-        + "an opportunity. The bar is whether you can name it with an exact "
-        + "path, symbol, or behaviour you observed in this session: if you "
-        + "can, offer it. "
-      : "Scan this "
-        + "commit's work for CONFIRMED opportunities, bugs, or ideas — not vague "
-        + "hunches. ") +
-    "If you add one to the roadmap, write it dense using only " +
-    "what's already in this session's context (exact paths, line ranges, " +
-    "symbol names, the specific behavior observed) — do NOT run extra " +
-    "file reads, searches, or shell calls just to enrich the entry, that spends tokens now " +
-    "instead of saving them for whoever picks it up later. Every candidate " +
-    "MUST go through the duplicate check before you offer it — the roadmap's " +
-    "existing entries are deliberately not in your context, so this call is " +
-    "the only thing between a suggestion and a duplicate: " +
-    `echo '{"title":"...","why":"..."}' | node "${SCRIPT_PATH}" check-duplicate ` +
-    "— matches carry each entry's status. A rejected match means the user " +
-    "already declined it: skip silently. Any other status (planned/" +
-    "in_progress/done/...) means it's already tracked: skip it, or mention " +
-    "the existing entry's id if the new observation adds something. Only " +
-    "when there's no match, ask the user " +
-    "what to do with it: Add to roadmap / Execute here " +
-    "(work it now in this session) / Execute with a " +
-    "background subagent (using the available collaboration tools) / Reject — both Add and " +
-    "Reject use the same `add` call, only the status field differs " +
-    '("planned" for Add, "rejected" for Reject): ' +
-    `echo '{"title":"...","why":"...","what":"...","source":"codex-suggested","status":"planned"}' | node "${SCRIPT_PATH}" add. ` +
-    "Also scan for the inverse case: work already implemented in this " +
-    "commit that goes beyond what any in_progress task's `what` describes — " +
-    "scope that grew mid-session (e.g. the user asked for something related " +
-    "but separate, and it got built inline), not a future idea. If you find " +
-    "one, it's already done, so log and close it in the same breath rather " +
-    "than leaving it \"planned\": the same `add` call above, then " +
-    `echo '{"id":"<new-id>","status":"done","commit":"<sha>"}' | node "${SCRIPT_PATH}" update-status ` +
-    "(observed_touches auto-derives from that commit). Ask first (" +
-    "Log it / Skip). " +
-    "Use the available question tool when its current-mode contract permits it; " +
-    "otherwise ask a concise question in the final reply. Preserve any user " +
-    "authorization already given; ask before acting on a new suggestion. If this " +
-    "session has no user to ask (a background agent), skip the suggestions " +
-    "entirely. " +
-    (CONCRETE_BAR
-      ? "If nothing in this commit clears that bar, say nothing."
-      : "Say nothing if nothing is confirmed.")
-  );
+  return "[Foreman] Roadmap discovery is enabled for this project.\n" + discoveryInstructions();
 }
 
 // The emit path shared by every branch that talks — the corrupt-file branch

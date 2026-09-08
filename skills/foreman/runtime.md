@@ -38,11 +38,12 @@ when it changes the outcome. Inferred new work, unresolved product choices,
 destructive replacement, and final acceptance need the user's decision unless
 the current conversation already provides it.
 
-Use a question tool only when it is available in the current mode and supports
-the kind of question being asked. Follow its actual option and question limits.
-Otherwise ask a concise plain-text question. A permission or required-input
-question must stay pending until answered. Do not assume an unanswered optional
-interview was approval. Continue useful independent work while waiting.
+For task and execution preferences, use the selectable picker and answer
+handling in [questions.md](questions.md). These are workflow choices, not
+permission requests: ask directly without saying Foreman requires a question
+or citing a skill as the reason to choose. Honor choices already supplied.
+For actual permissions or other missing information, follow the active host's
+input rules. Do not assume an unanswered optional interview was approval.
 
 Survey findings must be concrete and individually reviewable. An explicit
 instruction to apply grounded repairs can authorize them; a request to inspect
@@ -120,10 +121,16 @@ omit unknown values.
 
 After a commit, if the automatic hook did not provide bookkeeping, use
 `list --status in_progress,awaiting_acceptance --summary` to identify relevant
-entries. Record only work that this commit actually implements. Discovery
-suggestions honor `discoverySuggestions`; use existing evidence and
-`check-duplicate`, and ask before adding inferred work. An unattended subagent
-reports suggestions to its coordinator rather than asking the user.
+entries. Record only work that this commit actually implements.
+
+## Discovery during execution
+
+Retain concrete bugs, design ideas, optimization opportunities, and other
+improvements observed outside the selected task's scope. Before reporting
+completion, review them even for investigations and work without a commit.
+Read [discovery.md](discovery.md) for the user choices and duplicate handling.
+The `start` and `check` checkpoint results carry the same discovery reminder;
+act on it rather than treating successful exit as the entire close protocol.
 
 ## Trial events
 

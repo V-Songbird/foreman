@@ -1,6 +1,8 @@
 # Deliver a checked handoff
 
-Use the `prompt` and optional `tasks[]` returned by `craft-handoff.js`. Do not
+Use the `prompt` and optional `tasks[]` returned by `craft-handoff.js`. Preserve
+the requested `reviewEachIncrement` choice and each row's attached checks; one
+mixed row is one increment. Do not
 reassemble canonical sections or split rows by hand. Explain the selected
 task's effect and reason in one or two plain sentences; keep raw XML in the
 artifact or tool payload unless the user asks to see it.
@@ -17,6 +19,16 @@ boundary must verify the work assigned to its row. The first row carries the
 full prompt, and the last row alone carries the entry close. Maintain that
 ordering with a supported plan tool or an explicit local sequence; there is no
 assumed native task-dependency API.
+
+When `reviewEachIncrement:true` is present, follow the
+[increment review protocol](increment-review.md) after every result. The same
+protocol is embedded in the generated prompt, including for one reviewed row.
+Keep the current result pending until a real answer arrives. A passing check
+or successful question submission does not permit the next row or parent close.
+When resuming, follow [resume-increments.md](resume-increments.md) before
+dependent work. The generated `increment_resume` block contains the complete
+selected notes and the same recovery protocol. Refresh the entry and inspect
+current artifacts; retain existing work and revalidate uncertain acceptance.
 
 An investigation (`judgment.question`) uses split rows to collect diagnostic
 evidence. Skip implementation checkpointing, branch creation for checkpoints,
@@ -65,7 +77,11 @@ be delivered. Include the schema artifact too for a structured-output handoff.
 A portable prompt must resolve the plugin available to its executing session.
 Follow the builder's relocation instructions; do not bake a nonexistent
 host variable into a command or assume another machine has this installation.
-Copying does not mark the entry in progress.
+Copying does not mark the entry in progress. For an explicitly reviewed run,
+keep the embedded `increment_review` block intact even when there is only one
+row and no multi-row checkpoint block. A missing question tool uses textual
+conversation; without a human or coordinator channel the pasted worker leaves
+the result pending and stops.
 
 ## Explicit new Codex task
 
@@ -83,10 +99,17 @@ in entry notes. If ledger is enabled, a useful lesson is one factual sentence
 anchored to the task's actual files, within the writer's length limit. Do not
 fabricate a lesson to fill a field.
 
+For an explicitly reviewed run, intermediate decisions use `annotate` and keep
+the parent open. Do not apply this whole-task close while a row is awaiting
+review or correction; follow [increment review](increment-review.md).
+Use [close-increments.md](close-increments.md) to reconcile omitted checks with
+later evidence for the same result and distinguish last-row acceptance from
+acceptance of the integrated task. The prompt embeds that same close protocol.
+
 With `requireVerification:true`, completed implementation becomes
 `awaiting_acceptance`; summarize evidence and ask the user to accept or review.
-When there are `unverified:` lines, offer testing them first and keep the entry
-awaiting. An explicit acceptance closes it; feedback that work is not ready
+When checks remain unverified after that evidence comparison, offer testing
+those checks first and keep the entry awaiting. An explicit acceptance closes it; feedback that work is not ready
 returns it to `in_progress` with the feedback recorded. A background worker
 leaves acceptance to its coordinator. No new task is started while a required
 acceptance decision is pending unless the user explicitly chooses separate work.

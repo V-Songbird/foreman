@@ -8,7 +8,7 @@
           {
             "type": "command",
             "command": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','session-start.js')).main()}catch{}\"",
-            "commandWindows": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','session-start.js')).main()}catch{}\"",
+            "commandWindows": "D:/DevCache/fnm/aliases/default/node.exe -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','session-start.js')).main()}catch{}\"",
             "timeout": 5
           }
         ]
@@ -21,7 +21,7 @@
           {
             "type": "command",
             "command": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','guard-roadmap-edit.js')).main()}catch{}\"",
-            "commandWindows": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','guard-roadmap-edit.js')).main()}catch{}\"",
+            "commandWindows": "D:/DevCache/fnm/aliases/default/node.exe -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','guard-roadmap-edit.js')).main()}catch{}\"",
             "timeout": 5
           }
         ]
@@ -34,7 +34,7 @@
           {
             "type": "command",
             "command": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','post-commit.js')).main()}catch{}\"",
-            "commandWindows": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','post-commit.js')).main()}catch{}\"",
+            "commandWindows": "D:/DevCache/fnm/aliases/default/node.exe -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','post-commit.js')).main()}catch{}\"",
             "timeout": 5
           }
         ]
@@ -45,7 +45,7 @@
           {
             "type": "command",
             "command": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','ledger-recall.js')).main()}catch{}\"",
-            "commandWindows": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','ledger-recall.js')).main()}catch{}\"",
+            "commandWindows": "D:/DevCache/fnm/aliases/default/node.exe -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','ledger-recall.js')).main()}catch{}\"",
             "timeout": 5
           }
         ]
@@ -57,7 +57,7 @@
           {
             "type": "command",
             "command": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','stop.js')).main()}catch{}\"",
-            "commandWindows": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','stop.js')).main()}catch{}\"",
+            "commandWindows": "D:/DevCache/fnm/aliases/default/node.exe -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','stop.js')).main()}catch{}\"",
             "timeout": 5
           }
         ]
@@ -69,7 +69,7 @@
           {
             "type": "command",
             "command": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','stop.js')).main()}catch{}\"",
-            "commandWindows": "node -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','stop.js')).main()}catch{}\"",
+            "commandWindows": "D:/DevCache/fnm/aliases/default/node.exe -e \"try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','stop.js')).main()}catch{}\"",
             "timeout": 5
           }
         ]

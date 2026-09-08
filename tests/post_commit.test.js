@@ -372,11 +372,11 @@ describe('discovery block', () => {
     assert.match(out, /Roadmap discovery is enabled/);
   });
 
-  test('also asks Claude to scan for already-implemented, unplanned scope creep', () => {
+  test('also offers logging of separately authorized work already implemented', () => {
     writeRoadmap(project, [{ id: '001', status: 'planned' }]);
     writeConfig(project, { discoverySuggestions: true });
     const out = run(bashPayload('git commit -m "add feature"'));
-    assert.match(out, /inverse case/);
+    assert.match(out, /separate authorized work already implemented inline/);
     assert.match(out, /Log it/);
   });
 
@@ -403,7 +403,7 @@ describe('discovery block', () => {
       assert.doesNotMatch(out, new RegExp(title));
     }
     assert.match(out, /check-duplicate/);
-    assert.match(out, /Every candidate MUST go through the duplicate check/);
+    assert.ok(JSON.parse(out).hookSpecificOutput.additionalContext.includes(require('../scripts/discovery').discoveryInstructions()));
   });
 
   test('fires by default when config is missing', () => {
@@ -724,62 +724,19 @@ describe('commit scope resolution', () => {
   });
 });
 
-// [Foreman 4.3] The discovery block's inclusion bar was two qualitative words,
-// "CONFIRMED" and "not vague hunches", on a model that follows exactly that
-// and reports less. The concrete criterion already existed two clauses later
-// but governed how to WRITE a candidate, not what got in. Both gates have to
-// swap together or it is a no-op, so the pin is that they move as a pair.
-describe('the discovery inclusion bar switch', () => {
-  const HOOK = path.join(__dirname, '..', 'hooks', 'post-commit.js');
-
-  // CONCRETE_BAR resolves at module load, so each variant needs its own child.
-  function strings(env) {
-    const result = spawnSync(
-      'node',
-      ['-e', `const m = require(${JSON.stringify(HOOK)}); process.stdout.write(JSON.stringify({ block: m.discoveryBlock() }));`],
-      { encoding: 'utf-8', env: { ...process.env, ...(env || {}) } }
-    );
-    assert.equal(result.status, 0, result.stderr);
-    return JSON.parse(result.stdout);
-  }
-
-  test('by default both gates carry today wording', () => {
-    const { block } = strings();
-    assert.match(block, /CONFIRMED opportunities, bugs, or ideas/);
-    assert.match(block, /not vague\s+hunches/);
-    assert.match(block, /Say nothing if nothing is confirmed\./);
-  });
-
-  test('the switch swaps both gates, never just one', () => {
-    const { block } = strings({ FOREMAN_DISCOVERY_CONCRETE_BAR: '1' });
-    assert.ok(!/CONFIRMED opportunities/.test(block), 'the opening bar did not swap');
-    assert.ok(!/vague\s+hunches/.test(block), 'the hunches wording survived');
-    assert.ok(
-      !/Say nothing if nothing is confirmed\./.test(block),
-      'the closing gate did not swap, so the change is a no-op where it binds hardest'
-    );
-    assert.match(block, /exact\s+path, symbol, or behaviour you observed/);
-    assert.match(block, /If nothing in this commit clears that bar, say nothing\./);
-  });
-
-  test('everything the bar does not govern is untouched', () => {
-    const plain = strings().block;
-    const swapped = strings({ FOREMAN_DISCOVERY_CONCRETE_BAR: '1' }).block;
-    for (const shared of [
-      'MUST go through the duplicate check',
-      'do NOT run extra',
-      'ask before acting on a new suggestion',
-      'skip the suggestions',
-    ]) {
-      assert.ok(plain.includes(shared), `control lost "${shared}"`);
-      assert.ok(swapped.includes(shared), `treatment lost "${shared}"`);
-    }
-  });
-
-  test('an unrecognised value keeps today wording', () => {
-    for (const value of ['', '0', 'false', 'yes']) {
-      const { block } = strings({ FOREMAN_DISCOVERY_CONCRETE_BAR: value });
-      assert.match(block, /Say nothing if nothing is confirmed\./, `"${value}" swapped the bar`);
-    }
+// Hooks and explicit checkpoints must deliver one policy, without a hidden
+// environment switch changing the threshold or the authorization contract.
+describe('shared discovery policy', () => {
+  test('a successful commit delivers the same policy as an explicit no-commit close', () => {
+    const { discoveryInstructions } = require('../scripts/discovery');
+    const { checkpoint } = require('../hooks/codex-task');
+    writeRoadmap(project, [{ id: '001', status: 'awaiting_acceptance', commits: [] }]);
+    const before = fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf8');
+    const out = run(bashPayload('git commit -m "finish work"'));
+    const checked = checkpoint('check', { id: '001', root: project, session: '' });
+    assert.equal(checked.complete, true);
+    assert.equal(checked.discovery, discoveryInstructions());
+    assert.ok(JSON.parse(out).hookSpecificOutput.additionalContext.includes(checked.discovery));
+    assert.equal(fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf8'), before);
   });
 });

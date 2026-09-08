@@ -7,8 +7,8 @@ Code support. Historical records and the dependency-free core remain compatible.
 
 ## Runtime baseline
 
-The local CLI inspected during this port reports `codex-cli 0.145.0`. The adapter
-uses synchronous command hooks available in that version. Current online docs
+The initial port inspected `codex-cli 0.145.0`. The adapter
+uses synchronous command hooks available in that baseline. Current online docs
 also describe newer features, so this port does not depend on asynchronous hook
 commands, MCP hook actions or newer event types.
 
@@ -16,7 +16,15 @@ Codex discovers `.codex-plugin/plugin.json`, `skills/`, and `hooks/hooks.json`.
 The hook manifest uses the default discovery location; no unsupported `hooks`
 field is needed in the plugin manifest. Launchers read `process.env.PLUGIN_ROOT`
 inside Node, so they work without Bash/PowerShell/cmd variable interpolation.
-Node.js must be on the Codex host's PATH.
+The portable source hooks call `node`, so that executable must be available to
+their launcher. The local Windows installation retains its fnm-managed Node path
+in `commandWindows`; interactive shells still initialize fnm normally. Updating
+the package must preserve this host adaptation rather than assuming a machine PATH.
+
+Reviewed-increment behavioral tests used the app-bundled CLI **0.153.4**. The
+global CLI 0.145.0 rejected the configured `gpt-6-astra` model as requiring a newer
+CLI; the tests used the existing app executable without changing model or effort.
+This is the observed environment, not a model recommendation.
 
 References checked for this implementation:
 
@@ -58,6 +66,23 @@ context parsing is retained for old adapter callers only; it is not registered
 in the Codex hook manifest, since it cannot supply a trustworthy native signal.
 
 ## Explicit lifecycle
+
+Discovery is also an explicit execution responsibility. Generated handoffs and
+the `start`/`check` results carry the policy in `skills/foreman/discovery.md`.
+The executor reviews observed out-of-scope findings before reporting completion,
+including investigations and uncommitted work; subagents return candidates to
+their coordinator. `discoverySuggestions:false` disables the workflow. Duplicate
+checking precedes proposals, and the user chooses Add, Execute here, Execute
+with a background subagent, or Reject before new work is recorded or performed.
+
+This preserves the choices from the original Foundry Foreman checkout at
+`4eb352c` (`hooks/post-commit.js`, `discoveryBlock`) while extending its
+commit-only trigger and replacing its instruction to discard background-agent
+suggestions. The commit hook shares this same policy, including evidence-based opportunities
+and acceptance for separately implemented work. No experimental environment
+switch changes the discovery threshold. The commit hook remains advisory; commits inside helper scripts
+need not be recognized for the explicit completion review to run. Local tests
+verify policy delivery, not that a model will identify every useful finding.
 
 From the project directory, using the actual installed plugin path:
 
@@ -102,13 +127,24 @@ Foreman checkout was edited. No branch is pushed by this conversion.
 
 ## Validation and limits
 
+The reviewed-increment protocol is implemented for Codex only. Its preparation,
+wait, recovery and integrated-close instructions live in
+[`prepare-increments.md`](skills/roadmap/prepare-increments.md),
+[`increment-review.md`](skills/roadmap/increment-review.md),
+[`resume-increments.md`](skills/roadmap/resume-increments.md), and
+[`close-increments.md`](skills/roadmap/close-increments.md). It reuses format 2,
+existing parent notes and safe checkpoints. No persistent increment state,
+new configuration, universal client enforcement or automatic exact recovery is
+promised. Older clients may read the data without following the review protocol;
+Claude behavior has not been established by this Codex implementation.
+
 The test suite exercises the runtime directly in temporary repositories,
 including old data, task selection, locks, correction guards, staged closes,
 commit ownership, grounding, Windows commands, Codex patch payloads and explicit
 lifecycle behavior. Plugin and skill validators check package shape and metadata.
 
 These tests do not establish end-to-end behavior in every installed Codex host.
-Two bounded native-subagent smoke exercises checked generated investigation and
+Earlier bounded native-subagent smoke exercises checked generated investigation and
 implementation briefs in disposable projects: the research task reported an
 existing failing check without editing files; the implementation changed only
 its authorized source and passed the existing check. These are behavioral smoke
@@ -116,3 +152,61 @@ checks, not a performance benchmark. No original Claude benchmark result is
 presented as Codex evidence. After local
 installation, a new-session smoke test should cover init, pick/export, start,
 commit evidence, acceptance, and enabled hooks in a disposable project.
+
+Reviewed increments were validated with **1,359 automated tests and 11 controlled
+headless cases**, including waiting, feedback, pause, recovery, final acceptance,
+omissions and a failed required check. Separate ephemeral executions recovered
+from notes and files; this does not establish `codex exec resume` against a
+persisted session. See [the evidence report](NANOTASKS-DOGFOOD.md).
+
+## Use reviewed increments after installing
+
+Install or update this version of `foreman@personal`, then start a **new Codex
+task**. Reinstalling does not replace instructions already loaded in an existing
+conversation. In the target project, ask Foreman to execute a selected task by
+increments and wait for approval after each result. For example:
+
+> Foreman, ejecuta la tarea 123 aquí por incrementos y espera mi aprobación entre resultados.
+
+No new configuration field, roadmap migration or reinitialization is needed.
+The explicit request enables review for that run; an ordinary split does not.
+An already chosen destination is kept. Background delivery needs a coordinator
+able to relay the review, and a copied prompt carries the protocol even for one row.
+
+Inspect the active package with `codex plugin list --marketplace personal --json`.
+The local installation and cache smoke check are recorded in
+[the deployment record](NANOTASKS-DOGFOOD.md#instalación-local-posterior).
+Fresh-session user evaluation remains distinct from package installation.
+
+## Evaluate reviewed increments from source
+
+Use this worktree's scripts and protocol references explicitly, rather than
+assuming an installed plugin cache contains them. This evaluation does not
+require installation, marketplace edits or publication.
+
+1. Read the [workflow and complete payload](HOW-IT-WORKS.md#review-between-increments).
+   Save the JSON example as a UTF-8 file in a temporary location. From this
+   checkout, use `Get-Content -Raw '<payload-file>' | node ./scripts/craft-handoff.js`
+   in PowerShell, or `node ./scripts/craft-handoff.js < '<payload-file>'` in a
+   POSIX shell. On Windows with fnm, first initialize the current console with
+   `fnm env --use-on-cd | Out-String | Invoke-Expression`.
+2. Inspect the returned `ok`, `gate`, `warnings` and `prompt`. Assembly validates
+   the payload and generates text; it does not implement the example, place it
+   on the clipboard, or demonstrate a real wait. The embedded script paths refer
+   to this source checkout. For another project, explicitly set
+   `FOREMAN_PROJECT_DIR` and adjust the example's files and checks to real ones.
+3. Run `node --test tests/*.test.js` from this checkout for runtime regressions.
+   Keep any behavioral exercise in a disposable project with its own files and
+   roadmap. Execute the generated prompt only when intending to start that
+   work, retaining its review protocol and actual source paths.
+4. Observe a real pause before dependent work, supply a real decision, then
+   resume. Exercise Request changes and Pause deliberately, and identify those
+   exercises as rehearsals. Interrupt and resume once with sufficient evidence
+   and once with an ambiguous or changed artifact; the latter must request
+   revalidation. A run without a human channel must leave review pending.
+
+Separate automated regressions, headless behavioral observations, deliberate
+rehearsals and actual user acceptance in the evidence. Generated wording or a
+passing structural check alone does not prove that an executor waited. An
+explicit waiver for one evaluation run records omitted review and does not
+change the product default or establish human acceptance of the feature.

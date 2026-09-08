@@ -9,7 +9,7 @@ legacy ledger aliases remain readable.
 | Setting | Behavior |
 | --- | --- |
 | `requireVerification` | Default `true`. Record implementation evidence and hold the entry at `awaiting_acceptance` until you accept it. `false` allows the ordinary evidence-backed close without a separate acceptance hold. |
-| `discoverySuggestions` | Default `true`. After a successful commit, offer newly discovered work. Suggestions do not authorize adding unrelated work. |
+| `discoverySuggestions` | Default `true`. Before reporting completion, offer concrete untracked findings, including investigations and work without a commit. Commit hooks also carry this policy. Suggestions do not authorize adding unrelated work. |
 | `checkpoints` | `{baseBranch, branch, onFinish}`. Split execution uses a work branch (normally `foreman/<slug>`), local checkpoints, and a user-selected finish action: squash, merge, PR, or keep. A dirty starting tree disables automated commits. Existing branch restrictions still apply; no protected branch is chosen implicitly. |
 | `usePersona` | Default `true`. Include a brief role sentence in a handoff; `false` uses domain framing. This never selects the executing model. |
 | `omitSections` | Optional list drawn from `tone`, `example`, `background`, `output_format`. Required grounding and acceptance constraints remain. |
@@ -22,6 +22,19 @@ is offered once when a pick would benefit from previously completed overlapping
 work. A declined ledger offer is remembered.
 
 ## Context and runtime
+
+`reviewEachIncrement` is **not a configuration setting or roadmap field**. The
+handoff builder sends this transient boolean only for a run where you explicitly
+request approval between results. Absent or `false` preserves ordinary split
+behavior; `true` requires human review on every increment, even when tests pass.
+The assembler does not infer this choice from free text. Do not put it in
+`.foreman/config.json`.
+
+`requireVerification:false` does not cancel those requested intermediate
+reviews. It retains its existing whole-task close behavior. With final
+acceptance required, accepting an increment alone does not accept the parent.
+An explicit instruction to continue without a particular review is recorded as
+an omitted (`unverified:`) check, never as acceptance or a silent setting change.
 
 The destination choice retains Foreman's context-capacity signal when a host
 actually supplies it. Codex 0.145.0 hook payloads do not supply a reliable current

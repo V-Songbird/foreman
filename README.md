@@ -24,7 +24,8 @@ Foundry marketplace are separate; their install commands do not install this por
 
 Requirements: **Node.js 22 or later**, **Git**, and a Codex desktop or CLI host
 with plugin support. Node must be available as `node` to the process running
-hooks. The hook adapter targets the Codex 0.145.0 command-hook contract;
+hooks, or the Windows launcher must resolve the fnm-managed Node executable.
+The hook adapter retains the Codex 0.145.0 command-hook baseline;
 see [compatibility](CODEX.md) for exact coverage and validation limits.
 
 Use Codex's built-in plugin creator with this local checkout:
@@ -61,11 +62,23 @@ Local packaging and discovery follow the official
 | “Check whether the plan still matches the code, then pick” | Surveys the code, presents grounded corrections, then selects work |
 | “Is the roadmap file healthy?” | Runs structural checks without a codebase survey |
 | “Craft a prompt for this” | Builds a checked handoff without requiring a roadmap entry |
+| “Do this task in steps and wait for my approval between them” | Presents each meaningful result for Accept, Request changes, or Pause before continuing |
 
 Foreman carries clear authorization forward. It asks about ambiguous scope and
 unrequested proposals instead of asking you to approve the same request twice.
 With the default verification setting, implementation waits in
 `awaiting_acceptance` until you accept it.
+
+Review between increments is an explicit choice for that run in this Codex
+implementation. Each increment is one usable result, with automated
+checks, human review, or both on the same row. When you request approval between
+increments, every row includes human review and Foreman waits for your answer.
+An ordinary split keeps its existing behavior. No new project setting or store
+is required; final task acceptance remains separate. See the
+[reviewed workflow and payload](HOW-IT-WORKS.md#review-between-increments) and
+[installed-plugin usage](CODEX.md#use-reviewed-increments-after-installing).
+You can also [evaluate from source](CODEX.md#evaluate-reviewed-increments-from-source)
+without installing or publishing. Existing projects keep their roadmap and settings.
 
 ## What carries over
 
@@ -119,6 +132,7 @@ measured Codex performance.
 | [Roadmap schema](roadmap-schema.md) | Fields and CLI operations |
 | [Ledger](ledger.md) | Lessons and decision references |
 | [Prompt template](prompt-template.md) | Handoff structure and validation |
+| [Reviewed-increment evidence](NANOTASKS-DOGFOOD.md) | Controlled Codex headless results and remaining acceptance limits |
 | [Contributing](CONTRIBUTING.md) | Development and checks |
 
 Foreman remains a tool for a solo developer. It does not become a team tracker,

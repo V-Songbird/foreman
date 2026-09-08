@@ -91,6 +91,31 @@ beforeEach(() => {
   writeSourceFile(project);
 });
 
+for (const destination of ['task', 'agent', 'clipboard']) {
+  test(`discovery survives a ${destination} investigation handoff`, () => {
+    writeRoadmap(project, [entryFields()]);
+    const { status, json } = run(project, {
+      entry: '001', destination,
+      judgment: goodJudgment({ question: 'Why does refresh fail?' }),
+    });
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.match(json.prompt, /<foreman_discovery>/);
+    assert.match(json.prompt, /work without a commit/);
+    assert.match(json.prompt, /discoverySuggestions:false/);
+    assert.match(json.prompt, /returns candidates and evidence to its coordinator/);
+    assert.match(json.prompt, /Add to roadmap \/ Execute here/);
+  });
+}
+
+test('entry-less handoff carries discovery with an execution-time roadmap requirement', () => {
+  const { status, json } = run(project, {
+    title: 'Fix token refresh', what: 'Refresh before expiry.',
+    touches: ['src/auth/middleware.js'], destination: 'clipboard', judgment: goodJudgment(),
+  });
+  assert.equal(status, 0, JSON.stringify(json));
+  assert.match(json.prompt, /no roadmap exists, skip this discovery workflow/);
+});
+
 describe('entry mode', () => {
   test('loads the entry, assembles a gate-passing handoff', () => {
     writeRoadmap(project, [entryFields()]);
@@ -434,6 +459,7 @@ describe('installed Codex plugin commands', () => {
     fs.mkdirSync(plugin);
     fs.cpSync(SCRIPTS_DIR, path.join(plugin, 'scripts'), { recursive: true });
     fs.cpSync(path.join(SCRIPTS_DIR, '..', 'hooks'), path.join(plugin, 'hooks'), { recursive: true });
+    fs.cpSync(path.join(SCRIPTS_DIR, '..', 'skills'), path.join(plugin, 'skills'), { recursive: true });
     fs.copyFileSync(TEMPLATE_PATH, path.join(plugin, 'prompt-template.md'));
     const crafted = runNodeScript(path.join(plugin, 'scripts', 'craft-handoff.js'), [], {
       entry: '001', destination: 'task', judgment: goodJudgment(),
@@ -1856,5 +1882,35 @@ describe('the entry relays its own why and file surface', () => {
       judgment: goodJudgment(),
     });
     assert.ok(json.prompt.includes('Expected file surface: src/auth/middleware.js.'), json.prompt);
+  });
+});
+
+describe('reviewed increment titles', () => {
+  test('explicit review uses each result goal as its local row title', () => {
+    writeRoadmap(project, [entryFields()]);
+    const rows = [
+      { goal: 'Open and close the form', files: ['src/auth/middleware.js'], run: 'npm test', expected: 'tests pass', review: { action: 'Open and close it', expected: 'Focus returns; no authentication yet' } },
+      { goal: 'Explain authentication limits', files: ['src/auth/middleware.js'], review: { action: 'Read the limits', expected: 'No unsupported promise' } },
+    ];
+    const result = assemble(project, { entry: '001', destination: 'task', split: true, reviewEachIncrement: true, judgment: goodJudgment({ verification: rows }) });
+    assert.equal(result.ok, true, JSON.stringify(result.gate));
+    assert.deepEqual(result.tasks.map(row => row.subject), rows.map(row => row.goal));
+    assert.equal(result.tasks.length, 2, 'mixed checks do not generate another row');
+  });
+  test('an explicit subject wins and reviewed titles keep the existing 60-character limit', () => {
+    writeRoadmap(project, [entryFields()]);
+    const result = assemble(project, { entry: '001', destination: 'task', split: true, reviewEachIncrement: true, judgment: goodJudgment({ verification: [
+      { goal: 'Open the form', subject: 'Inspect the form', review: { action: 'Inspect', expected: 'Correct form' } },
+      { goal: 'A'.repeat(90), review: { action: 'Read', expected: 'Correct text' } },
+    ] }) });
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.tasks.map(row => row.subject), ['Inspect the form', 'A'.repeat(60)]);
+  });
+  test('ordinary splits keep their existing title behavior despite goal metadata', () => {
+    writeRoadmap(project, [entryFields()]);
+    const request = { entry: '001', destination: 'task', split: true, judgment: goodJudgment({ verification: [{ goal: 'A specific outcome', run: 'npm test', expected: 'tests pass' }] }) };
+    const ordinary = assemble(project, request);
+    assert.deepEqual(assemble(project, { ...request, reviewEachIncrement: false }), ordinary);
+    assert.equal(ordinary.tasks[0].subject, 'Fix token refresh bug — check 1/1');
   });
 });

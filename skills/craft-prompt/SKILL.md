@@ -46,7 +46,8 @@ the project, using a collaboration worker only when useful independent work
 can proceed alongside it. Return:
 
 - Up to three candidate file/area lines with relevant symbols.
-- The real project verification command.
+- The real project verification command, when one exists; otherwise the
+  available human review of the requested result, without inventing a command.
 - One existing implementation to use as a `Pattern:` reference when available.
 - A way to drive or inspect the project unattended, if one exists.
 
@@ -70,8 +71,12 @@ which files may change in `judgment.constraints` only when one was supplied.
 For an investigation or review, define the question and expected findings;
 do not turn the assignment into implementing a fix.
 
-For implementation, gather each verification command and its expected result,
-in running order. A bug fix also carries observed failing output verbatim under
+For implementation, follow [prepare-increments.md](../roadmap/prepare-increments.md):
+gather one row per meaningful result, combining actual commands and human review
+when they concern the same work. Human-only verification does not change the
+request into an investigation. Preserve explicit approval-between-results as
+`reviewEachIncrement:true` with `review` on every row; do not enable it for an
+ordinary split. A bug fix also carries observed failing output verbatim under
 `Observed failure:` when available. Ask what must remain true; encode an
 invariant as an observable assertion, not the name of a contract. No additional
 invariant is a normal answer. Infer the expected file surface from chosen paths.
@@ -107,25 +112,31 @@ beside the prompt and its fields are reviewable before delivery.
 ## Preflight, assemble, deliver
 
 Resolve chosen paths with `scripts/resolve-symbols.js`, supplying the task
-description and verification command. Existing moved files require correction;
+description and actual `run` commands only. Human review actions are not
+commands and do not go to this resolver. Existing moved files require correction;
 a planned new file stays marked missing. Outside-project paths are refused.
 An unresolved symbol or non-runnable verification command requires correction,
 not a guess. Record the facts and reuse them when assembling.
 
 Read [skills/roadmap/destination-question.md](../roadmap/destination-question.md).
 Ask its original four-way question before assembly unless the user already
-chose a destination. Do not ask which model should run the work.
+chose a destination, and follow its answer-collection protocol before proceeding.
+Do not ask which model should run the work.
 
 Pass JSON stdin to `node "<plugin-root>/scripts/craft-handoff.js"` with no
 `entry` key:
 
 - `title`, `what`, `touches`, and one imperative `request` that preserves the
   task type, such as "Investigate the retry failure and report its cause."
-- `destination:"task"|"agent"|"clipboard"`; `split:true` only for split by check.
+- `destination:"task"|"agent"|"clipboard"`; `split:true` for ordered local rows,
+  including an explicitly requested local run by increments.
+- Top-level `reviewEachIncrement:true` only for the user's explicit request to
+  approve each result; keep the chosen destination and require review on every row.
 - `kind:"decision"` when the deliverable is a recorded choice.
 - Optional `customTone` and genuinely enforced `workflowStage`.
 - `judgment.role`, `goal`, `context`, `steps`/`question`, `constraints`,
-  `verification:[{run,expected}]`, and optional `purpose`, `invariants`,
+  `verification` rows with `goal`, known `files`, and complete `run`/`expected`
+  and/or `review.action`/`review.expected` pairs; optional `purpose`, `invariants`,
   `testFirst`, `example:{before,after}`, or `expectedFileSurface`.
 
 Use the user's actual goal. `purpose` describes the output's audience or next

@@ -40,12 +40,12 @@ describe("two confidence modes", () => {
   test("all four destination choices remain available", () => {
     for (const option of ["Execute here", "Execute here, split by check",
       "Execute with a background agent", "Copy prompt to clipboard"]) assert.ok(destination.includes(option));
-    assert.match(destination, /Do not lose a\s+destination because a question tool has a smaller option limit/);
+    assert.match(destination, /Preserve all four destinations/);
   });
   test("recommendation uses actual context, parallelism, checks, and clean-tree facts", () => {
     assert.match(destination, /Exactly one option gets `\(Recommended\)`/);
     assert.match(destination, /selected candidate's `collision` is explicitly\s+false/);
-    assert.match(destination, /at least two checks/i);
+    assert.match(destination, /at least two increment rows/i);
     assert.match(destination, /Unknown context is unknown/);
     assert.match(destination, /Do not hide a cautioned option/);
   });

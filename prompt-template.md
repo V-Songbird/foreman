@@ -167,9 +167,12 @@ Constraints:
 Verification (REQUIRED):
 Run: [exact command — e.g. "npm test -- --testPathPattern=auth"]
 Expected: [pass/fail signal — e.g. "all tests pass", "exit code 0"]
-[Repeat the Run:/Expected: pair, in running order, for every check the
-task actually has. An `Execute here` task split cuts on these boundaries —
-see the splitting section below.]
+[Repeat the Run:/Expected: pair for actual command checks, preserving their
+required order. Human checks render as Look:/Expected: from review.action and
+review.expected. One verification row represents one meaningful result and may
+contain both pairs; a human-only row omits Run and its Expected. Split on distinct
+results, not on each check. Explicit reviewEachIncrement:true requires review on
+every row; see the splitting section below.]
 [Pure-investigation handoff: diagnostic checks report observed outcomes,
 including failures. Replace the fix-loop sentences below with a reminder that
 failed diagnostics do not authorize implementation changes. Do not combine a
@@ -260,7 +263,7 @@ fields. Use this added structure when a mechanical signal calls for it.
 **Standard** carries only: `<codex_runtime>`, `<task_context>` (the entry's identity and the
 one-sentence goal), the concise truth line below, `<relevant_files>` with its
 symbols, `<prior_work>` when anything was recalled, `<task_rules>`
-(constraints plus the `Verification (REQUIRED):` Run:/Expected: pairs and the
+(constraints plus the `Verification (REQUIRED):` Run:/Expected: and/or Look:/Expected: pairs and the
 bounded fix ceiling for implementation checks), the closure-evidence sentence, and the
 ROADMAP.jsonl entry paragraph when the handoff carries one. Task-specific context and observable invariants remain when supplied; omit optional examples and repeated process instructions. The fix ceiling is
 not an exception to that: it belongs to implementation verification rather than
@@ -297,13 +300,18 @@ craft-handoff.js returns {ok, prompt, profile, signals, tasks?, gate, warnings}.
 
 ## Splitting on acceptance boundaries
 
-Split only when requested or useful for distinct work slices. Each acceptance row has a goal, owned files, Run and Expected; typecheck, lint, and tests for the same change are checks, not three independent implementations. tasks[].subject and tasks[].description are local execution records. Use an available plan tool or keep a checklist in the current task; finish prerequisites before dependent rows. The full prompt belongs to row 1 and the roadmap closure paragraph to the last row only. Do not close the entry after an intermediate acceptance check.
+Split only when requested or useful for distinct work slices. Each increment has a goal, owned files and at least one complete check: `run`/`expected`, `review.action`/`review.expected`, or both. Human checks render as Look/Expected beside the same row's commands; they are never sent to the command resolver. Typecheck, tests and human review for the same result stay together. tasks[].subject and tasks[].description are local execution records. Use an available plan tool or keep a checklist in the current task; finish prerequisites before dependent rows. The full prompt belongs to row 1 and the roadmap closure paragraph to the last row only. Do not close the entry after an intermediate acceptance check.
 
-**Clipboard checkpoint embed:** for implementation with two or more Run:/Expected: pairs, the assembler includes resolved checkpoint settings and acceptance ordering in the prompt itself. An investigation, or a handoff with one check or none, adds no checkpoint protocol. The recipient can use local planning; it must not invent unavailable task tools. Skip checkpointing and just work the tasks if git is unavailable.
+The transient assembler input `reviewEachIncrement:true` carries an explicit request for human acceptance after every increment. It requires `review` on every row, including rows with passing automated checks. Omitted or false preserves the ordinary split. Follow the [increment review protocol](skills/roadmap/increment-review.md): the assembler embeds this same text in `<increment_review>`, even for one reviewed row on clipboard. It owns presentation, waiting for the actual answer, feedback, pause, notes and checkpoint ordering. The preference belongs to this handoff, never the roadmap schema or project configuration. Structural validation proves transport, while live execution must demonstrate the wait.
+
+**Clipboard checkpoint embed:** for implementation with two or more increment rows, the assembler includes resolved checkpoint settings and acceptance ordering in the prompt itself. An investigation, or a handoff with one check or none, adds no checkpoint protocol. The explicit human-review obligation still travels even for one reviewed row. The recipient can use local planning; it must not invent unavailable task tools. Skip checkpointing and just work the tasks if git is unavailable.
 
 ## Checkpointing a task-split run
 
 Read the checkpoints block of .foreman/config.json. Defaults are branch:true, onFinish:"ask", baseBranch unset. Resolve an unset base from origin/HEAD, falling back to main. User branch restrictions always win: create or use an authorized working branch before any writes; never write on a protected branch. branch:false cannot override that restriction.
+
+In an explicitly reviewed run, follow [increment review](skills/roadmap/increment-review.md): record the observed decision before an eligible checkpoint, and never treat intermediate acceptance as parent closure.
+For the final result, follow [close-increments.md](skills/roadmap/close-increments.md): match omitted checks with later evidence for that same result, preserve history, and distinguish the final decision from acceptance of an intermediate row. Both protocols travel in reviewed handoffs.
 
 Before the run, inspect git status. Existing changes mean no checkpoint commits for this run; preserve the work and continue without staging around it. When starting on the base branch with branch:true, create foreman/<slug>; otherwise checkpoint on the current authorized branch. Checkpoint commit subjects are task <n>/<total>: <subject>. Where checkpointing is appropriate and authorized, call scripts/safe-commit.js begin before changes, retain baseline.head, and use finish with that baseline plus an explicit expected file list. Do not use git add -A or publish checkpoint commits. There is no checkpoints.push key. The last row with a roadmap entry stages through finish --no-commit, records staged:true at close, and makes one commit ending with Foreman: ID. The coordinator owns these writes when subagents help.
 

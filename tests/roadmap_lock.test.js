@@ -140,7 +140,9 @@ describe("withRoadmapLock", () => {
         stdio: ["ignore", "ignore", "pipe"],
       })
     );
-    await Promise.all(children.map(waitForChild));
+    const results = await Promise.allSettled(children.map(waitForChild));
+    const failure = results.find((result) => result.status === "rejected");
+    if (failure) throw failure.reason;
 
     assert.equal(fs.readFileSync(counterPath, "utf8"), "5");
     assert.deepEqual(activeClaims(lockPathForRoot(project)), []);
@@ -161,7 +163,9 @@ describe("withRoadmapLock", () => {
       })
     );
 
-    await Promise.all(children.map(waitForChild));
+    const results = await Promise.allSettled(children.map(waitForChild));
+    const failure = results.find((result) => result.status === "rejected");
+    if (failure) throw failure.reason;
 
     const lines = fs
       .readFileSync(path.join(project, "ROADMAP.jsonl"), "utf8")
@@ -219,7 +223,9 @@ describe("withRoadmapLock", () => {
       })
     );
 
-    await Promise.all(children.map(waitForChild));
+    const results = await Promise.allSettled(children.map(waitForChild));
+    const failure = results.find((result) => result.status === "rejected");
+    if (failure) throw failure.reason;
 
     assert.equal(fs.readFileSync(counterPath, "utf8"), "6");
     assert.deepEqual(activeClaims(lockPath), []);
@@ -299,6 +305,108 @@ describe("withRoadmapLock", () => {
       );
       assert.ok(Number.isSafeInteger(ticket.number));
     }, { staleMs: 0 });
+  });
+
+  test("recovers when container creation reports a concurrent removal", (t) => {
+    const project = makeTemporaryDirectory("foreman-lock-container-race");
+    const lockPath = lockPathForRoot(project);
+    const mkdirSync = fs.mkdirSync;
+    let interrupted = false;
+    let mutations = 0;
+    t.mock.method(fs, "mkdirSync", (target, options) => {
+      if (target === lockPath && !interrupted) {
+        interrupted = true;
+        throw Object.assign(new Error("container removed during mkdir"), { code: "ENOENT" });
+      }
+      return mkdirSync(target, options);
+    });
+
+    withRoadmapLock(project, () => {
+      mutations++;
+      const [claim] = activeClaims(lockPath);
+      assert.ok(JSON.parse(fs.readFileSync(path.join(claim, "owner.json"), "utf8")).token);
+      assert.ok(JSON.parse(fs.readFileSync(path.join(claim, "ticket.json"), "utf8")).number);
+    });
+
+    assert.equal(interrupted, true);
+    assert.equal(mutations, 1);
+    assert.equal(fs.existsSync(lockPath), false);
+  });
+
+  test("recovers repeated container removals before staging is created", (t) => {
+    const project = makeTemporaryDirectory("foreman-lock-repeated-container-race");
+    const lockPath = lockPathForRoot(project);
+    const mkdirSync = fs.mkdirSync;
+    let removals = 0;
+    let mutations = 0;
+    t.mock.method(fs, "mkdirSync", (target, options) => {
+      if (path.dirname(target) === lockPath && removals < 2) {
+        fs.rmdirSync(lockPath);
+        removals++;
+      }
+      return mkdirSync(target, options);
+    });
+
+    withRoadmapLock(project, () => { mutations++; });
+
+    assert.equal(removals, 2);
+    assert.equal(mutations, 1);
+    assert.equal(fs.existsSync(lockPath), false);
+  });
+
+  test("bounds persistent publication ENOENT by the acquisition deadline", (t) => {
+    const project = makeTemporaryDirectory("foreman-lock-publication-timeout");
+    const lockPath = lockPathForRoot(project);
+    const mkdirSync = fs.mkdirSync;
+    const now = Date.now;
+    const startedAt = now();
+    let elapsed = 0;
+    let attempts = 0;
+    t.mock.method(Date, "now", () => startedAt + elapsed);
+    t.mock.method(fs, "mkdirSync", (target, options) => {
+      if (target === lockPath) {
+        attempts++;
+        elapsed += 10;
+        throw Object.assign(new Error("container repeatedly removed"), { code: "ENOENT" });
+      }
+      return mkdirSync(target, options);
+    });
+
+    assert.throws(
+      () => withRoadmapLock(project, () => assert.fail("mutation must not run"), {
+        waitMs: 30,
+        retryMs: 1,
+      }),
+      (err) => {
+        assert.equal(err.code, "FOREMAN_ROADMAP_LOCK_TIMEOUT");
+        assert.equal(err.lockPath, lockPath);
+        assert.match(err.message, /timed out after 30ms/);
+        return true;
+      }
+    );
+    assert.equal(attempts, 3);
+    assert.equal(fs.existsSync(lockPath), false);
+  });
+
+  test("propagates publication errors other than ENOENT without retrying", (t) => {
+    const project = makeTemporaryDirectory("foreman-lock-publication-error");
+    const lockPath = lockPathForRoot(project);
+    const mkdirSync = fs.mkdirSync;
+    const denied = Object.assign(new Error("access denied"), { code: "EACCES" });
+    let attempts = 0;
+    t.mock.method(fs, "mkdirSync", (target, options) => {
+      if (target === lockPath) {
+        attempts++;
+        throw denied;
+      }
+      return mkdirSync(target, options);
+    });
+
+    assert.throws(
+      () => withRoadmapLock(project, () => assert.fail("mutation must not run")),
+      (err) => err === denied
+    );
+    assert.equal(attempts, 1);
   });
 
   test("removes its lock when the mutation throws", () => {

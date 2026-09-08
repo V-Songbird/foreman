@@ -206,22 +206,36 @@ function removeAbandonedClaim(claimPath, staleMs, deadline = Infinity) {
   return true;
 }
 
-function publishClaim(lockPath, project, token) {
-  fs.mkdirSync(lockPath, { recursive: true });
+function lockTimeoutError(lockPath, waitMs) {
+  const err = new Error(
+    `timed out after ${waitMs}ms waiting for another Foreman roadmap mutation`
+  );
+  err.code = "FOREMAN_ROADMAP_LOCK_TIMEOUT";
+  err.lockPath = lockPath;
+  return err;
+}
+
+function publishClaim(lockPath, project, token, deadline, retryMs, waitMs) {
   const claimPath = path.join(lockPath, `claim-${process.pid}-${token}`);
   // The staging directory is deliberately outside the `claim-` prefix that
   // claimDirectories scans. A contender that saw it would stat it and read
   // its owner file, and an open handle inside a directory makes the publish
   // rename below fail with EPERM on Windows.
   const candidatePath = path.join(lockPath, `staging-${process.pid}-${token}`);
-  try {
-    fs.mkdirSync(candidatePath);
-  } catch (err) {
-    // A releaser can discard the container between the two mkdirs above.
-    // Recreating it and retrying once is the whole recovery.
-    if (err.code !== "ENOENT") throw err;
-    fs.mkdirSync(lockPath, { recursive: true });
-    fs.mkdirSync(candidatePath);
+  while (true) {
+    try {
+      fs.mkdirSync(lockPath, { recursive: true });
+      fs.mkdirSync(candidatePath);
+      break;
+    } catch (err) {
+      // Releasers can remove an empty container during either mkdir, including
+      // a retry. Once staging exists, empty-container cleanup cannot remove it.
+      if (err.code !== "ENOENT") throw err;
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) throw lockTimeoutError(lockPath, waitMs);
+      sleepSync(Math.min(retryMs, remainingMs));
+      if (Date.now() >= deadline) throw lockTimeoutError(lockPath, waitMs);
+    }
   }
   try {
     fs.writeFileSync(
@@ -311,7 +325,7 @@ function acquireLock(root, options = {}) {
   let claimPath;
 
   try {
-    claimPath = publishClaim(lockPath, project, token);
+    claimPath = publishClaim(lockPath, project, token, deadline, retryMs, waitMs);
     const ticket = chooseTicket(lockPath, claimPath, token, staleMs, deadline);
 
     while (true) {
@@ -324,12 +338,7 @@ function acquireLock(root, options = {}) {
 
       const elapsed = Date.now() - startedAt;
       if (elapsed >= waitMs) {
-        const err = new Error(
-          `timed out after ${waitMs}ms waiting for another Foreman roadmap mutation`
-        );
-        err.code = "FOREMAN_ROADMAP_LOCK_TIMEOUT";
-        err.lockPath = lockPath;
-        throw err;
+        throw lockTimeoutError(lockPath, waitMs);
       }
       sleepSync(Math.min(retryMs, waitMs - elapsed));
     }

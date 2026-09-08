@@ -27,6 +27,33 @@ function task(action, id = "001", args = []) {
   return runNodeScript(path.join(HOOKS_DIR, "codex-task.js"), [action, "--id", id, "--root", root, "--session", session, "--agent", "", ...args]);
 }
 
+test("discovery travels through start and no-commit completion without writing candidates", () => {
+  const started = JSON.parse(task("start").stdout);
+  assert.match(started.discovery, /optimization opportunities/);
+  writeRoadmap(root, [{ id: "001", title: "investigation", status: "awaiting_acceptance", commits: [] }]);
+  const before = fs.readFileSync(path.join(root, "ROADMAP.jsonl"), "utf8");
+  const checked = task("check");
+  assert.equal(checked.status, 0);
+  const result = JSON.parse(checked.stdout);
+  assert.equal(result.complete, true);
+  assert.match(result.discovery, /work without a commit/);
+  assert.match(result.discovery, /check-duplicate/);
+  assert.match(result.discovery, /Wait for a decision/);
+  assert.equal(fs.readFileSync(path.join(root, "ROADMAP.jsonl"), "utf8"), before);
+});
+
+test("discovery is disabled at execution time by the project setting", () => {
+  writeConfig(root, { discoverySuggestions: false });
+  assert.equal(JSON.parse(task("start").stdout).discovery, undefined);
+  assert.equal(JSON.parse(task("check").stdout).discovery, undefined);
+});
+
+test("background checkpoint returns candidates to the coordinator instead of discarding them", () => {
+  const result = JSON.parse(task("check", "002", ["--agent", "worker"]).stdout);
+  assert.match(result.discovery, /returns candidates and evidence to its coordinator/);
+  assert.match(result.discovery, /must not discard them/);
+});
+
 test("hook cwd wins over inherited project environment", () => {
   assert.equal(projectDir({ cwd: root }), root);
 });

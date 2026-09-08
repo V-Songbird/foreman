@@ -280,7 +280,7 @@ describe('context-fill — wiring', () => {
       path.join(__dirname, '..', 'skills', 'roadmap', 'destination-question.md'),
       'utf-8'
     );
-    assert.match(shared, /Keep Foreman's four options, in this order/);
+    assert.match(shared, /Keep Foreman's four options in this base order/);
     // The split's old visibility gate is gone from every copy that had one.
     for (const rel of [
       ['skills', 'roadmap', 'destination-question.md'],

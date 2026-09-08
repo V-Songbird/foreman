@@ -18,13 +18,17 @@ Offer finish-first rows before planned candidates: up to two
 The first finish-first row is recommended; otherwise the top planned candidate
 is. Each option states id, title, a short everyday explanation of `why`, and the
 returned ranking `reason` where present. Use only menu fields, with no duplicate
-prose recap. Fit the host's question limits without silently omitting choices;
-use a plain-text menu when necessary.
+prose recap. Render these as selectable options using
+[the shared picker protocol](../foreman/questions.md); paginate when needed
+without dropping choices.
 
 - **Accept**: fetch just that entry. If notes contain `unverified:` lines,
-  offer "Test it first (Recommended)" first, quote those lines verbatim, and
-  leave the entry awaiting while the user checks them. With no recorded
-  unverified lines, do not offer that test option. Otherwise ask whether the result holds
+  reconcile them with later evidence for the same result using
+  [close-increments.md](close-increments.md). For checks still unverified,
+  offer "Test it first (Recommended)" first, quote the relevant lines verbatim,
+  and leave the entry awaiting while the user checks them. With no recorded
+  unverified lines, do not offer that test option; also omit it when all those
+  checks have corroborated resolutions. Otherwise ask whether the result holds
   up. Explicit acceptance calls `update-status` with `status:"done"`;
   declining calls it with `status:"in_progress"` and the user's feedback in
   `notes`. An accept choice settles work and crafts no prompt.
@@ -32,6 +36,13 @@ use a plain-text menu when necessary.
   subagent handle only if the available host still knows that session/agent;
   use its follow-up capability and inspect the result. If unavailable,
   re-craft with `resume:true` from the durable record.
+  For a run whose explicit review instruction remains active, preserve
+  `reviewEachIncrement:true` and follow [resume-increments.md](resume-increments.md).
+  The destination executor compares notes with current work; Fast pick does not
+  claim to have performed that comparison. Relay full notes and new user context
+  to a live worker too. Do not infer review mode or completed work from an
+  `accepted:` prefix. The assembler transports the selected notes independently
+  of cross-task recall; do not replace them with a summary in judgment.context.
 - **Defer**: when the user says "later" or names a prerequisite outside the
   dependency graph, `update-status` to `deferred` with
   `notes:"deferred: <their trigger>"`, then refresh the menu. Do not defer
@@ -39,7 +50,8 @@ use a plain-text menu when necessary.
 
 A single total option skips the selection question. It still goes through
 acceptance when awaiting, or the destination question when executable. With
-multiple options, ask "Which task next?" unless the user already selected one.
+multiple options, call the picker with "Which task next?" unless the user already
+selected one, and collect its answer before fetching the selected entry.
 A finish-first recommendation does not prevent choosing new work.
 
 Fetch the selected entry using `roadmap.js list --ids <id>` and require exactly
@@ -48,10 +60,15 @@ they are now available for assembly. A missing entry requires reselection.
 
 ## Build and deliver
 
-Gather runnable `Run:`/`Expected:` verification pairs from the entry's actual
-requirements before asking where to run it. A pure investigation has a clear
-question instead. Do not invent a test command or a success condition from a
-task title. Ask for the one missing piece when the stored evidence is insufficient.
+Gather verification rows from the entry's actual requirements before asking
+where to run it, following [prepare-increments.md](prepare-increments.md).
+One row is a meaningful result with commands, human review, or both. Carry an
+explicit request for approval after each result as `reviewEachIncrement:true`;
+ordinary splits keep their behavior. Fast pick still uses stored evidence and
+the user's request, without a codebase investigation. A pure investigation has
+a clear question instead. Ask for the one missing piece when evidence is
+insufficient; do not invent a command or turn human-reviewed implementation
+into a research task.
 
 Craft a task brief that adds the entry's goal, relevant context, real constraints,
 and completion evidence to the destination's active Codex instructions. Treat
@@ -61,7 +78,8 @@ produce findings, and a decision produces a choice. None implies a request to
 implement a follow-up change.
 
 Read [skills/roadmap/destination-question.md](destination-question.md) and honor
-the supplied destination or ask its shared question. Then call
+the supplied destination or ask its shared question and wait for the user's
+answer as specified there. Once the destination is known, call
 `node "<plugin-root>/scripts/craft-handoff.js"` with JSON stdin:
 
 ```json
@@ -83,7 +101,11 @@ the supplied destination or ask its shared question. Then call
 ```
 
 `task`, `agent`, and `clipboard` are the builder's destination values. `split:true`
-is for split by check. The entry's own `why` is carried verbatim as its purpose;
+is for ordered local rows, including a requested local run by increments.
+For explicitly requested review, add top-level `reviewEachIncrement:true` and
+`review:{action,expected}` to every verification row, preserving `goal` and the
+known `files`. Automatic-only rows remain valid in ordinary runs; human-only
+rows omit `run`/`expected`. Do not infer review mode from a split alone. The entry's own `why` is carried verbatim as its purpose;
 do not replace it with a guessed motivation. The builder resolves
 `planned_touches`, dependency docs, decision-task rules, prior work, symbols,
 lessons, and anchors. It derives the expected file surface unless a deliberate

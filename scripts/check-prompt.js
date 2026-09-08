@@ -175,6 +175,10 @@ function problem(error, fix, example) {
 }
 
 function checkPrompt(prompt, opts) {
+  // Recovery notes are quoted evidence, not executable prompt instructions.
+  // They must neither satisfy required blocks nor trigger placeholder checks.
+  prompt = prompt.replace(/<recorded_increment_notes>\n[\s\S]*?\n<\/recorded_increment_notes>/g,
+    "<recorded_increment_notes>\n</recorded_increment_notes>");
   const errors = [];
   const warnings = [];
   const canonical = readCanonical();
@@ -265,10 +269,10 @@ function checkPrompt(prompt, opts) {
   } else if (!opts.research) {
     const hasVerification =
       /Verification \(REQUIRED\):/.test(taskRules) &&
-      /\bRun:/.test(taskRules) &&
+      /\b(?:Run|Look):/.test(taskRules) &&
       /\bExpected:/.test(taskRules);
     if (!hasVerification) {
-      errors.push(problem("task_rules has no verification block (Run:/Expected:) — required unless the task is pure research (--research)", "Add a Verification (REQUIRED) block with a Run: line and an Expected: line, or pass --research when the task produces nothing runnable.", "Verification (REQUIRED):\nRun: npm test\nExpected: all tests pass"));
+      errors.push(problem("task_rules has no verification block (Run:/Expected: or Look:/Expected:) — required unless the task is pure research (--research)", "Add a Verification (REQUIRED) block with Run:/Expected: for commands or Look:/Expected: for human review; pass --research only for a pure investigation.", "Verification (REQUIRED):\nRun: npm test\nExpected: all tests pass"));
     }
     // [Foreman: 103, 231] The ceiling belongs to the verification block, not
     // to a profile: it bounds the retry loop the Run:/Expected: pairs open, and

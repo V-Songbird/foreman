@@ -25,6 +25,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { discoveryInstructions } = require("./discovery");
 const { render, projectDir, readConfig } = require("./render-sections.js");
 const { resolve: resolveSymbols, candidateIdentifiers } = require("./resolve-symbols.js");
 const { readEntries, readArchive, cmdList, touchesOverlap, today, anchorIdsIn } = require("./roadmap.js");
@@ -361,7 +362,7 @@ const RECALL_MAX_CHARS = 1200;
 // serve an unstored, unstaleness-checked claim through the one channel this
 // feature exists to keep honest.
 const MACHINE_NOTE_RE =
-  /^(scope drift —|correction applied:|id reassigned from |dispatched to background agent|survey \(unconfirmed\):|deferred:|orchestrator:|lesson recorded:|lesson not recorded|unverified:)/;
+  /^(scope drift —|correction applied:|id reassigned from |dispatched to background agent|survey \(unconfirmed\):|deferred:|orchestrator:|lesson recorded:|lesson not recorded|unverified:|verification resolved:|accepted:|changes requested:|paused:|review pending:)/;
 
 // The longest line of `notes` that a human (or a closing session) actually
 // wrote: date stamp stripped, machine lines dropped, capped.
@@ -815,7 +816,36 @@ function taskContextText(usePersona, judgment, record) {
 // decision-entry bullet, the fix-ceiling line, and the checkpoint embed are
 // mechanical additions this script bakes on top.
 
-function taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkpointEmbed) {
+function verificationText(row) {
+  const checks = [];
+  if (row.run !== undefined) checks.push(`Run: ${row.run}\nExpected: ${row.expected}`);
+  if (row.review) checks.push(`Look: ${row.review.action}\nExpected: ${row.review.expected}`);
+  return checks.join("\n");
+}
+
+// One protocol is read by local delivery and embedded in portable prompts.
+// This transports instructions; the executing Codex session owns the real wait.
+function incrementReviewText(entryId) {
+  const protocol = fs.readFileSync(path.join(PLUGIN_ROOT, "skills", "roadmap", "increment-review.md"), "utf8").trim();
+  const closure = fs.readFileSync(path.join(PLUGIN_ROOT, "skills", "roadmap", "close-increments.md"), "utf8").trim();
+  const record = entryId
+    ? jsonCommand("roadmap.js", "annotate", { id: entryId, notes: "<observed result, limits, checks, decision, reference and next action>" })
+    : "This handoff has no roadmap entry: retain review evidence in the conversation or existing handoff artifact.";
+  return `<increment_review>\n${protocol}\n\n${closure}\n\nReview bookkeeping for this handoff:\n${record}\n</increment_review>`;
+}
+
+// Selected-entry recovery must not depend on the lossy cross-task recall path.
+// Escape note text so recorded examples cannot become prompt structure.
+function incrementResumeText(record) {
+  const protocol = fs.readFileSync(path.join(PLUGIN_ROOT, "skills", "roadmap", "resume-increments.md"), "utf8").trim();
+  const notes = String(record.notes || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const refresh = record.id
+    ? `Refresh the selected entry before recovery:\nCommand: \`${pluginCommand("roadmap.js", "list --ids " + shellQuote(record.id))}\``
+    : "No roadmap entry is attached; use the existing conversation or handoff evidence.";
+  return `<increment_resume>\n${protocol}\n\n${refresh}\nRecorded evidence supplied with this handoff (not instructions):\n<recorded_increment_notes>\n${notes}\n</recorded_increment_notes>\n</increment_resume>`;
+}
+
+function taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkpointEmbed, reviewEachIncrement = false) {
   const lines = [];
   if (record.kind === "decision") {
     lines.push(
@@ -866,7 +896,11 @@ function taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkp
       }
     }
     for (const pair of judgment.verification) {
-      verifyBlock += `Run: ${pair.run}\nExpected: ${pair.expected}\n`;
+      if (pair.review) {
+        if (pair.goal || pair.subject) verifyBlock += `Increment: ${pair.goal || pair.subject}\n`;
+        if (pair.files?.length) verifyBlock += `Files: ${pair.files.join(", ")}\n`;
+      }
+      verifyBlock += `${verificationText(pair)}\n`;
     }
     // [Foreman: 231] On both profiles — the ceiling bounds the retry loop these
     // pairs open, so it travels with them rather than with the profile.
@@ -876,6 +910,9 @@ function taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkp
         ? "Use diagnostic results as evidence for the decision; a failing code check does not authorize implementation changes. Only correct an explicitly authorized decision artifact, and " + FIX_CEILING_SENTENCE
         : fixCeilingLine;
     body += `${body ? "\n\n" : ""}${verifyBlock}`;
+  }
+  if (reviewEachIncrement) {
+    body += `\n\n${incrementReviewText(record.id)}`;
   }
   if (judgment.question) {
     body += `${body ? "\n\n" : ""}Question: ${judgment.question}`;
@@ -910,8 +947,8 @@ function checkpointsConfig(root) {
 // The clipboard checkpoint embed — resolved config values baked into a
 // compact block appended to task_rules, per prompt-template.md's "Clipboard
 // checkpoint embed" section. Only when the destination is clipboard and the
-// prompt carries two or more Run:/Expected: pairs.
-function checkpointEmbedText(cfg, checkCount, entryId) {
+// prompt carries two or more increment rows.
+function checkpointEmbedText(cfg, checkCount, entryId, hasReview = false, reviewEachIncrement = false) {
   const branchLine = cfg.baseBranch
     ? `the base branch is \`${cfg.baseBranch}\``
     : "detect the base branch with `git symbolic-ref --short refs/remotes/origin/HEAD` (name after `origin/`, fallback `main`)";
@@ -924,11 +961,13 @@ function checkpointEmbedText(cfg, checkCount, entryId) {
       : `apply \`${cfg.onFinish}\` directly, no question`;
   return [
     "Checkpoint protocol for this multi-task run (the pasted session cannot read prompt-template.md, so this rides in the prompt itself):",
-    `- track one local acceptance row per Run:/Expected: pair (${checkCount} total) using an available plan tool or checklist; complete each row before its dependent successor, without creating user-owned tasks`,
+    `- track one local acceptance row per ${hasReview ? "increment" : "Run:/Expected: pair"} (${checkCount} total) using an available plan tool or checklist; complete each row before its dependent successor, without creating user-owned tasks`,
     `- settle the branch first: ${branchLine}; ${branchAction}`,
     "- explicit user branch restrictions override these settings and finish choices; before writes, create or use an authorized branch and never merge into a branch the user forbids modifying",
     "- before task 1, inspect `git status --porcelain`; if non-empty, preserve existing changes and continue the work without checkpoint commits for this run",
-    "- after each task's check passes, stage only the files that task changed (`git add -- <those paths>`, never `git add -A`) and commit `task <n>/<total>: <task subject>`; leave it local, never push",
+    reviewEachIncrement
+      ? "- after each task's required checks pass and the user accepts that result, follow the embedded increment_review protocol: annotate the observed decision, then use safe-commit begin/finish boundaries and owned paths for eligible checkpoints; leave commits local, never push"
+      : "- after each task's check passes, stage only the files that task changed (`git add -- <those paths>`, never `git add -A`) and commit `task <n>/<total>: <task subject>`; leave it local, never push",
     ...(entryId
       ? [
           "- the last task carries the roadmap close instead of a `task <n>/<total>` commit: stage with `safe-commit.js finish --no-commit`, close the entry with `staged:true`, then make that one commit with `Foreman: " + entryId + "` as its final line",
@@ -946,7 +985,7 @@ function checkpointEmbedText(cfg, checkCount, entryId) {
 // paragraph itself), collapsed to the one concrete variant that applies for
 // this handoff rather than a human-facing skill's illustrative examples.
 
-function entryParagraphText({ id, resume, requireVerification, askLesson, destination, investigation }) {
+function entryParagraphText({ id, resume, requireVerification, askLesson, destination, investigation, reviewEachIncrement = false }) {
   const code = (value) => "`" + value + "`";
   const opening = resume
     ? "This task is ROADMAP.jsonl entry " + code(id) + ", already marked " + code("in_progress") + " by an earlier session. Read recorded findings before resuming."
@@ -956,14 +995,18 @@ function entryParagraphText({ id, resume, requireVerification, askLesson, destin
     + "\nProceed only when this command succeeds and returns dispatchReady:true. A dependency, defer, or terminal-state refusal must be resolved before dispatch.";
   const payloadNote = "For bookkeeping calls, write each JSON stdin payload to a UTF-8 file and pipe that file using the active shell (PowerShell: Get-Content -LiteralPath FILE -Raw -Encoding utf8; POSIX: cat FILE). Commands are quoted for the crafting host (PowerShell on Windows, POSIX shell elsewhere); re-quote paths if using another shell. Never interpolate findings into an inline shell command. If the installed plugin moved, refresh command paths from the currently loaded Foreman skill.";
   const beginStep = "Before touching files, verify the branch satisfies the user's restrictions; create or use an authorized working branch when needed. Then take the commit boundary:\n" + code(pluginCommand("safe-commit.js", "begin")) + "\nKeep its " + code("baseline.head") + ". With " + code("dirty:true") + ", preserve existing changes and make NO commit at all; continue authorized work without staging around unrelated changes.";
-  const splitStep = requireVerification
+  const splitStep = reviewEachIncrement
+    ? "The embedded increment_review protocol governs every intermediate review and its notes, including checks tools could also perform. Record decisions with annotate; keep the parent in_progress until all increments are resolved and integration is checked. The close instructions below apply only to the whole task."
+    : requireVerification
     ? "Run the required checks using available commands, skills, or UI tools. Add checks only when justified by the actual change or unresolved evidence. Record a human-only check only if it is answerable now and beyond those tools. Use one annotate call per check, and none when every required check ran:\n" + jsonCommand("roadmap.js", "annotate", { id, notes: "unverified: <the check and what to look for>" })
     : "";
   const holdSentence = requireVerification
     ? " For earned " + code("done") + ", record " + code("awaiting_acceptance") + " and present the concrete result for final user acceptance. "
       + (destination === "agent"
         ? "Return the result to the coordinator so they can request the user's acceptance."
-        : "If recorded " + code("unverified:") + " checks remain, offer Test first and describe those checks; otherwise offer acceptance or review. On acceptance, close with:\n" + jsonCommand("roadmap.js", "update-status", { id, status: "done" }))
+        : (reviewEachIncrement
+          ? "Reconcile recorded omissions with later evidence for the same result using the embedded close protocol. Offer Test first only for checks still unverified; do not treat resolved historical notes as pending or unrelated acceptance as resolution. On explicit acceptance of the integrated result, close with:\n"
+          : "If recorded " + code("unverified:") + " checks remain, offer Test first and describe those checks; otherwise offer acceptance or review. On acceptance, close with:\n") + jsonCommand("roadmap.js", "update-status", { id, status: "done" }))
     : "";
   const closeIntro = "Close with the status actually earned (" + code("done") + ", " + code("dropped") + ", or " + code("rejected") + ") and observed findings in " + code("notes") + "." + holdSentence;
   const stageStep = "When committing is authorized and the baseline was clean, stage only owned files using safe-commit; never " + code("git add -A") + ":\n"
@@ -972,7 +1015,7 @@ function entryParagraphText({ id, resume, requireVerification, askLesson, destin
   const closeCall = jsonCommand("roadmap.js", "update-status", { id, status: "<status>", notes: "<observed findings>", add_touches: investigation ? [] : ["<observed files>"] });
   const checkStep = "After recording the close, verify the lifecycle checkpoint:\nCommand: "
     + code(pluginCommand("../hooks/codex-task.js", "check --id " + shellQuote(id)))
-    + "\nA failure means the entry is still open; resolve it before claiming closure."
+    + "\nA failure means the entry is still open; resolve it before claiming closure. Read and act on the returned discovery policy before reporting completion; a successful checkpoint does not mean that observed out-of-scope findings have been reviewed."
     + (requireVerification ? " awaiting_acceptance passes this recorded-work check and still awaits the user's acceptance." : "");
   const modelEffortNote = "Also add " + code("model") + " and " + code("effort") + " to that close call — what actually ran this task. Omit either one you do not know rather than guessing.";
   const lessonAsk = askLesson
@@ -981,7 +1024,7 @@ function entryParagraphText({ id, resume, requireVerification, askLesson, destin
   if (destination === "agent") {
     return [
       "Coordinator-owned roadmap protocol (the subagent must not run these mutations, stage, or commit; return findings and verification to the coordinator):",
-      opening, startStep, payloadNote, closeIntro, closeCall, modelEffortNote, lessonAsk, checkStep,
+      opening, startStep, payloadNote, ...(reviewEachIncrement ? [splitStep] : []), closeIntro, closeCall, modelEffortNote, lessonAsk, checkStep,
     ].filter(Boolean).join("\n");
   }
   if (investigation) {
@@ -1003,20 +1046,21 @@ function slugify(text, maxLen = 40) {
   return slug || "task";
 }
 
-// ---- the task split — one row per Run:/Expected: pair, the full prompt on
+// ---- the task split — one row per increment, with automatic and/or human
+// checks attached to that same row. The full prompt remains on
 // row 1, the entry paragraph on the last row only. [load-bearing placement]
 
-function buildTaskRows(verification, basePrompt, entryParagraph, titleBase) {
+function buildTaskRows(verification, basePrompt, entryParagraph, titleBase, reviewEachIncrement = false) {
   return verification.map((pair, i) => {
     const isFirst = i === 0;
     const isLast = i === verification.length - 1;
-    const subject = (pair.subject || `${titleBase} — check ${i + 1}/${verification.length}`).slice(0, 60);
+    const subject = (pair.subject || (reviewEachIncrement && pair.goal) || `${titleBase} — ${pair.review ? "increment" : "check"} ${i + 1}/${verification.length}`).slice(0, 60);
     let description;
     if (isFirst) {
       description = basePrompt;
     } else {
       const filesLine = pair.files && pair.files.length ? `Files: ${pair.files.join(", ")}\n` : "";
-      description = `${pair.goal || subject}\n${filesLine}Run: ${pair.run}\nExpected: ${pair.expected}`;
+      description = `${pair.goal || subject}\n${filesLine}${verificationText(pair)}`;
     }
     if (isLast && entryParagraph) description += `\n\n${entryParagraph}`;
     return { subject, description };
@@ -1035,20 +1079,42 @@ function validateJudgment(judgment) {
   }
   if (judgment.verification !== undefined) {
     if (!Array.isArray(judgment.verification)) {
-      throw new Error("judgment.verification must be an array of {run, expected}");
+      throw new Error("judgment.verification must be an array of rows with {run, expected} and/or review:{action, expected}");
     }
+    const nonEmpty = (value) => typeof value === "string" && Boolean(value.trim());
     judgment.verification.forEach((pair, i) => {
-      if (
-        !pair ||
-        typeof pair !== "object" ||
-        typeof pair.run !== "string" ||
-        !pair.run.trim() ||
-        typeof pair.expected !== "string" ||
-        !pair.expected.trim()
-      ) {
-        throw new Error(`judgment.verification[${i}] must be {run, expected} with non-empty strings`);
+      const label = `judgment.verification[${i}]`;
+      if (!pair || typeof pair !== "object" || Array.isArray(pair)) {
+        throw new Error(`${label} must be a row with {run, expected} and/or review:{action, expected}`);
+      }
+      // Preserve the existing Run-only optional metadata contract. New review
+      // rows need usable scope metadata when the caller supplies it.
+      if (pair.review) {
+        for (const field of ["goal", "subject"]) {
+          if (pair[field] !== undefined && !nonEmpty(pair[field])) {
+            throw new Error(`${label}.${field} must be a non-empty string`);
+          }
+        }
+        if (pair.files !== undefined && (!Array.isArray(pair.files) || !pair.files.every(nonEmpty))) {
+          throw new Error(`${label}.files must be an array of non-empty paths`);
+        }
+      }
+      const hasRun = Object.hasOwn(pair, "run") || Object.hasOwn(pair, "expected");
+      const hasReview = Object.hasOwn(pair, "review");
+      if (hasRun && (!nonEmpty(pair.run) || !nonEmpty(pair.expected))) {
+        throw new Error(`${label} must be {run, expected} with non-empty strings when either command field is present`);
+      }
+      if (hasReview && (!pair.review || typeof pair.review !== "object" || Array.isArray(pair.review)
+        || !nonEmpty(pair.review.action) || !nonEmpty(pair.review.expected))) {
+        throw new Error(`${label}.review must be {action, expected} with non-empty strings`);
+      }
+      if (!hasRun && !hasReview) {
+        throw new Error(`${label} requires {run, expected} and/or review:{action, expected}; an empty check is not an increment`);
       }
     });
+    if (judgment.testFirst && !judgment.verification.some((row) => row.run)) {
+      throw new Error("judgment.testFirst requires an executable verification command");
+    }
   }
   if (judgment.example !== undefined) {
     const ex = judgment.example;
@@ -1076,6 +1142,20 @@ function assemble(root, input) {
   }
   const judgment = input.judgment || {};
   validateJudgment(judgment);
+  if (input.reviewEachIncrement !== undefined && typeof input.reviewEachIncrement !== "boolean") {
+    throw new Error("reviewEachIncrement must be a boolean supplied explicitly for this run");
+  }
+  const reviewEachIncrement = input.reviewEachIncrement === true;
+  if (reviewEachIncrement) {
+    if (!judgment.verification?.length || judgment.verification.some((row) => !row.review)) {
+      throw new Error("reviewEachIncrement:true requires review:{action, expected} on every increment");
+    }
+    const empty = judgment.verification.findIndex((row) =>
+      judgment.verification.length > 1 && !row.goal?.trim() && !row.subject?.trim() && !row.files?.length);
+    if (empty !== -1) {
+      throw new Error(`judgment.verification[${empty}] needs its own goal, subject or files for a reviewed split`);
+    }
+  }
   const record = loadRecord(root, input);
   if (record.kind === "decision" && judgment.testFirst) {
     throw new Error("judgment.testFirst creates or mutates implementation tests and cannot be combined with a decision task");
@@ -1091,11 +1171,13 @@ function assemble(root, input) {
   // [Foreman: 236] Every check the handoff names is preflighted, not just the
   // first — a command in position 2..N runs in the handed-off session exactly
   // as the first one does. resolve-symbols.js dedupes and names each one.
-  const verifyCmds = hasVerification ? judgment.verification.map((pair) => pair.run) : input.verify;
+  const verifyCmds = hasVerification ? judgment.verification.filter((pair) => pair.run).map((pair) => pair.run) : input.verify;
+  const hasExecutableVerification = hasVerification && verifyCmds.length > 0;
+  const hasReview = hasVerification && judgment.verification.some((pair) => pair.review);
   const symbolResult = resolveSymbols(root, record.planned_touches, record.what, verifyCmds);
 
   const config = render(root);
-  const signals = computeSignals(root, record, input, symbolResult.files, hasVerification);
+  const signals = computeSignals(root, record, input, symbolResult.files, hasExecutableVerification);
   const reinforced = Object.values(signals).some(Boolean);
   const profile = reinforced ? "reinforced" : "standard";
 
@@ -1110,7 +1192,7 @@ function assemble(root, input) {
   const checkCount = hasVerification ? judgment.verification.length : 0;
   const wantsClipboardEmbed = destination === "clipboard" && checkCount >= 2 && !judgment.question;
   const checkpointEmbed = wantsClipboardEmbed
-    ? checkpointEmbedText(checkpointsConfig(root), checkCount, isEntry ? entryId : null)
+    ? checkpointEmbedText(checkpointsConfig(root), checkCount, isEntry ? entryId : null, hasReview, reviewEachIncrement)
     : null;
 
   const entryParagraph = isEntry
@@ -1122,6 +1204,7 @@ function assemble(root, input) {
         // commits/observed_touches, which is not the same claim.
         resume: Boolean(input.resume),
         requireVerification: config.requireVerification,
+        reviewEachIncrement,
         destination,
         investigation: Boolean(judgment.question),
         askLesson: isEntry && readLedger(root).enabled,
@@ -1150,7 +1233,8 @@ function assemble(root, input) {
   const shapeStandard = /^(1|true)$/i.test(process.env.FOREMAN_STANDARD_OUTPUT_SHAPE || "");
   const includeOutputFormat =
     !workflowStage && (reinforced || shapeStandard) && !omit.has("output_format");
-  const rulesBlock = taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkpointEmbed);
+  const rulesBlock = taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkpointEmbed, reviewEachIncrement);
+  const recoveryBlock = reviewEachIncrement && input.resume ? incrementResumeText(record) : "";
   // A decision entry's task_rules already say "do not write implementation
   // code" — synthesizing `Implement: <title>.` as the request sentence puts
   // the contradiction in the one line that carries the actual ask.
@@ -1174,6 +1258,8 @@ function assemble(root, input) {
   function buildParts(includeEntry) {
     const parts = [];
     parts.push(`<codex_runtime>\n${canonical.codexRuntime}\n</codex_runtime>`);
+    if (recoveryBlock) parts.push(recoveryBlock);
+    parts.push(`<foreman_discovery>\n${discoveryInstructions()}\n</foreman_discovery>`);
     parts.push(taskContextBlock);
     if (reinforced) {
       parts.push(`<truth_grounding>\n${canonical.truthGrounding}\n</truth_grounding>`);
@@ -1238,7 +1324,7 @@ function assemble(root, input) {
   let tasks;
   if (destination === "task" && input.split && checkCount >= 1) {
     const titleBase = record.title || input.title || "Task";
-    tasks = buildTaskRows(judgment.verification, basePrompt, entryParagraph, titleBase);
+    tasks = buildTaskRows(judgment.verification, basePrompt, entryParagraph, titleBase, reviewEachIncrement);
   }
 
   const warnings = [...config.warnings, ...symbolResult.warnings, ...gateResult.warnings];
@@ -1266,7 +1352,7 @@ function assemble(root, input) {
       // fixture test" and "Update docs/domain.md and lint" was flagged. The
       // filter reads the same three inputs the row builder does.
       .filter(({ pair, i }) => i > 0 && !pair.goal && !pair.subject && !(pair.files && pair.files.length))
-      .map(({ pair, i }) => `${i + 1} (\`${pair.run}\`)`);
+      .map(({ pair, i }) => `${i + 1} (\`${pair.run || pair.review.action}\`)`);
     if (empty.length) {
       warnings.push(
         `the split would create ${empty.length} task${empty.length > 1 ? "s" : ""} carrying no work — row${empty.length > 1 ? "s" : ""} ${empty.join(", ")} name${empty.length > 1 ? "" : "s"} a command and nothing to build. `
@@ -1325,6 +1411,7 @@ function assemble(root, input) {
     profile,
     signals,
     ...(tasks ? { tasks } : {}),
+    ...(reviewEachIncrement ? { reviewEachIncrement: true } : {}),
     ...(ledgerAsk ? { ledger_ask: true } : {}),
     gate,
     warnings,
@@ -1379,6 +1466,8 @@ module.exports = {
   NOTES_CLOSER,
   taskContextText,
   taskRulesText,
+  incrementReviewText,
+  incrementResumeText,
   entryParagraphText,
   checkpointsConfig,
   checkpointEmbedText,

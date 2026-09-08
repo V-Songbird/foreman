@@ -11,6 +11,7 @@ const crypto = require("crypto");
 const { projectDir } = require("./lib");
 const { readEntries, cmdUpdateStatus, isValidId } = require("../scripts/roadmap");
 const { recordResumeRecovered } = require("../scripts/trial-log");
+const { discoveryEnabled, discoveryInstructions } = require("../scripts/discovery");
 const OPEN = new Set(["planned", "in_progress"]);
 
 function scopePath(root, session, agent = "") {
@@ -58,7 +59,8 @@ function checkpoint(action, options) {
   if (action === "check" && complete && ((entry.commits || []).length || (entry.observed_touches || []).length)) {
     recordResumeRecovered({ root });
   }
-  return { id: entry.id, status: entry.status, complete, ...(action === "start" ? { dispatchReady, transition } : {}), stop_gate_scoped: Boolean(scope) };
+  const discovery = discoveryEnabled(root) ? discoveryInstructions() : undefined;
+  return { id: entry.id, status: entry.status, complete, ...(action === "start" ? { dispatchReady, transition } : {}), stop_gate_scoped: Boolean(scope), ...(discovery ? { discovery } : {}) };
 }
 
 function main(argv = process.argv.slice(2)) {
