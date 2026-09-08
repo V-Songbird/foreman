@@ -3,7 +3,8 @@
 Work on `Codex` or another explicitly authorized non-main branch. Never
 edit, commit, merge, or reset this project on `main`. Check the branch before
 making changes. This repository is Foundry's Foreman submodule. Keep Codex work
-on `Codex`; the `main` branch retains the Claude Code release history.
+on `Codex`; `Claude` contains the Claude Code version and `main` is the
+documentation-only front page.
 
 Preserve roadmap format 2 and legacy records. Keep CLI behavior dependency-free
 and testable with Node.js. Skills belong in `skills/`, plugin metadata in

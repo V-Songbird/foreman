@@ -2,9 +2,9 @@ name: Test
 
 on:
   push:
-    branches: [main, Codex, 'codex/**']
+    branches: [Codex, 'codex/**']
   pull_request:
-    branches: [main]
+    branches: [Codex]
 
 jobs:
   test:

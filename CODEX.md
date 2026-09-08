@@ -119,11 +119,11 @@ user. A completed implementation awaiting acceptance passes the close check.
   elsewhere, resolve its scripts from the newly loaded skill before executing
   an old exported prompt. Never invent a plugin-root environment variable.
 
-The copied workspace originally contained a stale submodule `.git` pointer.
-Its Git history was copied locally into independent metadata, HEAD was moved to
-`codex/port` before project edits, and the upstream remote was preserved as
-`https://github.com/V-Songbird/foreman.git`. Neither Foundry nor its original
-Foreman checkout was edited. No branch is pushed by this conversion.
+Foreman lives in the Foundry submodule backed by
+`https://github.com/V-Songbird/foreman.git`. The `Codex` branch contains this
+implementation, `Claude` contains the Claude Code version, and `main` is the
+platform front page. The Foundry catalogs select their own branch and pinned
+commit independently of the local submodule checkout.
 
 ## Validation and limits
 
@@ -161,7 +161,7 @@ persisted session. See [the evidence report](NANOTASKS-DOGFOOD.md).
 
 ## Use reviewed increments after installing
 
-Install or update this version of `foreman@personal`, then start a **new Codex
+Install or update this version of `foreman@foundry`, then start a **new Codex
 task**. Reinstalling does not replace instructions already loaded in an existing
 conversation. In the target project, ask Foreman to execute a selected task by
 increments and wait for approval after each result. For example:
@@ -173,7 +173,7 @@ The explicit request enables review for that run; an ordinary split does not.
 An already chosen destination is kept. Background delivery needs a coordinator
 able to relay the review, and a copied prompt carries the protocol even for one row.
 
-Inspect the active package with `codex plugin list --marketplace personal --json`.
+Inspect the active package with `codex plugin list --marketplace foundry --json`.
 The local installation and cache smoke check are recorded in
 [the deployment record](NANOTASKS-DOGFOOD.md#instalación-local-posterior).
 Fresh-session user evaluation remains distinct from package installation.

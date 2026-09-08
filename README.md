@@ -15,10 +15,9 @@ task, and crafts a prompt checked against the real files and symbols. Completed
 work carries evidence back into the roadmap. Optional lessons let the next task
 learn from the last one.
 
-This is the **Codex-first port** of Foreman 2.6.0, developed on `codex/port`.
-It preserves Foreman's workflow and existing data, using Codex's native skills,
-hooks, and subagents where they fit. The original Claude Code release and
-Foundry marketplace are separate; their install commands do not install this port.
+This is **Foreman for Codex**. It preserves Foreman's workflow and existing data,
+using Codex's native skills, hooks, and subagents where they fit. Foundry provides
+separate catalogs for Codex and Claude Code under the same marketplace name.
 
 ## Install
 
@@ -28,20 +27,15 @@ hooks, or the Windows launcher must resolve the fnm-managed Node executable.
 The hook adapter retains the Codex 0.145.0 command-hook baseline;
 see [compatibility](CODEX.md) for exact coverage and validation limits.
 
-Use Codex's built-in plugin creator with this local checkout:
+Install from Foundry:
 
 ```text
-Use $plugin-creator to register this Foreman checkout in my personal
-marketplace and install it for Codex. Preserve its .codex-plugin/plugin.json,
-skills, hooks, scripts, assets, and prompt-template.md. Keep the original
-Foundry marketplace and Claude Code Foreman installation unchanged.
+codex plugin marketplace add V-Songbird/foundry
+codex plugin add foreman@foundry
 ```
 
-Point it at the absolute path of this checkout. The plugin creator can place
-a copy under your personal plugin directory and register the corresponding
-marketplace entry. Review and enable its hooks in Codex, then start a **new
-Codex task/session** to pick up the installed skills. This repository does not
-silently edit your personal marketplace or Codex configuration.
+Review and enable its hooks in Codex, then start a **new Codex task/session**
+to pick up the installed skills.
 
 Then ask **“Use Foreman to initialize this project.”** You can also select the
 installed `init` skill in the skill picker. Skill names may be displayed with the
