@@ -5,6 +5,10 @@ Relay through 0.4.8-alpha — the 0.5.0-alpha entry below records the
 rename, and older entries keep the name they shipped under. Looking for a
 version number? The Codex port uses `.codex-plugin/plugin.json`; original Claude releases used the Foundry marketplace listing.
 
+## 3.0.3-codex.1 — 2026-09-09
+
+New Tinta y oficio banners adapt to light and dark GitHub themes. Plugin icons and logos now use the same identity in Codex.
+
 ## 3.0.2-codex.1 — 2026-09-09
 
 Windows hooks now resolve Node from PATH or a configured fnm installation instead
