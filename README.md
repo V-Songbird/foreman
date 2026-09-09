@@ -1,9 +1,9 @@
 <div align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg" />
-    <img src="assets/logo.svg" alt="foreman" width="160" />
+    <img src="assets/logo.svg" alt="Foreman" width="160" />
   </picture>
-  <h1>foreman</h1>
+  <h1>Foreman</h1>
   <p>Keep a correctable project plan beside your code and turn the next task into a grounded handoff.</p>
 </div>
 
@@ -11,36 +11,16 @@
 
 ## Install
 
-Choose the version for your coding assistant. Both use the **Foundry** marketplace.
+Choose your coding assistant. Its edition page contains the source, requirements, installation instructions and usage guide.
 
-| Platform | Status | Documentation |
-| --- | --- | --- |
-| Claude Code | Available | [Claude Code version](https://github.com/V-Songbird/foreman/tree/Claude) |
-| Codex | Available | [Codex version](https://github.com/V-Songbird/foreman/tree/Codex) |
-
-### Claude Code
-
-```text
-/plugin marketplace add V-Songbird/foundry
-/plugin install foreman@foundry
-```
-
-### Codex
-
-```text
-codex plugin marketplace add V-Songbird/foundry
-codex plugin add foreman@foundry
-```
-
-Open a new Codex task after installation.
+| Platform | Edition |
+| --- | --- |
+| Claude Code | [Open the Claude Code edition](https://github.com/V-Songbird/foreman/tree/Claude) |
+| Codex | [Open the Codex edition](https://github.com/V-Songbird/foreman/tree/Codex) |
 
 ## Going deeper
 
-Platform documentation, configuration, and source code live on the
-[Claude](https://github.com/V-Songbird/foreman/tree/Claude) and
-[Codex](https://github.com/V-Songbird/foreman/tree/Codex) branches.
-
-Created by **Victor Villegas** · victor.villegas@tuta.com
+[Foundry](https://github.com/V-Songbird/foundry) contains the collection overview, research and benchmark tools. This branch is the entry page; the linked editions contain the plugin.
 
 ## License
 
