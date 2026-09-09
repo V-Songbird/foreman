@@ -14,26 +14,13 @@
 
 [**Install**](#install) · [What is this?](#what-is-this) · [What you can do](#what-you-can-do) · [The numbers](#the-numbers) · [Going deeper](#going-deeper)
 
-> **TL;DR** — Your plan stays next to your code. The next task arrives with its context checked.
-
-<!-- foundry:hero -->
-<p align="center"><img src="assets/hero.svg" alt="Foreman original product visualization" width="700"></p>
-
-The task trail above illustrates the workflow. The recorded demo below comes from Claude Code; it is not a Codex measurement. [Evidence and methodology](https://github.com/V-Songbird/foundry/tree/main/docs/foreman).
-
-<details>
-<summary>Watch the recorded Claude Code demo</summary>
-
-<p align="center"><img src="assets/demo.svg" alt="Recorded Claude Code demonstration of Foreman" width="700"></p>
-
-</details>
-<!-- /foundry:hero -->
-
-<p align="center"><img src="assets/mascot.svg" alt="Ember gathers scattered papers into a task list and points to the next task." width="700"></p>
-
 ## What is this?
 
-Foreman keeps a correctable roadmap in your project. Ask what is next and get a recommended task, its reason, and a prompt checked against the real files. Completed work carries evidence back into the plan.
+You finish a session with a fix, a side request and an issue still waiting. Next time, you need to know which one comes first and why. Foreman keeps that context in a roadmap beside your code.
+
+Ask "what’s next?" and it recommends a task with its reason and a prompt checked against the project’s files. Completed work brings evidence back into the plan; acceptance stays a separate decision.
+
+<p align="center"><img src="assets/mascot.svg" alt="Ember gathers scattered papers into a task list and points to the next task." width="700"></p>
 
 ## Why you'd want it
 
@@ -45,19 +32,6 @@ Foreman keeps a correctable roadmap in your project. Ask what is next and get a 
 ## How it works
 
 The roadmap lives in your project. Foreman reads it, checks the relevant context and helps you choose what to do next. Optional lessons let later tasks learn from earlier work without creating a separate knowledge base.
-
-## Install
-
-<!-- foundry:platform install -->
-Requirements: Node.js 22 or later, Git and a Codex host with plugin support.
-
-```text
-codex plugin marketplace add V-Songbird/foundry
-codex plugin add foreman@foundry
-```
-
-Review and enable its hooks, then start a new Codex session. Ask Foreman to initialize the project, or select its installed `init` skill. Existing roadmap data can be reused.
-<!-- /foundry:platform install -->
 
 ## What you can do
 
@@ -72,6 +46,27 @@ Review and enable its hooks, then start a new Codex session. Ask Foreman to init
 <!-- foundry:platform commands -->
 Use natural language or select the installed Foreman skills: `foreman`, `init`, `roadmap`, `survey` and `craft-prompt`.
 <!-- /foundry:platform commands -->
+
+## Install
+
+<!-- foundry:platform install -->
+Requirements: Node.js 22 or later, Git and a Codex host with plugin support.
+
+```text
+codex plugin marketplace add V-Songbird/foundry
+codex plugin add foreman@foundry
+```
+
+Review and enable its hooks, then start a new Codex session. Ask Foreman to initialize the project, or select its installed `init` skill. Existing roadmap data can be reused.
+<!-- /foundry:platform install -->
+
+## Good to know
+
+Foreman is for a solo developer. It does not become a team tracker, code-review service, unattended scheduler or workflow server. Your project keeps its own data. The optional ledger is off until requested; disabling it deletes no existing notes.
+
+<!-- foundry:platform compatibility -->
+Reviewed increments are available in this Codex implementation. When requested, each usable result waits for Accept, Request changes or Pause. See [Codex compatibility](CODEX.md) for native integration and its limits.
+<!-- /foundry:platform compatibility -->
 
 ## The numbers
 
@@ -89,6 +84,19 @@ Codex functional tests establish specific behaviors, not a speed, cost or correc
 
 *Results can vary between runs.*
 
+<!-- foundry:hero -->
+<p align="center"><img src="assets/hero.svg" alt="Foreman original product visualization" width="700"></p>
+
+The task trail above illustrates the workflow. The recorded demo below comes from Claude Code; it is not a Codex measurement. [Evidence and methodology](https://github.com/V-Songbird/foundry/tree/main/docs/foreman).
+
+<details>
+<summary>Watch the recorded Claude Code demo</summary>
+
+<p align="center"><img src="assets/demo.svg" alt="Recorded Claude Code demonstration of Foreman" width="700"></p>
+
+</details>
+<!-- /foundry:hero -->
+
 ## Going deeper
 
 <!-- foundry:platform links -->
@@ -96,14 +104,6 @@ Codex functional tests establish specific behaviors, not a speed, cost or correc
 <!-- /foundry:platform links -->
 
 [Foundry](https://github.com/V-Songbird/foundry) holds the research, methodology and detailed evidence for this plugin.
-
-## Good to know
-
-Foreman is for a solo developer. It does not become a team tracker, code-review service, unattended scheduler or workflow server. Your project keeps its own data. The optional ledger is off until requested; disabling it deletes no existing notes.
-
-<!-- foundry:platform compatibility -->
-Reviewed increments are available in this Codex implementation. When requested, each usable result waits for Accept, Request changes or Pause. See [Codex compatibility](CODEX.md) for native integration and its limits.
-<!-- /foundry:platform compatibility -->
 
 ## License
 
