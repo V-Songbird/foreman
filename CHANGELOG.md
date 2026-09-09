@@ -7,6 +7,10 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## 2.6.3 — 2026-09-09
+
+Restore the original product hero and recorded Claude demo with clear provenance. Use white light-theme banners.
+
 ## 2.6.2 — 2026-09-09
 
 New Tinta y oficio banners adapt to light and dark GitHub themes.
