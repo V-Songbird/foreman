@@ -16,6 +16,19 @@
 
 > **TL;DR** — Your plan stays next to your code. The next task arrives with its context checked.
 
+<!-- foundry:hero -->
+<p align="center"><img src="assets/hero.svg" alt="Foreman original product visualization" width="700"></p>
+
+The task trail above illustrates the workflow. The recorded demo below comes from Claude Code; it is not a Codex measurement. [Evidence and methodology](https://github.com/V-Songbird/foundry/tree/main/docs/foreman).
+
+<details>
+<summary>Watch the recorded Claude Code demo</summary>
+
+<p align="center"><img src="assets/demo.svg" alt="Recorded Claude Code demonstration of Foreman" width="700"></p>
+
+</details>
+<!-- /foundry:hero -->
+
 <p align="center"><img src="assets/mascot.svg" alt="Ember gathers scattered papers into a task list and points to the next task." width="700"></p>
 
 ## What is this?
