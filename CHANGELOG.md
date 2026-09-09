@@ -7,6 +7,10 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## 2.6.2 — 2026-09-09
+
+New Tinta y oficio banners adapt to light and dark GitHub themes.
+
 ## 2.6.1 — 2026-09-09
 
 Product guides and decisions now accompany the Claude edition. Research and
