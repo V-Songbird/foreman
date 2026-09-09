@@ -65,7 +65,7 @@ git config core.hooksPath scripts/git-hooks
 
 This enables a `pre-commit` hook that runs `node --test tests/*.test.js` and blocks the commit on failure. It no-ops if this plugin has no `tests/` directory.
 
-The same `pre-commit` hook then scans your staged content against a private blocklist of reference-project names and blocks the commit if one appears outside a `README.md`. A second hook, `commit-msg`, applies the same scan to the commit message itself. The blocklist is not committed, so both hooks pass silently when it is absent — if a commit of yours is refused, reword the offending line to a generic description ("a rival tool") and try again.
+Public source names and attribution are allowed in documentation and commit messages. Keep credentials and personal session data out of commits.
 
 ---
 

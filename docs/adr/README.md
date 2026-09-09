@@ -1,0 +1,5 @@
+# Foreman decisions
+
+- [Product scope](SCOPE.md) — common to Claude and Codex.
+
+Research and measurement reports live in [Foundry documentation](https://github.com/V-Songbird/foundry/tree/main/docs/foreman).
