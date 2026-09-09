@@ -1,6 +1,6 @@
 {
   "name": "foreman",
-  "version": "3.0.1-codex.1+codex.20260909081411",
+  "version": "3.0.2-codex.1+codex.20260909083735",
   "description": "Project continuity for Codex: maintain a correctable roadmap, choose useful work, and craft grounded handoffs with verifiable completion evidence.",
   "author": {
     "name": "Victor Villegas",
