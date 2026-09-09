@@ -5,6 +5,10 @@ Relay through 0.4.8-alpha — the 0.5.0-alpha entry below records the
 rename, and older entries keep the name they shipped under. Looking for a
 version number? The Codex port uses `.codex-plugin/plugin.json`; original Claude releases used the Foundry marketplace listing.
 
+## 3.0.4-codex.1 — 2026-09-09
+
+Restore the original product hero and recorded Claude demo with clear provenance. Use white light-theme banners. Codex cards now display the symbol without lettering.
+
 ## 3.0.3-codex.1 — 2026-09-09
 
 New Tinta y oficio banners adapt to light and dark GitHub themes. Plugin icons and logos now use the same identity in Codex.

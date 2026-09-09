@@ -1,6 +1,6 @@
 {
   "name": "foreman",
-  "version": "3.0.3-codex.1",
+  "version": "3.0.4-codex.1",
   "description": "Project continuity for Codex: maintain a correctable roadmap, choose useful work, and craft grounded handoffs with verifiable completion evidence.",
   "author": {
     "name": "Victor Villegas",
@@ -36,7 +36,7 @@
     ],
     "brandColor": "#21553B",
     "composerIcon": "./assets/icon-on-light.png",
-    "logo": "./assets/logo-on-light.png",
-    "logoDark": "./assets/logo-on-dark.png"
+    "logo": "./assets/icon-on-light.png",
+    "logoDark": "./assets/icon-on-dark.png"
   }
 }
