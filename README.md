@@ -1,8 +1,8 @@
 <!-- foundry:edition Codex -->
 <div align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg" />
-    <img src="assets/logo.svg" alt="Foreman" width="240" />
+    <source media="(prefers-color-scheme: dark)" srcset="assets/banner-dark.png" />
+    <img src="assets/banner-light.png" alt="Foreman" width="900" />
   </picture>
   <h1>Foreman</h1>
   <p><strong>Your plan stays next to your code. The next task arrives with its context checked.</strong></p>
