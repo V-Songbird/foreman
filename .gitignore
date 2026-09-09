@@ -1,4 +1,5 @@
 /docs/*
+!/docs/adr/
 /PRODUCT-STRATEGY.md
 /SCOPE.md
 

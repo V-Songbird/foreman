@@ -1,8 +1,10 @@
 # Foreman: aceptación por incrementos dentro de una tarea
 
+> Roadmap canónico: Foundry/ROADMAP.jsonl. Las referencias operativas siguientes usan los IDs de Foundry; la sección histórica conserva los IDs locales originales. Ver el [mapa de reconciliación](https://github.com/V-Songbird/foundry/blob/main/docs/shared/validation/roadmap-reconciliation-2026-09-08.md).
+
 Contrato canónico de implementación para Codex — 2026-09-08.
 
-Este contrato consolida `NANOTASKS.md`, el diseño de pausa selectiva recibido
+Este contrato consolida la [propuesta original](https://github.com/V-Songbird/foundry/blob/main/docs/foreman/research/NANOTASKS.md), el diseño de pausa selectiva recibido
 el 2026-09-08 y sus dos revisiones. La petición posterior del usuario autoriza
 continuar e implementar este contrato SOLO para Codex. Sustituye el diseño del
 store independiente para V1; no acredita aceptación de resultados implementados
@@ -10,7 +12,7 @@ ni de la función integral. Claude Code queda pendiente de la evaluación Codex.
 Los documentos anteriores quedan como antecedentes, no como instrucciones acumulativas.
 
 La implementación Codex está disponible en este checkout. El informe
-[NANOTASKS-DOGFOOD.md](NANOTASKS-DOGFOOD.md) recoge pruebas, decisiones reales,
+[NANOTASKS-DOGFOOD.md](https://github.com/V-Songbird/foundry/blob/main/docs/foreman/validation/NANOTASKS-DOGFOOD.md) recoge pruebas, decisiones reales,
 ensayos controlados y limpieza. El usuario autorizó completar autónomamente las
 entregas técnicas restantes, omitiendo sus revisiones intermedias en esta
 ejecución. Esa excepción no cambia el comportamiento del producto ni concede
@@ -88,7 +90,7 @@ Contrato implementado del input transitorio del ensamblador:
 }
 ```
 
-El ejemplo define el contrato de filas; su entrega se registra en Foreman 295.
+El ejemplo define el contrato de filas; su entrega se registra en Foreman 303.
 La disponibilidad y aceptación de cada capacidad se consultan mediante el CLI
 del roadmap, sin inferirlas de este documento.
 La verificación puede ser solo automática, solo humana o ambas. `run` y su
@@ -212,12 +214,12 @@ Entregas reconciliadas en este checkout; los IDs pertenecen a su inventario:
 
 | Entrega | Resultado | Dependencia |
 | --- | --- | --- |
-| Contrato de filas (295) | Revisión humana junto a comandos, validación y renderizado, compatibilidad con Run existente | Continuación de diseño autorizada (294) |
-| Pausa y registro (296) | Presentación, espera, feedback, notas y fallback textual en sesión actual y clipboard | Contrato de filas |
-| Reanudación y cierre (298) | Reconstrucción asistida, revalidación de ambigüedad y tratamiento correcto de notas | Pausa y registro |
-| Preparación y destinos (297) | El crafter construye incrementos útiles y conserva la petición de aprobación; recomendaciones honestas | Pausa y registro |
-| Ensayos de recuperación (299) | Interrupciones, decisiones ambiguas y límites observados | Reanudación/cierre y preparación/destinos |
-| Dogfooding y documentación (300) | Usar el recorrido completo para terminar documentación real y registrar evidencia | Ensayos de recuperación |
+| Contrato de filas (303) | Revisión humana junto a comandos, validación y renderizado, compatibilidad con Run existente | Continuación de diseño autorizada (302) |
+| Pausa y registro (304) | Presentación, espera, feedback, notas y fallback textual en sesión actual y clipboard | Contrato de filas |
+| Reanudación y cierre (306) | Reconstrucción asistida, revalidación de ambigüedad y tratamiento correcto de notas | Pausa y registro |
+| Preparación y destinos (305) | El crafter construye incrementos útiles y conserva la petición de aprobación; recomendaciones honestas | Pausa y registro |
+| Ensayos de recuperación (307) | Interrupciones, decisiones ambiguas y límites observados | Reanudación/cierre y preparación/destinos |
+| Dogfooding y documentación (308) | Usar el recorrido completo para terminar documentación real y registrar evidencia | Ensayos de recuperación |
 | Aceptación integral (301) | Decisión humana sobre la función Codex completa | Dogfooding y documentación |
 
 La entrega de pausa se construye con el flujo actual. Tras implementarla y
@@ -249,7 +251,7 @@ y uso espontáneo. Leer texto o comprobar que una frase existe no demuestra que
 la ejecución se detenga. Una pausa real, su decisión y una reanudación real
 forman parte de la evidencia de esta entrega.
 
-## 8. Dos checkouts, dos inventarios
+## 8. Contexto histórico: dos checkouts, dos inventarios
 
 La revisión de diseño se verificó inicialmente contra
 `D:/Projects/Personal/SoftwareDevelopment/codex/foreman`, rama `codex/port`.

@@ -5,6 +5,12 @@ Relay through 0.4.8-alpha — the 0.5.0-alpha entry below records the
 rename, and older entries keep the name they shipped under. Looking for a
 version number? The Codex port uses `.codex-plugin/plugin.json`; original Claude releases used the Foundry marketplace listing.
 
+## 3.0.1-codex.1 — 2026-09-09
+
+Product guides and decisions now accompany the Codex edition. Research and
+benchmark evidence live in Foundry, with updated links and coordinated edition
+pages. Plugin behavior is unchanged by this maintenance release.
+
 ## [Unreleased]
 
 ### Added
@@ -306,7 +312,7 @@ Foreman kept two separate records of what a finished task learned. There is one 
 
 ### Removed
 
-- An internal planning note that was published by mistake (`docs/foreman/097.md`).
+- An internal planning note that was published by mistake (`docs/foreman/tasks/097.md`).
 
 ### Fixed
 
@@ -679,7 +685,7 @@ Doc-only: the README logo now adapts to dark mode (white silhouette instead of b
   in progress automatically the moment the task exists — no longer only
   when the session gets around to it.
 - The repository now ships a reproducible benchmark harness — see
-  [benchmarks/](benchmarks/).
+  [the historical benchmark harness](https://github.com/V-Songbird/foreman/tree/f4e6e9bb773c1453f4d35953a0642fc8e67475e3/benchmarks).
 
 ## [0.20.0-alpha] — 2026-07-10
 

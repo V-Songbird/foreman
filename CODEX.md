@@ -157,7 +157,7 @@ Reviewed increments were validated with **1,359 automated tests and 11 controlle
 headless cases**, including waiting, feedback, pause, recovery, final acceptance,
 omissions and a failed required check. Separate ephemeral executions recovered
 from notes and files; this does not establish `codex exec resume` against a
-persisted session. See [the evidence report](NANOTASKS-DOGFOOD.md).
+persisted session. See [the evidence report](https://github.com/V-Songbird/foundry/blob/main/docs/foreman/validation/NANOTASKS-DOGFOOD.md).
 
 ## Use reviewed increments after installing
 
@@ -175,7 +175,7 @@ able to relay the review, and a copied prompt carries the protocol even for one 
 
 Inspect the active package with `codex plugin list --marketplace foundry --json`.
 The local installation and cache smoke check are recorded in
-[the deployment record](NANOTASKS-DOGFOOD.md#instalación-local-posterior).
+[the deployment record](https://github.com/V-Songbird/foundry/blob/main/docs/foreman/validation/NANOTASKS-DOGFOOD.md#instalación-local-posterior).
 Fresh-session user evaluation remains distinct from package installation.
 
 ## Evaluate reviewed increments from source

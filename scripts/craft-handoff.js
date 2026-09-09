@@ -582,7 +582,7 @@ const CHAIN_KEEP = 3;
 // the title names the work. The why was carried here once, and cut: it is a
 // plan written before that work started, never rechecked afterwards, and a
 // line inside <background> with no verify-against-the-code frame is obeyed
-// as fact on both models (docs/research/foreman-cut-channel-2026-09-05.md).
+// as fact on both models (docs/foreman/research/foreman-cut-channel-2026-09-05.md).
 // A wrong why in this channel would bind exactly as hard as a right one. The
 // title is cut short; the line cap does the rest.
 const CHAIN_TITLE = 40;

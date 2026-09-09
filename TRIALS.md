@@ -330,7 +330,7 @@ the same log:
   broken down `by_flow`. The denominator is 142's own decision count,
   `pick_accepted + pick_overridden`, and the output names it: nothing in the
   log marks a task *finished*, so this is questions per task **taken**, which
-  is a slightly optimistic reading of PRODUCT-STRATEGY.md's "questions per
+  is a slightly optimistic reading of ../docs/foreman/research/PRODUCT-STRATEGY.md's "questions per
   completed task" and is labeled rather than silently substituted.
 - **`commit_interruptions`** — `commit_interrupted` over the same denominator,
   broken down `by_reason` and `by_hook`. A `dirty_tree` refusal and an
@@ -339,7 +339,7 @@ the same log:
   context.
 - **`recovery_success`** — `recovery_attempted` with `success: true` over all
   of them, with `by_kind` giving reinitialization, resume, and failed
-  verification their own attempt/success pairs. PRODUCT-STRATEGY.md asks about
+  verification their own attempt/success pairs. ../docs/foreman/research/PRODUCT-STRATEGY.md asks about
   those three separately and the aggregate hides which one is failing.
 
 The three derivable metrics in the same report — task-to-commit accuracy,
@@ -360,7 +360,7 @@ rather than in place of one.
   is whether a recommendation survives a roadmap that has been lived in, which
   is exactly what a synthetic backlog cannot show.
 - **Duration.** 30 days minimum, because that is the window everything else
-  here is measured in — the staleness threshold, and PRODUCT-STRATEGY.md's
+  here is measured in — the staleness threshold, and ../docs/foreman/research/PRODUCT-STRATEGY.md's
   "stale-entry rate after 30 and 90 days". A trial shorter than one staleness
   window cannot see the failure mode it is looking for. 90 days for the
   second reading.
@@ -371,7 +371,7 @@ rather than in place of one.
   ageing, not the sorter changing. Read the 30-day and 90-day numbers against
   each other. A second arm — the same roadmap picked from by hand — is a
   possible extension, and is not required for the first reading.
-- **Success.** PRODUCT-STRATEGY.md sets no numeric threshold and this document
+- **Success.** ../docs/foreman/research/PRODUCT-STRATEGY.md sets no numeric threshold and this document
   does not invent one. It states the decision the numbers feed:
 
   > Do not add estimates, deadlines, categories, or numeric priorities without
@@ -386,7 +386,7 @@ rather than in place of one.
   the roadmap ages is the case for the `focus` marker, tested on its own before
   any priority field.
 - **Publication.** If a number from a trial ever supports a public claim, it
-  carries what PRODUCT-STRATEGY.md's reproducibility section requires:
+  carries what ../docs/foreman/research/PRODUCT-STRATEGY.md's reproducibility section requires:
   configuration, duration, repetition count, aggregate and per-period results,
   and the claim's limitations. Raw logs stay private; they are the user's.
 
@@ -410,7 +410,7 @@ single project can supply:
   never fails a verification produces none, and that is a good outcome rather
   than a failed trial. Report `attempts` and `by_kind` raw at any count, and a
   rate only above 10 attempts of a single kind.
-- **Success.** PRODUCT-STRATEGY.md again sets no numeric threshold, and this
+- **Success.** ../docs/foreman/research/PRODUCT-STRATEGY.md again sets no numeric threshold, and this
   document again does not invent one. The decisions the numbers feed are
   already written down. The open question these answer is whether "users accept
   the setup and commit-time attention costs" — so a `commit_interruptions`

@@ -24,3 +24,13 @@ jobs:
 
       - name: run tests
         run: node --test tests/*.test.js
+  runtime-check:
+    name: Runtime tests
+    needs: [test]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every runtime test job to pass
+        env:
+          RESULT: ${{ needs.test.result }}
+        run: test "$RESULT" = success
