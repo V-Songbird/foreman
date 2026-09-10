@@ -1,6 +1,6 @@
 {
   "name": "foreman",
-  "description": "Project continuity and roadmap trust: keeps a correctable roadmap in your repo, recommends the next task and says why it came first, and hands it off with the paths and symbols checked. Say what you want in plain language — one entrance routes it.",
+  "description": "Project continuity for Claude Code: a roadmap beside your code, grounded handoffs, and clear task status.",
   "license": "MIT",
   "author": {
     "name": "Victor Villegas",
