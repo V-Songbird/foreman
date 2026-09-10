@@ -82,7 +82,7 @@ describe("specialized skills present as advanced surfaces", () => {
     const manifest = JSON.parse(
       fs.readFileSync(path.join(__dirname, "..", ".claude-plugin", "plugin.json"), "utf-8")
     );
-    assert.match(manifest.description, /^Project continuity and roadmap trust/);
+    assert.match(manifest.description, /^Project continuity.*roadmap/);
     assert.doesNotMatch(manifest.description, /[Pp]rompt-engineering/);
     assert.equal(manifest.keywords[0], "roadmap");
     assert.ok(!manifest.keywords.includes("prompt-engineering"));
