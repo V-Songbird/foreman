@@ -1,7 +1,7 @@
 {
   "name": "foreman",
   "version": "3.0.4-codex.1",
-  "description": "Project continuity for Codex: maintain a correctable roadmap, choose useful work, and craft grounded handoffs with verifiable completion evidence.",
+  "description": "Project continuity for Codex: a roadmap beside your code, grounded handoffs, and clear task status.",
   "author": {
     "name": "Victor Villegas",
     "email": "victor.villegas@tuta.com"
@@ -19,8 +19,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Foreman",
-    "shortDescription": "A roadmap that stays grounded in your code",
-    "longDescription": "Keep your plan beside the code, reconcile stale work, and turn tasks into checked Codex prompts. Preserve commit evidence, acceptance, and optional lessons across sessions.",
+    "shortDescription": "Keep your plan beside your code",
+    "longDescription": "Keep a roadmap beside your code, choose the next task and prepare a handoff checked against the project. Carry task status and evidence between sessions; acceptance remains a separate decision.",
     "developerName": "Victor Villegas",
     "category": "Productivity",
     "capabilities": [
