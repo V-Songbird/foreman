@@ -1,6 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
-  <path d="M6 19V7a2 2 0 0 1 2-2h10M6 12h9" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="18" cy="5" r="2.5" fill="currentColor"/>
-  <circle cx="15" cy="12" r="2.5" fill="currentColor"/>
-  <circle cx="6" cy="19" r="2.5" fill="currentColor"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="foreman icon" style="--accent:#21553b;--paper:#fff"><style>:root{--icon-ink:#252820}@media(prefers-color-scheme:dark){:root{--icon-ink:#eee9de}}</style><g stroke="var(--icon-ink)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M26 98L25 43Q24 36 31 34L53 26Q59 24 60 31L61 69 85 53 85 24Q85 18 93 20L105 24 106 69Q107 75 101 78L60 105Q55 109 49 106Z" fill="#21553b"/><path d="M26 98L61 69 60 105M61 69L85 53" fill="none"/></g></svg>
