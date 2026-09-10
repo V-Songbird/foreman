@@ -7,9 +7,15 @@
   <p><strong>Your plan stays next to your code. The next task arrives with its context checked.</strong></p>
 </div>
 
-**Choose your edition: [Claude Code](https://github.com/V-Songbird/foreman/tree/Claude) · [Codex](https://github.com/V-Songbird/foreman/tree/Codex)**
+<p align="center"><strong>Available on</strong></p>
+<p align="center">
+  <a href="https://github.com/V-Songbird/foreman/tree/Codex"><img src="assets/edition-codex.svg" alt="Codex" width="80" height="80" /></a>&emsp;&emsp;<a href="https://github.com/V-Songbird/foreman/tree/Claude"><img src="assets/edition-claude.svg" alt="Claude" width="80" height="80" /></a><br />
+  <a href="https://github.com/V-Songbird/foreman/tree/Codex">Codex</a>&emsp;&emsp;&emsp;&emsp;<a href="https://github.com/V-Songbird/foreman/tree/Claude">Claude</a>
+</p>
 
-[**Get started**](#get-started) · [What is this?](#what-is-this) · [How it works](#how-it-works) · [What you can do](#what-you-can-do) · [Evidence](#evidence-and-benchmarks)
+<p align="center"><a href="#get-started"><strong>Get started</strong></a> · <a href="#what-is-this">What is this?</a> · <a href="#how-it-works">How it works</a> · <a href="#what-you-can-do">What you can do</a> · <a href="#evidence-and-benchmarks">Evidence</a></p>
+
+
 
 
 
@@ -21,8 +27,6 @@ Ask "what’s next?" and it recommends a task with its reason and a prompt check
 
 <p align="center"><img src="assets/mascot.svg" alt="Ember gathers scattered papers into a task list and points to the next task." width="700"></p>
 
-
-
 ## Why you'd want it
 
 - Pick up where the last session stopped.
@@ -33,16 +37,6 @@ Ask "what’s next?" and it recommends a task with its reason and a prompt check
 ## How it works
 
 The roadmap lives in your project. Foreman reads it, checks the relevant context and helps you choose what to do next. Optional lessons let later tasks learn from earlier work without creating a separate knowledge base.
-
-## What you can do
-
-| You say | You get |
-| --- | --- |
-| Add this to the roadmap | Requested work recorded with its reason and boundaries |
-| Where are we? | Status, blockers and work waiting for acceptance |
-| What's next? | A recommended task and a choice of where to run it |
-| Check whether the plan still matches the code | A grounded review before choosing work |
-| Craft a prompt for this | A checked handoff without requiring a roadmap entry |
 
 ## What you can do
 
