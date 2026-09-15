@@ -1,0 +1,13 @@
+{
+  "name": "foreman",
+  "version": "3.1.0",
+  "description": "Project continuity for Claude Code and Codex: a roadmap beside your code, grounded handoffs, and clear task status.",
+  "license": "MIT",
+  "author": {
+    "name": "Victor Villegas",
+    "email": "victor.villegas@tuta.com"
+  },
+  "homepage": "https://github.com/V-Songbird/foreman",
+  "repository": "https://github.com/V-Songbird/foreman",
+  "keywords": ["roadmap", "planning", "project-continuity", "task-selection", "handoff", "background-agent", "automation"]
+}

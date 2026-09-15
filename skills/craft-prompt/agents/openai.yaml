@@ -1,0 +1,3 @@
+interface:
+  display_name: "Foreman Craft Prompt"
+  short_description: "Craft verified prompts for a fresh Codex session"

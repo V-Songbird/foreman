@@ -1,0 +1,7 @@
+/docs/*
+!/docs/adr/
+
+# Plugin-local session state — written at run time, never published.
+.assay/
+.foreman/
+.scribe/
