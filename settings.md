@@ -45,6 +45,14 @@ anything you typed. The file is `.foreman/trial-log.jsonl`, it never leaves
 your machine, and deleting it at any moment is supported. See
 [`TRIALS.md`](TRIALS.md).
 
+## Sharing a project with the Codex edition
+
+The Codex edition of Foreman reads this same file, and every setting above
+means the same thing there. Neither edition has settings of its own, so keep
+the file as it is when you switch. `taskCloseGate: "block"` works in both,
+each through its own host's hooks. The roadmap, its archive and the ledger
+are shared the same way — see [`roadmap-schema.md`](roadmap-schema.md).
+
 ## Sharing a session with another plugin
 
 When another plugin already supplies the session persona and output voice,

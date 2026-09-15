@@ -92,7 +92,7 @@ function checkEntry(entry, index, out) {
     return;
   }
   const {
-    STATUSES, SOURCES, KINDS, MODELS, EFFORTS, validateDoc, isValidId,
+    STATUSES, SOURCES, KINDS, isValidModel, EFFORTS, validateDoc, isValidId,
     ROADMAP_FORMAT_KEY, CURRENT_ROADMAP_FORMAT, isFormatMeta,
   } = roadmap();
   const id = typeof entry.id === "string" ? entry.id : "";
@@ -197,8 +197,8 @@ function checkEntry(entry, index, out) {
   if (entry.kind !== undefined && !KINDS.has(entry.kind)) {
     out.push(finding("unknown_kind", "error", ids, `${at}: kind ${JSON.stringify(entry.kind)} is not one of ${[...KINDS].join("|")}`, { field: "kind" }));
   }
-  if (entry.model !== undefined && !MODELS.has(entry.model)) {
-    out.push(finding("unknown_model", "error", ids, `${at}: model ${JSON.stringify(entry.model)} is not one of ${[...MODELS].join("|")}`, { field: "model" }));
+  if (entry.model !== undefined && !isValidModel(entry.model)) {
+    out.push(finding("unknown_model", "error", ids, `${at}: model ${JSON.stringify(entry.model)} is not a model identifier (1-128 letters, digits, dots, underscores, colons, slashes or hyphens, starting with a letter or digit)`, { field: "model" }));
   }
   if (entry.effort !== undefined && !EFFORTS.has(entry.effort)) {
     out.push(finding("unknown_effort", "error", ids, `${at}: effort ${JSON.stringify(entry.effort)} is not one of ${[...EFFORTS].join("|")}`, { field: "effort" }));

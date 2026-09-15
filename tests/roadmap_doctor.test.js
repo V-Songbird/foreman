@@ -247,14 +247,27 @@ describe('doctor enum findings', () => {
     assertFinding(doctor(), 'unknown_kind', 'error', ['001']);
   });
 
-  test('unknown_model is an error', () => {
-    writeRoadmap(project, [base('001', { model: 'gpt' })]);
-    assertFinding(doctor(), 'unknown_model', 'error', ['001']);
+  test('unknown_model is an error for a value that is not a model identifier', () => {
+    for (const model of ['', 'gpt 5.6', 'm'.repeat(129), 7]) {
+      writeRoadmap(project, [base('001', { model })]);
+      assertFinding(doctor(), 'unknown_model', 'error', ['001']);
+    }
   });
 
   test('unknown_effort is an error', () => {
     writeRoadmap(project, [base('001', { effort: 'extreme' })]);
     assertFinding(doctor(), 'unknown_effort', 'error', ['001']);
+  });
+
+  test('the Codex edition values are not findings', () => {
+    writeRoadmap(project, [
+      base('001', { source: 'codex-suggested', status: 'done', commits: ['a1b2c3d'], model: 'gpt-5.6-sol', effort: 'ultra' }),
+      base('002', { status: 'done', commits: ['b2c3d4e'], model: 'gpt-5.6-luna', effort: 'none' }),
+      base('003', { status: 'done', commits: ['c3d4e5f'], model: 'opus', effort: 'minimal' }),
+    ]);
+    const report = doctor();
+    assert.deepEqual(defects(report.findings), []);
+    assert.deepEqual(report.summary, { errors: 0, warnings: 0 });
   });
 });
 

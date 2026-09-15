@@ -32,8 +32,10 @@
 //     and survives list/next-candidates serialization
 //   - kind stores "decision" on add, omits itself for "build"/unset,
 //     rejects other values, and survives next-candidates serialization
-//   - model/effort record what actually ran on update-status only, reject
-//     unknown values, omit themselves when unset, and are never accepted by add
+//   - model/effort record what actually ran on update-status only, accept the
+//     Codex edition's exact model ids and effort tiers, reject a model that
+//     is not an identifier and an unknown effort, omit themselves when unset,
+//     and are never accepted by add; list --stats counts what was recorded
 //   - DECISION_ANCHOR_RE/anchorIdsIn/anchorHasId: single- and multi-id
 //     anchor comments, ids in ordinary prose not wrapped in the anchor
 //     never match
@@ -1656,18 +1658,43 @@ describe('model and effort fields', () => {
     assert.equal('effort' in json.entry, false);
   });
 
-  test('rejects an unknown model and does not write', () => {
-    const { status, json } = run(['update-status'], { id: '001', status: 'done', model: 'gpt4' });
-    assert.equal(status, 1);
-    assert.match(json.error, /model must be one of haiku\|sonnet\|opus\|fable/);
+  // The Codex edition records exact model ids and effort tiers of its own on a
+  // shared project; both are records, not errors.
+  test('records an exact model id and the Codex effort tiers', () => {
+    const { status, json } = run(['update-status'], { id: '001', status: 'done', model: 'gpt-5.6-sol', effort: 'ultra' });
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.equal(json.entry.model, 'gpt-5.6-sol');
+    assert.equal(json.entry.effort, 'ultra');
+    for (const effort of ['none', 'minimal']) {
+      assert.equal(run(['update-status'], { id: '001', status: 'done', effort }).json.entry.effort, effort);
+    }
+    assert.equal(run(['update-status'], { id: '001', status: 'done', model: 'm'.repeat(128) }).status, 0);
+  });
+
+  test('every legacy family label is still a valid model', () => {
+    const { MODELS } = require('../scripts/roadmap');
+    for (const model of MODELS) {
+      const { status, json } = run(['update-status'], { id: '001', status: 'done', model });
+      assert.equal(status, 0, JSON.stringify(json));
+      assert.equal(json.entry.model, model);
+    }
+  });
+
+  test('rejects an invalid model identifier and does not write', () => {
+    for (const model of ['', 'm'.repeat(129), 'gpt 5.6', '-gpt', 'gpt@5', 5]) {
+      const { status, json } = run(['update-status'], { id: '001', status: 'done', model });
+      assert.equal(status, 1, `accepted ${JSON.stringify(model)}`);
+      assert.match(json.error, /model must be a model identifier/);
+    }
     const after = run(['list', '--ids=001']);
     assert.equal(after.json.entries[0].status, 'in_progress');
+    assert.equal('model' in after.json.entries[0], false);
   });
 
   test('rejects an unknown effort and does not write', () => {
-    const { status, json } = run(['update-status'], { id: '001', status: 'done', effort: 'ultra' });
+    const { status, json } = run(['update-status'], { id: '001', status: 'done', effort: 'extreme' });
     assert.equal(status, 1);
-    assert.match(json.error, /effort must be one of low\|medium\|high\|xhigh\|max/);
+    assert.match(json.error, /effort must be one of none\|minimal\|low\|medium\|high\|xhigh\|max\|ultra/);
   });
 
   test('add never accepts them — an entry has not run yet', () => {
@@ -1734,6 +1761,18 @@ describe('list --stats', () => {
     assert.equal(status, 0);
     assert.equal(json.stats.closed, 0);
     assert.deepEqual(json.stats.by_model, {});
+  });
+
+  test('counts exact model ids and Codex effort tiers as recorded', () => {
+    writeRoadmap(project, [
+      entry('001', 'done', { model: 'gpt-5.6-sol', effort: 'ultra' }),
+      entry('002', 'done', { model: 'gpt-5.6-sol', effort: 'none' }),
+      entry('003', 'dropped', { model: 'opus', effort: 'minimal' }),
+    ]);
+    const { json } = run(['list', '--stats']);
+    assert.deepEqual(json.stats.by_model, { 'gpt-5.6-sol': 2, opus: 1 });
+    assert.deepEqual(json.stats.by_effort, { none: 1, minimal: 1, ultra: 1 });
+    assert.equal(json.stats.no_model, 0);
   });
 });
 
