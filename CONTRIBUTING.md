@@ -10,7 +10,7 @@ Foreman is one package for two hosts — the assistants it runs inside, Claude C
 
 - Check existing issues first — the problem may already be tracked or intentionally deferred.
 - For substantial changes (new skills, significant refactors), open an issue first to align on direction before writing code.
-- Branch from `main` and open the pull request against `main`, the package branch. The `Claude` and `Codex` branches keep the last separate releases (2.7.0 and 3.0.4-codex.1) and take no new work.
+- Branch from `main` and open the pull request against `main`, the package branch. The separate Claude Code and Codex releases ended with 2.7.0 and 3.0.4-codex.1.
 
 ---
 

@@ -2,9 +2,9 @@
 
 `main` is Foreman's package branch: one plugin for Claude Code and Codex. It is
 not documentation-only. Make changes on a topic branch and merge them into
-`main` through a pull request. The `Claude` and `Codex` branches are
-historical; they keep the last separate releases, 2.7.0 and 3.0.4-codex.1, and
-take no new work. This repository is Foundry's Foreman submodule.
+`main` through a pull request. The separate releases ended with 2.7.0 and
+3.0.4-codex.1, and their `Claude` and `Codex` branches were deleted on
+2026-09-15. This repository is Foundry's Foreman submodule.
 
 Keep one runtime, one `skills/` tree with the five skills, one
 `prompt-template.md`, one README and one CHANGELOG. Claude Code reads
