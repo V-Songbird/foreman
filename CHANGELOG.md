@@ -7,7 +7,7 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
-## [Unreleased]
+## 2.7.0 — 2026-09-15
 
 Foreman now works on a project the Codex edition of Foreman also writes to.
 The entries that edition records are read, listed, counted, moved and checked
@@ -25,6 +25,10 @@ like this edition's own:
   `unknown_model` or `unknown_effort`, `list --stats` counts them instead of
   leaving them out, and `archive`, `restore` and `reassign-id` no longer
   refuse an entry that carries them.
+
+With `trialLog` on, a pick now records each menu once. The
+`next-candidates --menu` call already records the menu and its hint, and the
+pick flow no longer writes a second copy of either.
 
 ## 2.6.3 — 2026-09-09
 

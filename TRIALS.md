@@ -171,31 +171,30 @@ path out of it.
 
 ### Recommendation events
 
-Exact branches in `skills/roadmap/pick.md` (Fast pick) (and, unchanged,
-whenever Reconcile and pick composes it):
+`menu_shown` and `hint_used` are recorded by `roadmap.js next-candidates --menu`
+itself, where the facts already are. `skills/roadmap/pick.md` (Fast pick, and
+unchanged whenever Reconcile and pick composes it) records the pick events and
+never repeats the menu ones:
 
-- **`menu_shown`** — step 1, immediately after
-  `roadmap.js next-candidates --menu` returns and before Q1 is asked.
-  `candidates` counts every row the user will see: `candidates[]` plus the
-  accept/resume rows the finish-first check promotes — **capped at 2 of each**,
-  the same cap the branch itself applies, so a project sitting on five
-  in-progress entries does not report a menu nobody was offered. The
-  **single-option skip** takes this path too (`candidates: 1`), even though no
-  question is asked — a menu of one is still a recommendation the user
-  accepted or didn't.
-  Reconcile and pick's step 3 re-runs the menu, so it emits a second
+- **`menu_shown`** — inside every `next-candidates --menu` call, before Q1 is
+  asked. `candidates` counts every row the user will see: `candidates[]` plus
+  the accept/resume rows the finish-first check promotes — **capped at 2 of
+  each**, the same cap the branch itself applies, so a project sitting on five
+  in-progress entries does not report a menu nobody was offered. A menu of one
+  counts too: it is still a recommendation the user accepted or didn't.
+  Reconcile and pick's step 3 re-runs the menu, so it records a second
   `menu_shown` and its pick events belong to that one.
 - **`pick_accepted`** — Q1's answer branch, when the chosen option is the row
   carrying `(Recommended)`.
 - **`pick_overridden`** — the same branch, when the answer is any other row
   (`chosen_rank` = its 1-based position), or the standard escape describing
   something not on the list (`chosen_rank: null`). The **defer** sub-branch
-  ("not yet", "later") is not a pick: it writes no event, re-runs the menu, and
-  the re-asked Q1 emits a fresh `menu_shown`.
-- **`hint_used`** — step 1's hint sub-branch, once per menu built with
-  `--hint`. `hit` is the script's own `hint_matched`, which is already exactly
-  this fact: `false` means no candidate matched any hint word and the order is
-  just the standard ranking.
+  ("not yet", "later") is not a pick: it writes no event and re-runs the menu,
+  whose `next-candidates --menu` call records a fresh `menu_shown`.
+- **`hint_used`** — inside the same call, once per menu built with `--hint`.
+  `hit` is the script's own `hint_matched`, which is already exactly this fact:
+  `false` means no candidate matched any hint word and the order is just the
+  standard ranking.
 
 Accept and resume choices from the finish-first check settle existing work
 rather than answering "what next", so they record neither `pick_accepted` nor

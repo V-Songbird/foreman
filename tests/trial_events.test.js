@@ -14,7 +14,8 @@
 // Covers:
 //   - every event the skills name is a real event, and every flow a real flow
 //   - each branch records its own flow, and doctor.md records nothing
-//   - pick.md carries all four recommendation events
+//   - pick.md records the pick events and leaves menu_shown/hint_used to
+//     next-candidates --menu, which records exactly one of each per menu
 //   - init/SKILL.md carries init_started, init_completed and the snapshot
 //     recovery
 //   - the shapes the prose writes actually pass the writer's own validator
@@ -110,13 +111,18 @@ describe('the model-side trial events', () => {
     );
   });
 
-  test('pick.md carries all four recommendation events', () => {
+  test('pick.md records the pick events and leaves the menu events to the CLI', () => {
     const text = skill('roadmap', 'pick.md');
-    for (const event of ['menu_shown', 'hint_used', 'pick_accepted', 'pick_overridden']) {
+    for (const event of ['question_asked', 'pick_accepted', 'pick_overridden']) {
       assert.match(text, new RegExp(`trial-log\\.js ${event} `), `pick.md never records ${event}`);
     }
-    // The two branches that must NOT record a pick are named out loud.
+    // next-candidates --menu records both itself; a prose copy counts every menu twice.
+    for (const event of ['menu_shown', 'hint_used']) {
+      assert.doesNotMatch(text, new RegExp(`trial-log\\.js ${event} `), `pick.md records ${event} a second time`);
+    }
     const flat = text.replace(/\s+/g, ' ');
+    assert.match(flat, /`next-candidates --menu` has already recorded `menu_shown`/);
+    // The two branches that must NOT record a pick are named out loud.
     assert.ok(/settles existing work rather than answering "what next", so it records neither/.test(flat));
     assert.ok(/defer\*\* sub-branch records neither/.test(flat));
   });
@@ -156,8 +162,6 @@ describe('the model-side trial events', () => {
   test('the shapes the prose writes pass the writer\'s own validator', () => {
     const shapes = [
       ['question_asked', { flow: 'pick' }],
-      ['menu_shown', { candidates: 3, hint: true }],
-      ['hint_used', { hit: false }],
       ['pick_accepted', { rank: 1 }],
       ['pick_overridden', { chosen_rank: 2 }],
       ['pick_overridden', { chosen_rank: null }],
@@ -205,5 +209,26 @@ describe('the model-side trial events', () => {
     assert.equal(out.reason, 'disabled');
     assert.equal(result.status, 0, 'an opted-out project must not see a failure');
     assert.ok(!fs.existsSync(trial.logPath(project)), 'a log was created for a project that never opted in');
+  });
+
+  // [Foreman: 310] The menu events belong to the CLI: one menu call with a
+  // hint records one menu_shown and one hint_used, and nothing else.
+  test('one next-candidates --menu call records one menu_shown and one hint_used', () => {
+    const project = makeTmpProject();
+    fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
+    fs.writeFileSync(path.join(project, '.foreman', 'config.json'), JSON.stringify({ trialLog: true }), 'utf-8');
+    const roadmapCli = path.join(SCRIPTS_DIR, 'roadmap.js');
+    const env = { CLAUDE_PROJECT_DIR: project };
+
+    const added = runNodeScript(roadmapCli, ['add'], {
+      title: 'Add alpha output', why: 'Expose alpha results', what: 'Print alpha output', source: 'user',
+    }, env);
+    assert.equal(added.status, 0, added.stdout);
+    const menu = runNodeScript(roadmapCli, ['next-candidates', '--menu', '--hint', 'alpha'], null, env);
+    assert.equal(menu.status, 0, menu.stdout);
+
+    const counts = {};
+    for (const row of trial.readEvents(project)) counts[row.event] = (counts[row.event] || 0) + 1;
+    assert.deepEqual(counts, { menu_shown: 1, hint_used: 1 });
   });
 });
