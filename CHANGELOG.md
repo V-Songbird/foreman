@@ -26,6 +26,10 @@ like this edition's own:
   leaving them out, and `archive`, `restore` and `reassign-id` no longer
   refuse an entry that carries them.
 
+With `trialLog` on, a pick now records each menu once. The
+`next-candidates --menu` call already records the menu and its hint, and the
+pick flow no longer writes a second copy of either.
+
 ## 2.6.3 — 2026-09-09
 
 Restore the original product hero and recorded Claude demo with clear provenance. Use white light-theme banners.
