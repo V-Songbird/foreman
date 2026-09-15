@@ -7,7 +7,7 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
-## [Unreleased]
+## 2.7.0 — 2026-09-15
 
 Foreman now works on a project the Codex edition of Foreman also writes to.
 The entries that edition records are read, listed, counted, moved and checked
