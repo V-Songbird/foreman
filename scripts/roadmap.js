@@ -517,7 +517,10 @@ const STATUSES = new Set([
   "dropped",
   "rejected",
 ]);
-const SOURCES = new Set(["user", "claude-suggested"]);
+// `codex-suggested` is what the Codex edition of Foreman writes for its own
+// suggestions on a project both editions work in; this edition's stay
+// `claude-suggested`.
+const SOURCES = new Set(["user", "claude-suggested", "codex-suggested"]);
 // Statuses nothing is waiting on any more: the entry will not move again, so
 // a dependent of a dropped/rejected one is stranded rather than blocked.
 // `awaiting_acceptance` is deliberately NOT here: the user can still send it
@@ -541,10 +544,18 @@ const KINDS = new Set(["build", "decision"]);
 // What actually executed the entry, self-reported at close time. Neither is
 // observable: hook input carries no model, and the Agent tool takes no effort
 // argument, so effort is whatever the executing session was already set to.
-// Closed sets rather than free strings — the corpus is only comparable if the
-// labels are; extend the set when a new model or effort tier ships.
+// A project may also be worked by the Codex edition, which records exact
+// model ids and effort tiers of its own, so `model` is checked for identifier
+// syntax rather than against a closed set. MODELS stays as the family labels
+// this edition's handoffs ask a Claude session to record — the comparable
+// half of the corpus — and every one of them is a valid identifier. Syntax
+// says nothing about whether a model exists. EFFORTS covers both hosts' tiers.
 const MODELS = new Set(["haiku", "sonnet", "opus", "fable"]);
-const EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
+const EFFORTS = new Set(["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]);
+
+function isValidModel(value) {
+  return typeof value === "string" && /^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$/.test(value);
+}
 
 // Soft caps, not hard limits — every entry gets re-read on every `list`,
 // so a wall-of-text why/notes multiplies cost across every future call.
@@ -630,10 +641,11 @@ function validateKind(kind) {
   }
 }
 
-// model/effort are forced choices like kind, but recorded only on
-// update-status: an entry being added hasn't run yet, so there is nothing to
-// report. Both stay unwritten unless passed -- an entry with no model key ran
-// on something nobody recorded, which is different from running on a default.
+// model/effort are recorded only on update-status: an entry being added
+// hasn't run yet, so there is nothing to report. effort is a forced choice
+// like kind; model is an identifier (isValidModel above). Both stay unwritten
+// unless passed -- an entry with no model key ran on something nobody
+// recorded, which is different from running on a default.
 function validateRan(name, value, allowed) {
   if (!allowed.has(value)) {
     throw new Error(`${name} must be one of ${[...allowed].join("|")}`);
@@ -1027,7 +1039,9 @@ function cmdUpdateStatusUnlocked(root, payload) {
   }
   if (doc !== undefined) validateDoc(doc);
   if (kind !== undefined) validateKind(kind);
-  if (model !== undefined) validateRan("model", model, MODELS);
+  if (model !== undefined && !isValidModel(model)) {
+    throw new Error("model must be a model identifier: 1-128 letters, digits, dots, underscores, colons, slashes or hyphens, starting with a letter or digit");
+  }
   if (effort !== undefined) validateRan("effort", effort, EFFORTS);
   const resolve = archiveResolver(root);
   const entries = readEntries(root);
@@ -1533,7 +1547,7 @@ function statsFor(entries) {
   };
   return {
     closed: ran.length,
-    by_model: tally("model", MODELS),
+    by_model: tally("model", new Set(ran.map((e) => e.model).filter(isValidModel))),
     by_effort: tally("effort", EFFORTS),
     no_model: ran.filter((e) => e.model === undefined).length,
     no_effort: ran.filter((e) => e.effort === undefined).length,
@@ -2422,7 +2436,7 @@ below) and adds a "migrated" field ({from, to, backup}) to its own result --
 absent when the file was already current.
 
   add               stdin JSON: {title, why, what, source, depends_on?, planned_touches?, notes?, status?, doc?, kind?}
-                    source: "user" | "claude-suggested"
+                    source: "user" | "claude-suggested" | "codex-suggested"
                     planned_touches: the PREDICTED file/area surface (the
                     editable half; "touches" is still accepted as an input
                     alias for it). observed_touches is never an input -- it
@@ -2484,11 +2498,16 @@ absent when the file was already current.
                     doc: same "none" | relative .md path contract as add
                     kind: "build" | "decision" -- reclassify the entry;
                     "decision" is stored, "build" drops the key (the default)
-                    model: "haiku" | "sonnet" | "opus" | "fable" -- what
-                    ACTUALLY ran this entry, not what was recommended
-                    effort: "low" | "medium" | "high" | "xhigh" | "max" --
-                    likewise; both are self-reported (nothing can detect
-                    them) and omitted entirely when not given
+                    model: what ACTUALLY ran this entry, not what was
+                    recommended -- a Claude model by its family label,
+                    "haiku" | "sonnet" | "opus" | "fable"; any identifier of
+                    1-128 letters, digits, dots, underscores, colons, slashes
+                    or hyphens is accepted, so an exact id another host
+                    records (e.g. "gpt-5.6-sol") is valid too
+                    effort: "none" | "minimal" | "low" | "medium" | "high" |
+                    "xhigh" | "max" | "ultra" -- likewise; both are
+                    self-reported (nothing can detect them) and omitted
+                    entirely when not given
                     dependency changes caused by the transition return
                     compact newly_unblocked/newly_blocked/
                     stranded_dependents facts only when non-empty
@@ -2931,6 +2950,7 @@ module.exports = {
   TERMINAL_STATUSES,
   KINDS,
   MODELS,
+  isValidModel,
   EFFORTS,
   DUPLICATE_THRESHOLD,
   MAX_MATCHES,

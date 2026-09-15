@@ -640,6 +640,9 @@ describe('entry paragraph — model/effort self-report channel', () => {
     const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
     assert.equal(json.ok, true, JSON.stringify(json));
     assert.match(json.prompt, /Also add `model` and `effort` to that close call — what actually ran this task/);
+    // Any identifier validates, so the label is what keeps Claude-run history
+    // comparable beside the Codex edition's exact ids in list --stats.
+    assert.match(json.prompt, /Record a Claude model by its family label: `haiku`, `sonnet`, `opus` or `fable`\./);
   });
 
   test('an agent destination gets the both-fields instruction', () => {
@@ -647,6 +650,7 @@ describe('entry paragraph — model/effort self-report channel', () => {
     const { json } = run(project, { entry: '001', destination: 'agent', judgment: goodJudgment() });
     assert.equal(json.ok, true, JSON.stringify(json));
     assert.match(json.prompt, /Also add `model` and `effort` to that close call/);
+    assert.match(json.prompt, /Record a Claude model by its family label/);
     assert.ok(!json.prompt.includes('"model":"'));
   });
 

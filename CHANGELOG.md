@@ -7,6 +7,25 @@ version number? It lives in the
 [foundry marketplace](https://github.com/V-Songbird/foundry) listing —
 that's why `plugin.json` here carries none.
 
+## [Unreleased]
+
+Foreman now works on a project the Codex edition of Foreman also writes to.
+The entries that edition records are read, listed, counted, moved and checked
+like this edition's own:
+
+- `source: "codex-suggested"`, the Codex edition's suggested entries, is
+  accepted. This edition's suggestions are still `claude-suggested`.
+- `model` accepts any model identifier of 1–128 letters, digits, dots,
+  underscores, colons, slashes or hyphens, so exact ids such as `gpt-5.6-sol`
+  are valid. `haiku`, `sonnet`, `opus` and `fable` still are, and a handoff's
+  close note now asks a Claude session to record its model by one of those
+  family labels.
+- `effort` also accepts `none`, `minimal` and `ultra`.
+- `doctor` no longer reports those values as `unknown_source`,
+  `unknown_model` or `unknown_effort`, `list --stats` counts them instead of
+  leaving them out, and `archive`, `restore` and `reassign-id` no longer
+  refuse an entry that carries them.
+
 ## 2.6.3 — 2026-09-09
 
 Restore the original product hero and recorded Claude demo with clear provenance. Use white light-theme banners.

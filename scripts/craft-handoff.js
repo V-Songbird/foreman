@@ -968,8 +968,11 @@ function entryParagraphText({ id, resume, requireVerification, askLesson, destin
 
   // [Foreman: 260] roadmap-schema.md:112-113 — model/effort are self-reported
   // at close, never guessed, and now always: Foreman stopped asking which model
-  // should run a task, so nothing upstream knows the answer to bake in.
-  const modelEffortNote = "Also add `model` and `effort` to that close call — what actually ran this task. Omit either one you genuinely don't know rather than guessing — an absent field reads as unrecorded, a wrong one silently poisons the corpus.";
+  // should run a task, so nothing upstream knows the answer to bake in. The
+  // validator accepts any model identifier, because the Codex edition records
+  // exact ids, so the family label is asked for here: it is what keeps
+  // Claude-run history comparable in `list --stats`.
+  const modelEffortNote = "Also add `model` and `effort` to that close call — what actually ran this task. Record a Claude model by its family label: `haiku`, `sonnet`, `opus` or `fable`. Omit either one you genuinely don't know rather than guessing — an absent field reads as unrecorded, a wrong one silently poisons the corpus.";
 
   // Two sentences, single-purpose, emitted only where the ledger is on. A
   // skipped ask is silence, which is the designed outcome: forcing a lesson
