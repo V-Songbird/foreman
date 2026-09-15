@@ -1,25 +1,27 @@
 'use strict';
 
 // [Foreman: 062] The scripts/ layer is foreman's harness-free core: plain Node
-// CLIs whose only harness touch is an OPTIONAL CLAUDE_PROJECT_DIR that falls
-// back to cwd. skills/ and hooks/ are Claude Code only by design and are not
-// covered here.
+// CLIs whose harness touches are all OPTIONAL — the project directory
+// (FOREMAN_PROJECT_DIR, CODEX_CWD or CLAUDE_PROJECT_DIR, falling back to cwd)
+// and the host, which --host names or runtime.js detects. skills/ and hooks/
+// are the host integrations and are not covered here.
 //
-// Every child below is spawned with EVERY CLAUDE_* variable deleted from its
-// environment and cwd set to a temp fixture project, so a future change that
-// quietly re-couples one of these three scripts to the harness fails here
-// instead of shipping.
+// Every child below is spawned with EVERY host variable deleted from its
+// environment (CLAUDE*, CODEX_*, FOREMAN_*, PLUGIN_ROOT, PLUGIN_DATA) and cwd
+// set to a temp fixture project, so a future change that quietly re-couples
+// one of these three scripts to either harness fails here instead of shipping.
 //
 // Covers:
 //   - roadmap.js: add -> list -> next-candidates -> update-status round-trip,
-//     writing to the CWD project because no CLAUDE_PROJECT_DIR is set
+//     writing to the CWD project because no project variable is set
 //   - render-sections.js: renders against a temp .foreman/config.json, and a
 //     non-boolean requireVerification warns and falls back rather than
 //     crashing (it is a boolean gate, not an enum)
-//   - check-prompt.js: passes a good prompt and fails an unfilled placeholder,
-//     resolving prompt-template.md from its own tree rather than from cwd
+//   - check-prompt.js: passes a good prompt and fails an unfilled placeholder
+//     for each host's canonical variant, resolving prompt-template.md from its
+//     own tree rather than from cwd
 //
-// If any of these fails without CLAUDE_* env, that failure IS the finding:
+// If any of these fails without host env, that failure IS the finding:
 // fix the coupling, never relax the test.
 
 const { describe, test } = require('node:test');
@@ -37,15 +39,19 @@ const {
   FIX_CEILING_SENTENCE,
 } = require(path.join(SCRIPTS_DIR, 'check-prompt.js'));
 
+const HOSTS = ['claude', 'codex'];
 const ROADMAP = path.join(SCRIPTS_DIR, 'roadmap.js');
 const RENDER = path.join(SCRIPTS_DIR, 'render-sections.js');
 const CHECK = path.join(SCRIPTS_DIR, 'check-prompt.js');
 
-/** process.env with every CLAUDE_* variable removed. */
+// The host variables tests/helpers.js scrubs from this process.
+const HOST_ENV = /^(FOREMAN_|CODEX_|CLAUDE|PLUGIN_ROOT$|PLUGIN_DATA$)/;
+
+/** process.env with every host variable removed. */
 function harnessFreeEnv() {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
-    if (key.startsWith('CLAUDE_')) delete env[key];
+    if (HOST_ENV.test(key)) delete env[key];
   }
   return env;
 }
@@ -75,9 +81,14 @@ function json(result) {
 
 const FIX_CEILING_LINE = `Do NOT claim success without running this. If it fails, fix and re-run — but ${FIX_CEILING_SENTENCE}`;
 
-/** The short profile, built here so this file does not depend on another test. */
-function standardPrompt(extra = '') {
+/**
+ * The short profile for one host, built here so this file does not depend on
+ * another test. A Codex handoff opens with its <codex_runtime> contract.
+ */
+function standardPrompt(host, extra = '') {
+  const { codexRuntime } = readCanonical(host);
   return [
+    codexRuntime === null ? '' : `<codex_runtime>${codexRuntime}</codex_runtime>`,
     '<task_context>\nYou are a senior engineer.\nYour goal is to fix the retry bug so all tests pass.\n</task_context>',
     CONCISE_TRUTH_SENTENCE,
     '<background>\n<relevant_files>\nsrc/auth/middleware.ts — refreshToken (42), verifySession (77)\n</relevant_files>\n</background>',
@@ -92,9 +103,9 @@ describe('the scripts layer runs with no harness environment', () => {
   test('the fixture env really is stripped', () => {
     const env = harnessFreeEnv();
     assert.deepEqual(
-      Object.keys(env).filter((k) => k.startsWith('CLAUDE_')),
+      Object.keys(env).filter((k) => HOST_ENV.test(k)),
       [],
-      'a CLAUDE_* variable survived the strip, so every test below would be vacuous'
+      'a host variable survived the strip, so every test below would be vacuous'
     );
   });
 
@@ -170,47 +181,52 @@ describe('the scripts layer runs with no harness environment', () => {
     );
   });
 
-  test('check-prompt.js passes a good prompt with its template resolved from its own tree', () => {
-    const project = makeTmpProject();
-    const file = path.join(project, 'prompt.md');
-    fs.writeFileSync(file, standardPrompt(), 'utf-8');
+  for (const host of HOSTS) {
+    test(`check-prompt.js passes a good ${host} prompt with its template resolved from its own tree`, () => {
+      const project = makeTmpProject();
+      const file = path.join(project, 'prompt.md');
+      fs.writeFileSync(file, standardPrompt(host), 'utf-8');
 
-    // Nothing named the template and cwd holds no copy of it, so a pass here
-    // is proof the __dirname resolution held.
-    assert.ok(!fs.existsSync(path.join(project, 'prompt-template.md')));
+      // Nothing named the template and cwd holds no copy of it, so a pass here
+      // is proof the __dirname resolution held.
+      assert.ok(!fs.existsSync(path.join(project, 'prompt-template.md')));
 
-    const out = json(runStandalone(
-      CHECK,
-      [file, '--destination', 'clipboard', '--profile', 'standard'],
-      null,
-      project
-    ));
-    assert.equal(out.ok, true, JSON.stringify(out));
-    assert.equal(out.profile, 'standard');
-  });
+      const out = json(runStandalone(
+        CHECK,
+        [file, '--destination', 'clipboard', '--profile', 'standard', '--host', host],
+        null,
+        project
+      ));
+      assert.equal(out.ok, true, JSON.stringify(out));
+      assert.equal(out.profile, 'standard');
+      assert.equal(out.host, host);
+    });
 
-  test('check-prompt.js still fails an unfilled placeholder with no harness environment', () => {
-    const project = makeTmpProject();
-    const file = path.join(project, 'prompt.md');
-    const placeholder = PLACEHOLDER_FRAGMENTS[0];
-    fs.writeFileSync(file, standardPrompt(`${placeholder} left unfilled]`), 'utf-8');
+    test(`check-prompt.js still fails an unfilled placeholder on host ${host} with no harness environment`, () => {
+      const project = makeTmpProject();
+      const file = path.join(project, 'prompt.md');
+      const placeholder = PLACEHOLDER_FRAGMENTS[0];
+      fs.writeFileSync(file, standardPrompt(host, `${placeholder} left unfilled]`), 'utf-8');
 
-    const result = runStandalone(
-      CHECK,
-      [file, '--destination', 'clipboard', '--profile', 'standard'],
-      null,
-      project
-    );
-    const out = json(result);
-    assert.equal(out.ok, false, 'an unfilled placeholder passed the gate');
-    assert.ok(out.errors.length > 0);
-  });
+      const result = runStandalone(
+        CHECK,
+        [file, '--destination', 'clipboard', '--profile', 'standard', '--host', host],
+        null,
+        project
+      );
+      const out = json(result);
+      assert.equal(out.ok, false, 'an unfilled placeholder passed the gate');
+      assert.ok(out.errors.length > 0);
+    });
+  }
 
   test('the canonical blocks load without a project at all', () => {
     // readCanonical() is what every prompt check leans on; it must resolve
     // from the script's own tree, not from whatever directory it was run in.
-    const canonical = readCanonical();
-    assert.ok(canonical.closing.length > 0);
-    assert.ok(canonical.truthGrounding.length > 0);
+    for (const host of HOSTS) {
+      const canonical = readCanonical(host);
+      assert.ok(canonical.closing.length > 0);
+      assert.ok(canonical.truthGrounding.length > 0);
+    }
   });
 });

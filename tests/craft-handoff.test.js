@@ -15,9 +15,14 @@
 //     not a hardcoded second copy (an in-process fs.readFileSync patch
 //     proves the assembled prompt follows a template mutation)
 //   - a task split puts the entry paragraph on the last row only
-//   - ${CLAUDE_PLUGIN_ROOT} always travels unexpanded, even with the real
-//     env var set
+//   - each host's plugin paths: Claude Code's ${CLAUDE_PLUGIN_ROOT} travels
+//     unexpanded even with the real env var set; Codex's quoted installed
+//     paths run from any install location
 //   - a gate failure surfaces in the output instead of being swallowed
+//
+// Where the hosts' output differs, a test passes `host` explicitly: a loop over
+// both hosts, or the one host the behavior belongs to. Every other test is
+// host-neutral and runs at the default host.
 
 const { test, describe, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
@@ -27,7 +32,7 @@ const { spawnSync } = require('node:child_process');
 
 const { runNodeScript, makeTmpProject, writeRoadmap, writeArchiveFile, writeConfig, initGitRepo, commitFile, SCRIPTS_DIR } = require('./helpers.js');
 const { today } = require(path.join(SCRIPTS_DIR, 'roadmap.js'));
-const { TEMPLATE_PATH, WORKFLOW_STAGE_SENTENCE } = require(path.join(SCRIPTS_DIR, 'check-prompt.js'));
+const { TEMPLATE_PATH, WORKFLOW_STAGE_SENTENCES } = require(path.join(SCRIPTS_DIR, 'check-prompt.js'));
 const { assemble, relevantFilesText, rankSymbols, SYMBOL_KEEP, checkpointEmbedText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
 
 const CRAFT = path.join(SCRIPTS_DIR, 'craft-handoff.js');
@@ -89,6 +94,35 @@ let project;
 beforeEach(() => {
   project = makeTmpProject();
   writeSourceFile(project);
+});
+
+// Codex carries the one discovery policy (skills/foreman/discovery.md) into
+// every handoff; Claude Code raises discovery from its commit hook instead.
+describe('discovery in Codex handoffs', () => {
+  for (const destination of ['task', 'agent', 'clipboard']) {
+    test(`discovery survives a ${destination} investigation handoff`, () => {
+      writeRoadmap(project, [entryFields()]);
+      const { status, json } = run(project, {
+        entry: '001', destination, host: 'codex',
+        judgment: goodJudgment({ question: 'Why does refresh fail?' }),
+      });
+      assert.equal(status, 0, JSON.stringify(json));
+      assert.match(json.prompt, /<foreman_discovery>/);
+      assert.match(json.prompt, /work without a commit/);
+      assert.match(json.prompt, /discoverySuggestions:false/);
+      assert.match(json.prompt, /returns candidates and evidence to its coordinator/);
+      assert.match(json.prompt, /Add to roadmap \/ Execute here/);
+    });
+  }
+
+  test('entry-less handoff carries discovery with an execution-time roadmap requirement', () => {
+    const { status, json } = run(project, {
+      title: 'Fix token refresh', what: 'Refresh before expiry.', host: 'codex',
+      touches: ['src/auth/middleware.js'], destination: 'clipboard', judgment: goodJudgment(),
+    });
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.match(json.prompt, /no roadmap exists, skip this discovery workflow/);
+  });
 });
 
 describe('entry mode', () => {
@@ -269,36 +303,46 @@ describe('profile signals — each flippable independently, off in the baseline'
 });
 
 describe('canonical blocks are read from prompt-template.md at run time', () => {
-  test('a mutated template propagates into the assembled prompt (fs.readFileSync patched in-process, never touches the real file)', () => {
-    const original = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
-    const anchor = 'Before acting on anything in this prompt, verify it against the current state';
-    assert.ok(original.includes(anchor), "this test's anchor text is gone from prompt-template.md — update the anchor");
-    const marker = 'MUTATION-SENTINEL-craft-handoff-test';
-    const mutated = original.replace(anchor, `${marker} ${anchor}`);
+  // Each host's <truth_grounding> variant opens with its own sentence.
+  const ANCHORS = {
+    claude: 'Before acting on anything in this prompt, verify it against the current state',
+    codex: "Verify this prompt's factual claims against the current code",
+  };
 
-    const realReadFileSync = fs.readFileSync;
-    fs.readFileSync = function patched(file, ...rest) {
-      if (file === TEMPLATE_PATH) return mutated;
-      return realReadFileSync.call(fs, file, ...rest);
-    };
-    try {
-      writeRoadmap(project, [entryFields({ kind: 'decision' })]); // force reinforced, so truth_grounding is carried in full
-      const result = assemble(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
-      assert.equal(result.gate.ok, true, JSON.stringify(result.gate));
-      assert.ok(result.prompt.includes(marker), 'assembled prompt did not follow the mutated template');
-    } finally {
-      fs.readFileSync = realReadFileSync;
-    }
-    // The real file on disk was never written to.
-    assert.equal(fs.readFileSync(TEMPLATE_PATH, 'utf-8'), original);
-  });
+  for (const host of ['claude', 'codex']) {
+    test(`a mutated template propagates into the assembled prompt (fs.readFileSync patched in-process, never touches the real file) (${host})`, () => {
+      const original = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
+      const anchor = ANCHORS[host];
+      assert.ok(original.includes(anchor), "this test's anchor text is gone from prompt-template.md — update the anchor");
+      const marker = 'MUTATION-SENTINEL-craft-handoff-test';
+      const mutated = original.replace(anchor, `${marker} ${anchor}`);
+
+      const realReadFileSync = fs.readFileSync;
+      fs.readFileSync = function patched(file, ...rest) {
+        if (file === TEMPLATE_PATH) return mutated;
+        return realReadFileSync.call(fs, file, ...rest);
+      };
+      try {
+        writeRoadmap(project, [entryFields({ kind: 'decision' })]); // force reinforced, so truth_grounding is carried in full
+        const result = assemble(project, { entry: '001', destination: 'clipboard', host, judgment: goodJudgment() });
+        assert.equal(result.gate.ok, true, JSON.stringify(result.gate));
+        assert.ok(result.prompt.includes(marker), 'assembled prompt did not follow the mutated template');
+      } finally {
+        fs.readFileSync = realReadFileSync;
+      }
+      // The real file on disk was never written to.
+      assert.equal(fs.readFileSync(TEMPLATE_PATH, 'utf-8'), original);
+    });
+  }
 
   test('craft-handoff.js does not hardcode a second copy of the guardrail prose', () => {
     const source = fs.readFileSync(CRAFT, 'utf-8');
-    assert.ok(
-      !source.includes('Before acting on anything in this prompt'),
-      'craft-handoff.js carries a literal copy of truth_grounding instead of reading it from the template'
-    );
+    for (const opening of ['Before acting on anything in this prompt', "Verify this prompt's factual claims"]) {
+      assert.ok(
+        !source.includes(opening),
+        `craft-handoff.js carries a literal copy of truth_grounding ("${opening}") instead of reading it from the template`
+      );
+    }
   });
 });
 
@@ -377,18 +421,135 @@ describe('verification preflight — every command, not just the first', () => {
   });
 });
 
-describe('${CLAUDE_PLUGIN_ROOT} travels literal, never expanded', () => {
+describe('${CLAUDE_PLUGIN_ROOT} travels literal in a Claude Code handoff, never expanded', () => {
   test('stays literal even with the real env var set', () => {
     writeRoadmap(project, [entryFields()]);
     const { json } = run(
       project,
-      { entry: '001', destination: 'task', judgment: goodJudgment() },
+      { entry: '001', destination: 'task', host: 'claude', judgment: goodJudgment() },
       { CLAUDE_PLUGIN_ROOT: 'C:\\Users\\x\\.claude\\plugins\\cache\\foundry\\foreman\\1.2.3' }
     );
     assert.equal(json.ok, true, JSON.stringify(json));
     assert.ok(json.prompt.includes('${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js'));
     assert.ok(!json.prompt.includes('plugins\\cache\\foundry'));
     assert.ok(!json.prompt.includes('plugins/cache/foundry'));
+  });
+});
+
+// Codex never expands a plugin-root variable, so its handoffs carry the quoted
+// installed paths, and the commands they emit have to run as written.
+describe('installed Codex plugin commands', () => {
+  test('the emitted no-commit close preserves observed evidence and pre-existing staged work', () => {
+    initGitRepo(project);
+    commitFile(project, 'src/auth/middleware.js', fs.readFileSync(path.join(project, 'src/auth/middleware.js'), 'utf8'));
+    commitFile(project, 'unrelated.txt', 'baseline\n');
+    fs.writeFileSync(path.join(project, 'unrelated.txt'), 'pre-existing user change\n');
+    const git = (...args) => {
+      const result = spawnSync('git', args, { cwd: project, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout;
+    };
+    git('add', '--', 'unrelated.txt');
+    const beforeHead = git('rev-parse', 'HEAD');
+    const beforeIndex = git('diff', '--cached', '--binary');
+    writeRoadmap(project, [entryFields()]);
+    const { json } = run(project, { entry: '001', destination: 'task', host: 'codex', judgment: goodJudgment({
+      verification: [{ run: 'node --check src/auth/middleware.js', expected: 'exit code 0' }],
+    }) });
+    assert.equal(json.gate.ok, true);
+    const start = json.prompt.match(/Command: .node '([^']+)' start --id '([^']+)'./);
+    const codexEnv = { FOREMAN_HOST: 'codex', FOREMAN_PROJECT_DIR: project };
+    const opened = runNodeScript(start[1], ['start', '--id', start[2]], null, codexEnv);
+    assert.equal(opened.status, 0, opened.stdout);
+    const boundary = runNodeScript(path.join(SCRIPTS_DIR, 'safe-commit.js'), ['begin'], null, codexEnv);
+    assert.equal(JSON.parse(boundary.stdout).dirty, true);
+    fs.appendFileSync(path.join(project, 'src/auth/middleware.js'), '// task-owned edit\n');
+    const verified = spawnSync(process.execPath, ['--check', 'src/auth/middleware.js'], { cwd: project, encoding: 'utf8' });
+    assert.equal(verified.status, 0, verified.stderr);
+    const close = [...json.prompt.matchAll(/Command: .node '([^']+)' update-status.\nJSON stdin: .([^\n]+)./g)]
+      .map((match) => ({ script: match[1], payload: JSON.parse(match[2]) }))
+      .find(({ payload }) => payload.status === '<status>');
+    assert.ok(close, 'no emitted close payload');
+    close.payload.status = 'awaiting_acceptance';
+    close.payload.notes = 'node --check src/auth/middleware.js exited 0 after the task-owned edit.';
+    // Fill the artifact's declared field, so a wrong command-field name loses
+    // evidence and fails the stored-result assertion below.
+    const touchesField = Object.keys(close.payload).find((key) => Array.isArray(close.payload[key]));
+    close.payload[touchesField] = ['src/auth/middleware.js'];
+    const closed = runNodeScript(close.script, ['update-status'], close.payload, codexEnv);
+    assert.equal(closed.status, 0, closed.stdout + closed.stderr);
+    const stored = fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf8').trim().split('\n').map(JSON.parse).find((row) => row.id === '001');
+    assert.deepEqual(stored.observed_touches, ['src/auth/middleware.js']);
+    assert.deepEqual(stored.commits, []);
+    assert.equal(stored.status, 'awaiting_acceptance');
+    const checked = runNodeScript(start[1], ['check', '--id', start[2]], null, codexEnv);
+    assert.equal(checked.status, 0, checked.stdout);
+    assert.equal(JSON.parse(checked.stdout).complete, true);
+    assert.equal(git('rev-parse', 'HEAD'), beforeHead);
+    assert.equal(git('diff', '--cached', '--binary'), beforeIndex);
+    assert.equal(fs.readFileSync(path.join(project, 'unrelated.txt'), 'utf8'), 'pre-existing user change\n');
+  });
+
+  test('emitted opening command runs from an installation with spaces and shell metacharacters', () => {
+    writeRoadmap(project, [entryFields()]);
+    const plugin = path.join(makeTmpProject(), "Foreman plugin $dollar 'quote & literal");
+    fs.mkdirSync(plugin);
+    fs.cpSync(SCRIPTS_DIR, path.join(plugin, 'scripts'), { recursive: true });
+    fs.cpSync(path.join(SCRIPTS_DIR, '..', 'hooks'), path.join(plugin, 'hooks'), { recursive: true });
+    fs.cpSync(path.join(SCRIPTS_DIR, '..', 'skills'), path.join(plugin, 'skills'), { recursive: true });
+    fs.copyFileSync(TEMPLATE_PATH, path.join(plugin, 'prompt-template.md'));
+    const crafted = runNodeScript(path.join(plugin, 'scripts', 'craft-handoff.js'), [], {
+      entry: '001', destination: 'task', host: 'codex', judgment: goodJudgment(),
+    }, { FOREMAN_PROJECT_DIR: project });
+    assert.equal(crafted.status, 0, crafted.stdout + crafted.stderr);
+    const prompt = JSON.parse(crafted.stdout).prompt;
+    const match = prompt.match(/Command: `([^\n]+)`/);
+    assert.ok(match, 'no opening lifecycle command');
+    const windows = process.platform === 'win32';
+    const shellEnv = { ...process.env, FOREMAN_HOST: 'codex', FOREMAN_PROJECT_DIR: project };
+    const opened = spawnSync(windows ? 'powershell.exe' : 'sh', windows
+      ? ['-NoProfile', '-NonInteractive', '-Command', match[1]]
+      : ['-c', match[1]], {
+      encoding: 'utf8', windowsHide: true, timeout: 30000, env: shellEnv,
+    });
+    assert.equal(opened.status, 0, opened.stdout + opened.stderr);
+    assert.equal(JSON.parse(opened.stdout).dispatchReady, true);
+    const entries = fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+    assert.equal(entries.find((entry) => entry.id === '001').status, 'in_progress');
+    const annotation = prompt.match(/Command: `([^\n]+ annotate)`\nJSON stdin: `([^\n]+)`/);
+    assert.ok(annotation, 'no separate JSON annotation payload');
+    const notes = "we've preserved $variables, $(expressions), `backticks`, and & pipes as data";
+    const payload = path.join(project, 'payload $literal.json');
+    fs.writeFileSync(payload, JSON.stringify({ ...JSON.parse(annotation[2]), notes }), 'utf8');
+    const quotedPayload = windows
+      ? "'" + payload.replace(/'/g, "''") + "'"
+      : "'" + payload.replace(/'/g, "'\"'\"'") + "'";
+    const command = (windows ? 'Get-Content -LiteralPath ' + quotedPayload + ' -Raw -Encoding utf8' : 'cat ' + quotedPayload) + ' | ' + annotation[1];
+    const annotated = spawnSync(windows ? 'powershell.exe' : 'sh', windows
+      ? ['-NoProfile', '-NonInteractive', '-Command', command]
+      : ['-c', command], {
+      encoding: 'utf8', windowsHide: true, timeout: 30000, env: shellEnv,
+    });
+    assert.equal(annotated.status, 0, annotated.stdout + annotated.stderr);
+    const after = fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+    assert.ok(after.find((entry) => entry.id === '001').notes.endsWith(notes));
+  });
+
+  test('resolves runnable paths independently of legacy root environment variables', () => {
+    writeRoadmap(project, [entryFields()]);
+    const {json} = run(project, {entry: '001', destination: 'task', host: 'codex', judgment: goodJudgment()}, {CLAUDE_PLUGIN_ROOT: 'Z:/missing/legacy-plugin'});
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.ok(json.prompt.includes(SCRIPTS_DIR.replace(/\\/g, '/') + '/roadmap.js'));
+    assert.ok(!json.prompt.includes('Z:/missing'));
+    assert.ok(!/\$\{(?:CLAUDE|CODEX)_PLUGIN_ROOT\}/.test(json.prompt));
+    const command = json.prompt.match(/Command: .node '([^']+)' start --id '([^']+)'./);
+    assert.ok(command, 'no runnable opening lifecycle command');
+    assert.ok(fs.existsSync(command[1]));
+    const opened = runNodeScript(command[1], ['start', '--id', command[2]], null, {FOREMAN_HOST: 'codex', FOREMAN_PROJECT_DIR: project});
+    assert.equal(opened.status, 0, opened.stdout + opened.stderr);
+    assert.equal(JSON.parse(opened.stdout).dispatchReady, true);
+    const entries = fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+    assert.equal(entries.find((entry) => entry.id === '001').status, 'in_progress');
   });
 });
 
@@ -435,6 +596,46 @@ describe('the gate — pass and failure both surfaced, never swallowed', () => {
 });
 
 describe('decision entries and the clipboard checkpoint embed', () => {
+  // Both hosts keep checkpoints local and ignore a `push` key; Codex adds the
+  // explicit branch-restriction line.
+  for (const host of ['claude', 'codex']) {
+    test(`every finish choice preserves local checkpoints and ignores unsupported push settings (${host})`, () => {
+      for (const onFinish of ['ask', 'squash', 'merge', 'pr', 'keep']) {
+        const config = { baseBranch: 'develop', branch: true, onFinish };
+        const embed = checkpointEmbedText(config, 2, '001', false, false, host);
+        assert.equal(checkpointEmbedText({ ...config, push: true }, 2, '001', false, false, host), embed);
+        assert.match(embed, /leave it local, never push/);
+        assert.ok(onFinish === 'ask'
+          ? embed.includes('ask the user squash/merge/PR/keep the branch')
+          : embed.includes('apply `' + onFinish + '` directly'));
+        if (host === 'codex') {
+          assert.match(embed, /explicit user branch restrictions override/);
+          assert.match(embed, /never merge into a branch the user forbids modifying/);
+        }
+      }
+    });
+  }
+
+  // A delegated Codex subagent leaves roadmap bookkeeping, staging and commits
+  // to its coordinator.
+  test('a subagent never receives checkpoint or staging commands and returns integration to the coordinator (codex)', () => {
+    writeRoadmap(project, [entryFields()]);
+    const { json } = run(project, {
+      entry: '001', destination: 'agent', host: 'codex', judgment: goodJudgment({
+        verification: [
+          { run: 'node --version', expected: 'a Node version' },
+          { run: 'node --help', expected: 'usage information' },
+        ],
+      }),
+    });
+    assert.equal(json.gate.ok, true);
+    assert.ok(!json.prompt.includes('Checkpoint protocol'));
+    assert.ok(!json.prompt.includes('safe-commit.js'));
+    assert.match(json.prompt, /must not run these mutations, stage, or commit/);
+    assert.match(json.prompt, /Do not create user-owned tasks, switch branches, stage files, or commit/);
+    assert.match(json.prompt, /Return the result to the coordinator/);
+  });
+
   // Foreman authors no decision document any more: one ledger records what a
   // close learned, and where a project writes its decisions down is the
   // project's own business. Neither the write block nor the forced `doc`
@@ -530,15 +731,16 @@ describe('decision entries and the clipboard checkpoint embed', () => {
   });
 
   // [Foreman: 273] The embed used to say "chain each to the previous one" and
-  // name no tool, so the ordering was advice. The pasted session is a Claude
-  // Code session — the prompt already bakes ${CLAUDE_PLUGIN_ROOT} and names
-  // AskUserQuestion — so naming the tools costs nothing and hands the ordering
-  // to that session's own harness, the same way the task destination does.
-  test('the embed names the task tools, so the reading session enforces the order', () => {
+  // name no tool, so the ordering was advice. A Claude Code handoff already
+  // bakes ${CLAUDE_PLUGIN_ROOT} and names AskUserQuestion, so naming the task
+  // tools costs nothing and hands the ordering to the pasted session's own
+  // harness, the same way the task destination does.
+  test('the embed names the task tools, so the reading session enforces the order (claude)', () => {
     writeRoadmap(project, [entryFields()]);
     const { json } = run(project, {
       entry: '001',
       destination: 'clipboard',
+      host: 'claude',
       judgment: goodJudgment({
         verification: [
           { run: 'npm test -- auth', expected: 'auth tests pass' },
@@ -549,6 +751,28 @@ describe('decision entries and the clipboard checkpoint embed', () => {
     assert.equal(json.ok, true, JSON.stringify(json));
     assert.ok(json.prompt.includes('with `TaskCreate`'), json.prompt);
     assert.ok(json.prompt.includes('`addBlockedBy: ["<the previous task\'s id>"]`'), json.prompt);
+    assert.ok(!json.prompt.includes('has no Foreman scripts to call'), json.prompt);
+  });
+
+  // Codex has no such task tools: its embed keeps one local acceptance row per
+  // check, in the same order, and creates no user-owned tasks.
+  test('the embed preserves dependent acceptance rows without creating Codex tasks (codex)', () => {
+    writeRoadmap(project, [entryFields()]);
+    const { json } = run(project, {
+      entry: '001',
+      destination: 'clipboard',
+      host: 'codex',
+      judgment: goodJudgment({
+        verification: [
+          { run: 'npm test -- auth', expected: 'auth tests pass' },
+          { run: 'npm test', expected: 'all tests pass' },
+        ],
+      }),
+    });
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.match(json.prompt, /one local acceptance row per Run:\/Expected: pair \(2 total\)/);
+    assert.match(json.prompt, /complete each row before its dependent successor/);
+    assert.ok(!/TaskCreate|TaskUpdate|AskUserQuestion/.test(json.prompt));
     assert.ok(!json.prompt.includes('has no Foreman scripts to call'), json.prompt);
   });
 
@@ -635,24 +859,28 @@ describe('decision entries and the clipboard checkpoint embed', () => {
 // Defect 2 (adversarial review): the baked entry paragraph dropped the
 // model/effort self-report channel roadmap-schema.md:112-113 documents.
 describe('entry paragraph — model/effort self-report channel', () => {
-  test('task/clipboard destinations get the self-report instruction for both fields', () => {
-    writeRoadmap(project, [entryFields()]);
-    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
-    assert.equal(json.ok, true, JSON.stringify(json));
-    assert.match(json.prompt, /Also add `model` and `effort` to that close call — what actually ran this task/);
-    // Any identifier validates, so the label is what keeps Claude-run history
-    // comparable beside the Codex edition's exact ids in list --stats.
-    assert.match(json.prompt, /Record a Claude model by its family label: `haiku`, `sonnet`, `opus` or `fable`\./);
-  });
+  for (const host of ['claude', 'codex']) {
+    test(`task/clipboard destinations get the self-report instruction for both fields (${host})`, () => {
+      writeRoadmap(project, [entryFields()]);
+      const { json } = run(project, { entry: '001', destination: 'clipboard', host, judgment: goodJudgment() });
+      assert.equal(json.ok, true, JSON.stringify(json));
+      assert.match(json.prompt, /Also add `model` and `effort` to that close call — what actually ran this task/);
+      if (host === 'claude') {
+        // Any identifier validates, so the label is what keeps Claude-run
+        // history comparable beside the exact ids Codex records in list --stats.
+        assert.match(json.prompt, /Record a Claude model by its family label: `haiku`, `sonnet`, `opus` or `fable`\./);
+      }
+    });
 
-  test('an agent destination gets the both-fields instruction', () => {
-    writeRoadmap(project, [entryFields()]);
-    const { json } = run(project, { entry: '001', destination: 'agent', judgment: goodJudgment() });
-    assert.equal(json.ok, true, JSON.stringify(json));
-    assert.match(json.prompt, /Also add `model` and `effort` to that close call/);
-    assert.match(json.prompt, /Record a Claude model by its family label/);
-    assert.ok(!json.prompt.includes('"model":"'));
-  });
+    test(`an agent destination gets the both-fields instruction (${host})`, () => {
+      writeRoadmap(project, [entryFields()]);
+      const { json } = run(project, { entry: '001', destination: 'agent', host, judgment: goodJudgment() });
+      assert.equal(json.ok, true, JSON.stringify(json));
+      assert.match(json.prompt, /Also add `model` and `effort` to that close call/);
+      if (host === 'claude') assert.match(json.prompt, /Record a Claude model by its family label/);
+      assert.ok(!json.prompt.includes('"model":"'));
+    });
+  }
 
   // [Foreman: 260] Foreman no longer asks which model should run a task, so
   // nothing upstream can know one to bake in. A caller passing `model` anyway
@@ -672,29 +900,41 @@ describe('entry paragraph — model/effort self-report channel', () => {
 // to the one destination with nobody watching leaves scope_discipline's
 // "flag it to the user first" with no way to happen.
 describe('background-agent autonomy paragraph — pause policy', () => {
-  const PAUSE = 'Pause for the user only when the work genuinely requires them';
+  // Each host pairs the reminder with its own pause policy: a Claude Code agent
+  // pauses for the user, a Codex subagent reports the blocker to its coordinator.
+  const PAUSE = {
+    claude: 'Pause for the user only when the work genuinely requires them',
+    codex: 'If a decision, authorization, or input blocks progress',
+  };
 
-  test('an agent handoff carries the pause policy alongside the reminder', () => {
-    writeRoadmap(project, [entryFields()]);
-    const { json } = run(project, { entry: '001', destination: 'agent', judgment: goodJudgment() });
-    assert.equal(json.ok, true, JSON.stringify(json));
-    assert.ok(json.prompt.includes('You are operating autonomously.'));
-    assert.ok(json.prompt.includes(PAUSE), 'the reminder shipped without its pause policy');
-    assert.match(json.prompt, /ask and end the turn, rather than ending on a promise\./);
-    // Both halves ride the one extracted block, so the policy must land after
-    // the ban it answers, not somewhere else in the prompt.
-    assert.ok(json.prompt.indexOf('You are operating autonomously.') < json.prompt.indexOf(PAUSE));
-  });
-
-  test('destinations with a user present carry neither half', () => {
-    writeRoadmap(project, [entryFields()]);
-    for (const destination of ['clipboard', 'task']) {
-      const { json } = run(project, { entry: '001', destination, judgment: goodJudgment() });
+  for (const host of ['claude', 'codex']) {
+    test(`an agent handoff carries the pause policy alongside the reminder (${host})`, () => {
+      writeRoadmap(project, [entryFields()]);
+      const { json } = run(project, { entry: '001', destination: 'agent', host, judgment: goodJudgment() });
       assert.equal(json.ok, true, JSON.stringify(json));
-      assert.ok(!json.prompt.includes('You are operating autonomously.'), destination);
-      assert.ok(!json.prompt.includes(PAUSE), destination);
-    }
-  });
+      assert.ok(json.prompt.includes('You are operating autonomously.'));
+      assert.ok(json.prompt.includes(PAUSE[host]), 'the reminder shipped without its pause policy');
+      if (host === 'claude') {
+        assert.match(json.prompt, /ask and end the turn, rather than ending on a promise\./);
+      } else {
+        assert.match(json.prompt, /report it to the coordinator using the available collaboration tools/);
+        assert.match(json.prompt, /must not run these mutations, stage, or commit/);
+      }
+      // Both halves ride the one extracted block, so the policy must land after
+      // the ban it answers, not somewhere else in the prompt.
+      assert.ok(json.prompt.indexOf('You are operating autonomously.') < json.prompt.indexOf(PAUSE[host]));
+    });
+
+    test(`destinations with a user present carry neither half (${host})`, () => {
+      writeRoadmap(project, [entryFields()]);
+      for (const destination of ['clipboard', 'task']) {
+        const { json } = run(project, { entry: '001', destination, host, judgment: goodJudgment() });
+        assert.equal(json.ok, true, JSON.stringify(json));
+        assert.ok(!json.prompt.includes('You are operating autonomously.'), destination);
+        assert.ok(!json.prompt.includes(PAUSE[host]), destination);
+      }
+    });
+  }
 });
 
 // Reviewer style note (a): a malformed judgment field must fail loudly at
@@ -729,47 +969,52 @@ describe('judgment shape validation', () => {
 // entry 204: craft-prompt/SKILL.md's Workflow-stage output flavor needs
 // this wired through — the gap flagged in entry 201's own header comment.
 describe('workflow-stage flavor', () => {
-  test('drops tone, replaces output_format with the fixed sentence, and passes the flag through to the gate', () => {
-    // kind:"decision" forces `reinforced`, so tone/output_format would
-    // otherwise both be included — proving workflowStage overrides that.
-    writeRoadmap(project, [entryFields({ kind: 'decision' })]);
-    const { json } = run(project, {
-      entry: '001',
-      destination: 'clipboard',
-      workflowStage: true,
-      judgment: goodJudgment(),
+  // Each host carries its own fixed sentence where <output_format> would go.
+  for (const host of ['claude', 'codex']) {
+    test(`drops tone, replaces output_format with the fixed sentence, and passes the flag through to the gate (${host})`, () => {
+      // kind:"decision" forces `reinforced`, so tone/output_format would
+      // otherwise both be included — proving workflowStage overrides that.
+      writeRoadmap(project, [entryFields({ kind: 'decision' })]);
+      const { json } = run(project, {
+        entry: '001',
+        destination: 'clipboard',
+        host,
+        workflowStage: true,
+        judgment: goodJudgment(),
+      });
+      assert.equal(json.ok, true, JSON.stringify(json));
+      assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+      assert.deepEqual(json.gate.errors, []);
+      assert.ok(!json.prompt.includes('<tone>'));
+      assert.ok(!json.prompt.includes('<output_format>'));
+      assert.ok(json.prompt.includes(WORKFLOW_STAGE_SENTENCES[host]));
     });
-    assert.equal(json.ok, true, JSON.stringify(json));
-    assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
-    assert.deepEqual(json.gate.errors, []);
-    assert.ok(!json.prompt.includes('<tone>'));
-    assert.ok(!json.prompt.includes('<output_format>'));
-    assert.ok(json.prompt.includes(WORKFLOW_STAGE_SENTENCE));
-  });
 
-  test('entry-less mode carries the flag the same way', () => {
-    const { json } = run(project, {
-      title: 'Ad-hoc research task',
-      what: 'Investigate the retry bug.',
-      planned_touches: ['src/auth/middleware.js'],
-      destination: 'clipboard',
-      workflowStage: true,
-      request: 'Investigate the retry bug.',
-      judgment: { role: 'a senior engineer', goal: 'to investigate', context: '', question: 'Does the retry path double-count?' },
+    test(`entry-less mode carries the flag the same way (${host})`, () => {
+      const { json } = run(project, {
+        title: 'Ad-hoc research task',
+        what: 'Investigate the retry bug.',
+        planned_touches: ['src/auth/middleware.js'],
+        destination: 'clipboard',
+        host,
+        workflowStage: true,
+        request: 'Investigate the retry bug.',
+        judgment: { role: 'a senior engineer', goal: 'to investigate', context: '', question: 'Does the retry path double-count?' },
+      });
+      assert.equal(json.ok, true, JSON.stringify(json));
+      assert.ok(!json.prompt.includes('<output_format>'));
+      assert.ok(json.prompt.includes(WORKFLOW_STAGE_SENTENCES[host]));
     });
-    assert.equal(json.ok, true, JSON.stringify(json));
-    assert.ok(!json.prompt.includes('<output_format>'));
-    assert.ok(json.prompt.includes(WORKFLOW_STAGE_SENTENCE));
-  });
 
-  test('without the flag, the same reinforced handoff carries tone and output_format as usual', () => {
-    writeRoadmap(project, [entryFields({ kind: 'decision' })]);
-    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
-    assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
-    assert.ok(json.prompt.includes('<tone>'));
-    assert.ok(json.prompt.includes('<output_format>'));
-    assert.ok(!json.prompt.includes(WORKFLOW_STAGE_SENTENCE));
-  });
+    test(`without the flag, the same reinforced handoff carries tone and output_format as usual (${host})`, () => {
+      writeRoadmap(project, [entryFields({ kind: 'decision' })]);
+      const { json } = run(project, { entry: '001', destination: 'clipboard', host, judgment: goodJudgment() });
+      assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+      assert.ok(json.prompt.includes('<tone>'));
+      assert.ok(json.prompt.includes('<output_format>'));
+      assert.ok(!json.prompt.includes(WORKFLOW_STAGE_SENTENCES[host]));
+    });
+  }
 });
 
 // Prior-work recall: a planned path only a handful of finished entries ever
@@ -1648,20 +1893,44 @@ describe('relevant_files symbol cap', () => {
   });
 });
 
-// [Foreman] `<context>` renders on the reinforced profile only. That is
-// deliberate, but it used to be silent: a crafting session could put a
+// [Foreman] In Claude Code `<context>` renders on the reinforced profile only.
+// That is deliberate, but it used to be silent: a crafting session could put a
 // load-bearing fact in `judgment.context` and never learn the standard
 // handoff shipped without it. Found by rendering a benchmark arm and diffing
 // it against the facts it was built from — the `fix location:` line was gone.
+// A Codex handoff treats context and invariants as task evidence and keeps
+// both on either profile.
 describe('judgment.context and the standard profile', () => {
   const dropped = (json) => (json.warnings || []).some((w) => w.includes('judgment.context was dropped'));
 
-  test('standard drops it and says so', () => {
+  test('standard drops it and says so (claude)', () => {
     writeRoadmap(project, [entryFields()]);
-    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
+    const { json } = run(project, { entry: '001', destination: 'clipboard', host: 'claude', judgment: goodJudgment() });
     assert.equal(json.profile, 'standard');
     assert.ok(!json.prompt.includes('<context>'), 'standard rendered <context> after all');
     assert.ok(dropped(json), `no drop warning: ${JSON.stringify(json.warnings)}`);
+  });
+
+  test('standard preserves observable invariants even if the project omits background (codex)', () => {
+    writeRoadmap(project, [entryFields()]);
+    writeConfig(project, { omitSections: ['background'] });
+    const invariants = ['An expired token returns HTTP 401.', 'A valid token preserves the session.'];
+    const { json } = run(project, { entry: '001', destination: 'task', host: 'codex', judgment: goodJudgment({ invariants }) });
+    assert.equal(json.profile, 'standard');
+    assert.equal(json.gate.ok, true);
+    assert.ok(!json.prompt.includes('<background>'));
+    const actual = json.prompt.match(/<invariants>\n([\s\S]*?)\n<\/invariants>/);
+    assert.ok(actual);
+    assert.deepEqual(actual[1].split('\n'), invariants);
+  });
+
+  test('standard retains supplied evidence and context without profile inflation (codex)', () => {
+    writeRoadmap(project, [entryFields()]);
+    const { json } = run(project, { entry: '001', destination: 'clipboard', host: 'codex', judgment: goodJudgment() });
+    assert.equal(json.profile, 'standard');
+    assert.ok(json.prompt.includes('<context>'));
+    assert.ok(json.prompt.includes(goodJudgment().context));
+    assert.ok(!dropped(json));
   });
 
   test('reinforced renders it and stays quiet', () => {
@@ -1746,15 +2015,22 @@ describe('the entry relays its own why and file surface', () => {
     assert.match(json.prompt, /Your goal is to fix the token refresh bug so all tests pass\.\n<\/task_context>/);
   });
 
-  test('the expected file surface is filled from planned_touches when the judgment names none', () => {
-    writeRoadmap(project, [entryFields({ planned_touches: ['src/auth/middleware.js', 'src/auth/'] })]);
-    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
-    assert.equal(json.ok, true, JSON.stringify(json));
-    assert.ok(
-      json.prompt.includes('Expected file surface: src/auth/middleware.js, src/auth/. Anything beyond this list gets flagged to the user before it is written, not after.'),
-      json.prompt
-    );
-  });
+  // The surface line is shared; the rule for work beyond it is each host's own.
+  const SURFACE_RULE = {
+    claude: 'Anything beyond this list gets flagged to the user before it is written, not after.',
+    codex: 'Flag a changed forecast before writing outside it; continue when the necessary work is already authorized.',
+  };
+  for (const host of ['claude', 'codex']) {
+    test(`the expected file surface is filled from planned_touches when the judgment names none (${host})`, () => {
+      writeRoadmap(project, [entryFields({ planned_touches: ['src/auth/middleware.js', 'src/auth/'] })]);
+      const { json } = run(project, { entry: '001', destination: 'clipboard', host, judgment: goodJudgment() });
+      assert.equal(json.ok, true, JSON.stringify(json));
+      assert.ok(
+        json.prompt.includes(`Expected file surface: src/auth/middleware.js, src/auth/. ${SURFACE_RULE[host]}`),
+        json.prompt
+      );
+    });
+  }
 
   test('a judgment expectedFileSurface still wins over planned_touches', () => {
     writeRoadmap(project, [entryFields()]);
@@ -1773,5 +2049,37 @@ describe('the entry relays its own why and file surface', () => {
       judgment: goodJudgment(),
     });
     assert.ok(json.prompt.includes('Expected file surface: src/auth/middleware.js.'), json.prompt);
+  });
+});
+
+// Reviewed increments are a Codex feature: a reviewed split titles each local
+// row by its result goal.
+describe('reviewed increment titles (codex)', () => {
+  test('explicit review uses each result goal as its local row title', () => {
+    writeRoadmap(project, [entryFields()]);
+    const rows = [
+      { goal: 'Open and close the form', files: ['src/auth/middleware.js'], run: 'npm test', expected: 'tests pass', review: { action: 'Open and close it', expected: 'Focus returns; no authentication yet' } },
+      { goal: 'Explain authentication limits', files: ['src/auth/middleware.js'], review: { action: 'Read the limits', expected: 'No unsupported promise' } },
+    ];
+    const result = assemble(project, { entry: '001', destination: 'task', host: 'codex', split: true, reviewEachIncrement: true, judgment: goodJudgment({ verification: rows }) });
+    assert.equal(result.ok, true, JSON.stringify(result.gate));
+    assert.deepEqual(result.tasks.map(row => row.subject), rows.map(row => row.goal));
+    assert.equal(result.tasks.length, 2, 'mixed checks do not generate another row');
+  });
+  test('an explicit subject wins and reviewed titles keep the existing 60-character limit', () => {
+    writeRoadmap(project, [entryFields()]);
+    const result = assemble(project, { entry: '001', destination: 'task', host: 'codex', split: true, reviewEachIncrement: true, judgment: goodJudgment({ verification: [
+      { goal: 'Open the form', subject: 'Inspect the form', review: { action: 'Inspect', expected: 'Correct form' } },
+      { goal: 'A'.repeat(90), review: { action: 'Read', expected: 'Correct text' } },
+    ] }) });
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.tasks.map(row => row.subject), ['Inspect the form', 'A'.repeat(60)]);
+  });
+  test('ordinary splits keep their existing title behavior despite goal metadata', () => {
+    writeRoadmap(project, [entryFields()]);
+    const request = { entry: '001', destination: 'task', host: 'codex', split: true, judgment: goodJudgment({ verification: [{ goal: 'A specific outcome', run: 'npm test', expected: 'tests pass' }] }) };
+    const ordinary = assemble(project, request);
+    assert.deepEqual(assemble(project, { ...request, reviewEachIncrement: false }), ordinary);
+    assert.equal(ordinary.tasks[0].subject, 'Fix token refresh bug — check 1/1');
   });
 });

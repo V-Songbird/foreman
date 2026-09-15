@@ -21,15 +21,18 @@ four attention and recovery ones, and both report `null` with
 `"no_trial_log"` when there is none.
 
 <!-- [Foreman: 208] -->
-**Half of it records today.** [`scripts/trial-log.js`](scripts/trial-log.js)
-is the writer, and every event a script or hook already sees is wired: it
-costs no skill instruction, because those calls were being made anyway. Not
-yet recorded are the events only the model can see — which menu row a user
-chose, and that a question was asked. Those are the `pick_accepted`,
-`pick_overridden`, `question_asked`, `init_started`, `init_completed`,
-`reinit-snapshot` and `failed-verification-retry` rows below, and they are
-marked ✗ in the tables. Until they are wired, `recommendation_acceptance`,
-`override_rate` and `questions_per_task` stay `null`.
+**Nearly all of it records today, on both hosts.**
+[`scripts/trial-log.js`](scripts/trial-log.js) is the writer. Every event a
+script or hook already sees is wired: it costs no skill instruction, because
+those calls were being made anyway. The skills write the events only the model
+can see — which menu row a user chose, and that a question was asked: the
+`pick_accepted`, `pick_overridden`, `question_asked`, `init_started`,
+`init_completed` and `reinit-snapshot` rows below. A question the session
+skipped is never logged. One kind is still not written,
+`failed-verification-retry`, which is why `recovery_attempted` is marked
+partly in the tables. Claude Code and Codex write the same events to the same
+log; where an event comes from a different place on each host, the text below
+names both.
 
 ## What a trial may record
 
@@ -75,8 +78,8 @@ resolution for a rate, and a timestamp is one more identifying signal), and
 | | `event` | Extra fields | Written when |
 | --- | --- | --- | --- |
 | ✓ | `menu_shown` | `candidates` (integer, rows offered), `hint` (boolean) | A candidate menu was put in front of the user |
-| ✗ | `pick_accepted` | `rank` (integer, 1-based position of the recommended row) | The user took the row Foreman recommended |
-| ✗ | `pick_overridden` | `chosen_rank` (integer, or `null` for an off-menu answer) | The user took a different row, or described something else |
+| ✓ | `pick_accepted` | `rank` (integer, 1-based position of the recommended row) | The user took the row Foreman recommended |
+| ✓ | `pick_overridden` | `chosen_rank` (integer, or `null` for an off-menu answer) | The user took a different row, or described something else |
 | ✓ | `hint_used` | `hit` (boolean) | A pick hint was passed to the ranker |
 
 ```jsonl
@@ -98,16 +101,16 @@ assuming it away.
 | | `event` | Extra fields | Written when |
 | --- | --- | --- | --- |
 | ✓ | `session_start` | — | A main session started on a project that has a roadmap |
-| ✗ | `init_started` | — | `/foreman:init` began its first question |
-| ✗ | `init_completed` | `tasks` (integer, entries written) | `/foreman:init`'s write phase finished and committed |
+| ✓ | `init_started` | — | The init skill asked its first question, or began writing without one |
+| ✓ | `init_completed` | `tasks` (integer, entries written) | The init skill's write phase finished and committed |
 | ✓ | `first_pick` | `seconds_since_init` (integer, or `null`), `sessions_since_init` (integer, or `null`) | The first handoff of this project was delivered |
-| ✗ | `question_asked` | `flow` (one of `init`, `pick`, `add`, `correct`, `status`, `survey`) | One `AskUserQuestion` call was put to the user |
-| ✓ | `commit_interrupted` | `hook` (one of `safe-commit`, `post-commit`, `task-completed`), `reason_class` (see below) | A Foreman commit path stopped and handed the decision back |
+| ✓ | `question_asked` | `flow` (one of `init`, `pick`, `add`, `correct`, `status`, `survey`) | One question interaction was put to the user: an `AskUserQuestion` call in Claude Code, a question-tool call or a plain-text question in Codex |
+| ✓ | `commit_interrupted` | `hook` (one of `safe-commit`, `post-commit`, `task-completed`; only Claude Code writes `task-completed`), `reason_class` (see below) | A Foreman commit path stopped and handed the decision back |
 | partly | `recovery_attempted` | `kind` (one of `reinit-snapshot`, `resume-in-progress`, `failed-verification-retry`), `success` (boolean) | A recovery path ran to a definite outcome |
 
-`recovery_attempted` records `resume-in-progress` today, both halves.
-`reinit-snapshot` and `failed-verification-retry` both sit inside a skill flow
-and are not written yet.
+`recovery_attempted` records `resume-in-progress` today, both halves, and
+`reinit-snapshot` from the init skill. `failed-verification-retry` sits inside
+the destination session's fix loop and is not written yet.
 
 <!-- [Foreman: 208] -->
 `first_pick`'s `seconds_since_init` is always `null` as recorded today, and
@@ -138,7 +141,8 @@ separately. Both are `null` on a project whose init predates the trial.
 returns — `dirty_tree` (its `begin` reporting `dirty: true`),
 `head_moved_since_baseline`, `no_task_changes`, `unexpected_files`,
 `staging_incomplete`, `staging_failed`, `post_commit_attestation_failed` —
-plus `verification_declined` for the `requireVerification` hold. Names only:
+plus `verification_declined` for the `requireVerification` hold (written by
+Claude Code's `hooks/task-completed.js`; Codex's stop reminder records none). Names only:
 never the count of dirty files, never which files were unexpected.
 
 <!-- [Foreman: 283] -->
@@ -214,20 +218,23 @@ nothing else:
   `sessions_since_init`, so it cannot depend on whether there happened to be an
   open entry to mention.
 - **`init_started`** — `skills/init/SKILL.md`, at the first question actually
-  put to the user: the Pre-check's Q1 on a project that already has a roadmap,
-  Call 1's Q1 otherwise. A Pre-check `Cancel` therefore leaves an
+  put to the user (the Pre-check's Q1 on a project that already has a roadmap,
+  Call 1's Q1 otherwise), or as the write phase starts when no question is
+  asked. A Pre-check `Cancel` therefore leaves an
   `init_started` with no `init_completed`, which is the correct record of an
   abandoned setup.
 - **`init_completed`** — the same file's Write phase, after the `add` loop and
-  the commit of both files. `tasks` is how many `add` calls succeeded, not how
-  many were drafted.
-- **`first_pick`** — recorded today by `scripts/craft-handoff.js:685`, after the
+  the commit of the files init wrote. `tasks` is how many `add` calls
+  succeeded, not how many were drafted.
+- **`first_pick`** — recorded today by `scripts/craft-handoff.js`, after the
   in-process `check-prompt.js` gate passes and only when the log holds no
   earlier `first_pick`. A pick that never survived the gate is not a first
   useful task.
-- **`question_asked`** — every `AskUserQuestion` call in `skills/`, one event
-  per call, `flow` naming the branch it sits in and never the question:
-  `init` for all three of `skills/init/SKILL.md`'s calls, `pick` / `add` /
+- **`question_asked`** — every question interaction in `skills/`: one
+  `AskUserQuestion` call in Claude Code, one question-tool call or one
+  plain-text question in Codex. One event per interaction, `flow` naming the
+  branch it sits in and never the question:
+  `init` for every question `skills/init/SKILL.md` asks, `pick` / `add` /
   `correct` / `status` for `skills/roadmap/pick.md`, `add.md`, `correct.md` and
   `status.md` (Call 1's menu and the archive-finished-work ask stay in
   `SKILL.md` and belong to the branch the user ends up in), and `survey`. The
@@ -238,9 +245,9 @@ nothing else:
 - **`commit_interrupted`** — every `ok:false` return from
   `scripts/safe-commit.js` (`begin` reporting `dirty: true`, and `finish`'s
   `head_moved_since_baseline` / `no_task_changes` / `unexpected_files` /
-  `staging_incomplete`), recorded by the caller that receives it, plus
-  `hooks/task-completed.js` when `requireVerification` holds a close
-  (`verification_declined`). `hook` names the surface, `reason_class` copies
+  `staging_incomplete`), recorded by the caller that receives it, plus, in
+  Claude Code, `hooks/task-completed.js` when `requireVerification` holds a
+  close (`verification_declined`). `hook` names the surface, `reason_class` copies
   the refusal name verbatim and nothing else from the result.
 - **`recovery_attempted`, `reinit-snapshot`** — `skills/init/SKILL.md`, Write
   phase step 1's four-option question after a failed snapshot. `success: true`
@@ -254,7 +261,8 @@ nothing else:
   has not come back yet.
   `awaiting_acceptance` is excluded even though it is an open status and
   always carries commits: that work *has* come back and is waiting on the
-  user. `success: true` from `hooks/task-completed.js` when such work closes.
+  user. `success: true` when such work closes: from `hooks/task-completed.js`
+  in Claude Code, and from `hooks/codex-task.js check` in Codex.
   A resume that takes three days is therefore three failures and one success:
   the rate is a per-day view of recovery, not a per-run one, and `attempts` is
   reported beside it so that stays visible.
@@ -269,7 +277,7 @@ nothing else:
   failure is what stops one old interruption from turning every later close on
   the project — including tasks that ran start to finish — into a recorded
   recovery.
-- **`recovery_attempted`, `failed-verification-retry`** — the destination
+- **`recovery_attempted`, `failed-verification-retry`** — not written yet. It belongs to the destination
   session, at the bounded fix loop `prompt-template.md`'s verification block
   fixes ("after two failed fix attempts, stop and report"): `success: true`
   when a retry made the command pass, `false` when the ceiling was reached.
@@ -319,10 +327,10 @@ the same log:
   `sessions_since_init` reported separately for the picks that crossed a
   session boundary. Two shapes of the same question, never averaged together.
 - **`questions_per_task`** — `question_asked` over the number of tasks taken,
-  broken down `by_flow`. The denominator is 142's own decision count,
-  `pick_accepted + pick_overridden`, and the output names it: nothing in the
+  broken down `by_flow`. The denominator is the recommendation metrics' own
+  decision count, `pick_accepted + pick_overridden`, and the output names it: nothing in the
   log marks a task *finished*, so this is questions per task **taken**, which
-  is a slightly optimistic reading of PRODUCT-STRATEGY.md's "questions per
+  is a slightly optimistic reading of [PRODUCT-STRATEGY.md][strategy]'s "questions per
   completed task" and is labeled rather than silently substituted.
 - **`commit_interruptions`** — `commit_interrupted` over the same denominator,
   broken down `by_reason` and `by_hook`. A `dirty_tree` refusal and an
@@ -331,7 +339,7 @@ the same log:
   context.
 - **`recovery_success`** — `recovery_attempted` with `success: true` over all
   of them, with `by_kind` giving reinitialization, resume, and failed
-  verification their own attempt/success pairs. PRODUCT-STRATEGY.md asks about
+  verification their own attempt/success pairs. [PRODUCT-STRATEGY.md][strategy] asks about
   those three separately and the aggregate hides which one is failing.
 
 The three derivable metrics in the same report — task-to-commit accuracy,
@@ -352,7 +360,7 @@ rather than in place of one.
   is whether a recommendation survives a roadmap that has been lived in, which
   is exactly what a synthetic backlog cannot show.
 - **Duration.** 30 days minimum, because that is the window everything else
-  here is measured in — the staleness threshold, and PRODUCT-STRATEGY.md's
+  here is measured in — the staleness threshold, and [PRODUCT-STRATEGY.md][strategy]'s
   "stale-entry rate after 30 and 90 days". A trial shorter than one staleness
   window cannot see the failure mode it is looking for. 90 days for the
   second reading.
@@ -363,7 +371,7 @@ rather than in place of one.
   ageing, not the sorter changing. Read the 30-day and 90-day numbers against
   each other. A second arm — the same roadmap picked from by hand — is a
   possible extension, and is not required for the first reading.
-- **Success.** PRODUCT-STRATEGY.md sets no numeric threshold and this document
+- **Success.** [PRODUCT-STRATEGY.md][strategy] sets no numeric threshold and this document
   does not invent one. It states the decision the numbers feed:
 
   > Do not add estimates, deadlines, categories, or numeric priorities without
@@ -378,7 +386,7 @@ rather than in place of one.
   the roadmap ages is the case for the `focus` marker, tested on its own before
   any priority field.
 - **Publication.** If a number from a trial ever supports a public claim, it
-  carries what PRODUCT-STRATEGY.md's reproducibility section requires:
+  carries what [PRODUCT-STRATEGY.md][strategy]'s reproducibility section requires:
   configuration, duration, repetition count, aggregate and per-period results,
   and the claim's limitations. Raw logs stay private; they are the user's.
 
@@ -402,7 +410,7 @@ single project can supply:
   never fails a verification produces none, and that is a good outcome rather
   than a failed trial. Report `attempts` and `by_kind` raw at any count, and a
   rate only above 10 attempts of a single kind.
-- **Success.** PRODUCT-STRATEGY.md again sets no numeric threshold, and this
+- **Success.** [PRODUCT-STRATEGY.md][strategy] again sets no numeric threshold, and this
   document again does not invent one. The decisions the numbers feed are
   already written down. The open question these answer is whether "users accept
   the setup and commit-time attention costs" — so a `commit_interruptions`
@@ -418,3 +426,5 @@ single project can supply:
   an optional reinforced handoff, not indiscriminate prompt reduction". The
   ratio measures whether the standard profile actually delivers that; where the
   crossover sits is a benchmark-harness question, not a trial one.
+
+[strategy]: https://github.com/V-Songbird/foundry/blob/main/docs/foreman/research/PRODUCT-STRATEGY.md

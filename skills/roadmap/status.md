@@ -20,24 +20,27 @@ have to learn it:
 
 In that order, with **Waiting on you** first — those are the only rows that
 need the user to act. Under **Not started**, note which are blocked and on
-what, derivable from `depends_on` plus the other entries' statuses. When a
-blocker resolves to an entry that was dropped or turned down — or to an id
-no entry has — say so explicitly rather than calling it plain
-"blocked": it will not reappear in the pick list until that dependency is
-moved back with `update-status`, or its edge is removed with
-`update-deps`'s `remove_depends_on`. Finished work that has been archived
-is not in this render at all — `list --archived --summary` returns it in
-the same shape when the user asks for the history. If any parked entries
-exist, fetch just those in full for the "waiting on what" word —
+what, derivable from `depends_on` plus the other entries' statuses. A blocker
+id missing from the active list may be archived: resolve those ids with one
+`list --archived --ids <ids>` before calling any of them missing — an archived
+`done` dependency is satisfied. When a blocker resolves to an entry that was
+dropped or turned down — or to an id no entry has, active or archived — say so
+explicitly rather than calling it plain "blocked": it will not reappear in the
+pick list until that dependency is moved back with `update-status`, or its edge
+is removed with `update-deps`'s `remove_depends_on`. Finished work that has
+been archived is not in this render at all — `list --archived --summary`
+returns it in the same shape when the user asks for the history. If any parked
+entries exist, fetch just those in full for the "waiting on what" word —
 `list --ids <their ids>` — drawn from their `why`/`notes`.
 
 Close with one line on who did the work. Run `node
 ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --stats` — counts of the
 model and reasoning effort each finished entry self-reported at close, plus
-how many recorded nothing. Write it as one sentence in everyday words, the
-models named plainly and the blanks stated: "Finished work ran on Opus 40,
-Fable 10, Sonnet 7 — 177 entries did not say." Both fields are optional and
-honest about it, so a large blank count is a fact to report, never a
-problem to flag. Skip the line entirely when `closed` is `0` — a roadmap
+how many recorded nothing. Write it as one sentence in everyday words, each
+model named as it was recorded (a Claude family label or an exact model id)
+and the blanks stated: "Finished work ran on Opus 40, Fable 10, Sonnet 7 — 177
+entries did not say." Never guess which model ran an entry. Both fields are
+optional and honest about it, so a large blank count is a fact to report, never
+a problem to flag. Skip the line entirely when `closed` is `0` — a roadmap
 with nothing finished has nothing to say here. No writes, no further
 questions.

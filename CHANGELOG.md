@@ -2,10 +2,102 @@
 
 All notable changes to Foreman are documented here. Foreman was named
 Relay through 0.4.8-alpha — the 0.5.0-alpha entry below records the
-rename, and older entries keep the name they shipped under. Looking for a
-version number? It lives in the
-[foundry marketplace](https://github.com/V-Songbird/foundry) listing —
-that's why `plugin.json` here carries none.
+rename, and older entries keep the name they shipped under.
+
+From 3.1.0, Foreman is one package for Claude Code and Codex with one version
+number. Before that the two hosts had separate release lines, both kept below:
+2.6.1 to 2.7.0 for Claude Code, and 3.0.1-codex.1 to 3.0.4-codex.1 for Codex.
+Looking for a version number? It is written in both plugin manifests,
+`.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`, which always
+carry the same one. The [foundry marketplace](https://github.com/V-Songbird/foundry)
+listings pin a release commit and carry no version of their own. Claude Code
+releases up to 2.7.0 kept their number in the foundry marketplace listing
+instead.
+
+## 3.1.0 — Unreleased
+
+Foreman is now one plugin for Claude Code and Codex. Both install the same
+package from the foundry marketplace, share one version, and read and write the
+same roadmap files. The skills are one text for both assistants; a step that
+only applies to one of them says so.
+
+### Claude Code
+
+- An explicit request to add, correct, defer, archive or restore named work is
+  carried out without a second confirmation, and so are repairs you explicitly
+  asked `doctor` or `survey` to apply. Foreman still asks when it proposed the
+  change itself or the request leaves something open.
+- The "How do you want to run this?" question is skipped when you already said
+  how to run the work. "Execute here, split by check" is recommended only when
+  each later check carries its own part of the work.
+- A handoff that asks a question is now an investigation: it asks for
+  findings with evidence, its plan and roadmap close no longer stage or commit
+  anything, and it no longer tells the session to keep fixing until a check
+  passes.
+- `init` creates tasks you spelled out without the draft-approval question,
+  follows an explicit "add to it" or "start fresh" without asking, and treats
+  a roadmap that is already committed unchanged as its snapshot.
+- Picking skips the task question when you already named the task, and the
+  roadmap skill runs setup directly when your request already asks for it.
+- Work a handoff adds at your mid-session request is logged as your own entry
+  and waits for your acceptance when `requireVerification` is on.
+- The prompt builder now refuses `testFirst` on an investigation, on a
+  decision, and without a runnable check.
+- A decision task's failing checks no longer authorize implementation changes;
+  the deliverable stays the decision.
+- The background option is now labeled "Execute with a background agent".
+- `init` records goals it drafted from the repository as `claude-suggested`
+  instead of as your own, and commits only the files it wrote, never other
+  staged changes.
+- "Log it" on a commit suggestion now waits for your acceptance when
+  `requireVerification` is on.
+- When a clipboard copy fails, Foreman gives the prompt file's path before it
+  falls back to printing the prompt.
+- Review status looks up archived dependencies before calling one missing.
+- With `trialLog` on, `question_asked` counts every question a flow shows you,
+  not only the task menu.
+- `FOREMAN_PROJECT_DIR` now selects the project for Foreman's scripts and
+  hooks, ahead of `CLAUDE_PROJECT_DIR`; scripts also honor `CODEX_CWD` between
+  the two.
+- Two roadmap writes at the same moment no longer fail when one of them removes
+  the shared lock folder while the other is claiming it.
+- Reviewed increments, with your approval after each result, stay available in
+  Codex only.
+
+### Codex
+
+- Hooks now load from `hooks/codex-hooks.json`, named by the Codex manifest.
+  If you already use Foreman in Codex, review and trust its hooks again with
+  `/hooks` after updating.
+- On Windows, hooks look for Node.js and fnm with `where.exe`, so a cold
+  PowerShell module cache no longer slows every hook launch.
+- A split run decides whether to make checkpoint commits from
+  `safe-commit.js begin`, so Foreman's own roadmap bookkeeping no longer turns
+  them off. The closing question (squash merge, merge, open a PR or keep the
+  branch) recommends a squash merge and is saved to `checkpoints.onFinish`
+  once answered.
+- Warnings from the prompt builder are shown to you verbatim, and unexpected
+  files at a checkpoint wait for your approval.
+- Adding a task that matches an existing one asks whether to add it anyway. A
+  correction refused because the entry changed meanwhile is shown again against
+  the newer text before anything is written.
+- `survey` records every finding it could not confirm as an unconfirmed note,
+  names requested entries it skipped, and reports dependency relations it
+  cannot pin to a line as unconfirmed.
+- `craft-prompt` asks its fixed interview questions, grouped, skipping only
+  what your request already answered.
+- A background agent you chose is dispatched even when the coordinator has
+  nothing else to do alongside it.
+
+### Both hosts
+
+- A clipboard prompt for a roadmap entry decides its checkpoint commits from
+  `safe-commit.js begin`, so opening the entry no longer turns them off.
+- Script paths in hook messages are quoted, so their commands also run when
+  the plugin is installed under a path that contains spaces.
+- One set of hook scripts serves both hosts: the roadmap guard and file recall
+  understand Codex `apply_patch` calls, including rename destinations, next to
+  Claude Code's `Edit` and `Write`.
 
 ## 2.7.0 — 2026-09-15
 
@@ -29,6 +121,49 @@ like this edition's own:
 With `trialLog` on, a pick now records each menu once. The
 `next-candidates --menu` call already records the menu and its hint, and the
 pick flow no longer writes a second copy of either.
+
+## 3.0.4-codex.1 — 2026-09-09
+
+Restore the original product hero and recorded Claude demo with clear provenance. Use white light-theme banners. Codex cards now display the symbol without lettering.
+
+### The Codex port in this release
+
+The Codex branch listed these changes under an `[Unreleased]` heading, but they
+were already part of the 3.0.4-codex.1 release.
+
+#### Added
+
+- Codex-only, explicitly requested review between meaningful increments, with automatic, human-only and mixed verification rows; every row in a reviewed run requires human review. Existing splits retain their default behavior.
+- Presentation and wait protocol, brief decision notes, and assisted recovery against current work. A missing human channel leaves review pending; explicit review waivers are omissions, never acceptances. Intermediate decisions remain separate from final task acceptance.
+- Source-worktree evaluation instructions and a complete handoff payload example, without installation, publication, a new setting or an increment store. Format-compatible older clients do not necessarily follow this protocol.
+- Codex plugin manifest, five Codex-adapted skills and native command hooks.
+- Explicit task start/check bridge and scoped optional Stop gate where Codex has no task-created/completed events.
+- Codex model identifier/effort recording and project-root selection, retaining legacy data.
+- Windows and Linux CI, Codex payload regressions and compatibility documentation.
+
+#### Changed
+
+- Concurrent roadmap lock publication retries container-removal races within the existing deadline; non-ENOENT errors and the default timeout remain unchanged.
+- Handoffs complement active Codex instructions and AGENTS.md, preserve investigation intent, distinguish suggested approaches and file forecasts from hard constraints, and calibrate verification to the change. Official prompting sources and limits are documented in CODEX-PROMPTING.md.
+- Handoff prompts use Codex capabilities, verified installed script paths, native delegation, and shell-appropriate JSON delivery while preserving profiles, grounding, evidence and acceptance.
+- Direct patch guarding understands Codex apply_patch, including rename destinations.
+- Clear user authorization carries forward; ambiguous scope and final acceptance retain user decisions.
+- Codex context capacity stays unknown when the host supplies no reliable measurement.
+
+## 3.0.3-codex.1 — 2026-09-09
+
+New Tinta y oficio banners adapt to light and dark GitHub themes. Plugin icons and logos now use the same identity in Codex.
+
+## 3.0.2-codex.1 — 2026-09-09
+
+Windows hooks now resolve Node from PATH or a configured fnm installation instead
+of requiring a machine-specific executable path. Hook logic is unchanged.
+
+## 3.0.1-codex.1 — 2026-09-09
+
+Product guides and decisions now accompany the Codex edition. Research and
+benchmark evidence live in Foundry, with updated links and coordinated edition
+pages. Plugin behavior is unchanged by this maintenance release.
 
 ## 2.6.3 — 2026-09-09
 

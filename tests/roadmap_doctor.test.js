@@ -14,6 +14,9 @@
 //     error, while still allowing mutations on a file that was already broken
 //   - a fixture modeled on the production roadmap's shapes validates with
 //     zero errors
+//   - the info disclosure every run carries names exactly the events each
+//     host's registration file registers (hooks/hooks.json for Claude Code,
+//     hooks/codex-hooks.json for Codex)
 
 const { test, describe, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
@@ -135,6 +138,22 @@ describe('doctor on a healthy roadmap', () => {
     assert.equal(json.ok, false);
     assert.equal(json.error, undefined);
     assert.equal(json.summary.errors, 1);
+  });
+
+  // Each host registers its own events, and a host that stops delivering one
+  // leaves Foreman quiet rather than failing, so the disclosure must name
+  // exactly what each registration file carries.
+  test('the info disclosure names the events each host registers', () => {
+    writeRoadmap(project, [base('001')]);
+    const { message } = assertFinding(doctor(), 'hook_dependencies', 'info');
+    for (const [host, file] of [['Claude Code', 'hooks.json'], ['Codex', 'codex-hooks.json']]) {
+      const registered = Object.keys(
+        JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', file), 'utf-8')).hooks
+      );
+      assert.ok(registered.length, `${file} registers no events`);
+      const named = (message.split(`${host}: `)[1] || '').split(/[;.]/)[0].split(', ');
+      assert.deepEqual(named.sort(), registered.sort(), message);
+    }
   });
 });
 

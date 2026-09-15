@@ -2,10 +2,10 @@
 "use strict";
 
 // [Foreman: 062] Standalone CLI contract: this file is plain Node and must
-// stay runnable with no harness present. CLAUDE_PROJECT_DIR is optional and
-// falls back to cwd; no other harness dependency is permitted here. Pinned by
-// tests/standalone.test.js, which spawns it with every CLAUDE_* variable
-// deleted.
+// stay runnable with no harness present. The project root comes from
+// runtime.projectDir and falls back to cwd; the host whose template variants
+// apply comes from --host, or runtime.detectHost when none is given. Pinned by
+// tests/standalone.test.js, which spawns it with every host variable deleted.
 
 // Mechanical gate for an assembled handoff prompt — the checklist items a
 // script can actually verify, verified by a script instead of prose trust.
@@ -15,6 +15,7 @@
 const fs = require("fs");
 const path = require("path");
 const { render, projectDir } = require("./render-sections.js");
+const { HOSTS, detectHost } = require("./runtime.js");
 
 const TEMPLATE_PATH = path.join(__dirname, "..", "prompt-template.md");
 
@@ -26,6 +27,7 @@ const TEMPLATE_PATH = path.join(__dirname, "..", "prompt-template.md");
 // [Foreman: 106]
 const PLACEHOLDER_FRAGMENTS = [
   "[If step 0's",
+  "[If the configuration",
   "[specific role",
   "[one sentence",
   "[One more sentence when the purpose is known",
@@ -54,9 +56,10 @@ const PLACEHOLDER_FRAGMENTS = [
 ];
 
 // Instructions asking the destination to echo its internal reasoning as
-// response text — the official Fable prompting guide (template source-d)
-// says these can trigger reasoning_extraction refusals on Fable-class
-// models. Warning, not error: other targets tolerate them.
+// response text. The official Fable prompting guide (template source-d) says
+// these can trigger reasoning_extraction refusals on Fable-class models, and
+// Codex's guidance asks for outcomes and concise rationale instead. Warning,
+// not error: other targets tolerate them.
 const REASONING_ECHO_RE =
   /\b(?:show|explain|reproduce|transcribe|echo)\b[^.\n]{0,60}\b(?:your|its)\s+(?:reasoning|thought process|chain of thought|internal thinking)\b|\bthink(?:ing)? out loud\b/i;
 
@@ -65,12 +68,27 @@ const REASONING_ECHO_RE =
 const ASSUMED_CONTEXT_RE =
   /\bas (we|you and i) discussed\b|\bas discussed (earlier|above)\b|\bper our conversation\b|\bfrom (our|the) (earlier|previous) (conversation|discussion)\b|\bas mentioned (earlier|above)\b/i;
 
-const WORKFLOW_STAGE_SENTENCE =
-  "Your return value is enforced by the attached schema; your final text is the return value, not a human-facing message.";
+// [Foreman: 204] The fixed sentence a Workflow-stage prompt carries where
+// <output_format> would go. Claude Code's Workflow tool enforces the attached
+// schema at the tool layer; a Codex task or subagent enforces none, so its
+// sentence asks the destination to validate instead.
+const WORKFLOW_STAGE_SENTENCES = {
+  claude:
+    "Your return value is enforced by the attached schema; your final text is the return value, not a human-facing message.",
+  codex:
+    "Return only JSON matching the accompanying schema. Use tool-enforced structured output when available; otherwise validate the result against that schema before returning it.",
+};
 
-// Sentinel for the official autonomous-operation reminder a background-
-// Agent destination must carry (the agent harness doesn't inject it).
+// Sentinel for the autonomous-operation paragraph a background destination
+// must carry: Claude Code's official reminder (the agent harness doesn't
+// inject it), and Codex's delegated-subtask handback contract.
 const AUTONOMY_SENTENCE = "You are operating autonomously.";
+
+// How each host's closing paragraph starts; the gate names it in its error.
+const CLOSING_PREFIX = {
+  claude: "Reason through the approach",
+  codex: "Complete the requested outcome",
+};
 
 // [Foreman: 103]
 // Two fixed guardrails that live outside <truth_grounding>, so the verbatim
@@ -122,10 +140,11 @@ function detectProfile(prompt) {
 
 // [Foreman: 107]
 // A plugins-cache path carrying a version segment — what ${CLAUDE_PLUGIN_ROOT}
-// resolves to. A skill's markdown reaches the crafting session already
-// substituted, so the expanded path is what a crafter copies by default; baked
-// into a prompt it version-pins every bookkeeping command and the prompt stops
-// running at the next version bump.
+// resolves to. A skill's markdown reaches a Claude Code crafting session
+// already substituted, so the expanded path is what a crafter copies by
+// default; baked into a prompt it version-pins every bookkeeping command and
+// the prompt stops running at the next version bump. Codex never substitutes
+// the variable, so its prompts carry quoted installed paths instead.
 const PLUGIN_CACHE_PATH_RE =
   /plugins[\\/]cache[\\/][\w.@-]+[\\/][\w.@-]+[\\/]\d+\.\d+\.\d+[\w.-]*/;
 
@@ -138,27 +157,62 @@ function extractBlock(text, tag) {
   return m ? m[1] : null;
 }
 
-// Canonical fixed blocks, parsed out of the template's ```xml fence.
-function readCanonical() {
-  const raw = fs.readFileSync(TEMPLATE_PATH, "utf-8");
+// A host variant in the template: `<tag host="claude">…</tag>`. The attribute
+// exists only there — an assembled prompt carries the plain tag — so a
+// backticked mention of the plain tag in the template's prose never matches.
+function extractHostBlock(text, tag, host) {
+  const m = text.match(new RegExp(`<${tag} host="${host}">([\\s\\S]*?)</${tag}>`));
+  return m ? m[1] : null;
+}
+
+// The host a prompt is for: an explicit value must name a known host, and no
+// value means the host this process runs in.
+function resolveHost(host) {
+  if (host === undefined || host === null || host === "") return detectHost();
+  if (!HOSTS.has(host)) throw new Error(`host must be one of ${[...HOSTS].join("|")}`);
+  return host;
+}
+
+// Canonical fixed blocks for one host, parsed out of the template's ```xml
+// fence.
+function readCanonical(host) {
+  const target = resolveHost(host);
+  // A checkout with core.autocrlf on turns the template's line endings into
+  // CRLF; every block below is matched on LF, so normalize before parsing.
+  const raw = fs.readFileSync(TEMPLATE_PATH, "utf-8").replace(/\r\n/g, "\n");
   const fence = raw.match(/```xml\n([\s\S]*?)```/);
   if (!fence) throw new Error(`no \`\`\`xml fence found in ${TEMPLATE_PATH}`);
   const xml = fence[1];
-  const truthGrounding = extractBlock(xml, "truth_grounding");
-  const scopeDiscipline = extractBlock(xml, "scope_discipline");
+  const codexRuntime = target === "codex" ? extractHostBlock(xml, "codex_runtime", "codex") : null;
+  const truthGrounding = extractHostBlock(xml, "truth_grounding", target);
+  const scopeDiscipline = extractHostBlock(xml, "scope_discipline", target);
   // [Foreman: 104]
-  const plan = extractBlock(xml, "plan");
-  const closing = xml
-    .split("\n")
-    .find((line) => line.startsWith("Reason through the approach"));
-  if (!truthGrounding || !scopeDiscipline || !plan || !closing) {
-    throw new Error(`template at ${TEMPLATE_PATH} is missing a canonical block`);
+  const plan = extractHostBlock(xml, "plan", target);
+  // Claude's ordered plan says "make the change"; a question handoff carries
+  // its investigation variant instead. Codex's plan already covers both.
+  const investigationMatch = target === "claude"
+    ? xml.match(/<plan host="claude" intent="investigation">([\s\S]*?)<\/plan>/)
+    : null;
+  const investigationPlan = investigationMatch ? investigationMatch[1] : null;
+  const closingBlock = extractHostBlock(xml, "closing", target);
+  const closing = closingBlock === null ? null : closingBlock.trim();
+  if (
+    (target === "codex" && !codexRuntime) ||
+    (target === "claude" && !investigationPlan) ||
+    !truthGrounding ||
+    !scopeDiscipline ||
+    !plan ||
+    !closing ||
+    !closing.startsWith(CLOSING_PREFIX[target])
+  ) {
+    throw new Error(`template at ${TEMPLATE_PATH} is missing a canonical ${target} block`);
   }
-  return { xml, truthGrounding, scopeDiscipline, plan, closing };
+  return { host: target, xml, codexRuntime, truthGrounding, scopeDiscipline, plan, investigationPlan, closing };
 }
 
-// scope_discipline embeds ${CLAUDE_PLUGIN_ROOT} paths the assembler
-// substitutes — compare the literal segments around them, in order.
+// Claude Code's scope_discipline embeds ${CLAUDE_PLUGIN_ROOT} paths the
+// assembler carries literally — compare the literal segments around them, in
+// order. Codex's variant names no path, so it compares as one segment.
 function segmentsInOrder(canonical, actual) {
   const segments = canonical.split("${CLAUDE_PLUGIN_ROOT}").map(norm).filter(Boolean);
   const hay = norm(actual);
@@ -185,9 +239,17 @@ function problem(error, fix, example) {
 }
 
 function checkPrompt(prompt, opts) {
+  const host = resolveHost(opts.host);
+  const codex = host === "codex";
+  // What each host calls the destination that runs without a user present.
+  const agentName = codex ? "delegated subagent" : "background Agent";
+  // Recovery notes are quoted evidence, not executable prompt instructions.
+  // They must neither satisfy required blocks nor trigger placeholder checks.
+  prompt = prompt.replace(/<recorded_increment_notes>\n[\s\S]*?\n<\/recorded_increment_notes>/g,
+    "<recorded_increment_notes>\n</recorded_increment_notes>");
   const errors = [];
   const warnings = [];
-  const canonical = readCanonical();
+  const canonical = readCanonical(host);
   const config = render(opts.root || projectDir());
   const omit = new Set(config.omit);
   // [Foreman: 138] Reinforced requires every fixed block; standard requires
@@ -197,6 +259,16 @@ function checkPrompt(prompt, opts) {
   const reinforced = profile !== "standard";
 
   // --- guardrail blocks, verbatim ---
+  if (codex) {
+    const runtime = extractBlock(prompt, "codex_runtime");
+    if (!runtime) {
+      // Older saved artifacts can still be inspected; the assembler always
+      // supplies this block for newly crafted Codex handoffs.
+      warnings.push("legacy handoff has no <codex_runtime> contract — re-craft it to inherit the current Codex mode, instructions, and tools explicitly");
+    } else if (norm(runtime) !== norm(canonical.codexRuntime)) {
+      errors.push(problem("<codex_runtime> differs from the template", "Restore the current Codex runtime contract from prompt-template.md.", null));
+    }
+  }
   const truth = extractBlock(prompt, "truth_grounding");
   if (!truth) {
     if (reinforced) errors.push(problem("missing <truth_grounding> — every reinforced handoff carries it, unmodified", "Copy prompt-template.md's <truth_grounding> block in unchanged.", null));
@@ -210,10 +282,12 @@ function checkPrompt(prompt, opts) {
   if (!scope) {
     if (reinforced) errors.push(problem("missing <scope_discipline> — every reinforced handoff carries it, unmodified", "Copy prompt-template.md's <scope_discipline> block in unchanged.", null));
   } else if (!segmentsInOrder(canonical.scopeDiscipline, scope)) {
-    errors.push(problem("<scope_discipline> differs from the template — it must be carried verbatim (only the ${CLAUDE_PLUGIN_ROOT} paths are substituted)", "Restore prompt-template.md's <scope_discipline> and change nothing but the ${CLAUDE_PLUGIN_ROOT} paths.", null));
+    errors.push(codex
+      ? problem("<scope_discipline> differs from the template — it must be carried verbatim", "Restore prompt-template.md's <scope_discipline> without rewording.", null)
+      : problem("<scope_discipline> differs from the template — it must be carried verbatim (only the ${CLAUDE_PLUGIN_ROOT} paths are substituted)", "Restore prompt-template.md's <scope_discipline> and change nothing but the ${CLAUDE_PLUGIN_ROOT} paths.", null));
   }
   if (reinforced && !segmentsInOrder(canonical.closing, prompt)) {
-    errors.push(problem("the fixed closing paragraph (\"Reason through the approach…\") is missing or altered", "Append the template's fixed closing paragraph, unaltered, as the last thing in the prompt.", null));
+    errors.push(problem(`the fixed closing paragraph ("${CLOSING_PREFIX[host]}…") is missing or altered`, "Append the template's fixed closing paragraph, unaltered, as the last thing in the prompt.", null));
   }
   // [Foreman: 138] The one guardrail neither profile may drop.
   if (!norm(prompt).includes(norm(CLOSURE_EVIDENCE_SENTENCE))) {
@@ -223,13 +297,22 @@ function checkPrompt(prompt, opts) {
   const plan = extractBlock(prompt, "plan");
   if (!plan) {
     if (reinforced) errors.push(problem("missing <plan> — every reinforced handoff carries it, unmodified", "Copy prompt-template.md's <plan> block in unchanged.", null));
-  } else if (norm(plan) !== norm(canonical.plan)) {
-    errors.push(problem("<plan> differs from the template — it must be carried verbatim", "Restore prompt-template.md's <plan> verbatim.", null));
+  } else if (
+    norm(plan) !== norm(canonical.plan) &&
+    !(opts.research && canonical.investigationPlan && norm(plan) === norm(canonical.investigationPlan))
+  ) {
+    errors.push(problem("<plan> differs from the template — it must be carried verbatim", "Restore prompt-template.md's <plan> verbatim (its investigation variant only for a --research handoff).", null));
   }
   // [Foreman: 107]
-  const pinned = prompt.match(PLUGIN_CACHE_PATH_RE);
-  if (pinned) {
-    errors.push(problem(`resolved plugin path in the prompt body ("${pinned[0]}") — write \${CLAUDE_PLUGIN_ROOT} instead, or every bookkeeping command dies at the next version bump`, "Replace the resolved path with the literal ${CLAUDE_PLUGIN_ROOT} so the command survives the next version bump.", 'node "${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js" update-status'));
+  if (codex) {
+    if (/\$\{(?:CLAUDE|CODEX)_PLUGIN_ROOT\}/.test(prompt)) {
+      errors.push(problem("unresolved plugin root in the prompt body — Codex does not expand this placeholder", "Replace the placeholder with the installed plugin path resolved by craft-handoff.js; refresh it if the installation moves.", null));
+    }
+  } else {
+    const pinned = prompt.match(PLUGIN_CACHE_PATH_RE);
+    if (pinned) {
+      errors.push(problem(`resolved plugin path in the prompt body ("${pinned[0]}") — write \${CLAUDE_PLUGIN_ROOT} instead, or every bookkeeping command dies at the next version bump`, "Replace the resolved path with the literal ${CLAUDE_PLUGIN_ROOT} so the command survives the next version bump.", 'node "${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js" update-status'));
+    }
   }
   // [Foreman: 103]
   if (reinforced && !norm(prompt).includes(norm(NO_INVENTION_SENTENCE))) {
@@ -267,10 +350,10 @@ function checkPrompt(prompt, opts) {
   } else if (!opts.research) {
     const hasVerification =
       /Verification \(REQUIRED\):/.test(taskRules) &&
-      /\bRun:/.test(taskRules) &&
+      /\b(?:Run|Look):/.test(taskRules) &&
       /\bExpected:/.test(taskRules);
     if (!hasVerification) {
-      errors.push(problem("task_rules has no verification block (Run:/Expected:) — required unless the task is pure research (--research)", "Add a Verification (REQUIRED) block with a Run: line and an Expected: line, or pass --research when the task produces nothing runnable.", "Verification (REQUIRED):\nRun: npm test\nExpected: all tests pass"));
+      errors.push(problem("task_rules has no verification block (Run:/Expected: or Look:/Expected:) — required unless the task is pure research (--research)", "Add a Verification (REQUIRED) block with Run:/Expected: for commands or Look:/Expected: for human review; pass --research only for a pure investigation.", "Verification (REQUIRED):\nRun: npm test\nExpected: all tests pass"));
     }
     // [Foreman: 103, 231] The ceiling belongs to the verification block, not
     // to a profile: it bounds the retry loop the Run:/Expected: pairs open, and
@@ -331,16 +414,23 @@ function checkPrompt(prompt, opts) {
   if (opts.workflowStage) {
     if (toneBlock !== null) errors.push(problem("<tone> present in a Workflow-stage prompt — the flavor drops it unconditionally", "Delete <tone>; the Workflow-stage flavor drops it unconditionally.", null));
   } else if (omit.has("tone") && opts.destination !== "agent") {
-    if (toneBlock !== null) errors.push(problem("<tone> present but the project omits it (omitSections) and the destination is not a background Agent", "Delete <tone>; the project omits it and this destination already has a voice.", null));
+    if (toneBlock !== null) errors.push(problem(`<tone> present but the project omits it (omitSections) and the destination is not a ${agentName}`, "Delete <tone>; the project omits it and this destination already has a voice.", null));
   } else if (toneBlock === null && reinforced) {
+    const keptForAgent = opts.destination === "agent" && omit.has("tone");
     errors.push(problem(
-      opts.destination === "agent" && omit.has("tone")
-        ? "<tone> missing — an omitted tone STAYS for a background-Agent destination (no output style reaches that session)"
+      keptForAgent
+        ? codex
+          ? "<tone> missing — an omitted tone STAYS for a delegated-subagent destination (the coordinator needs a reporting contract)"
+          : "<tone> missing — an omitted tone STAYS for a background-Agent destination (no output style reaches that session)"
         : "missing <tone> — include the template default (or the user's custom tone)",
-      opts.destination === "agent" && omit.has("tone")
-        ? "Add <tone> anyway — an omitted tone still ships to a background Agent, because no output style reaches that session."
+      keptForAgent
+        ? codex
+          ? "Add <tone> anyway — an omitted tone still ships to a delegated subagent, because the coordinator needs a reporting contract."
+          : "Add <tone> anyway — an omitted tone still ships to a background Agent, because no output style reaches that session."
         : "Add <tone> with the template default, or the tone the user asked for.",
-      "<tone>\nMinimal, professional conversation — silent by default. If an output style already governs this session's voice, defer to it.\n</tone>"
+      codex
+        ? "<tone>\nBe concise and direct. Report useful progress and the final outcome; follow the user's communication instructions.\n</tone>"
+        : "<tone>\nMinimal, professional conversation — silent by default. If an output style already governs this session's voice, defer to it.\n</tone>"
     ));
   }
 
@@ -352,12 +442,13 @@ function checkPrompt(prompt, opts) {
   }
 
   // --- output_format ---
+  const workflowSentence = WORKFLOW_STAGE_SENTENCES[host];
   if (opts.workflowStage) {
     if (extractBlock(prompt, "output_format") !== null) {
       errors.push(problem("<output_format> present in a Workflow-stage prompt — the flavor replaces it with the fixed enforcement sentence", "Delete <output_format>; the Workflow-stage flavor replaces it with the fixed enforcement sentence.", null));
     }
-    if (!prompt.includes(WORKFLOW_STAGE_SENTENCE)) {
-      errors.push(problem("Workflow-stage prompt is missing its fixed enforcement sentence", "Add the Workflow-stage enforcement sentence where <output_format> would go.", WORKFLOW_STAGE_SENTENCE));
+    if (!prompt.includes(workflowSentence)) {
+      errors.push(problem("Workflow-stage prompt is missing its fixed enforcement sentence", "Add the Workflow-stage enforcement sentence where <output_format> would go.", workflowSentence));
     }
   } else if (reinforced && !omit.has("output_format") && extractBlock(prompt, "output_format") === null) {
     errors.push(problem("missing <output_format> — include the template default unless the project omits it", "Add <output_format> with the template default unless the project omits it.", "<output_format>\nGive a concise, human-readable summary: what changed, and the verification result. No XML tags in the visible response.\n</output_format>"));
@@ -386,10 +477,10 @@ function checkPrompt(prompt, opts) {
     warnings.push(`assumes the crafting conversation's context ("${assumed[0]}") — the handed-off session has none`);
   }
 
-  // --- background-Agent autonomy reminder ---
+  // --- background-destination autonomy reminder ---
   const hasAutonomy = prompt.includes(AUTONOMY_SENTENCE);
   if (opts.destination === "agent" && !hasAutonomy) {
-    errors.push(problem('missing the autonomous-operation paragraph ("You are operating autonomously.") — a background Agent has no user to answer questions', "Add the autonomous-operation paragraph; a background Agent has nobody to ask.", AUTONOMY_SENTENCE));
+    errors.push(problem(`missing the autonomous-operation paragraph ("You are operating autonomously.") — a ${agentName} has no user to answer questions`, `Add the autonomous-operation paragraph; a ${agentName} has nobody to ask.`, AUTONOMY_SENTENCE));
   } else if (opts.destination !== "agent" && hasAutonomy) {
     warnings.push("carries the autonomous-operation paragraph but the destination has a user present — drop it for task/clipboard");
   }
@@ -397,10 +488,12 @@ function checkPrompt(prompt, opts) {
   // --- reasoning-echo instructions ---
   const echo = prompt.match(REASONING_ECHO_RE);
   if (echo) {
-    warnings.push(`asks the destination to echo its reasoning ("${echo[0]}") — this can trigger reasoning_extraction refusals on Fable-class models; ask for the outcome instead`);
+    warnings.push(codex
+      ? `asks the destination to echo its reasoning ("${echo[0]}") — ask for the outcome, evidence, and concise decision rationale instead`
+      : `asks the destination to echo its reasoning ("${echo[0]}") — this can trigger reasoning_extraction refusals on Fable-class models; ask for the outcome instead`);
   }
 
-  return { errors, warnings, configWarnings: config.warnings, profile };
+  return { errors, warnings, configWarnings: config.warnings, profile, host };
 }
 
 const USAGE = `check-prompt.js -- mechanical gate for an assembled handoff prompt.
@@ -412,9 +505,13 @@ Feed the failing JSON back to the crafting session verbatim; it is a repair
 instruction, not a complaint.
 
   node check-prompt.js <prompt-file> --destination task|agent|clipboard
-                       [--profile standard|reinforced]
+                       [--host claude|codex] [--profile standard|reinforced]
                        [--entry <id> [--resume]] [--research] [--workflow-stage]
 
+  --host          the host that will run the prompt: it picks the template
+                  variant of every host-tagged block and the host's
+                  plugin-path rule. Optional: without it the host this
+                  process runs in is detected. Echoed back as "host".
   --profile       which handoff profile the prompt was assembled at
                   (prompt-template.md's "Handoff profiles" section says which
                   signals choose it). Optional: without it the profile is read
@@ -422,14 +519,15 @@ instruction, not a complaint.
                   Echoed back as "profile" in the result.
   --destination   required: where the prompt is going (task = Execute here
                   in this session, in any of its execution modes,
-                  agent = background Agent, clipboard = copy).
+                  agent = background agent or delegated subagent,
+                  clipboard = copy).
                   Decides whether an omitted tone must stay (agent) or go.
   --entry <id>    the ROADMAP.jsonl entry this handoff opens/closes --
                   requires the embedded entry paragraph (roadmap picks).
   --resume        with --entry: expect the resume variant paragraph instead.
   --research      pure-investigation task: no verification block required.
   --workflow-stage  the Workflow-stage flavor: tone dropped, output_format
-                  replaced by the fixed enforcement sentence.
+                  replaced by the host's fixed enforcement sentence.
 `;
 
 function parseArgs(argv) {
@@ -437,6 +535,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--destination") opts.destination = argv[++i];
+    else if (a === "--host") opts.host = argv[++i];
     else if (a === "--profile") opts.profile = argv[++i];
     else if (a === "--entry") opts.entry = argv[++i];
     else if (a === "--resume") opts.resume = true;
@@ -464,15 +563,18 @@ function main() {
   if (opts.profile !== undefined && !PROFILES.has(opts.profile)) {
     throw new Error(`--profile must be one of ${[...PROFILES].join("|")}`);
   }
+  if (opts.host !== undefined && !HOSTS.has(opts.host)) {
+    throw new Error(`--host must be one of ${[...HOSTS].join("|")}`);
+  }
   const prompt = opts.file ? fs.readFileSync(opts.file, "utf-8") : fs.readFileSync(0, "utf-8");
   if (!prompt.trim()) throw new Error("empty prompt");
-  const { errors, warnings, configWarnings, profile } = checkPrompt(prompt, opts);
+  const { errors, warnings, configWarnings, profile, host } = checkPrompt(prompt, opts);
   const allWarnings = [...warnings, ...configWarnings];
   if (errors.length) {
-    process.stdout.write(JSON.stringify({ ok: false, profile, errors, warnings: allWarnings }));
+    process.stdout.write(JSON.stringify({ ok: false, host, profile, errors, warnings: allWarnings }));
     process.exit(1);
   }
-  process.stdout.write(JSON.stringify({ ok: true, profile, warnings: allWarnings }));
+  process.stdout.write(JSON.stringify({ ok: true, host, profile, warnings: allWarnings }));
 }
 
 if (require.main === module) {
@@ -487,6 +589,8 @@ if (require.main === module) {
 module.exports = {
   checkPrompt,
   readCanonical,
+  resolveHost,
+  extractHostBlock,
   segmentsInOrder,
   detectProfile,
   norm,
@@ -495,7 +599,8 @@ module.exports = {
   CONCISE_TRUTH_SENTENCE,
   CONCISE_TRUTH_EMITTED,
   CLOSURE_EVIDENCE_SENTENCE,
-  WORKFLOW_STAGE_SENTENCE,
+  CLOSING_PREFIX,
+  WORKFLOW_STAGE_SENTENCES,
   NO_INVENTION_SENTENCE,
   FIX_CEILING_SENTENCE,
   PLUGIN_CACHE_PATH_RE,

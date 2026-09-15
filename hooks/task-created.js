@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 "use strict";
 
+// Claude Code only (hooks/hooks.json). Codex emits no TaskCreated event; its
+// handoffs open the entry explicitly with hooks/codex-task.js start.
+
 // TaskCreated — mechanically mark a roadmap entry in_progress when a task
 // is created from its own Foreman handoff prompt.
 //
@@ -43,8 +46,7 @@ function entryIdFromDescription(description) {
   return m ? m[1] : null;
 }
 
-function main() {
-  const data = readInput();
+function main(data = readInput()) {
   if (data.hook_event_name && data.hook_event_name !== "TaskCreated") return;
 
   const id = entryIdFromDescription(data.task_description);

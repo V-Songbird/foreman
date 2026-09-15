@@ -117,9 +117,7 @@ const EVENTS = {
   lesson_served: { count: int, chars: int },
 };
 
-function projectDir() {
-  return path.resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
-}
+const { projectDir } = require("./runtime");
 
 function foremanDir(root) {
   return path.join(root, FOREMAN_DIR);

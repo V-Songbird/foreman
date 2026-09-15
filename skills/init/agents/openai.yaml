@@ -1,0 +1,3 @@
+interface:
+  display_name: "Foreman Init"
+  short_description: "Start a durable roadmap from project goals"

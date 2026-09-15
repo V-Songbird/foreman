@@ -3,14 +3,12 @@
 
 const fs = require("fs");
 const path = require("path");
-const { readInput, projectDir } = require("./lib");
+const { readInput, projectDir, pluginDir, touchedPaths } = require("./lib");
 
-const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
-  ? path.resolve(process.env.CLAUDE_PLUGIN_ROOT)
-  : path.resolve(__dirname, "..");
+const PLUGIN_ROOT = pluginDir();
 const SCRIPT_PATH = path.join(PLUGIN_ROOT, "scripts", "roadmap.js");
 
-const WATCHED_TOOLS = new Set(["Edit", "Write"]);
+const WATCHED_TOOLS = new Set(["apply_patch", "Edit", "Write"]);
 
 // ROADMAP.jsonl is a basename-only match, deliberately not path-aware — a
 // project having some unrelated file literally named ROADMAP.jsonl elsewhere
@@ -52,8 +50,7 @@ function guardedPath(filePath, root) {
   return rel === PROJECT_ARCHIVE || rel === PROJECT_NOTES ? rel : null;
 }
 
-function main() {
-  const data = readInput();
+function main(data = readInput()) {
   if (!WATCHED_TOOLS.has(data.tool_name)) return;
 
   const root = projectDir(data);
@@ -61,8 +58,9 @@ function main() {
   // Foreman is entitled to say about it.
   if (!fs.existsSync(path.join(root, "ROADMAP.jsonl"))) return;
 
-  const guarded = guardedPath(data.tool_input?.file_path, root);
-  if (guarded === null) return;
+  const filePath = touchedPaths(data).find((file) => guardedPath(file, root) !== null);
+  if (!filePath) return;
+  const guarded = guardedPath(filePath, root);
 
   const scoped = SCOPED_HINT[guarded];
   const payload = {
@@ -71,14 +69,15 @@ function main() {
       permissionDecision: "deny",
       permissionDecisionReason:
         `Foreman: direct ${data.tool_name} of ` +
-        `${path.basename(String(data.tool_input.file_path))} is blocked. Use ` +
-        `node ${SCRIPT_PATH} instead (add/update-status/annotate/update-deps/` +
+        `${path.basename(filePath)} is blocked. Use ` +
+        `node "${SCRIPT_PATH}" instead (add/update-status/annotate/update-deps/` +
         "correct/reassign-id/archive/restore/list/next-candidates/notes/" +
         "check-duplicate/doctor/migrate — run with --help for usage). " +
         (scoped ? `${scoped} ` : "") +
         "It enforces id computation and parse-before/after-write; a hand " +
         "edit bypasses both. If the file is corrupt and the CLI itself " +
-        "can't read it, repair it via Bash instead — that path stays open.",
+        "can't read it, inspect the corruption and use an explicitly scoped shell repair. " +
+        "This hook covers apply_patch and file edit tools; it does not parse arbitrary shell writes.",
     },
   };
   try {

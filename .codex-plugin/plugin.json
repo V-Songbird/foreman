@@ -1,0 +1,43 @@
+{
+  "name": "foreman",
+  "version": "3.1.0",
+  "description": "Project continuity for Claude Code and Codex: a roadmap beside your code, grounded handoffs, and clear task status.",
+  "author": {
+    "name": "Victor Villegas",
+    "email": "victor.villegas@tuta.com"
+  },
+  "homepage": "https://github.com/V-Songbird/foreman",
+  "repository": "https://github.com/V-Songbird/foreman",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "roadmap",
+    "planning",
+    "project-continuity",
+    "handoff"
+  ],
+  "skills": "./skills/",
+  "hooks": "./hooks/codex-hooks.json",
+  "interface": {
+    "displayName": "Foreman",
+    "shortDescription": "Keep your plan beside your code",
+    "longDescription": "Keep a roadmap beside your code, choose the next task and prepare a handoff checked against the project. Carry task status and evidence between sessions; acceptance remains a separate decision.",
+    "developerName": "Victor Villegas",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write",
+      "Interactive"
+    ],
+    "websiteURL": "https://github.com/V-Songbird/foreman",
+    "defaultPrompt": [
+      "Use Foreman to find the next useful task.",
+      "Check my roadmap against the code.",
+      "Craft a Codex prompt for this task."
+    ],
+    "brandColor": "#21553B",
+    "composerIcon": "./assets/icon-on-light.png",
+    "logo": "./assets/icon-on-light.png",
+    "logoDark": "./assets/icon-on-dark.png"
+  }
+}

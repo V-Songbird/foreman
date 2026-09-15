@@ -1,6 +1,10 @@
 "use strict";
 
-// context-fill.js — PostToolUse hook on Bash/PowerShell.
+// context-fill.js — PostToolUse hook on Bash/PowerShell, registered for
+// Claude Code only (hooks/hooks.json). Codex has no stable context-fill input
+// and its transcript is a different format that must never be read as Claude
+// usage, so hooks/codex-hooks.json does not register this file and main()
+// stays silent if a Codex payload reaches it anyway.
 //
 // The destination question ("How do you want to run this?") recommends one
 // option, and one of the facts that should move that recommendation is how
@@ -27,7 +31,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const { readInput } = require("./lib");
+const { readInput, hostName } = require("./lib");
 
 const WATCHED_TOOLS = new Set(["Bash", "PowerShell"]);
 
@@ -161,9 +165,13 @@ function emit(additionalContext) {
   }
 }
 
-function main() {
-  const data = readInput();
+function main(data = readInput()) {
   if (!WATCHED_TOOLS.has(data.tool_name)) return;
+
+  // Codex has no stable context-occupancy hook field, and its payloads carry
+  // model/turn_id where Claude Code's PostToolUse carries neither: never read a
+  // Codex transcript as Claude usage or apply a Claude compaction setting.
+  if (hostName() === "codex" || data.model || data.turn_id) return;
 
   const command = data.tool_input?.command || "";
   if (!PRE_QUESTION_SCRIPT.test(command)) return;
@@ -177,6 +185,7 @@ function main() {
 if (require.main === module) main();
 
 module.exports = {
+  main,
   CONTEXT_SHARE,
   PRE_QUESTION_SCRIPT,
   autoCompactWindow,

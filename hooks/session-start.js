@@ -19,15 +19,13 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { readInput, projectDir } = require("./lib");
+const { readInput, hostName, projectDir, pluginDir } = require("./lib");
 const crypto = require("crypto");
 
 const { readEntries, today, TERMINAL_STATUSES } = require("../scripts/roadmap");
 const { record: recordTrial, startSession: startTrialSession } = require("../scripts/trial-log");
 
-const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
-  ? path.resolve(process.env.CLAUDE_PLUGIN_ROOT)
-  : path.resolve(__dirname, "..");
+const PLUGIN_ROOT = pluginDir();
 const SCRIPT_PATH = path.join(PLUGIN_ROOT, "scripts", "roadmap.js");
 
 // An entry untouched this long gets its last-activity date called out.
@@ -41,12 +39,18 @@ function daysBetween(fromYmd, toYmd) {
   return Number.isFinite(ms) ? Math.floor(ms / 86400000) : 0;
 }
 
+// Each host names the way back into those entries in its own terms.
+const RESUME_HINT = {
+  claude: "/foreman:roadmap offers to resume, accept, or review.",
+  codex: "ask Foreman to resume, accept, or review.",
+};
+
 // [Foreman: 131] `awaiting_acceptance` entries are surfaced here too, tagged
 // so the two never blur: an in_progress entry may have died mid-work, an
 // awaiting one is finished and waiting on THIS user. Without them the state
 // would be the one open state nothing ever mentions — the opposite of why it
 // exists.
-function buildMessage(open, todayStr) {
+function buildMessage(open, todayStr, host = hostName()) {
   const items = open.map((e) => {
     const stale =
       e.updated_at && daysBetween(e.updated_at, todayStr) >= STALE_DAYS
@@ -59,8 +63,8 @@ function buildMessage(open, todayStr) {
     `[Foreman] Roadmap entries still open: ${items.join(", ")}. ` +
     "Informational only — don't act on this unless the user asks. If one " +
     "of these actually concluded, it can be closed via " +
-    `echo '{"id":"<id>","status":"<done|dropped>","commit":"<sha>","notes":"..."}' | node ${SCRIPT_PATH} update-status ` +
-    "(commit first if code changed); /foreman:roadmap offers to resume, accept, or review."
+    `echo '{"id":"<id>","status":"<done|dropped>","commit":"<sha>","notes":"..."}' | node "${SCRIPT_PATH}" update-status ` +
+    `(commit first if code changed); ${RESUME_HINT[host]}`
   );
 }
 
@@ -113,8 +117,7 @@ function shouldOfferArchive(root, todayStr) {
   return true;
 }
 
-function main() {
-  const data = readInput();
+function main(data = readInput()) {
   // The matcher already gates to startup|clear; keep a defensive check so a
   // broader matcher edit can't silently make this fire on every compaction.
   if (data.source && data.source !== "startup" && data.source !== "clear") return;

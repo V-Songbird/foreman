@@ -15,6 +15,9 @@
 //     discoverySuggestions and requireVerification read as on
 //   - a failed commit (confirmed nonzero exit code) stays silent
 //   - a commit with no confirmed exit code fails open (still fires)
+//   - host wording: Claude Code gets the inline discovery block, which names
+//     its question tool and keeps the measured inclusion-bar switch; Codex
+//     gets skills/foreman/discovery.md, the policy its checkpoints also carry
 
 const { test, describe, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
@@ -30,6 +33,7 @@ const {
   initGitRepo,
   commitFile,
 } = require('./helpers');
+const { discoveryInstructions } = require('../scripts/discovery');
 
 let project;
 let env;
@@ -80,16 +84,22 @@ function addSubmodule(root, name) {
   return sub;
 }
 
-function run(payload) {
-  const result = runScriptRaw('post-commit.js', payload, env);
+// Claude Code exports the session's project root to every hook; Codex has no
+// such variable, so a Codex hook resolves the project from the payload cwd.
+function hookEnv(host) {
+  return host === 'codex' ? { FOREMAN_HOST: 'codex' } : { ...env, FOREMAN_HOST: 'claude' };
+}
+
+function run(payload, host = 'claude') {
+  const result = runScriptRaw('post-commit.js', payload, hookEnv(host));
   assert.equal(result.status, 0, result.stderr);
   return result.stdout;
 }
 
 // The emitted context with the JSON envelope's escaping undone — for
 // assertions on the literal roadmap.js commands, which are full of quotes.
-function context(payload) {
-  const out = run(payload);
+function context(payload, host) {
+  const out = run(payload, host);
   return JSON.parse(out).hookSpecificOutput.additionalContext;
 }
 
@@ -134,7 +144,8 @@ describe('corrupt ROADMAP.jsonl', () => {
     fs.writeFileSync(path.join(project, 'ROADMAP.jsonl'), 'not json at all\n', 'utf-8');
     const out = run(bashPayload('git commit -m "wip"'));
     assert.match(out, /could not be parsed/i);
-    assert.match(out, /roadmap\.js doctor/);
+    // The script path is quoted, so an install path with spaces still runs.
+    assert.match(out, /roadmap\.js\\?" doctor/);
     assert.match(out, /only reports, it never rewrites/);
     assert.doesNotMatch(out, /update-status/);
   });
@@ -295,15 +306,21 @@ describe('requireVerification gate', () => {
     assert.doesNotMatch(out, /requireVerification is on/);
   });
 
-  test('on: records the commit but withholds done until the user confirms', () => {
-    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
-    writeConfig(project, { requireVerification: true });
-    const out = run(bashPayload('git commit -m "finish task"'));
-    assert.match(out, /requireVerification is on/);
-    assert.match(out, /AskUserQuestion/);
-    assert.match(out, /don't close it out yet/);
-    assert.match(out, /confirmation/i);
-  });
+  // Only Claude Code's wording names its question tool. Discovery is off so
+  // the assertions read the status-sync block alone.
+  for (const host of ['claude', 'codex']) {
+    test(`on: records the commit but withholds done until the user confirms (${host})`, () => {
+      writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+      writeConfig(project, { requireVerification: true, discoverySuggestions: false });
+      const out = run(bashPayload('git commit -m "finish task"'), host);
+      assert.match(out, /requireVerification is on/);
+      assert.match(out, /ask the user/);
+      if (host === 'claude') assert.match(out, /AskUserQuestion/);
+      else assert.doesNotMatch(out, /AskUserQuestion/);
+      assert.match(out, /don't close it out yet/);
+      assert.match(out, /confirmation/i);
+    });
+  }
 
   // [Foreman: 131] The recorded step now stores what is true — finished,
   // waiting on the user — instead of leaving the entry looking mid-work.
@@ -372,39 +389,62 @@ describe('discovery block', () => {
     assert.match(out, /Roadmap discovery is enabled/);
   });
 
-  test('also asks Claude to scan for already-implemented, unplanned scope creep', () => {
+  // Claude Code's inline block calls it the inverse case; Codex's policy file
+  // offers the same log for separately authorized work built inline.
+  for (const host of ['claude', 'codex']) {
+    test(`also offers to log already-implemented, unplanned scope (${host})`, () => {
+      writeRoadmap(project, [{ id: '001', status: 'planned' }]);
+      writeConfig(project, { discoverySuggestions: true });
+      const out = run(bashPayload('git commit -m "add feature"'), host);
+      assert.match(out, host === 'claude' ? /inverse case/ : /separate authorized work already implemented inline/);
+      assert.match(out, /Log it/);
+    });
+  }
+
+  // The inline scope-creep log closes the way every other close does: with
+  // requireVerification on (the default) it waits for the user's acceptance.
+  test('the Claude Code scope-creep log waits for acceptance unless requireVerification is off', () => {
     writeRoadmap(project, [{ id: '001', status: 'planned' }]);
-    writeConfig(project, { discoverySuggestions: true });
-    const out = run(bashPayload('git commit -m "add feature"'));
-    assert.match(out, /inverse case/);
-    assert.match(out, /Log it/);
+    const held = context(bashPayload('git commit -m "add feature"'), 'claude');
+    assert.match(held, /"id":"<new-id>","status":"awaiting_acceptance","commit":"<sha>"/);
+    assert.doesNotMatch(held, /"id":"<new-id>","status":"done"/);
+    writeConfig(project, { requireVerification: false });
+    const direct = context(bashPayload('git commit -m "add feature"'), 'claude');
+    assert.match(direct, /"id":"<new-id>","status":"done","commit":"<sha>"/);
   });
 
   // [Foreman: 127] The planned titles used to be inlined as a negative list,
   // so the block grew with the backlog. Dedup now rides entirely on the
   // compact check-duplicate CLI — no roadmap content in the context at all.
-  test('injects no roadmap titles, and mandates the check-duplicate call instead', () => {
-    writeRoadmap(project, [
-      { id: '001', title: 'Zorptastic JWT refresh', status: 'planned' },
-      { id: '002', title: 'Quibbleframe the parser', status: 'planned' },
-      { id: '003', title: 'Ship the flumaxinator', status: 'done' },
-      { id: '004', title: 'Abandoned wugglesnort', status: 'dropped' },
-    ]);
-    writeConfig(project, { discoverySuggestions: true });
-    const out = run(bashPayload('git commit -m "add feature"'));
-    assert.match(out, /Roadmap discovery is enabled/);
-    for (const title of [
-      'Zorptastic',
-      'Quibbleframe',
-      'flumaxinator',
-      'wugglesnort',
-      'already on the roadmap as planned',
-    ]) {
-      assert.doesNotMatch(out, new RegExp(title));
-    }
-    assert.match(out, /check-duplicate/);
-    assert.match(out, /Every candidate MUST go through the duplicate check/);
-  });
+  for (const host of ['claude', 'codex']) {
+    test(`injects no roadmap titles, and mandates the check-duplicate call instead (${host})`, () => {
+      writeRoadmap(project, [
+        { id: '001', title: 'Zorptastic JWT refresh', status: 'planned' },
+        { id: '002', title: 'Quibbleframe the parser', status: 'planned' },
+        { id: '003', title: 'Ship the flumaxinator', status: 'done' },
+        { id: '004', title: 'Abandoned wugglesnort', status: 'dropped' },
+      ]);
+      writeConfig(project, { discoverySuggestions: true });
+      const out = context(bashPayload('git commit -m "add feature"'), host);
+      assert.match(out, /Roadmap discovery is enabled/);
+      for (const title of [
+        'Zorptastic',
+        'Quibbleframe',
+        'flumaxinator',
+        'wugglesnort',
+        'already on the roadmap as planned',
+      ]) {
+        assert.doesNotMatch(out, new RegExp(title));
+      }
+      assert.match(out, /check-duplicate/);
+      if (host === 'claude') {
+        assert.match(out, /Every candidate MUST go through the duplicate check/);
+      } else {
+        // Codex reads the one policy its handoffs and checkpoints also carry.
+        assert.ok(out.includes(discoveryInstructions()));
+      }
+    });
+  }
 
   test('fires by default when config is missing', () => {
     writeRoadmap(project, [{ id: '001', status: 'planned' }]);
@@ -722,6 +762,24 @@ describe('commit scope resolution', () => {
     assert.match(out, /may complete an in-progress/i);
     assert.match(out, /\[files overlap its planned files\]/);
   });
+
+  // Codex exports no project root, so its payload cwd names the repo. A legacy
+  // CLAUDE_PROJECT_DIR that contains that cwd still leads a submodule commit
+  // back to the parent roadmap.
+  test('on Codex, a submodule commit reaches the parent roadmap only through a root that contains it', () => {
+    commitFile(project, 'root.js', 'root content');
+    const sub = addSubmodule(project, 'lib');
+    commitWithMessage(sub, 'inner.js', 'inner content', 'work in submodule\n\nForeman: 001');
+    writeRoadmap(project, [
+      { id: '001', title: 'the submodule task', status: 'in_progress', planned_touches: ['lib/inner.js'] },
+    ]);
+    const payload = bashPayload('git commit -m "work in submodule"', { cwd: sub });
+    const legacy = runScriptRaw('post-commit.js', payload, { FOREMAN_HOST: 'codex', CLAUDE_PROJECT_DIR: project });
+    assert.equal(legacy.status, 0, legacy.stderr);
+    assert.match(legacy.stdout, /named in this commit's Foreman: trailer/);
+    // Without that root the cwd names the submodule, which holds no roadmap.
+    assert.equal(run(payload, 'codex'), '');
+  });
 });
 
 // [Foreman 4.3] The discovery block's inclusion bar was two qualitative words,
@@ -733,10 +791,12 @@ describe('the discovery inclusion bar switch', () => {
   const HOOK = path.join(__dirname, '..', 'hooks', 'post-commit.js');
 
   // CONCRETE_BAR resolves at module load, so each variant needs its own child.
-  function strings(env) {
+  // The switch governs Claude Code's inline wording; the host is passed so no
+  // variant depends on detection.
+  function strings(env, host = 'claude') {
     const result = spawnSync(
       'node',
-      ['-e', `const m = require(${JSON.stringify(HOOK)}); process.stdout.write(JSON.stringify({ block: m.discoveryBlock() }));`],
+      ['-e', `const m = require(${JSON.stringify(HOOK)}); process.stdout.write(JSON.stringify({ block: m.discoveryBlock(${JSON.stringify(host)}) }));`],
       { encoding: 'utf-8', env: { ...process.env, ...(env || {}) } }
     );
     assert.equal(result.status, 0, result.stderr);
@@ -781,5 +841,29 @@ describe('the discovery inclusion bar switch', () => {
       const { block } = strings({ FOREMAN_DISCOVERY_CONCRETE_BAR: value });
       assert.match(block, /Say nothing if nothing is confirmed\./, `"${value}" swapped the bar`);
     }
+  });
+
+  // Codex reads skills/foreman/discovery.md, the policy its handoffs and
+  // checkpoints also carry, so no environment switch may change it.
+  test('the switch never changes the Codex policy', () => {
+    const plain = strings({}, 'codex').block;
+    assert.equal(strings({ FOREMAN_DISCOVERY_CONCRETE_BAR: '1' }, 'codex').block, plain);
+    assert.ok(plain.includes(discoveryInstructions()));
+  });
+});
+
+// On Codex the commit hook and an explicit checkpoint (hooks/codex-task.js)
+// deliver one discovery policy, and neither writes a candidate.
+describe('Codex discovery policy', () => {
+  test('a successful commit delivers the same policy as an explicit no-commit close', () => {
+    const { checkpoint } = require('../hooks/codex-task');
+    writeRoadmap(project, [{ id: '001', status: 'awaiting_acceptance', commits: [] }]);
+    const before = fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf8');
+    const out = context(bashPayload('git commit -m "finish work"'), 'codex');
+    const checked = checkpoint('check', { id: '001', root: project, session: '' });
+    assert.equal(checked.complete, true);
+    assert.equal(checked.discovery, discoveryInstructions());
+    assert.ok(out.includes(checked.discovery));
+    assert.equal(fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf8'), before);
   });
 });

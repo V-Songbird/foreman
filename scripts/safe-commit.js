@@ -32,9 +32,7 @@ const { record: recordTrial } = require("./trial-log");
 
 const ROADMAP_FILE = "ROADMAP.jsonl";
 
-function projectDir() {
-  return path.resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
-}
+const { projectDir } = require("./runtime");
 
 function git(root, args) {
   return execFileSync("git", args, {

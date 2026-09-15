@@ -18,8 +18,10 @@ const { spawnSync } = require('node:child_process');
 const { makeTmpProject, writeRoadmap, writeArchiveFile, writeConfig, initGitRepo, runNodeScript, runRoadmap, SCRIPTS_DIR } = require('./helpers');
 
 const SAFE_COMMIT = path.join(SCRIPTS_DIR, 'safe-commit.js');
-const TEMPLATE = fs.readFileSync(path.join(__dirname, '..', 'prompt-template.md'), 'utf-8');
-const { entryParagraphText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
+// LF text, so a CRLF checkout pins the same template prose.
+const TEMPLATE = fs.readFileSync(path.join(__dirname, '..', 'prompt-template.md'), 'utf-8').replace(/\r\n/g, '\n');
+const { entryParagraphText, checkpointEmbedText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
+const HOSTS = ['claude', 'codex'];
 
 let project;
 let env;
@@ -691,21 +693,59 @@ describe('the close and checkpoint choreography is documented without git add -A
     assert.doesNotMatch(embed, /`git add -A` and commit/);
   });
 
+  // craft-handoff.js writes the embed the template section describes, in the
+  // form each host's pasted session can follow.
+  for (const host of HOSTS) {
+    test(`checkpointEmbedText stages narrowly on host ${host}`, () => {
+      const embed = checkpointEmbedText({ baseBranch: 'main', branch: true, onFinish: 'ask' }, 2, '001', false, false, host);
+      assert.ok(embed.includes('never `git add -A`'));
+      assert.doesNotMatch(embed, /`git add -A` and commit/);
+      assert.ok(embed.includes('stage with `safe-commit.js finish --no-commit`'), 'the last task no longer closes through the primitive');
+    });
+  }
+
+  // An entry opens before task 1 and rewrites ROADMAP.jsonl, so a pasted run
+  // with an entry gates its checkpoint commits on safe-commit begin's `dirty`
+  // field; an entry-less run writes no bookkeeping and keeps plain porcelain.
+  for (const host of HOSTS) {
+    test(`the clipboard embed reads safe-commit begin only when an entry opens first, on host ${host}`, () => {
+      const cfg = { baseBranch: 'main', branch: true, onFinish: 'ask' };
+      const withEntry = checkpointEmbedText(cfg, 2, '001', false, false, host);
+      assert.match(withEntry, /before task 1, run `safe-commit\.js begin` and read only its `dirty` field/);
+      assert.doesNotMatch(withEntry, /git status --porcelain/);
+      const withoutEntry = checkpointEmbedText(cfg, 2, null, false, false, host);
+      assert.match(withoutEntry, /before task 1, (?:check|inspect) `git status --porcelain`/);
+      assert.doesNotMatch(withoutEntry, /safe-commit\.js begin/);
+    });
+  }
+
   // entry 203: the embedded entry paragraph moved into craft-handoff.js's
   // entryParagraphText (skills/roadmap/pick.md now only calls the script),
   // so this pins the primitive-not-git-add-A guarantee at its new home.
-  test('the entry paragraph (craft-handoff.js) uses the primitive, not git add -A', () => {
-    const paragraph = entryParagraphText({
-      id: '001',
-      resume: false,
-      requireVerification: true,
-      decisionLogEnabled: false,
-      isDecision: false,
-      destination: 'clipboard',
+  // [Foreman: 107] Each host runs its own command form: Claude Code the literal
+  // ${CLAUDE_PLUGIN_ROOT} path, Codex the quoted installed script.
+  const SAFE_COMMIT_COMMAND = {
+    claude: 'node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js',
+    codex: `node '${path.resolve(SCRIPTS_DIR, 'safe-commit.js').replace(/\\/g, '/')}'`,
+  };
+  for (const host of HOSTS) {
+    test(`the entry paragraph (craft-handoff.js) uses the primitive, not git add -A, on host ${host}`, () => {
+      const paragraph = entryParagraphText({
+        id: '001',
+        resume: false,
+        requireVerification: true,
+        decisionLogEnabled: false,
+        isDecision: false,
+        destination: 'clipboard',
+        host,
+      });
+      const command = SAFE_COMMIT_COMMAND[host];
+      assert.ok(paragraph.includes(`${command} begin`), paragraph);
+      assert.ok(paragraph.includes(`${command} finish --baseline <baseline.head> --no-commit`), paragraph);
+      assert.ok(paragraph.includes('never `git add -A`'));
+      assert.doesNotMatch(paragraph, /stage everything \(`git add -A`\)/);
+      const other = SAFE_COMMIT_COMMAND[HOSTS.find((h) => h !== host)];
+      assert.ok(!paragraph.includes(other), `host ${host} emitted the other host's command form`);
     });
-    assert.ok(paragraph.includes('scripts/safe-commit.js begin'));
-    assert.ok(paragraph.includes('safe-commit.js finish --baseline <baseline.head> --no-commit'));
-    assert.ok(paragraph.includes('never `git add -A`'));
-    assert.doesNotMatch(paragraph, /stage everything \(`git add -A`\)/);
-  });
+  }
 });

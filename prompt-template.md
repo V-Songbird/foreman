@@ -1,39 +1,56 @@
 # Foreman — prompt template
 
-<!-- foreman:practices lastmod:2026-08-13
+<!-- foreman:practices lastmod:2026-09-15
      source-a: https://code.claude.com/docs/en/best-practices.md
      source-b: https://code.claude.com/docs/en/sub-agents.md
      source-c: Anthropic Prompting 101 — Code w/ Claude 2025-05-22
      source-d: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5
      source-e: Claude Code 2.1.214 embedded delegation guidance
      source-f: https://code.claude.com/docs/en/prompt-library.md
-     source-g: https://platform.claude.com/docs/en/build-with-claude/structured-outputs.md -->
+     source-g: https://platform.claude.com/docs/en/build-with-claude/structured-outputs.md
+     codex sources: CODEX-PROMPTING.md, checked 2026-09-06 -->
 
-The handed-off session — whether run here in this session, by a
-background `Agent`, or copy-pasted elsewhere — has **zero memory** of this
-conversation. Fill every required section. A self-contained prompt is not
-optional — it is the only way the handed-off work can act correctly.
+The handed-off session — whether run here in this session, by a background
+agent, or copy-pasted elsewhere — has **zero memory** of this conversation.
+Fill every required section. A self-contained prompt is not optional — it is
+the only way the handed-off work can act correctly.
 
 This file is the canonical source scripts read at run time:
 `check-prompt.js` and `craft-handoff.js` both parse the fixed blocks
 below, so there is exactly one copy of every guardrail.
 `foreman:roadmap`'s pick branch and `foreman:craft-prompt` call
 `craft-handoff.js` and relay what it returns rather than assembling those
-blocks themselves. One exception: both flows `Read` the "Checkpointing a
+blocks themselves. One exception: both flows read the "Checkpointing a
 task-split run" section here directly, at their Deliver step, because no
 script assembles that protocol.
+
+**One template, two hosts.** Foreman runs in Claude Code and in Codex. A few
+fixed blocks follow each vendor's own prompting guidance, so they appear once
+per host inside the template, tagged `host="claude"` or `host="codex"`:
+`codex_runtime` (Codex only), `truth_grounding`, `scope_discipline`, `tone`,
+the closing paragraph (`closing`), `plan`, the autonomy paragraph
+(`autonomy`) and the verification-scope line (`verification_scope`, Codex
+only). `craft-handoff.js` emits the variant for the host its `host` input
+names — or the host it detects when none is given — and `check-prompt.js
+--host` holds a prompt to that same variant. An assembled prompt carries the
+plain tag, never the `host` attribute, and never the `closing`, `autonomy` or
+`verification_scope` wrappers. Every untagged block is shared by both hosts.
 
 ---
 
 ## Template
 
 **Craft-time environment check (do this now, once, while assembling — not
-an instruction for the spawned session to act on later):**
+an instruction for the spawned session to act on later).** The commands below
+write this plugin's root as `${CLAUDE_PLUGIN_ROOT}`. This file is read as-is
+on both hosts; in Codex, which never substitutes that variable, use the
+installed plugin root — the directory that holds `skills/` and `scripts/`.
 
 0. **One mechanical call covers persona and omissions.** Run `node
    ${CLAUDE_PLUGIN_ROOT}/scripts/render-sections.js`
-   — always (it resolves a project root from `$CLAUDE_PROJECT_DIR`/cwd and
-   fails soft to defaults when no `.foreman/config.json` exists). One JSON
+   — always (it resolves the project root from `FOREMAN_PROJECT_DIR`, then
+   `CODEX_CWD`, then `CLAUDE_PROJECT_DIR`, then cwd, and fails soft to
+   defaults when no `.foreman/config.json` exists). One JSON
    object: `{"usePersona": bool, "omit": [...],
    "requireVerification": bool,
    "ledger": {"enabled": bool, "dir": string}, "warnings": [...]}`.
@@ -47,11 +64,13 @@ an instruction for the spawned session to act on later):**
      can't appear). Drop each listed block from the assembled prompt — a
      project-level omit beats a per-prompt selection. One
      destination-scoped exception: an omitted `tone` STAYS when the chosen
-     destination is a background `Agent` — output styles govern only
-     main-loop sessions (a pasted interactive session, or an `Execute here`
-     run), never a background agent's, so the omission's premise fails
-     there; the kept default still self-yields if a style does govern. The
-     other three tags have no destination dependence.
+     destination is a background agent. In Claude Code, output styles
+     govern only main-loop sessions (a pasted interactive session, or an
+     `Execute here` run), never a background agent's, so the omission's
+     premise fails there; the kept default still self-yields if a style does
+     govern. In Codex, the delegated subagent reports to a coordinator, which
+     needs that reporting contract. The other three tags have no destination
+     dependence.
    - `requireVerification` — boolean (default `true` when missing or
      unparseable). Read by `foreman:roadmap`'s embedded entry paragraph
      (its "Acceptance hold" note): with it `true`, a close that earned
@@ -112,7 +131,8 @@ an instruction for the spawned session to act on later):**
      `PATH`), so fix the command before delivering — a prompt naming a
      command that cannot run wastes the whole session. `via` names what it
      resolved through, and a leading `cd <dir> &&` is honored, which is how
-     a submodule's suite gets named from the repo root.
+     a submodule's suite gets named from the repo root. Only commands go to
+     this preflight — a human review action never does.
    - `references` — other files that already import a helper the touched
      files import. Cite one as `relevant_files`' `Pattern:` line: a named
      analogue in this codebase beats a bullet telling the session to follow
@@ -128,19 +148,36 @@ an instruction for the spawned session to act on later):**
    - `warnings` — surface alongside `render-sections.js`'s own.
 
 <!-- [Foreman: 107] -->
-**Paths in the assembled prompt.** Every plugin path the prompt carries —
-`scripts/roadmap.js` in `scope_discipline`, the entry paragraph's
-`update-status` calls, anything else — travels as the literal, unexpanded
-string `${CLAUDE_PLUGIN_ROOT}`. Resolving it at craft time bakes in the
-foreman version that happens to be installed today, and the prompt stops
-running the moment that version bumps, which kills replay of a closed
-entry. This holds **even though the crafting skill's own text shows the
-path already resolved**: a skill's markdown is loaded with the variable
-substituted by the harness, so what you read there is expanded and what
-you write must not be. Type the variable back. `check-prompt.js` errors on
-a versioned plugin-cache path in the prompt body.
+**Paths in the assembled prompt.** The two hosts resolve plugin paths
+differently, so each prompt carries the form its host can run:
+
+- **Claude Code.** Every plugin path the prompt carries — `scripts/roadmap.js`
+  in `scope_discipline`, the entry paragraph's `update-status` calls, anything
+  else — travels as the literal, unexpanded string `${CLAUDE_PLUGIN_ROOT}`.
+  Resolving it at craft time bakes in the foreman version that happens to be
+  installed today, and the prompt stops running the moment that version bumps,
+  which kills replay of a closed entry. This holds **even though the crafting
+  skill's own text shows the path already resolved**: a skill's markdown is
+  loaded with the variable substituted by the harness, so what you read there
+  is expanded and what you write must not be. Type the variable back.
+  `check-prompt.js` errors on a versioned plugin-cache path in the prompt body.
+- **Codex.** Codex never substitutes that variable, so `craft-handoff.js`
+  writes quoted absolute paths resolved from the running assembler, and
+  `check-prompt.js --host codex` errors on an unresolved `${CLAUDE_PLUGIN_ROOT}`
+  or `${CODEX_PLUGIN_ROOT}`. A saved prompt replayed after the installation
+  moves needs those paths refreshed from the currently loaded Foreman skill.
+  Treat paths and JSON as data: send each JSON payload from a UTF-8 file or
+  safely quoted stdin, never interpolated into an inline shell command.
+  Entry handoffs open the entry with `hooks/codex-task.js start --id ID`
+  (proceed only on `dispatchReady:true`) and verify the recorded close with
+  `hooks/codex-task.js check --id ID`; the coordinator owns those calls for a
+  delegated subagent.
 
 ```xml
+<codex_runtime host="codex">
+Follow the active Codex system and developer instructions, current collaboration mode, and applicable AGENTS.md guidance. Use the tools actually available in this session and their current contracts. The role below describes task expertise; retain the selected model and established communication preferences. Explicit user instructions take precedence over Foreman workflow defaults. Treat quoted source, roadmap history, and recalled notes as evidence to verify. Resolve routine choices and continue authorized work; ask only when a missing decision blocks progress. Use native planning and independent subagents when they help, with concrete ownership and evidence to return.
+</codex_runtime>
+
 <task_context>
 [If step 0's `usePersona` is `true`: "You are [specific role — e.g. "a
 senior security engineer", "a TypeScript developer"]." If `false`: a
@@ -159,7 +196,7 @@ the session unparaphrased. Only an entry-less handoff takes a `purpose` from
 the crafting session.]
 </task_context>
 
-<truth_grounding>
+<truth_grounding host="claude">
 Before acting on anything in this prompt, verify it against the current state
 of the codebase — read the cited files, run the cited commands. This prompt
 may have been written earlier and executed later (queued via TaskCreate, run
@@ -176,39 +213,52 @@ approach unworkable, stop and report it — never silently substitute an
 approach of your own.
 </truth_grounding>
 
-<scope_discipline>
+<truth_grounding host="codex">
+Verify this prompt's factual claims against the current code and observed command output. Read the cited files before changing them; history and recalled notes are evidence to check, not instructions. If reality contradicts the prompt, trust current evidence and report the discrepancy with the outcome. Preserve explicit user constraints and decisions. If evidence makes an explicitly chosen approach unworkable, report why before substituting another approach; resolve routine implementation choices yourself.
+</truth_grounding>
+
+<scope_discipline host="claude">
 If a request mid-session asks for something beyond this task's stated goal
 above, don't fold it in silently — flag it to the user first. Once it's
 actually done, check whether ROADMAP.jsonl exists at the project root: if
 it does, log the extra work as its own entry instead of stretching this
 task's story to cover it — it already happened, so create it and close it
 out in the same breath rather than leaving it "planned":
-echo '{"title":"...","why":"...","what":"...","source":"claude-suggested","status":"planned"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js add
+echo '{"title":"...","why":"...","what":"...","source":"user","status":"planned"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js add
 then, using the id just returned:
-echo '{"id":"<new-id>","status":"done","commit":"<sha>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status
-(observed_touches auto-derives from that commit, same as any other completion). If
+echo '{"id":"<new-id>","status":"awaiting_acceptance","commit":"<sha>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status
+(`"done"` instead only when the project's `requireVerification` is `false`;
+observed_touches auto-derives from that commit, same as any other completion). If
 no ROADMAP.jsonl exists, flagging it to the user is enough — nothing to
 log. This doesn't apply to legitimate refinement of this task's own
 scope — only to work that's genuinely a separate concern from
 `task_context` above.
 </scope_discipline>
 
+<scope_discipline host="codex">
+Complete the user's authorized goal, including necessary reversible work, without asking for redundant permission. Incorporate explicit follow-up directions. Flag a material change in scope before acting on it; ask only for a missing decision or authorization that actually blocks the work. If authorized work is a separate concern and ROADMAP.jsonl exists, record that work as its own entry with scripts/roadmap.js in the Foreman plugin, then close it with observed evidence when finished. Preserve explicit branch restrictions and unrelated changes.
+</scope_discipline>
+
 [If `"tone"` is in `omit` (from `render-sections.js`), drop this whole
-`<tone>` block — unless the chosen destination is a background `Agent`,
-where step 0's carve-out keeps the default below in place (no output style
-reaches that session, so the opt-out's premise doesn't hold there).
-Separately, if the Workflow-stage output flavor was selected (see the
-`<output_format>` block below), drop this whole `<tone>` block
-unconditionally instead — a schema-forced stage has no prose surface for
-voice to govern, and the background-Agent carve-out above does not extend
-to this flavor.]
-<tone>
+`<tone>` block — unless the chosen destination is a background agent,
+where step 0's carve-out keeps the default below in place (in Claude Code no
+output style reaches that session; in Codex the coordinator needs a
+reporting contract). Separately, if the Workflow-stage output flavor was
+selected (see the `<output_format>` block below), drop this whole `<tone>`
+block unconditionally instead — a schema-forced stage has no prose surface
+for voice to govern, and the background-agent carve-out above does not
+extend to this flavor.]
+<tone host="claude">
 [If Tone was selected as an optional section: the user's custom tone,
 full stop — it replaces everything below. Otherwise include: "Minimal,
 professional conversation — silent by default, say only what the user
 actually needs to know, simplify technical explanations, avoid unnecessary
 jargon. If an output style already governs this session's voice, defer to
 it — this tone applies only in its absence."]
+</tone>
+<tone host="codex">
+[If Tone was selected as an optional section: the user's custom tone,
+full stop — it replaces everything below. Otherwise include: "Be concise and direct. State the outcome clearly, report useful progress, and explain technical details only when they help the reader. Follow any communication instructions already supplied by the user or coordinator."]
 </tone>
 
 [If `"background"` is in `omit`, drop this whole `<background>` block
@@ -283,10 +333,13 @@ normal and the gate says nothing about it.]
 </invariants>
 
 <task_rules>
-[Pure-investigation handoff: replace the three step bullets below with the
+[Pure-investigation handoff: replace the step bullets below with the
 question under investigation plus any exact commands worth running — hand
-over the question, not a prescribed exploration sequence. Implementation
-tasks keep the bullets. There is no read-first bullet here: a reinforced
+over the question and the evidence it needs, not a prescribed exploration
+sequence, and keep that intent in the final request too. Implementation
+tasks keep the bullets; a Codex handoff labels them a suggested approach,
+where only explicit constraints, dependencies and required verification
+ordering are mandatory. There is no read-first bullet here: a reinforced
 handoff states that step once in the plan block at the end, and a standard
 one carries the concise truth line instead.]
 - [What to analyze or check next]
@@ -296,22 +349,33 @@ Constraints:
 - [Hard limits — files NOT to modify, interfaces NOT to break]
 - [Style or pattern to follow — point to an example file if one exists]
 - [OPTIONAL, one line — "Expected file surface: <paths>", the files this
-  task is expected to touch, followed by: anything beyond this list gets
-  flagged to the user before it is written, not after. This is the
-  pre-committed scope baseline `observed_touches` cannot be, since that
-  field derives from the commit after the fact. `craft-handoff.js` fills
-  it from the entry's `planned_touches` whenever the judgment names none,
-  so a crafting session passes `expectedFileSurface` only to narrow or
-  widen that list on purpose. The line is absent only when the entry
-  itself names no file — the one case where the surface genuinely isn't
-  known yet.]
+  task is expected to touch, followed by the host's rule for work beyond
+  it. Claude Code: anything beyond this list gets flagged to the user
+  before it is written, not after. Codex: report a change to this forecast
+  before writing outside it, proceed when that work is already authorized,
+  and ask only when it crosses an explicit boundary or needs a material
+  scope decision. This is the pre-committed scope baseline
+  `observed_touches` cannot be, since that field derives from the commit
+  after the fact. `craft-handoff.js` fills it from the entry's
+  `planned_touches` whenever the judgment names none, so a crafting
+  session passes `expectedFileSurface` only to narrow or widen that list
+  on purpose. The line is absent only when the entry itself names no file —
+  the one case where the surface genuinely isn't known yet.]
 
 Verification (REQUIRED):
 Run: [exact command — e.g. "npm test -- --testPathPattern=auth"]
 Expected: [pass/fail signal — e.g. "all tests pass", "exit code 0"]
-[Repeat the Run:/Expected: pair, in running order, for every check the
-task actually has. An `Execute here` task split cuts on these boundaries —
-see the splitting section below.]
+[Repeat the Run:/Expected: pair, in running order, for every command check
+the task actually has. A human check renders as Look:/Expected: from
+review.action and review.expected. One verification row is one meaningful
+result and may carry both pairs; a human-only row omits Run and its
+Expected. An `Execute here` split cuts on these rows, never on each check —
+see the splitting section below, and explicit reviewEachIncrement:true
+requires review on every row.]
+[Pure-investigation handoff: diagnostic checks report observed outcomes,
+including failures. Replace the fix-loop sentence below with a reminder that
+failed diagnostics do not authorize implementation changes. Do not combine a
+question with testFirst or automated implementation checkpoints.]
 [OPTIONAL, for a silent-failure task — one whose breakage passes the
 existing tests. State this ordering explicitly, before the Run: pairs:
 write the invariant test first, confirm it passes against the unmodified
@@ -320,27 +384,47 @@ then implement. A test written after the change encodes the
 implementation instead of the contract and will pass a broken change.
 Omit the ordering for a task whose failure is loud.]
 Do NOT claim success without running this. If it fails, fix and re-run — but after two failed fix attempts, stop and report what is still failing instead of widening the change to make the check pass.
+<verification_scope host="codex">
+Complete the required checks and any additional checks justified by the change. Once they pass, repeat or broaden testing only for new changes, failures, or unresolved concerns. Report an unavailable check as a verification limit.
+</verification_scope>
 </task_rules>
 
 [OPTIONAL — include only when the task has a clear before/after pattern.
 If `"example"` is in `omit`, drop this whole block unconditionally, even
-if Call 1 selected it.]
+if the interview selected it.]
 <example>
 [Before snippet or input → After snippet or expected output]
 </example>
 
 [The immediate, specific request in one sentence.]
 
+<closing host="claude">
 Reason through the approach and edge cases in your thinking before editing — not in prose between tool calls. The steps and commands above are a working plan, not a narration script: whatever output style governs this session decides what you say aloud, so don't announce step transitions or restate command results in chat. The same style governs the register of your final message. Full evidence and findings belong in their durable home — the roadmap entry, the commit message, or the artifact the task names — with the final message stating the outcome and pointing there. Closure notes and findings describe only observed work and cite supporting files, commands, commits, or outcomes; never restate planned scope as evidence that it was executed.
+</closing>
+<closing host="codex">
+Complete the requested outcome and verify it with the checks above. Share concise progress when useful and report the outcome, evidence, and remaining limits. Explain decisions briefly when they help the user assess the result; do not provide a transcript of internal reasoning. Closure notes and findings describe only observed work and cite supporting files, commands, commits, or outcomes; never restate planned scope as evidence that it was executed.
+</closing>
 
-<plan>
+<plan host="claude">
 The order of work, stated once so you don't have to assemble it:
 1. Read every file `relevant_files` cites, before editing anything.
 2. Make the change `task_rules` describes, inside its constraints.
 3. Run each `Run:` command and check it against its own `Expected:` line.
 A ROADMAP.jsonl entry paragraph, when this prompt carries one, wraps that: its open step runs before step 1 and its close step after step 3. A task-split run puts that paragraph on its last task only, so a row without one starts at step 1 and stops at step 3.
 </plan>
+<plan host="claude" intent="investigation">
+The order of work, stated once so you don't have to assemble it:
+1. Read every file `relevant_files` cites, before drawing any conclusion.
+2. Investigate the question `task_rules` states, inside its constraints; change no implementation file.
+3. Run each `Run:` command and report its result against its own `Expected:` line as evidence.
+A ROADMAP.jsonl entry paragraph, when this prompt carries one, wraps that: its open step runs before step 1 and its close step after step 3. A task-split run puts that paragraph on its last task only, so a row without one starts at step 1 and stops at step 3.
+</plan>
+<plan host="codex">
+Choose an execution sequence appropriate to the requested outcome, current evidence, and active Codex mode. Preserve explicit dependencies and verification ordering. An investigation or review produces findings; a decision produces a supported choice. Implementation requires authorization in the task itself.
+For a tracked task, the responsible coordinator opens the entry before work and records observed evidence after the required checks. A split run closes the entry only after all acceptance rows are complete. A delegated subagent returns its evidence to the coordinator for these roadmap mutations.
+</plan>
 
+<autonomy host="claude">
 [BACKGROUND-AGENT DESTINATION — if the chosen destination is a background
 `Agent`, include the following paragraph verbatim right here. It is the
 official autonomous-operation reminder plus the pause policy source-d
@@ -366,9 +450,15 @@ a promise about work you have not done ("I'll…", "let me know when…"), do
 that work now with tool calls. End your turn only when the task is
 complete, you have paused for one of those three reasons, or you are
 blocked on input only the user can provide.]
+</autonomy>
+<autonomy host="codex">
+[BACKGROUND-AGENT DESTINATION — include the paragraph below only for a delegated subagent.]
+[BACKGROUND-AGENT DESTINATION
+You are operating autonomously. Complete this bounded subtask using the context and permissions supplied by the coordinator. For necessary reversible work, proceed without redundant questions. If a decision, authorization, or input blocks progress, report it to the coordinator using the available collaboration tools. Do not create user-owned tasks, switch branches, stage files, or commit; the coordinator owns integration and roadmap closure. Return the concrete changes, verification evidence, and unresolved findings.]
+</autonomy>
 
 [If `"output_format"` is in `omit`, drop this whole block unconditionally,
-even if Call 1 selected `Custom output format`.]
+even if the interview selected `Custom output format`.]
 <output_format>
 Give a concise, human-readable summary: what changed, and the verification
 result. No XML tags in the visible response — a human reads this directly
@@ -380,15 +470,19 @@ default "just in case".]
 </output_format>
 
 [WORKFLOW-STAGE FLAVOR — if the output-format selection was "Workflow
-stage" (prompt plus a JSON Schema the tool layer enforces, for a Workflow
-`agent(prompt, {schema})` stage), it overrides both blocks above instead of
-using them:
+stage" (prompt plus a JSON Schema, for a Workflow `agent(prompt, {schema})`
+stage or another consumer that validates the result), it overrides both
+blocks above instead of using them:
 - Drop the `<tone>` block unconditionally (see the note above) — a
   schema-forced stage has no prose surface for voice to govern.
-- Replace the whole `<output_format>` block above with this single fixed
-  sentence, no XML tags:
-  Your return value is enforced by the attached schema; your final text is
-  the return value, not a human-facing message.
+- Replace the whole `<output_format>` block above with the host's single
+  fixed sentence, no XML tags. Claude Code, where the tool layer enforces
+  the schema: Your return value is enforced by the attached schema; your
+  final text is the return value, not a human-facing message. Codex, where
+  an ordinary task or subagent call enforces no schema: Return only JSON
+  matching the accompanying schema. Use tool-enforced structured output when
+  available; otherwise validate the result against that schema before
+  returning it.
 - Assemble a second artifact alongside the prompt: a fenced `json` JSON
   Schema derived from the user's answer to "what should come back".
   Authoring rules: object root with a `required` array; a `description` on
@@ -402,10 +496,12 @@ using them:
   external `$ref`, and `minItems` above 1 are unsupported, and
   `additionalProperties` takes no value but `false` — state any such bound
   in the property's `description` instead. An unsupported keyword is
-  rejected up front with a 400, not at output-validation time.
+  rejected up front with a 400, not at output-validation time. In Codex,
+  validate the keywords against the consumer that actually enforces the
+  schema, and never promise enforcement from plain task or subagent delivery.
 - Delivery: both artifacts travel together to the chosen destination — a
-  clipboard temp file carries the prompt then the schema; a `TaskCreate`
-  description carries both. The never-print-into-chat rule covers both
+  clipboard temp file carries the prompt then the schema; a tracked task or
+  subagent prompt carries both. The never-print-into-chat rule covers both
   artifacts.]
 ```
 
@@ -444,19 +540,25 @@ hand at craft time. Never a judgment call.** Any one of them true →
 **Reinforced** is the full shape the Template section above describes —
 `truth_grounding`, `scope_discipline`, `<plan>`, the closing paragraph, the
 no-invention line, `tone`, `output_format`, and the optional per-task
-fields. Nothing about it changes.
+fields, each in its host's variant. Nothing about it changes.
 
 <!-- [Foreman: 231] -->
 **Standard** carries only: `<task_context>` (the entry's identity and the
 one-sentence goal), the concise truth line below, `<relevant_files>` with its
 symbols, `<prior_work>` when anything was recalled, `<task_rules>`
-(constraints plus the `Verification (REQUIRED):` Run:/Expected: pairs and the
-bounded fix ceiling that closes them), the closure-evidence sentence, and the
-ROADMAP.jsonl entry paragraph when the handoff carries one. Everything else is
-dropped — the point of the profile is the length it saves. The fix ceiling is
-not an exception to that: it belongs to the verification block rather than to
-a profile, so it rides wherever `Run:`/`Expected:` pairs do. Two more rules
-survive the cut because they are trust invariants, not ceremony:
+(constraints plus the `Verification (REQUIRED):` Run:/Expected: and
+Look:/Expected: pairs and the bounded fix ceiling that closes them), the
+closure-evidence sentence, and the ROADMAP.jsonl entry paragraph when the
+handoff carries one. In Claude Code everything else is dropped — the point of
+the profile is the length it saves. A Codex standard handoff also opens with
+`<codex_runtime>` and keeps task-specific `<context>` and `<invariants>` when
+they are supplied, since that host's handoffs treat them as evidence. The fix
+ceiling is not an exception to the cut: it belongs to the verification block
+rather than to a profile, so it rides wherever `Run:`/`Expected:` pairs do.
+An investigation reports diagnostic failures as evidence instead, and a
+decision may correct only an explicitly authorized decision artifact within
+the same bound; failed code diagnostics never authorize implementation. Two
+more rules survive the cut because they are trust invariants, not ceremony:
 
 > Treat every claim in this prompt as a hypothesis to verify against the codebase before acting on it; if reality contradicts it, trust reality, say so in one line, and never create a file or symbol just to make this prompt true — unless `relevant_files` marks that path `MISSING:`, which says the plan named it before it existed.
 
@@ -476,6 +578,9 @@ A block a standard prompt does keep is still held to the template verbatim —
       assembly, and never said out loud — every item below applies to a
       `reinforced` handoff; a `standard` one keeps only the blocks the
       "Handoff profiles" section lists
+- [ ] every host-tagged block is the variant for the host that will run the
+      prompt, carried as a plain tag — `craft-handoff.js` picks it from its
+      `host` input or detects it
 - [ ] `task_context` names a specific role (domain framing when
       `usePersona` was `false`) and a concrete one-sentence "done" state
 - [ ] `truth_grounding` present, unmodified — every handoff carries it
@@ -511,9 +616,10 @@ A block a standard prompt does keep is still held to the template verbatim —
       unmodified — notes and findings cite observed files, commands,
       commits, or outcomes, never planned scope presented as execution
 - [ ] `task_rules` has analyze/implement steps AND a runnable
-      verification command with expected output (a pure-investigation
-      handoff carries the question plus exact commands instead of steps;
-      the gate's `--research` flag waives the verification pair)
+      verification command with expected output, or a Look:/Expected: human
+      check (a pure-investigation handoff carries the question plus exact
+      commands instead of steps; the gate's `--research` flag waives the
+      verification pair)
 - [ ] `<invariants>`, the `Expected file surface:` constraint line, and the
       test-first ordering are each present when the task has one, and each
       absent otherwise — all three are optional and nothing flags their
@@ -521,41 +627,48 @@ A block a standard prompt does keep is still held to the template verbatim —
       assertion that could be checked, never as a contract name
 - [ ] every tag in `omit` is absent from the assembled prompt, overriding
       a conflicting per-prompt selection (exception: an omitted `tone`
-      stays for a background-`Agent` destination — step 0's carve-out);
+      stays for a background-agent destination — step 0's carve-out);
       guardrail/core blocks are never affected
 - [ ] every plugin path in the prompt body is the unexpanded
-      `${CLAUDE_PLUGIN_ROOT}` string, never a resolved plugins-cache path
-      with a version segment — even where the crafting skill's own text
-      showed it already resolved
+      `${CLAUDE_PLUGIN_ROOT}` string in Claude Code, never a resolved
+      plugins-cache path with a version segment — even where the crafting
+      skill's own text showed it already resolved; in Codex it is a quoted
+      absolute installed path instead, never an unexpanded variable
 - [ ] no "as we discussed" / "from earlier" — zero assumed context
 - [ ] a verb-first imperative name (under 60 chars) and a 1–2 sentence
-      plain-language summary are ready — `TaskCreate` and a background
-      `Agent` both need them
-- [ ] the destination (`Execute here` / background `Agent` / clipboard) was
+      plain-language summary are ready — a tracked task and a background
+      agent both need them
+- [ ] the destination (`Execute here` / background agent / clipboard) was
       decided *before* assembly, and the raw XML never appears in the chat
       response (clipboard's no-tool fallback is the only exception)
 - [ ] Workflow-stage flavor (if selected): `<tone>` was dropped
-      unconditionally, `<output_format>` was replaced by the fixed
-      enforcement sentence, and a JSON Schema artifact was assembled and
-      travels with the prompt to the destination
+      unconditionally, `<output_format>` was replaced by the host's fixed
+      sentence, and a JSON Schema artifact was assembled and travels with
+      the prompt to the destination
 
 ## Mechanical gate (REQUIRED, after the checklist)
 
-The checklist items a script can verify, verified by a script. `Write` the
-assembled prompt to a temp file (the clipboard delivery path needs that
-file anyway), then run:
+The checklist items a script can verify, verified by a script.
+`craft-handoff.js` runs this gate in process and returns `{ok, prompt,
+profile, signals, tasks?, gate, warnings}`: handle every `{error, fix,
+example}` in `gate.errors` and rerun, and never dispatch a rejected prompt.
+To check a prompt on its own, write it to a temp file (the clipboard delivery
+path needs that file anyway), then run:
 
 ```
-node ${CLAUDE_PLUGIN_ROOT}/scripts/check-prompt.js <file> --destination <task|agent|clipboard> --profile <standard|reinforced>
+node ${CLAUDE_PLUGIN_ROOT}/scripts/check-prompt.js <file> --destination <task|agent|clipboard> --profile <standard|reinforced> --host <claude|codex>
 ```
 
+- `--host` — the host that will run the prompt. It picks the canonical
+  variant of every host-tagged block and the host's plugin-path rule.
+  Without it the checker detects the host it runs in.
 - `--profile` — the profile chosen above. Omitting it makes the checker read
   the profile off the prompt (the full guardrail blocks mean `reinforced`),
   which is what keeps every prompt written before profiles existed valid;
   pass it explicitly so a standard prompt that accidentally kept a guardrail
   block is still checked as standard. The result echoes back `profile`.
 - `--destination` — `task` for `Execute here` in any of its execution
-  modes, `agent` for a background Agent, `clipboard` for copy. This is how
+  modes, `agent` for a background agent, `clipboard` for copy. This is how
   the checker knows whether an omitted `tone` must stay (agent) or go.
 - `--entry <id>` — add for a `foreman:roadmap` pick, so the embedded
   entry paragraph is verified too; add `--resume` when the pick resumed
@@ -569,71 +682,95 @@ never deliver a prompt the checker rejected. Surface its `warnings`
 alongside the delivery message. The checker validates structure (guardrail
 blocks verbatim, no unfilled placeholders, omit compliance, verification
 present); it can't judge content quality — the checklist above still
-applies to what the fields actually say. One of its errors fires on a
-resolved plugins-cache path with a version segment — the fix is always to
-type `${CLAUDE_PLUGIN_ROOT}` back in place of it, never to strip the
-command.
+applies to what the fields actually say. In Claude Code one of its errors
+fires on a resolved plugins-cache path with a version segment — the fix is
+always to type `${CLAUDE_PLUGIN_ROOT}` back in place of it, never to strip
+the command. In Codex the matching error fires on an unexpanded variable,
+and the fix is the installed path `craft-handoff.js` resolves.
 
 ## Delivery mechanics
 
 Shared by every skill that assembles this template. The skill decides
 *which* destination applies and in what order it offers them; this section
-says what each one does once picked.
+says what each one does once picked. Where the hosts differ, each bullet
+names its host.
 
-**Never call `mcp__ccd_session__spawn_task`** — it has a known bug where
-tasks spawned through it don't get MCP tools. Use one of the
-destinations named in `skills/roadmap/destination-question.md` instead,
-regardless of Desktop or CLI.
+**Never call `mcp__ccd_session__spawn_task`** (Claude Code) — it has a known
+bug where tasks spawned through it don't get MCP tools. In Codex, never
+substitute an app task-creation tool for a background agent: create a
+user-owned Codex task only when the user explicitly asks for one. Use one of
+the destinations named in `skills/roadmap/destination-question.md` instead.
 
 **One question, not two.** Destination and execution mode are asked
-together, in a single `AskUserQuestion` the crafting skill owns, before
-the prompt exists. Its exact wording, its options, the split option's
-two-or-more-checks gate and the `(Recommended)` placement all live in
-`skills/roadmap/destination-question.md` — the one copy both crafting
-flows read at that step. Gather the verification commands *before*
-asking: that gate reads them.
+together, in a single question the crafting skill owns, before the prompt
+exists — `AskUserQuestion` in Claude Code, the available question tool (or a
+plain question when none is usable) in Codex. Its exact wording, its options,
+the split option's caution and the `(Recommended)` placement all live in
+`skills/roadmap/destination-question.md` — the one copy both crafting flows
+read at that step. Gather the verification rows *before* asking: that
+question reads them.
 
-**Background Agent** — call `Agent` with `prompt` = the assembled XML
-prompt, `description` = a 3-5 word summary, `run_in_background: true`.
+**Execute here** — work the accepted prompt in this session. A split run
+follows the splitting and checkpointing sections below. In Codex, useful
+independent bounded work can go to collaboration subagents with concrete
+ownership and evidence to return, omitting model overrides; the coordinator
+keeps the roadmap, integration and commits.
+
+**Background agent** — Claude Code: call `Agent` with `prompt` = the
+assembled XML prompt, `description` = a 3-5 word summary,
+`run_in_background: true`. Codex: use an available collaboration spawn tool
+with the complete prompt, and report a real blocker to the coordinator
+through collaboration messaging.
 Checkpoint branches and commits stay with this crafting session — a
-background Agent shares this working tree and must not switch branches or
-commit checkpoints. Never pass `model`: the agent inherits the crafting
+background agent shares this working tree and must not switch branches or
+commit checkpoints. Never pass a model: the agent inherits the crafting
 session's model, which is the one Foreman can be sure the user chose.
 
-**Clipboard** — `Write` the assembled prompt to a temp file first; never
-pass it as an inline shell string, a large prompt breaks shell quoting and
-the copy silently fails. Then pipe the file's content into the clipboard
-command: `Get-Content -Raw -Encoding utf8 <file> | Set-Clipboard` on Windows, `pbcopy <
-<file>` on macOS, `xclip -selection clipboard < <file>` (or `wl-copy <
-<file>`) on Linux. Mention the file path too, in case the clipboard step
-fails. If no clipboard tool is available at all, fall back to showing the
-prompt in a fenced `xml` code block instead.
+**Clipboard** — write the assembled prompt to a UTF-8 temp file first;
+never pass it as an inline shell string, a large prompt breaks shell quoting
+and the copy silently fails. Then pipe the file's content into the clipboard
+command: `Get-Content -LiteralPath <file> -Raw -Encoding utf8 | Set-Clipboard`
+on Windows, `pbcopy < <file>` on macOS, `xclip -selection clipboard < <file>`
+(or `wl-copy < <file>`) on Linux. Mention the file path too, and claim
+"copied" only after the command succeeded. If no clipboard command works, give
+the file path; a fenced `xml` code block in chat is the last fallback, only
+when no usable file can be delivered. Copying never marks the entry in
+progress.
 
 **Clipboard checkpoint embed** — only when the assembled prompt carries
-two or more `Run:`/`Expected:` pairs; with one or none, embed nothing.
-The pasted session never reads this file, so the protocol must ride
-inside the prompt itself: at craft time, resolve the `checkpoints` block
-of `.foreman/config.json` exactly as the checkpointing section below
-describes (same keys, same defaults), then append a compact block to the
-end of `task_rules` with the resolved values baked in — never the
-resolution rules themselves. Keep it to a dozen imperative lines,
-instructing the pasted session to:
-- create one tracked task per `Run:`/`Expected:` pair with `TaskCreate`,
-  then chain every task from the second onward with one `TaskUpdate`
-  `addBlockedBy: ["<the previous task's id>"]`;
+two or more `Run:`/`Expected:` pairs; with one or none, embed nothing. A
+verification row counts once whether it carries a command, a Look:/Expected:
+human check or both, and an investigation embeds nothing, however many rows
+it has. The pasted session never reads this file, so
+the protocol must ride inside the prompt itself: at craft time, resolve the
+`checkpoints` block of `.foreman/config.json` exactly as the checkpointing
+section below describes (same keys, same defaults), then append a compact
+block to the end of `task_rules` with the resolved values baked in — never
+the resolution rules themselves. `craft-handoff.js` writes it, instructing
+the pasted session to:
+- track one row per verification row, in order — Claude Code: one
+  `TaskCreate` per row, then chain every task from the second onward with one
+  `TaskUpdate` `addBlockedBy: ["<the previous task's id>"]`; Codex: a local
+  plan or checklist, finishing each row before its successor and creating no
+  user-owned tasks;
 - settle the branch first — name the baked base branch, or bake the
   detection line (`git symbolic-ref --short refs/remotes/origin/HEAD`,
   name after `origin/`, fallback `main`) when `baseBranch` was unset;
   with `branch` `true`, create `foreman/<slug>` only when on the base
   branch, otherwise checkpoint in place (with `branch` `false`, always
-  in place);
-- before task 1, stop if `git status --porcelain` is non-empty: say so
-  once and make no checkpoint commits at all for the run (this is the
-  gate for the checkpoint commits, whatever else the prompt instructs);
+  in place); a Codex prompt also says that explicit user branch restrictions
+  override these settings;
+- before task 1, settle whether the run may commit — with an entry
+  paragraph, from `safe-commit.js begin`'s `dirty` field alone (the entry's
+  own bookkeeping is reported separately), otherwise from
+  `git status --porcelain` — and make no checkpoint commits at all for a
+  dirty run (this is the gate for the checkpoint commits, whatever else the
+  prompt instructs), preserving those changes;
 - after each task's check passes, stage only the files that task
   changed — `git add -- <those paths>`, never `git add -A` — and commit
   `task <n>/<total>: <task subject>`, and leave it local — checkpoints
-  are never pushed;
+  are never pushed; in an explicitly reviewed run, only after the user
+  accepts that result, following the embedded review protocol;
 - the last task carries the roadmap close instead of a `task
   <n>/<total>` commit, when this handoff carries an entry paragraph —
   stage with `safe-commit.js finish --no-commit`, close with
@@ -645,33 +782,51 @@ instructing the pasted session to:
 - skip checkpointing and just work the tasks if git is unavailable.
 
 **Never paste or print the assembled XML prompt into your response text** —
-it is data for `TaskCreate`'s `description`, `Agent`'s `prompt`, or a temp
-file piped to clipboard, not something to show the user. The one exception
-is the clipboard fallback block above, used only when no clipboard tool
-exists.
+it is data for a tracked task's description, a background agent's prompt, or a
+temp file piped to clipboard, not something to show the user unless they ask
+to see it. The only other exception is the clipboard's last fallback above.
 
 ## Splitting an `Execute here` handoff into several tasks
 
 Only for the `Execute here, split by check` option.
 `craft-handoff.js` already computes the row shapes and returns them as
-`tasks[]`: one task per runnable check (never by file, never by the
-analyze/implement bullets — a single check is a single task, full stop),
-the first row carrying the whole assembled prompt, and a roadmap entry
-paragraph — when the handoff carries one — on the last row only, never
-repeated (`hooks/task-completed.js` gates every completing task whose
+`tasks[]`: one task per verification row (never by file, never by the
+analyze/implement bullets — a single row is a single task, full stop). In
+Claude Code a row is one `Run:`/`Expected:` pair. In Codex a row is one
+meaningful result: its `run`/`expected` command check, its
+`review.action`/`review.expected` human check, or both; typecheck, tests and
+human review for the same result stay on the same row, and human checks render
+as Look/Expected and are never sent to the command resolver. The first row
+carries the whole assembled prompt, and a roadmap entry paragraph — when the
+handoff carries one — rides on the last row only, never repeated (in Claude
+Code, `hooks/task-completed.js` gates every completing task whose
 description names an entry, so repeating it would demand the entry close
 while siblings are still pending; `hooks/task-created.js` still opens the
-entry the moment that last row is created, before any work starts). A
-fixed number (the execution-mode question's free-text answer) cuts into
-that many slices the same way.
+entry the moment that last row is created, before any work starts). A fixed
+number (the execution-mode question's free-text answer) cuts into that many
+slices the same way.
 
 The crafting skill's own job is only to turn each returned row into a
-`TaskCreate`, in order, chaining every task from the second onward with
-one `TaskUpdate` `addBlockedBy: ["<the previous task's id>"]` — the
-harness then refuses to start a task before its predecessor resolves. The
-mechanical gate above runs **once**, on the full assembled prompt, with
-`--destination task`; splitting is a delivery-layer choice and changes
-nothing the checker inspects.
+tracked unit, in order. Claude Code: one `TaskCreate` per row, chaining every
+task from the second onward with one `TaskUpdate` `addBlockedBy: ["<the
+previous task's id>"]` — the harness then refuses to start a task before its
+predecessor resolves. Codex: a plan tool or a checklist in the current task,
+finishing prerequisites before dependent rows — there is no native task
+dependency API, and a local row is never a user-owned task. Do not close the
+entry after an intermediate row. The mechanical gate above runs **once**, on
+the full assembled prompt, with `--destination task`; splitting is a
+delivery-layer choice and changes nothing the checker inspects.
+
+The transient assembler input `reviewEachIncrement:true` carries an explicit
+request for human acceptance after every increment. It requires `review` on
+every row, including rows with passing automated checks; omitted or false
+keeps the ordinary split. Follow the [increment review
+protocol](skills/roadmap/increment-review.md): the assembler embeds that same
+text in `<increment_review>`, even for one reviewed row on clipboard. It owns
+presentation, waiting for the actual answer, feedback, pause, notes and
+checkpoint ordering. The preference belongs to this handoff, never to the
+roadmap schema or the project configuration. Structural validation proves
+transport; only a live run shows the wait.
 
 ## Checkpointing a task-split run
 
@@ -680,7 +835,9 @@ offers that option every time and marks it when it is a poor fit, so a
 split can legitimately arrive here carrying a single task; it runs the
 same way, one checkpoint instead of several. Every other option skips this
 section entirely — except the clipboard checkpoint embed above, which
-reuses the config-resolution step below at craft time.
+reuses the config-resolution step below at craft time. An investigation
+takes no implementation checkpoints, and a decision checkpoints only an
+explicitly authorized decision artifact.
 
 <!-- [Foreman: 119] -->
 - **Read the config first.** Before anything else, read the `checkpoints`
@@ -690,6 +847,11 @@ reuses the config-resolution step below at craft time.
   drive the steps below. There is no `push` key and none should be added —
   the default ending squashes the checkpoint branch and deletes it, so
   pushing each checkpoint publishes work that is about to be rewritten.
+- **User branch restrictions win.** A branch the user said not to modify
+  stays untouched whatever these settings say: create or use an authorized
+  working branch before any write, `branch: false` cannot override that, and
+  a finish choice never merges into a protected branch — keep the completed
+  work on its branch instead.
 - **Settle the branch before the first task.** When `baseBranch` is set,
   that IS the base branch — skip detection. Otherwise resolve it with
   `git symbolic-ref --short refs/remotes/origin/HEAD` and take the name
@@ -721,7 +883,17 @@ reuses the config-resolution step below at craft time.
   task's baseline. Never `git add -A` — the primitive owns staging.
   Checkpoints always stay local, no comment — never push them.
   `onFinish` is the only step that reaches a remote, and only through
-  its `Open a PR` option.
+  its `Open a PR` option. In Codex, send that JSON from a UTF-8 file rather
+  than an inline `echo`.
+- **An explicitly reviewed run checkpoints after acceptance.** With
+  `reviewEachIncrement:true`, follow [increment
+  review](skills/roadmap/increment-review.md): record the observed decision
+  before an eligible checkpoint, and never treat an intermediate acceptance
+  as the parent's close. For the final result, follow
+  [close-increments.md](skills/roadmap/close-increments.md): match omitted
+  checks with later evidence for that same result, and distinguish the final
+  decision from the acceptance of an intermediate row. Both protocols travel
+  in reviewed handoffs.
 - **A roadmap-entry close lands inside the last checkpoint commit** (when
   the handoff carries one): stage the task's own files with
   `safe-commit.js finish --no-commit`, close the entry with `staged:true`
@@ -730,12 +902,13 @@ reuses the config-resolution step below at craft time.
   line — entry and commit link through that trailer, so no sha gets
   recorded and the roadmap never trails uncommitted. Then mark the final
   task completed. The entry-paragraph and gate rules above are
-  unchanged.
+  unchanged. When subagents help, the coordinator owns these writes.
 - **After the last task, `onFinish` decides the branch's fate** — only if
   this run created the branch. When the run checkpointed on a pre-existing
   branch, or `branch` is `false`, skip this step entirely. `"ask"` (the
-  default) asks with the `AskUserQuestion` below; `"squash"`, `"merge"`,
-  `"pr"`, or `"keep"` performs the matching option directly, no question:
+  default) asks the question below — `AskUserQuestion` in Claude Code, the
+  available question tool in Codex; `"squash"`, `"merge"`, `"pr"`, or
+  `"keep"` performs the matching option directly, no question:
   - `Squash merge (Recommended)` — squash onto the base branch, commit
     with a real message summarizing the whole change, delete the
     checkpoint branch
@@ -746,7 +919,7 @@ reuses the config-resolution step below at craft time.
 
   **Write the answer back so it is asked once.** After the user answers,
   set `checkpoints.onFinish` in `.foreman/config.json` to the matching
-  value (`squash`/`merge`/`pr`/`keep`) — `Read` the file, set that one key
+  value (`squash`/`merge`/`pr`/`keep`) — read the file, set that one key
   inside the `checkpoints` object, and write it back with every other key
   untouched. Say in one line that later runs will act on it directly. A
   run that reached this question through a concrete config value never
@@ -758,3 +931,6 @@ reuses the config-resolution step below at craft time.
 - Trivial fixes doable inline in seconds — do it now
 - Anything needing this conversation's context to understand — stay inline
 - Low-confidence hunches — skip
+
+A handoff is useful only when its bounded outcome and evidence make the
+recipient more effective.

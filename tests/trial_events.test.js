@@ -14,8 +14,9 @@
 // Covers:
 //   - every event the skills name is a real event, and every flow a real flow
 //   - each branch records its own flow, and doctor.md records nothing
-//   - pick.md records the pick events and leaves menu_shown/hint_used to
-//     next-candidates --menu, which records exactly one of each per menu
+//   - pick.md records only the model-side pick events and leaves menu_shown/
+//     hint_used to next-candidates --menu, which records exactly one of each
+//   - one definition of a question interaction for both hosts
 //   - init/SKILL.md carries init_started, init_completed and the snapshot
 //     recovery
 //   - the shapes the prose writes actually pass the writer's own validator
@@ -111,20 +112,26 @@ describe('the model-side trial events', () => {
     );
   });
 
-  test('pick.md records the pick events and leaves the menu events to the CLI', () => {
+  test('pick.md records only the pick events and leaves the menu events to the CLI', () => {
     const text = skill('roadmap', 'pick.md');
-    for (const event of ['question_asked', 'pick_accepted', 'pick_overridden']) {
-      assert.match(text, new RegExp(`trial-log\\.js ${event} `), `pick.md never records ${event}`);
-    }
-    // next-candidates --menu records both itself; a prose copy counts every menu twice.
-    for (const event of ['menu_shown', 'hint_used']) {
-      assert.doesNotMatch(text, new RegExp(`trial-log\\.js ${event} `), `pick.md records ${event} a second time`);
-    }
+    const modelEvents = invocations().filter((inv) => inv.file === 'roadmap/pick.md').map((inv) => inv.event);
+    // next-candidates --menu records menu_shown and hint_used itself; a prose copy counts every menu twice.
+    assert.deepEqual(modelEvents.sort(), ['pick_accepted', 'pick_overridden', 'question_asked']);
+    assert.match(text, /events are emitted by the CLI; do not record them\s+again/);
     const flat = text.replace(/\s+/g, ' ');
     assert.match(flat, /`next-candidates --menu` has already recorded `menu_shown`/);
-    // The two branches that must NOT record a pick are named out loud.
+    // The branches that must NOT record a pick are named out loud.
     assert.ok(/settles existing work rather than answering "what next", so it records neither/.test(flat));
     assert.ok(/defer\*\* sub-branch records neither/.test(flat));
+    assert.ok(/A skipped question is never logged/.test(flat));
+  });
+
+  test('one question interaction means the same thing on both hosts', () => {
+    const flat = skill('foreman', 'runtime.md').replace(/\s+/g, ' ');
+    assert.match(flat, /`question_asked` is one question interaction the user saw: one `AskUserQuestion` call in Claude Code, however many questions it batches; one picker call or one plain-text question in Codex/);
+    for (const rel of ['roadmap/SKILL.md', 'roadmap/add.md', 'roadmap/correct.md']) {
+      assert.match(skill(...rel.split('/')).replace(/\s+/g, ' '), /question interaction/, `${rel} counts something else`);
+    }
   });
 
   test('init/SKILL.md carries the setup pair and the snapshot recovery', () => {
@@ -153,7 +160,7 @@ describe('the model-side trial events', () => {
         `${rel} does not say the write is a no-op when the trial is off`
       );
       assert.ok(
-        /never blocks the flow/.test(flat),
+        /never blocks? the flow/.test(flat),
         `${rel} does not say the write never blocks the flow`
       );
     }
@@ -162,6 +169,8 @@ describe('the model-side trial events', () => {
   test('the shapes the prose writes pass the writer\'s own validator', () => {
     const shapes = [
       ['question_asked', { flow: 'pick' }],
+      ['menu_shown', { candidates: 3, hint: true }],
+      ['hint_used', { hit: false }],
       ['pick_accepted', { rank: 1 }],
       ['pick_overridden', { chosen_rank: 2 }],
       ['pick_overridden', { chosen_rank: null }],
@@ -202,7 +211,7 @@ describe('the model-side trial events', () => {
   test('the same call is a silent no-op on a project that never opted in', () => {
     const project = makeTmpProject();
     const result = runNodeScript(TRIAL_CLI, ['question_asked', '{"flow":"pick"}'], null, {
-      CLAUDE_PROJECT_DIR: project,
+      FOREMAN_PROJECT_DIR: project,
     });
     const out = JSON.parse(result.stdout);
     assert.equal(out.recorded, false);
@@ -218,7 +227,7 @@ describe('the model-side trial events', () => {
     fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
     fs.writeFileSync(path.join(project, '.foreman', 'config.json'), JSON.stringify({ trialLog: true }), 'utf-8');
     const roadmapCli = path.join(SCRIPTS_DIR, 'roadmap.js');
-    const env = { CLAUDE_PROJECT_DIR: project };
+    const env = { FOREMAN_PROJECT_DIR: project };
 
     const added = runNodeScript(roadmapCli, ['add'], {
       title: 'Add alpha output', why: 'Expose alpha results', what: 'Print alpha output', source: 'user',

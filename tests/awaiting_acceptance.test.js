@@ -371,9 +371,12 @@ describe('skill contracts', () => {
     const skill = readSkill('skills', 'roadmap', 'pick.md');
 
     assert.match(skill, /`Accept: <title> \(<id>\)`/);
-    assert.match(skill, /"status":"done"/);
+    assert.ok(skill.includes('**Accept**'));
+    assert.match(skill, /`awaiting_acceptance` entries, then up to two `in_progress` entries/);
     assert.match(skill, /accept options lead/);
+    assert.ok(skill.includes(`echo '{"id":"<id>","status":"done"}'`));
     assert.match(skill, /declining sends it back/);
+    assert.ok(skill.includes(`echo '{"id":"<id>","status":"in_progress","notes":"<what they said>"}'`));
   });
 
   // [Foreman: 185] The primary close path honors requireVerification: the
@@ -385,64 +388,75 @@ describe('skill contracts', () => {
   // bakes the hold sentence directly from a `requireVerification` argument,
   // so this pins the guarantee at its new home (not already covered by
   // craft-handoff.test.js).
-  test('the entry paragraph (craft-handoff.js) holds done for acceptance, config-gated', () => {
-    const { entryParagraphText } = require('../scripts/craft-handoff.js');
-    const held = entryParagraphText({
-      id: '001',
-      resume: false,
-      requireVerification: true,
-      isDecision: false,
-      destination: 'clipboard',
-    });
-    assert.match(held, /write\s+`awaiting_acceptance` instead/);
-    // A destination with a user in it asks; it never falls back to prose.
-    assert.match(held, /The first option is Test/);
-    assert.match(held, /"status":"done"/);
-    assert.doesNotMatch(held, /Say so in your final message too/);
-    // The Test option is gated on a recorded line, so the same paragraph has
-    // to say how one gets recorded — and that a runnable check never is one.
-    assert.match(held, /"unverified: <the check, and what to look for>"/);
-    assert.match(held, /never hand a command to the user to run for you/);
-    // Two more bars, both from live misfires: a check nothing can answer yet
-    // fired Test on an untestable entry, and one the session could have
-    // driven itself sent the user to the window session after session.
-    assert.match(held, /answerable today/);
-    assert.match(held, /genuinely past your reach/);
+  //
+  // Each host words the paragraph its own way; the gating is the same on both.
+  for (const host of ['claude', 'codex']) {
+    test(`the entry paragraph (craft-handoff.js) holds done for acceptance, config-gated (${host})`, () => {
+      const { entryParagraphText } = require('../scripts/craft-handoff.js');
+      const paragraph = (overrides) => entryParagraphText({
+        id: '001',
+        resume: false,
+        requireVerification: true,
+        isDecision: false,
+        destination: 'clipboard',
+        host,
+        ...overrides,
+      });
 
-    // A background agent has no one to ask, so the hand-back stays prose.
-    const agentHeld = entryParagraphText({
-      id: '001',
-      resume: false,
-      requireVerification: true,
-      isDecision: false,
-      destination: 'agent',
-    });
-    assert.match(agentHeld, /Say so in your final message too/);
-    assert.doesNotMatch(agentHeld, /AskUserQuestion/);
-    assert.doesNotMatch(agentHeld, /unverified:/);
+      const held = paragraph({});
+      assert.match(held, /"status":"done"/);
+      assert.doesNotMatch(held, /Say so in your final message too/);
+      if (host === 'claude') {
+        assert.match(held, /write\s+`awaiting_acceptance` instead/);
+        // A destination with a user in it asks; it never falls back to prose.
+        assert.match(held, /The first option is Test/);
+        // The Test option is gated on a recorded line, so the same paragraph has
+        // to say how one gets recorded — and that a runnable check never is one.
+        assert.match(held, /"unverified: <the check, and what to look for>"/);
+        assert.match(held, /never hand a command to the user to run for you/);
+        // Two more bars, both from live misfires: a check nothing can answer yet
+        // fired Test on an untestable entry, and one the session could have
+        // driven itself sent the user to the window session after session.
+        assert.match(held, /answerable today/);
+        assert.match(held, /genuinely past your reach/);
+      } else {
+        assert.match(held, /record `awaiting_acceptance`/);
+        assert.match(held, /offer Test first/);
+        assert.match(held, /"unverified: <the check and what to look for>"/);
+        assert.match(held, /Run the required checks using available commands, skills, or UI tools/);
+        assert.match(held, /answerable now/);
+        assert.match(held, /beyond those tools/);
+      }
 
-    const notHeld = entryParagraphText({
-      id: '001',
-      resume: false,
-      requireVerification: false,
-      isDecision: false,
-      destination: 'clipboard',
+      // A background agent has no one to ask, so the hand-back stays prose:
+      // Claude Code's in its final message, Codex's through the coordinator.
+      const agentHeld = paragraph({ destination: 'agent' });
+      assert.match(agentHeld, host === 'claude'
+        ? /Say so in your final message too/
+        : /Return the result to the coordinator so they can request the user's acceptance/);
+      assert.doesNotMatch(agentHeld, /AskUserQuestion/);
+      assert.doesNotMatch(agentHeld, /unverified:/);
+
+      const notHeld = paragraph({ requireVerification: false });
+      assert.doesNotMatch(notHeld, /awaiting_acceptance/);
+      assert.doesNotMatch(notHeld, /Say so in your final message too/);
+      assert.doesNotMatch(notHeld, /AskUserQuestion/);
+      assert.doesNotMatch(notHeld, /unverified:/);
     });
-    assert.doesNotMatch(notHeld, /awaiting_acceptance/);
-    assert.doesNotMatch(notHeld, /Say so in your final message too/);
-    assert.doesNotMatch(notHeld, /AskUserQuestion/);
-    assert.doesNotMatch(notHeld, /unverified:/);
-  });
+  }
 
   // [Foreman] The second surface for the same choice: an entry accepted days
   // later, from the pick menu, must offer the same hand-test the finishing
   // session offered — and must read it back from the entry, never invent it.
   test('the pick menu offers the recorded hand-tests before accepting', () => {
-    const skill = readSkill('skills', 'roadmap', 'pick.md');
+    const flat = readSkill('skills', 'roadmap', 'pick.md').replace(/\s+/g, ' ');
 
-    assert.match(skill, /`Test it first \(Recommended\)`/);
-    assert.match(skill, /`unverified:` line out of its `notes`/);
-    assert.match(skill, /With none, that option does not appear at all/);
+    assert.match(flat, /take every `unverified:` line out of its `notes`/);
+    // A later `verification resolved:` note settles its check, so the Test
+    // option appears only while unverified lines remain.
+    assert.match(flat, /leave out any that a later `verification resolved:` note settles for the same check/);
+    assert.match(flat, /With one or more still unverified, the first option is `Test it first \(Recommended\)`/);
+    assert.match(flat, /With none, that option does not appear at all/);
   });
 
   test('the schema documents the lifecycle and the downgrade cost', () => {

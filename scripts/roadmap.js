@@ -2,10 +2,11 @@
 "use strict";
 
 // [Foreman: 062] Standalone CLI contract: this file is plain Node and must
-// stay runnable with no harness present. CLAUDE_PROJECT_DIR is optional and
-// falls back to cwd; no other harness dependency is permitted here. Pinned by
-// tests/standalone.test.js, which spawns it with every CLAUDE_* variable
-// deleted.
+// stay runnable with no harness present. runtime.projectDir reads the
+// optional project overrides (FOREMAN_PROJECT_DIR, CODEX_CWD,
+// CLAUDE_PROJECT_DIR) and falls back to cwd; no other host dependency is
+// permitted here. Pinned by tests/standalone.test.js, which spawns it with
+// every host variable deleted.
 
 const fs = require("fs");
 const path = require("path");
@@ -37,9 +38,7 @@ const {
   trailerShasFor,
 } = require("./commit-evidence");
 
-function projectDir() {
-  return path.resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
-}
+const { projectDir } = require("./runtime");
 
 function roadmapPath(root) {
   return path.join(root, "ROADMAP.jsonl");
@@ -517,9 +516,8 @@ const STATUSES = new Set([
   "dropped",
   "rejected",
 ]);
-// `codex-suggested` is what the Codex edition of Foreman writes for its own
-// suggestions on a project both editions work in; this edition's stay
-// `claude-suggested`.
+// Each host records its own suggestions: `claude-suggested` from Claude Code,
+// `codex-suggested` from Codex. One project can carry both.
 const SOURCES = new Set(["user", "claude-suggested", "codex-suggested"]);
 // Statuses nothing is waiting on any more: the entry will not move again, so
 // a dependent of a dropped/rejected one is stranded rather than blocked.
@@ -542,14 +540,14 @@ const KINDS = new Set(["build", "decision"]);
 
 // [Foreman: 102]
 // What actually executed the entry, self-reported at close time. Neither is
-// observable: hook input carries no model, and the Agent tool takes no effort
-// argument, so effort is whatever the executing session was already set to.
-// A project may also be worked by the Codex edition, which records exact
-// model ids and effort tiers of its own, so `model` is checked for identifier
-// syntax rather than against a closed set. MODELS stays as the family labels
-// this edition's handoffs ask a Claude session to record — the comparable
-// half of the corpus — and every one of them is a valid identifier. Syntax
-// says nothing about whether a model exists. EFFORTS covers both hosts' tiers.
+// observable: hook input carries no model, and neither host's delegation tool
+// takes an effort argument, so effort is whatever the executing session was
+// already set to. Codex records exact model ids and effort tiers of its own,
+// so `model` is checked for identifier syntax rather than against a closed
+// set. MODELS stays as the family labels Claude Code handoffs ask a Claude
+// session to record — the comparable half of the corpus — and every one of
+// them is a valid identifier. Syntax says nothing about whether a model
+// exists. EFFORTS covers both hosts' tiers.
 const MODELS = new Set(["haiku", "sonnet", "opus", "fable"]);
 const EFFORTS = new Set(["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]);
 

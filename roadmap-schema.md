@@ -10,22 +10,22 @@ task's status touches exactly one line, so `git diff` on this file shows a
 clean one-line change per update instead of reformatting the whole file.
 
 All reads and writes go through `scripts/roadmap.js` — a small CLI, not a
-long-running server (Claude shells out once per call, same as any other
-Bash invocation). It exists because this file gets touched on every commit
-with discovery on, not rarely — the CRUD mechanics (id computation,
+long-running server (the assistant shells out once per call, same as any
+other shell command). It exists because this file gets touched on every
+commit with discovery on, not rarely — the CRUD mechanics (id computation,
 parse-before/after-write, notes append-only) are now enforced in code
-instead of re-derived by Claude from prose every time, which is both
-cheaper (one Bash call instead of Read+reason+Edit+Read) and safer (no
-hand-formatted JSON to get wrong). Never `Read`/`Edit` `ROADMAP.jsonl`
-directly — see "Using roadmap.js" below.
+instead of re-derived by the assistant from prose every time, which is both
+cheaper (one shell call instead of read, reason, edit and reread) and safer
+(no hand-formatted JSON to get wrong). Never write `ROADMAP.jsonl` directly
+— see "Using roadmap.js" below.
 
-This isn't just convention — `hooks/guard-roadmap-edit.js` (`PreToolUse`
-on `Edit`/`Write`) denies any direct edit of a file named `ROADMAP.jsonl`
-or `archive.jsonl` (see [Archived entries](#archived-entries--foremanarchivejsonl)),
-pointing back at the CLI. `Read` is still fine (inspecting the file is
-harmless), only writing to it directly is blocked. `Bash` stays open as
-an escape hatch for the rare case where the file is corrupt and the CLI
-itself can't parse it to operate on it.
+This isn't just convention — `hooks/guard-roadmap-edit.js` (`PreToolUse` on
+`Edit`/`Write` in Claude Code, on `apply_patch`/`Edit`/`Write` in Codex)
+denies any direct edit of a file named `ROADMAP.jsonl` or `archive.jsonl` (see [Archived entries](#archived-entries--foremanarchivejsonl)),
+pointing back at the CLI. Reading the file is still fine (inspecting it is
+harmless); only writing it through a file tool is blocked. A shell command is
+not guarded on either host: it stays open as an escape hatch for the rare case
+where the file is corrupt and the CLI itself can't parse it to operate on it.
 
 ---
 
@@ -100,7 +100,7 @@ its repair, never `doctor --fix`.
 | `why` | string | yes | The rationale — the problem or need this task addresses. **Keep it to 1-2 sentences** (`roadmap.js` warns past ~240 chars) — this gets re-read on every `list`/`next-candidates` call, a wall of text multiplies cost across every future call, not just this one. Correctable on an active entry with `correct`. |
 | `what` | string | yes | What the task concretely consists of. A bit more room than `why` (warns past ~400 chars) since concrete detail (paths, line ranges) belongs here — but still a description, not a design doc. Correctable on an active entry with `correct`. |
 | `status` | enum | yes | `planned \| in_progress \| awaiting_acceptance \| deferred \| done \| dropped \| rejected`. See below. |
-| `source` | enum | yes | `user` (added directly by a person), `claude-suggested` (originated from the commit-hook discovery flow), or `codex-suggested` (the same kind of suggestion, written by the Codex edition of Foreman on a project both editions work in). |
+| `source` | enum | yes | `user` (added directly by a person), `claude-suggested` (proposed by a Claude Code session: a commit-hook discovery suggestion, or a goal `init` drafted from the repository), or `codex-suggested` (the same kind of proposal from a Codex session, whose discovery also runs in handoffs and before a completion report). All three are current, and each host writes its own. |
 | `depends_on` | array\<string\> | yes (may be `[]`) | Ids of tasks that must be `done` before this one is unblocked. |
 | `planned_touches` | array\<string\> | yes (may be `[]`) | The **prediction**: flat file/area path hints for the surface this task is expected to touch, e.g. `"src/auth/middleware.ts"` or `"src/auth/"`. Plain strings only — no need for glob/AST matching at this scale, this is for eyeballed collision checks (matched folder-aware: an area hint owns every path beneath it). Written at `add` (which also accepts the legacy key `touches` as an input alias for this field) and **editable**: `correct` replaces the whole array, so a wrong guess can shrink. Nothing else writes it — a close never folds into it, which is what keeps it a forecast. This is the **only** surface the pre-work collision checks read (`next-candidates`' `collision`, the post-commit correlation tag): collision asks "would starting this put two sessions in the same files", which is a question about intent, never about where an entry has already been. Hand-written, so it is also the half `doctor` holds to the `invalid_path` trust boundary. |
 | `observed_touches` | array\<string\> | yes (may be `[]`) | The **history**: what the work actually reached, derived mechanically at close and **append-only**, same spirit as `commits` — never shrinks, never hand-edited, and not correctable (`correct` refuses it; a wrong observation means the wrong commit was recorded). `update-status` fills it two ways: automatically, whatever files the given `commit`'s own diff touched (`git show`, best-effort — silent if git or the sha is unavailable) or, on a `staged:true` close, the index; plus optionally `add_touches` for anything outside that diff. Not required to be exhaustive: `commits[]` is the ground truth via `git show --stat`, this is a convenience index on top of it, not a second ledger. Deliberately kept out of every collision check — a path committed last week conflicts with nobody. It comes from git, so its contents are whatever git reported and `doctor` does not police them for path safety. |
@@ -109,18 +109,36 @@ its repair, never `doctor --fix`.
 | `updated_at` | string (`YYYY-MM-DD`) | yes | Rewritten on every change to the entry. Doubles as `correct`'s staleness guard (`expected_updated_at`), and the split there is honest: it is **date-only**, so two corrections on the same day both match it — those are caught by `correct`'s per-field content check instead (`expected.<field>` must equal the stored value, so a correction composed against text it never saw is refused). What the date guard catches is the multi-day case: a session applying a correction composed against an entry it read days ago, on top of someone else's newer one. |
 | `notes` | string | yes (may be `""`) | Free text. **Append-only** — add to it, never overwrite what's already there. Each append lands on its own `YYYY-MM-DD`-stamped line, written by the script; don't hand-write a date into the note text. The embedded newlines are JSON-escaped, so the file stays one line per entry. This is the durable home for full findings, not a one-line breadcrumb — a dense paragraph of specific findings (exact paths/symbols, what was tried, what shipped) is expected and normal (warns past ~3000 chars). Still never a serialized JSON blob (e.g. dumping an imported/legacy record's full JSON as a string here defeats the point of a structured schema; if migrating from another tracker, map its fields onto `why`/`what`/`planned_touches` instead of stuffing the original object into `notes`). |
 | `doc` | string | no — omitted entirely when not set | An optional pointer at a document this project already keeps about this entry. Foreman authors no document and templates none: it only reads. Recorded on `add`/`update-status` as exactly `"none"` (nothing was written down outside the ledger) or a relative path ending in `.md` (no leading slash, no drive letter, no `..` segments), by convention `<ledger.dir>/<id>.md` (default `docs/foreman/<id>.md`, path configurable). Never backfilled onto existing entries and never defaulted, and nothing demands it — an entry where the field was never passed simply has no `doc` key. Direct dependencies' `doc` paths ride into a handoff as `depends_on_docs`. Code points back at an entry with an anchor comment, `[Foreman: <id>[, <id>...]]` (ids of three or more digits, zero-padded to at least three, comma-separated — e.g. `// [Foreman: 019]` or `// [Foreman: 019, 034]`); `DECISION_ANCHOR_RE`/`anchorIdsIn`/`anchorHasId` in `scripts/roadmap.js` are the one shared definition of that format. |
-| `model` | string | no — omitted entirely when not set | Which model **actually executed** this entry, recorded on `update-status` (typically the close), never on `add` (an entry being created hasn't run yet). Any identifier of 1–128 letters, digits, dots, underscores, colons, slashes or hyphens, starting with a letter or digit, is accepted (`isValidModel` in `scripts/roadmap.js`). A Claude session records its family label — `haiku \| sonnet \| opus \| fable` (`MODELS`) — because the handoff's close note asks for it, which keeps Claude-run history comparable; the Codex edition records exact ids such as `gpt-5.6-sol`. A valid identifier says nothing about whether that model exists. Nothing recommends a model at craft time — Foreman never asks which model should run a task — so this is a plain record of what did. Self-reported by whoever closes the entry: it cannot be detected, since hook input carries no model, and it is read back by `list --stats`, which counts each recorded value as written. |
-| `effort` | enum | no — omitted entirely when not set | `none \| minimal \| low \| medium \| high \| xhigh \| max \| ultra` — the reasoning effort the executing session ran at, recorded the same way and under the same rules as `model`, and read back by the same `list --stats`. `none`, `minimal` and `ultra` are tiers the Codex edition records. Also self-reported: the `Agent` tool takes no effort argument, so effort is never dispatched, only whatever the session was already set to. Accepted set is `EFFORTS` in `scripts/roadmap.js`. |
-| `kind` | enum | no — omitted entirely when `build` | The task's purpose: `"build"` (implement a slice — the default, so it's never written to the file) or `"decision"` (resolve an open question, producing a recorded decision rather than code). Set at `add`, `update-status`, or `correct` (reclassifying back to `"build"` drops the key), same omit-when-default shape as `doc`: only `"decision"` is stored, and an entry with no `kind` key is a build. `foreman:roadmap`'s pick flow reads it and, for a decision entry, adds a "decide, don't build" rule to the handoff prompt. It exists because a decision-shaped entry with no such rule gets implemented straight into code a measurable fraction of the time instead of decided; `kind` is what declares the difference once, on the entry, instead of hoping each session infers it. |
+| `model` | string | no — omitted entirely when not set | Which model **actually executed** this entry, recorded on `update-status` (typically the close), never on `add` (an entry being created hasn't run yet). Any identifier of 1–128 letters, digits, dots, underscores, colons, slashes or hyphens, starting with a letter or digit, is accepted (`isValidModel` in `scripts/roadmap.js`). A Claude Code session records its family label — `haiku \| sonnet \| opus \| fable` (`MODELS`) — because the handoff's close note asks for it, which keeps Claude Code history comparable; a Codex session records the exact id, such as `gpt-5.6-sol`. A valid identifier says nothing about whether that model exists. Nothing recommends a model at craft time — Foreman never asks which model should run a task — so this is a plain record of what did. Self-reported by whoever closes the entry: it cannot be detected, since hook input carries no model, and it is read back by `list --stats`, which counts each recorded value as written — family labels and exact ids side by side, so a count under one convention is not comparable with the other. |
+| `effort` | enum | no — omitted entirely when not set | `none \| minimal \| low \| medium \| high \| xhigh \| max \| ultra` — the reasoning effort the executing session ran at, recorded the same way and under the same rules as `model`, and read back by the same `list --stats`. `none`, `minimal` and `ultra` are tiers a Codex session may record, and which values exist at all depends on the host and model. Also self-reported and never dispatched: Claude Code's `Agent` tool takes no effort argument and a Codex handoff requests no override, so the record is only whatever the session was already set to. Accepted set is `EFFORTS` in `scripts/roadmap.js`. |
+| `kind` | enum | no — omitted entirely when `build` | The task's purpose: `"build"` (implement a slice — the default, so it's never written to the file) or `"decision"` (resolve an open question, producing a recorded decision rather than code). Set at `add`, `update-status`, or `correct` (reclassifying back to `"build"` drops the key), same omit-when-default shape as `doc`: only `"decision"` is stored, and an entry with no `kind` key is a build. The `roadmap` skill's pick flow reads it and, for a decision entry, adds a "decide, don't build" rule to the handoff prompt. It exists because a decision-shaped entry with no such rule gets implemented straight into code a measurable fraction of the time instead of decided; `kind` is what declares the difference once, on the entry, instead of hoping each session infers it. |
 
-**Sharing a project with the Codex edition.** The Codex edition of Foreman
-reads and writes these same files. `codex-suggested`, exact model ids and the
-`none`, `minimal` and `ultra` effort tiers come from it, and this edition
-accepts them everywhere: `doctor`, `list --stats`, and every write, including
-`archive`, `restore` and `reassign-id`. A Claude edition up to 2.6.3 reports
-them as `unknown_source`, `unknown_model` and `unknown_effort`, and refuses to
-archive, restore or renumber an entry that carries such a model or effort —
-upgrade it rather than editing the file.
+**Using both hosts on one project.** Claude Code and Codex read and write
+these same files through the same script, so every value above is accepted
+everywhere on both: `doctor`, `list --stats`, and every write, including
+`archive`, `restore` and `reassign-id`. The one catch is an older install. A
+Claude Code install of Foreman up to 2.6.3 reports Codex's values —
+`codex-suggested`, exact model ids and the `none`, `minimal` and `ultra` effort
+tiers — as `unknown_source`, `unknown_model` and `unknown_effort`, and refuses
+to archive, restore or renumber an entry that carries such a model or effort.
+Upgrade it to 2.7.0 or later rather than editing the file.
+
+**Reviewed increments (Codex only) add no fields.** A tracked task still
+occupies one entry. `reviewEachIncrement`, verification rows and
+`review:{action,expected}` are transient inputs to the prompt builder, never
+roadmap fields or project settings. Result evidence, limits, decisions and
+references are recorded as short append-only `notes` through `annotate`; there
+is no separate increment store and no stored per-row status. See
+[review between increments](HOW-IT-WORKS.md#review-between-increments).
+
+**Prefixes in `notes`.** Some note lines start with a prefix that organizes the
+prose. `accepted:` records a reviewed result the user accepted; `unverified:`
+records a check nobody has run yet, such as a hand test left for the user or a
+review the user explicitly skipped; `verification resolved:` records later
+evidence for such a check, beside the original line. Both hosts read these
+lines — the pick flow offers to test first when an entry carries `unverified:`
+lines — but a prefix certifies nothing by itself, and Claude Code runs no
+increment-review protocol behind `accepted:`.
 
 ### `status` values
 
@@ -143,7 +161,7 @@ upgrade it rather than editing the file.
   user actually asking for the thing). Kept on the roadmap so the intent
   isn't lost, but **excluded from `next-candidates`** so it never surfaces as
   a "do this next" pick. When the trigger fires, move it back to `planned`
-  via `update-status`. This is a judgment call the user (or Claude, on the
+  via `update-status`. This is a judgment call the user (or the assistant, on the
   user's behalf) makes — unlike `blocked`, it can't be derived, because the
   gating condition lives outside the roadmap. Use it instead of leaving a
   "not yet" task as `planned`, where it would keep ranking as a candidate,
@@ -241,21 +259,21 @@ rather than editing the file back.
 
 ---
 
-## Writing claude-suggested entries — pack context now, it's free
+## Writing suggested entries — pack context now, it's free
 
-When an entry's `source` is `claude-suggested` (the commit-hook discovery
-flow), write it dense: use everything already sitting in this session's
+When an entry's `source` is `claude-suggested` or `codex-suggested` (a
+proposal from discovery or from `init`'s draft), write it dense: use everything already sitting in this session's
 context — exact file paths and line ranges, function/symbol names, the
 specific behavior or error observed, why it matters — and put it in `what`,
 `why`, `planned_touches`, and `notes`. This is the cheapest moment to capture that
 detail: it costs nothing extra right now (already in context), and it saves
-whoever picks up the task later (`foreman:roadmap`, and the session it hands
+whoever picks up the task later (the `roadmap` skill, and the session it hands
 off to) from re-deriving it from scratch, which costs real tokens then.
 
-**Do not explore further just to enrich the entry.** No extra `Read` or
-`Grep` calls whose only purpose is gathering more detail for roadmap
+**Do not explore further just to enrich the entry.** No extra file reads or
+searches whose only purpose is gathering more detail for roadmap
 fields — that spends tokens now instead of saving them later, defeating
-the point. (This doesn't mean avoid `Bash` — calling `roadmap.js add` to
+the point. (This doesn't mean avoid the shell — calling `roadmap.js add` to
 actually persist the entry is the mechanical step this whole section
 assumes; the rule is against exploring the codebase further, not against
 writing what you already know.) If a detail isn't already in context,
@@ -273,12 +291,16 @@ before moving on rather than ignoring it.
 
 ## Using roadmap.js
 
-`${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js`. Every subcommand prints one
+`scripts/roadmap.js` in the installed plugin. Claude Code writes that path as
+`${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js` and fills in the variable itself;
+Codex never fills it in, so Codex sessions and Codex handoffs use the installed
+plugin's real path, quoted. A handoff carries its own host's form, so a prompt
+copied to the other host is crafted again there. Every subcommand prints one
 JSON line to stdout: `{"ok":true, ...}` on success, `{"ok":false,"error":
 "..."}` (exit code 1) on failure — parse it, don't scrape prose.
 
 **The CLI documents itself.** Run
-`node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js --help` for every subcommand,
+`node <plugin root>/scripts/roadmap.js --help` for every subcommand,
 its stdin shape, its flags, and what it returns. That output is generated
 from the same dispatcher that runs the commands, so it cannot drift; a copy
 here could. This file stays the reference for what the *fields* mean — see
@@ -333,7 +355,8 @@ shas so the mismatch is known rather than discovered later.
 
 ## Worked example
 
-A 4-task file showing a dependency chain and one Claude-suggested entry:
+A 4-task file showing a dependency chain and one suggested entry (a Codex
+session writes the same entry with `"source":"codex-suggested"`):
 
 ```jsonl
 {"foreman_roadmap_format":2}
@@ -349,7 +372,7 @@ Only `001` is closed, so it is the only entry with anything in
 `003` is blocked right now — derived, not stored — because `002` isn't
 `done` yet. `004` shows both the discovery flow's shape (`source:
 "claude-suggested"`, a `notes` breadcrumb pointing back at the commit that
-surfaced it) and the density "Writing claude-suggested entries" above asks
+surfaced it) and the density "Writing suggested entries" above asks
 for — exact paths and line ranges instead of a vague "the fetch wrapper."
 
 ---
@@ -365,7 +388,7 @@ the project root — it is history, not the plan. Same JSONL, same fields,
 same format-marker first line, written by the same writer
 as `ROADMAP.jsonl` and held to the same structural contract, so it reads
 (and `doctor`s) with the same parser. It is committed like the roadmap, and
-`hooks/guard-roadmap-edit.js` blocks direct `Edit`/`Write` of it too.
+`hooks/guard-roadmap-edit.js` blocks direct file-tool edits of it too.
 
 **Move order — crash safety.** Two files cannot be renamed atomically
 together, so the order is fixed: the **destination** is written first
@@ -449,7 +472,7 @@ files intersect that record's files is served it back.
 
 **Writing.** Only `update-status`, only on a close, only through a `lesson`
 field on the same stdin JSON — the append rides the close's existing lock.
-`hooks/guard-roadmap-edit.js` blocks direct `Edit`/`Write` of the file, the
+`hooks/guard-roadmap-edit.js` blocks direct file-tool edits of the file, the
 same way it blocks the roadmap and the archive. Append-only: sessions never
 rewrite it, so two branches merge line by line.
 
@@ -468,7 +491,7 @@ disappears from every read: it stops being served into handoffs, stops showing
 in `notes`, and stops spending the serving window. The line itself stays on
 disk until a prune.
 
-`foreman:survey` is the flow that offers this, because it is the only one that
+The `survey` skill is the flow that offers this, because it is the only one that
 has already read the code the claim describes. Retiring records nothing about
 what the truth is instead — the corrected fact belongs on the `lesson` of the
 next task to close in that code.
@@ -482,7 +505,8 @@ dead-record count and points here.
 
 **What is worth recording.** A fact a *future* task in this area would need
 and could not cheaply re-derive. Cite a decision document rather than
-restating it. A project-wide fact belongs in `CLAUDE.md`; a fact about one
+restating it. A project-wide fact belongs in the project's instruction file
+(`CLAUDE.md` or `AGENTS.md`); a fact about one
 file belongs in that file; a finding specific to this task belongs in the
 entry's own `notes`. Omitting the lesson is a valid outcome, and the common
 one — most tasks teach nothing that generalizes.
@@ -529,8 +553,8 @@ an existing supersede marker keeps working.
 ## `.foreman/config.json`
 
 Sibling runtime file at `.foreman/config.json`, also committed. Plain JSON,
-no CLI wraps it (unlike `ROADMAP.jsonl`) — edited directly with `Read`/
-`Write` when a flag needs to change. Full field reference is in
+no CLI wraps it (unlike `ROADMAP.jsonl`) — edited directly when a flag
+needs to change. Full field reference is in
 [`settings.md`](settings.md); the one relevant to this file's
 own consumer (`post-commit.js`) is `discoverySuggestions` — missing or
 unparseable → treated as `true` (on by default); an explicit `false` is the
@@ -542,10 +566,13 @@ only way out.
 
 All access — from any caller — goes through `scripts/roadmap.js`, and
 `hooks/guard-roadmap-edit.js` mechanically blocks the alternative (direct
-`Edit`/`Write`), not just prose.
+`Edit`/`Write` in Claude Code, `apply_patch`/`Edit`/`Write` in Codex), not
+just prose. A shell command is outside that guard on both hosts. Skill names
+below are the same on both hosts; Claude Code calls them as
+`/foreman:<skill>`.
 
-- `foreman:init` — creates it (loops `add` once per drafted task).
-- `foreman:roadmap` — `next-candidates` (Pick next task), `add` (Add a task),
+- `init` — creates it (loops `add` once per drafted task).
+- `roadmap` — `next-candidates` (Pick next task), `add` (Add a task),
   `correct` (Correct a task — the guarded repair for a stale `title`/`why`/
   `what`/`kind`/`planned_touches`), `list` (Review status), and `update-status` when
   execution actually starts or finishes. Picking alone leaves the entry
@@ -553,9 +580,9 @@ All access — from any caller — goes through `scripts/roadmap.js`, and
   not `Read`/`Grep` the codebase to verify a candidate before crafting its
   prompt — see `prompt-template.md`'s `truth_grounding` block, which is
   exactly the mechanism that makes that safe to skip at pick time.
-- `foreman:survey` — the one caller that *does* investigate the codebase
+- `survey` — the one caller that *does* investigate the codebase
   against the roadmap, on purpose, only when explicitly invoked (never from
-  `foreman:roadmap`'s fast pick-next-task path — see 0.4.4-alpha's changelog
+  the `roadmap` skill's fast pick-next-task path — see 0.4.4-alpha's changelog
   entry for why that path forbids exploration). Writes findings back via
   `update-deps` (hidden dependency found — structural, changes future
   ranking), `update-status` (duplicate/already-done, a user-confirmed
@@ -568,21 +595,28 @@ All access — from any caller — goes through `scripts/roadmap.js`, and
 - `foreman/hooks/post-commit.js` — reads the file in-process (it
   `require()`s `roadmap.js`'s `readEntries` directly, same Node process,
   no subprocess) to decide whether to mention status-sync at all. It never
-  writes to the file itself — it only emits instructions telling Claude to
-  call `update-status`/`add`/`check-duplicate` via Bash, keeping every
-  actual write in a reviewable, skill- or Claude-driven path rather than a
-  hook's hands.
+  writes to the file itself — it only emits instructions telling the assistant
+  to call `update-status`/`add`/`check-duplicate` through the shell, keeping
+  every actual write in a reviewable, skill- or assistant-driven path rather
+  than a hook's hands. Registered on both hosts.
 - `foreman/hooks/session-start.js` — same in-process read pattern, at
-  session start (`startup`/`clear` only, main sessions only — SessionStart
-  never fires for subagents). Emits one informational line when
+  session start (`startup`/`clear` only; in Claude Code, SessionStart never
+  fires for subagents). Emits one informational line when
   open (`in_progress` or `awaiting_acceptance`) entries exist, flagging ones
   with no recent activity and tagging the awaiting ones, so work left dangling
   by a dead session — or finished work nobody has accepted — surfaces instead
   of rotting. Never writes, never instructs an action without the user asking.
-- `foreman/hooks/task-created.js` — the one hook that writes, and only
-  ever the single transition `planned` → `in_progress`, through
-  `roadmap.js`'s own `cmdUpdateStatus` (same invariants as every other
-  write). Fires when a task is created via `TaskCreate` whose description
+  Registered on both hosts.
+
+Opening and closing a task are wired differently on each host, because only
+Claude Code has task events. Both paths perform the same single write, the
+transition `planned` → `in_progress`, through `roadmap.js`'s own
+`cmdUpdateStatus` (same invariants as every other write).
+
+**Claude Code** (`hooks/hooks.json`):
+
+- `foreman/hooks/task-created.js` — the one Claude Code hook that writes, and
+  only ever that single transition. Fires when a task is created via `TaskCreate` whose description
   carries the handoff paragraph's own entry marker — on that delivery
   path, creating the task *is* starting the work, so this performs the
   transition the embedded instruction already asks the destination to
@@ -602,3 +636,19 @@ All access — from any caller — goes through `scripts/roadmap.js`, and
   background agent, a fold-back) would deadlock. That entry is already
   recorded; `doctor`'s `awaiting_without_evidence` covers the case where it
   isn't. Any other state, id, or description: silent no-op.
+
+**Codex** (`hooks/codex-hooks.json`), which emits no task events:
+
+- `foreman/hooks/codex-task.js` — the explicit lifecycle bridge, called by the
+  handoff or its coordinator rather than by an event. `start` performs
+  `planned` → `in_progress` through the same guarded CLI implementation,
+  checks readiness under the roadmap lock, and reports `dispatchReady:true`
+  only for an entry that can run; a refused start never authorizes work.
+  `check` reports whether bookkeeping remains open and can scope a `Stop`
+  reminder. Exporting a prompt calls neither. See [Foreman in Codex](CODEX.md).
+- `foreman/hooks/stop.js` — registered for `Stop` and `SubagentStop`. With
+  `taskCloseGate:"block"`, an explicit unresolved `check` in that session or
+  subagent can request one continuation. It never writes this file, never
+  gates unrelated work, never reinterprets a question as completion, and never
+  requires an entry awaiting acceptance to become `done`. A continuation it
+  already caused (`stop_hook_active`) is not stopped again.

@@ -1,6 +1,7 @@
 {
   "name": "foreman",
-  "description": "Project continuity for Claude Code: a roadmap beside your code, grounded handoffs, and clear task status.",
+  "version": "3.1.0",
+  "description": "Project continuity for Claude Code and Codex: a roadmap beside your code, grounded handoffs, and clear task status.",
   "license": "MIT",
   "author": {
     "name": "Victor Villegas",

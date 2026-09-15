@@ -4,7 +4,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { readInput, projectDir } = require("./lib");
+const { readInput, projectDir: hookProjectDir, pluginDir, hostName } = require("./lib");
 const crypto = require("crypto");
 
 const { execFileSync } = require("child_process");
@@ -12,10 +12,9 @@ const { execFileSync } = require("child_process");
 const { readEntries, today, trailerIdsIn } = require("../scripts/roadmap");
 const { resolveHookScope } = require("../scripts/commit-evidence");
 const { readConfigFile } = require("../scripts/foreman-config");
+const { discoveryInstructions } = require("../scripts/discovery");
 
-const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
-  ? path.resolve(process.env.CLAUDE_PLUGIN_ROOT)
-  : path.resolve(__dirname, "..");
+const PLUGIN_ROOT = pluginDir();
 const SCRIPT_PATH = path.join(PLUGIN_ROOT, "scripts", "roadmap.js");
 
 const WATCHED_TOOLS = new Set(["Bash", "PowerShell"]);
@@ -26,6 +25,19 @@ const SEP = /\s*(?:&&|\|\||[;|\n])\s*/;
 // also fires on `git log --grep commit` or `git -c commit.gpgsign=false log`.
 // Walking the tokens is the only reading that gets all three right.
 const GIT_VALUE_FLAGS = new Set(["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"]);
+
+function projectDir(data) {
+  if (process.env.FOREMAN_PROJECT_DIR || hostName() !== "codex") return hookProjectDir(data);
+  // A legacy caller can identify its parent roadmap while cwd names the
+  // submodule where the commit actually happened. Preserve only that scoped
+  // relationship; an unrelated inherited root must not capture this event.
+  if (data?.cwd && process.env.CLAUDE_PROJECT_DIR) {
+    const legacyRoot = path.resolve(process.env.CLAUDE_PROJECT_DIR);
+    const relative = path.relative(legacyRoot, path.resolve(data.cwd));
+    if ((!relative || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative))) && fs.existsSync(path.join(legacyRoot, "ROADMAP.jsonl"))) return legacyRoot;
+  }
+  return hookProjectDir(data);
+}
 
 function isGitCommit(command) {
   return command.split(SEP).some((part) => {
@@ -75,7 +87,11 @@ function wrappedExitCode(data) {
 function commitFailed(data) {
   const wrapped = wrappedExitCode(data);
   if (typeof wrapped === "number") return wrapped !== 0;
-  const code = data?.exit_code;
+  const response = data?.tool_response;
+  const structured = response && typeof response === "object" ? response.exit_code ?? response.exitCode : undefined;
+  // Codex does not guarantee an exit status in PostToolUse. Accept explicit
+  // structured adapter fields, but never infer success/failure from raw text.
+  const code = structured ?? data?.exit_code;
   return typeof code === "number" && code !== 0;
 }
 
@@ -230,7 +246,7 @@ const OVERLAP_CAVEAT =
 // committed, checked, waiting on the user. The question mechanics are
 // unchanged — confirm still closes to `done`, "not ready" sends it back to
 // `in_progress` — only the status the roadmap holds meanwhile is honest.
-function statusSyncBlock(inProgress, freshlyDone, requireVerification, committedFiles, trailerIds) {
+function statusSyncBlock(inProgress, freshlyDone, requireVerification, committedFiles, trailerIds, host = hostName()) {
   const parts = [];
   const trailerSet = new Set(trailerIds || []);
   if (inProgress.length) {
@@ -250,15 +266,15 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
         `This commit may complete an in-progress ROADMAP.jsonl task (${list}), ` +
           "but requireVerification is on for this project — record the work now, " +
           "don't close it out yet. Run `git rev-parse --short HEAD` for the SHA, then: " +
-          `echo '{"id":"<id>","status":"awaiting_acceptance","commit":"<sha>"}' | node ${SCRIPT_PATH} update-status ` +
+          `echo '{"id":"<id>","status":"awaiting_acceptance","commit":"<sha>"}' | node "${SCRIPT_PATH}" update-status ` +
           "(keeps commits[]/observed_touches accurate — observed_touches still " +
           "auto-folds from the commit's diff, same as always — and says what is true: finished, " +
-          "waiting on the user). Then ask the user (AskUserQuestion) " +
+          `waiting on the user). Then ask the user ${host === "codex" ? "" : "(AskUserQuestion) "}` +
           "whether this is actually verified and working. Only on confirmation, " +
           "close it out: " +
-          `echo '{"id":"<id>","status":"done"}' | node ${SCRIPT_PATH} update-status. ` +
+          `echo '{"id":"<id>","status":"done"}' | node "${SCRIPT_PATH}" update-status. ` +
           "If they say it's not ready, send it back: " +
-          `echo '{"id":"<id>","status":"in_progress","notes":"<what they said>"}' | node ${SCRIPT_PATH} update-status ` +
+          `echo '{"id":"<id>","status":"in_progress","notes":"<what they said>"}' | node "${SCRIPT_PATH}" update-status ` +
           "— don't mark done. If this session has no user to ask (a background " +
           "agent), leave it awaiting_acceptance — the user confirms later." +
           caveat
@@ -267,7 +283,7 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
       parts.push(
         `This commit may complete an in-progress ROADMAP.jsonl task (${list}). ` +
           "If it does, run `git rev-parse --short HEAD` for the commit SHA, then: " +
-          `echo '{"id":"<id>","status":"done","commit":"<sha>"}' | node ${SCRIPT_PATH} update-status. ` +
+          `echo '{"id":"<id>","status":"done","commit":"<sha>"}' | node "${SCRIPT_PATH}" update-status. ` +
           "The script computes updated_at, appends the SHA, and auto-folds that " +
           "commit's actual changed files into observed_touches — don't hand-edit the file, " +
           "and no need to list touched files yourself, the script derives them." +
@@ -293,7 +309,7 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
         "`git rev-parse --short HEAD`, then, keeping the status shown above " +
         "for that id (an awaiting_acceptance entry must stay " +
         "awaiting_acceptance — recording a follow-up SHA does not close it): " +
-        `echo '{"id":"<id>","status":"<its status above>","commit":"<sha>"}' | node ${SCRIPT_PATH} update-status ` +
+        `echo '{"id":"<id>","status":"<its status above>","commit":"<sha>"}' | node "${SCRIPT_PATH}" update-status ` +
         "(only adds the SHA, and auto-folds this commit's changed files into " +
         "observed_touches; commits[] and observed_touches both only grow, never " +
         "shrink). Most commits won't relate to an already-finished task — say " +
@@ -319,7 +335,20 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
 // Nothing in the product writes this variable.
 const CONCRETE_BAR = /^(1|true)$/i.test(process.env.FOREMAN_DISCOVERY_CONCRETE_BAR || "");
 
-function discoveryBlock() {
+// Codex reads the one discovery policy its handoffs and checkpoints also carry
+// (skills/foreman/discovery.md). Claude Code keeps the measured commit-time
+// wording below, which names its own question and background-Agent tools.
+function discoveryBlock(host = hostName(), requireVerification = true) {
+  return host === "codex"
+    ? "[Foreman] Roadmap discovery is enabled for this project.\n" + discoveryInstructions()
+    : claudeDiscoveryBlock(requireVerification);
+}
+
+// An inline scope-creep log closes with the status the project's acceptance
+// policy allows: with requireVerification on (the default), finished work
+// waits for the user's confirmation like every other close.
+function claudeDiscoveryBlock(requireVerification = true) {
+  const loggedStatus = requireVerification ? "awaiting_acceptance" : "done";
   return (
     "[Foreman] Roadmap discovery is enabled for this project. " +
     (CONCRETE_BAR
@@ -338,7 +367,7 @@ function discoveryBlock() {
     "MUST go through the duplicate check before you offer it — the roadmap's " +
     "existing entries are deliberately not in your context, so this call is " +
     "the only thing between a suggestion and a duplicate: " +
-    `echo '{"title":"...","why":"..."}' | node ${SCRIPT_PATH} check-duplicate ` +
+    `echo '{"title":"...","why":"..."}' | node "${SCRIPT_PATH}" check-duplicate ` +
     "— matches carry each entry's status. A rejected match means the user " +
     "already declined it: skip silently. Any other status (planned/" +
     "in_progress/done/...) means it's already tracked: skip it, or mention " +
@@ -349,15 +378,17 @@ function discoveryBlock() {
     "background Agent (run_in_background: true) / Reject — both Add and " +
     "Reject use the same `add` call, only the status field differs " +
     '("planned" for Add, "rejected" for Reject): ' +
-    `echo '{"title":"...","why":"...","what":"...","source":"claude-suggested","status":"planned"}' | node ${SCRIPT_PATH} add. ` +
+    `echo '{"title":"...","why":"...","what":"...","source":"claude-suggested","status":"planned"}' | node "${SCRIPT_PATH}" add. ` +
     "Also scan for the inverse case: work already implemented in this " +
     "commit that goes beyond what any in_progress task's `what` describes — " +
     "scope that grew mid-session (e.g. the user asked for something related " +
     "but separate, and it got built inline), not a future idea. If you find " +
     "one, it's already done, so log and close it in the same breath rather " +
     "than leaving it \"planned\": the same `add` call above, then " +
-    `echo '{"id":"<new-id>","status":"done","commit":"<sha>"}' | node ${SCRIPT_PATH} update-status ` +
-    "(observed_touches auto-derives from that commit). Ask first (AskUserQuestion: " +
+    `echo '{"id":"<new-id>","status":"${loggedStatus}","commit":"<sha>"}' | node "${SCRIPT_PATH}" update-status ` +
+    "(observed_touches auto-derives from that commit" +
+    (requireVerification ? "; it waits for the user's acceptance, as this project requires" : "") +
+    "). Ask first (AskUserQuestion: " +
     "Log it / Skip). " +
     "Never call " +
     "mcp__ccd_session__spawn_task — it has a known bug where tasks spawned " +
@@ -395,7 +426,7 @@ function emit(additionalContext) {
 // worse.
 const CORRUPT_ROADMAP_MESSAGE =
   "[Foreman] ROADMAP.jsonl could not be parsed, so Foreman's commit " +
-  `bookkeeping is paused. Run \`node ${SCRIPT_PATH} doctor\` to see what's ` +
+  `bookkeeping is paused. Run \`node "${SCRIPT_PATH}" doctor\` to see what's ` +
   "wrong — it only reports, it never rewrites.";
 
 function main() {
@@ -463,11 +494,14 @@ function main() {
     blocks.push(statusSyncBlock(inProgress, freshlyDone, config.requireVerification, committedFiles, trailerIds));
   }
   if (config.discoverySuggestions) {
-    blocks.push(discoveryBlock());
+    blocks.push(discoveryBlock(hostName(), config.requireVerification));
   }
   if (!blocks.length) return;
 
-  emit(blocks.join("\n\n"));
+  const nativeCaveat = data.model || data.turn_id
+    ? "[Foreman] A git commit command was invoked. This hook cannot reliably observe Codex's exit status; confirm the actual command succeeded and the intended commit is HEAD before acting on these advisory hints. Do not record an older HEAD as a new commit after a failed command.\n\n"
+    : "";
+  emit(nativeCaveat + blocks.join("\n\n"));
 }
 
 if (require.main === module) {

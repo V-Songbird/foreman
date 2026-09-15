@@ -16,6 +16,7 @@ const read = (...rel) => fs.readFileSync(path.join(__dirname, "..", ...rel), "ut
 const roadmap = read("skills", "roadmap", "pick.md");
 const survey = read("skills", "survey", "SKILL.md");
 const entrance = read("skills", "foreman", "SKILL.md");
+const destination = read("skills", "roadmap", "destination-question.md");
 const howItWorks = read("HOW-IT-WORKS.md");
 
 describe("two confidence modes", () => {
@@ -31,17 +32,18 @@ describe("two confidence modes", () => {
     }
   });
 
-  test("fast pick is stated as the default and left unchanged", () => {
+  test("fast pick is stated as the default, left unchanged, and never rebuilds the ranking", () => {
     assert.match(roadmap, /This is \*\*Fast pick\*\*, the default and the whole of this branch/);
     assert.match(roadmap, /nothing\s+below changes because the other mode exists/);
     // The no-investigation rule is what makes it the cheap mode.
     assert.match(roadmap, /\*\*This branch does not investigate the codebase\. At all\.\*\*/);
+    assert.match(roadmap, /Do not read the full\s+backlog/);
   });
 
   test("the deeper mode keeps the investigate → propose → apply → recommend order", () => {
     assert.match(
       roadmap,
-      /\*\*investigate → propose → apply →\s+recommend\.\*\*/,
+      /\*\*investigate → propose → apply → recommend\.\*\*/,
       "the reconcile sequence is not stated in order"
     );
     const steps = ["\\*\\*Investigate\\*\\*", "\\*\\*Propose\\*\\*", "\\*\\*apply\\*\\*", "\\*\\*Recommend\\*\\*"];
@@ -52,6 +54,7 @@ describe("two confidence modes", () => {
       cursor += 1 + at;
     }
     assert.match(roadmap, /It is composition, not a second pick flow/);
+    assert.match(roadmap, /let its evidence, review, and\s+authorized repairs finish/);
   });
 
   test("the near-term set is defined mechanically from one menu call", () => {
@@ -73,6 +76,7 @@ describe("two confidence modes", () => {
   test("the deeper mode is offered in one line and never auto-run", () => {
     assert.match(roadmap, /\*\*Offering it from Fast pick — one line, never a run\.\*\*/);
     assert.match(roadmap, /Never as a blocking question, never started on your own/);
+    assert.match(roadmap, /age alone never starts a survey/);
     assert.match(roadmap, /survey \(unconfirmed\):` breadcrumb/);
     assert.match(roadmap, /more\s+than \*\*30 days\*\* before today/);
     // The entrance holds the same rule from its side.
@@ -82,5 +86,32 @@ describe("two confidence modes", () => {
   test("the entrance names the modes the same way", () => {
     assert.match(entrance, /\*\*pick work\*\* is \*\*Fast pick\*\*, the default confidence mode/);
     assert.match(entrance, /\*\*reconcile and pick\*\* is the other confidence mode, \*\*Reconcile and pick\*\*/);
+  });
+});
+
+describe("the shared destination question", () => {
+  test("all four destination choices remain available, in order", () => {
+    let cursor = -1;
+    for (const option of [
+      "- `Execute here` —",
+      "- `Execute here, split by check` —",
+      "- `Execute with a background agent` —",
+      "- `Copy prompt to clipboard` —",
+    ]) {
+      const at = destination.indexOf(option, cursor + 1);
+      assert.ok(at > cursor, `option missing or out of order: ${option}`);
+      cursor = at;
+    }
+    assert.match(destination, /\*\*All four options are always offered, in this order\.\*\*/);
+    assert.match(destination, /When the user already named a destination, use it and skip\s+the question/);
+  });
+
+  test("the recommendation reads actual context, parallelism, checks, and tree facts", () => {
+    assert.match(destination, /Exactly one option carries `\(Recommended\)`/);
+    assert.match(destination, /the selected row's `collision` is explicitly `false`/);
+    assert.match(destination, /an actual `run` command, not merely a non-empty\s+array/);
+    assert.match(destination, /At least two verification rows, each row after the first carrying\s+its\s+own slice of the work/);
+    assert.match(destination, /unknown context is\s+unknown/);
+    assert.match(destination, /Every option stays selectable/);
   });
 });

@@ -29,9 +29,7 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 const { submodulePaths } = require("./roadmap.js");
 
-function projectDir() {
-  return path.resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
-}
+const { projectDir } = require("./runtime");
 
 // Column-0 anchoring is what keeps local variables out: an indented `const`
 // inside a function body never matches. Each entry maps an extension family

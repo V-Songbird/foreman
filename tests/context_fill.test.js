@@ -12,8 +12,10 @@
 //   - the threshold decision against a configured compaction point
 //   - no configured window is silence: the share is unknowable, so nothing
 //     is claimed about it
-//   - end to end: emits above the line, silent below it
-//   - the wiring: hooks.json runs it on the same matcher as post-commit
+//   - end to end: emits above the line, silent below it, and silent on the
+//     Codex host or a Codex payload (model, turn_id) however full the session
+//   - the wiring: hooks.json runs it on the same matcher as post-commit, and
+//     codex-hooks.json does not register it
 //   - the rule it points at still exists in destination-question.md
 
 const { test, describe } = require('node:test');
@@ -221,6 +223,32 @@ describe('context-fill — end to end', () => {
     assert.equal(res.status, 0);
     assert.equal(res.stdout.trim(), '');
   });
+
+  // Codex has no occupancy to read: its transcript is not Claude usage, and a
+  // Claude compaction setting says nothing about a Codex window.
+  test('silent on the Codex host, however full the session is', () => {
+    const file = writeTranscript([assistant({ input_tokens: OVER })]);
+    const res = runScriptRaw(
+      'context-fill.js',
+      payload('node "/p/foreman/scripts/roadmap.js" next-candidates --menu', file),
+      { ...windowEnv(), FOREMAN_HOST: 'codex' }
+    );
+    assert.equal(res.status, 0);
+    assert.equal(res.stdout.trim(), '');
+  });
+
+  test('silent on a Codex payload, even with Claude settings and usage', () => {
+    const file = writeTranscript([assistant({ input_tokens: OVER })]);
+    for (const marker of [{ model: 'codex-test' }, { turn_id: 'turn' }]) {
+      const res = runScriptRaw(
+        'context-fill.js',
+        { ...payload('node "/p/foreman/scripts/roadmap.js" next-candidates --menu', file), ...marker },
+        windowEnv()
+      );
+      assert.equal(res.status, 0);
+      assert.equal(res.stdout.trim(), '', JSON.stringify(marker));
+    }
+  });
 });
 
 describe('context-fill — wiring', () => {
@@ -234,15 +262,33 @@ describe('context-fill — wiring', () => {
     );
   });
 
+  // Codex's Windows commands are encoded from `command` and verified against it
+  // (tests/windows_launcher.test.js), so the readable command is the one read.
+  test('codex-hooks.json does not register it', () => {
+    const wiring = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'codex-hooks.json'), 'utf-8'));
+    const handlers = Object.values(wiring.hooks).flat().flatMap((group) => group.hooks);
+    assert.ok(handlers.length, 'no Codex handlers read');
+    assert.equal(
+      handlers.some((h) => h.command.includes('context-fill.js')),
+      false,
+      'a guaranteed silent reader should not run after every Codex shell call'
+    );
+  });
+
   test('the destination question still carries the rule this hook points at', () => {
     const shared = fs.readFileSync(
       path.join(__dirname, '..', 'skills', 'roadmap', 'destination-question.md'),
       'utf-8'
     );
     assert.match(shared, /## Which option leads/);
+    assert.match(shared, /Exactly one option carries `\(Recommended\)`/);
     assert.match(shared, /Copy prompt to clipboard/);
     // Exactly one option may carry the tag, so the label must not bake it in.
     assert.doesNotMatch(shared, /`Execute here \(Recommended\)`/);
+    // Rule 1 is the one this hook's reading feeds. No reading means unknown,
+    // never an estimate: the same reason the hook stays silent without a window.
+    assert.match(shared, /1\. \*\*A context reading arrived this turn\*\*/);
+    assert.match(shared, /unknown context is\s+unknown, so never infer a percentage/);
   });
 
   test('the destination question probes the tree before asking', () => {
@@ -250,7 +296,7 @@ describe('context-fill — wiring', () => {
       path.join(__dirname, '..', 'skills', 'roadmap', 'destination-question.md'),
       'utf-8'
     );
-    assert.match(shared, /safe-commit\.js begin/);
+    assert.match(shared, /safe-commit\.js"? begin/);
     assert.match(shared, /dirty:false/);
     // Unconditional: rule 2 can fire on a single check, so a probe gated on
     // the split's two-or-more count would be missing exactly when it is needed.
@@ -258,18 +304,22 @@ describe('context-fill — wiring', () => {
     assert.match(shared, /Always, before the question/);
   });
 
-  test('the background Agent leads on one rule and is barred outside it', () => {
+  test('the background agent leads on one rule and is barred outside it', () => {
     const shared = fs.readFileSync(
       path.join(__dirname, '..', 'skills', 'roadmap', 'destination-question.md'),
       'utf-8'
     );
-    // The four conditions rule 2 needs, each named where the rule is stated.
-    const ruleTwo = shared.slice(shared.indexOf('2. **Other work'), shared.indexOf('3. **Two or more'));
-    assert.ok(ruleTwo, 'rule 2 is missing');
-    for (const condition of ['in_progress', 'collision', 'dirty:false', 'verification']) {
+    // The conditions rule 2 needs, each named where the rule is stated. Both
+    // bounds must exist, or the slice silently runs to the end of the file.
+    const start = shared.indexOf('2. **Other work');
+    const end = shared.indexOf('3. **At least two');
+    assert.ok(start >= 0 && end > start, 'rule 2 is missing');
+    const ruleTwo = shared.slice(start, end);
+    for (const condition of ['in_progress', 'collision', 'dirty:false', 'verification', 'runnable check']) {
       assert.match(ruleTwo, new RegExp(condition.replace('.', '\\.')), `rule 2 does not name ${condition}`);
     }
-    assert.match(shared, /Never recommend the background Agent outside rule 2/);
+    assert.match(ruleTwo, /Recommend\s+`Execute with a background agent`/);
+    assert.match(shared, /Never recommend the background agent outside rule 2\./);
     // Barred from leading, never removed from the list.
     assert.match(shared, /still offered every time/);
   });
@@ -309,6 +359,10 @@ describe('context-fill — wiring', () => {
     // Only that one mention, as the thing being banned — never as a label.
     const uses = shared.match(/\(Not recommended\)/g) || [];
     assert.equal(uses.length, 1, 'the banned label leaked back in as a label');
+    // Beside the tree and the collision, a caution names nothing runnable to
+    // check against, or a host that cannot start an agent at all.
+    assert.match(shared, /no runnable check was gathered/);
+    assert.match(shared, /this host has no callable delegation capability/);
   });
 
   test('the two labels can never land on the same option', () => {

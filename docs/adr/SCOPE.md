@@ -67,7 +67,7 @@ decisions.
 
 New capability must preserve these expectations:
 
-- Foreman works after `/foreman:init` without further configuration.
+- Foreman works after initialization without further configuration.
 - Natural language remains the primary interface.
 - Defaults cover the normal path; configuration is an escape hatch.
 - Advanced behavior appears as a simple outcome, not a new system to learn.

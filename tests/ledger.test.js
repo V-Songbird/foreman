@@ -452,14 +452,23 @@ describe('lesson lines in the handoff', () => {
     assert.equal(notesOverlapExists(project, { id: '001', planned_touches: ['src/Auth/session.js'] }), true);
   });
 
-  test('the close ask appears only where the ledger is on', () => {
-    const { entryParagraphText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
-    const args = { id: '001', resume: false, requireVerification: false, destination: 'task' };
-    assert.ok(!entryParagraphText({ ...args, askLesson: false }).includes('"lesson"'));
-    const asked = entryParagraphText({ ...args, askLesson: true });
-    assert.match(asked, /If this task taught you one durable fact about this code area/);
-    assert.match(asked, /that is a valid outcome/);
-  });
+  // Both hosts ask for the same `lesson` payload; each words the ask its own way.
+  for (const host of ['claude', 'codex']) {
+    test(`the close ask appears only where the ledger is on (${host})`, () => {
+      const { entryParagraphText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
+      const args = { id: '001', resume: false, requireVerification: false, destination: 'task', host };
+      assert.ok(!entryParagraphText({ ...args, askLesson: false }).includes('"lesson"'));
+      const asked = entryParagraphText({ ...args, askLesson: true });
+      assert.match(asked, /"lesson":"one sentence, naming the file or symbol it concerns"/);
+      if (host === 'claude') {
+        assert.match(asked, /If this task taught you one durable fact about this code area/);
+        assert.match(asked, /that is a valid outcome/);
+      } else {
+        assert.match(asked, /If this task taught one durable fact about the code area/);
+        assert.match(asked, /If nothing generalizes, omit it/);
+      }
+    });
+  }
 
   test('every lesson note is machine-prefixed so recall can never quote it', () => {
     const { recallExcerpt } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));

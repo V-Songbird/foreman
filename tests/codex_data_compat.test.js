@@ -1,7 +1,8 @@
 'use strict';
 
-// Records the Codex edition of Foreman writes on a project both editions work
-// in, handled end to end by this edition's CLI.
+// Records Foreman writes while Codex runs it (codex-suggested entries, exact
+// model ids, Codex effort tiers, a Codex-written lesson), handled end to end by
+// the one CLI both hosts share.
 //
 // Covers:
 //   - doctor reports nothing for codex-suggested entries, exact model ids, the
@@ -13,7 +14,8 @@
 //     a lesson
 //   - archive and restore move them, and reassign-id renumbers one
 //   - notes, note-supersede and note-prune handle a Codex-written lesson
-//   - a handoff crafts for a Codex-suggested entry whose parent Codex closed
+//   - a handoff crafts, for either host, for a Codex-suggested entry whose
+//     parent Codex closed
 //   - isValidModel keeps the legacy labels and exact ids, and refuses anything
 //     that is not an identifier
 
@@ -249,31 +251,35 @@ describe('the ledger with a Codex-written lesson', () => {
 });
 
 describe('handoff crafting', () => {
-  test('crafts a gate-passing handoff for a Codex-suggested entry whose parent Codex closed', () => {
-    seedCodexProject();
-    const result = runNodeScript(path.join(SCRIPTS_DIR, 'craft-handoff.js'), [], {
-      entry: '004',
-      destination: 'clipboard',
-      judgment: {
-        role: 'a senior backend engineer',
-        goal: 'to add bounded retries to uploads so all tests pass',
-        context: 'Uploads go through parse() in src/alpha.js before they are sent.',
-        steps: ['Reproduce the dropped upload against the failing test.', 'Add bounded retries.'],
-        constraints: ['Do not change the upload API.'],
-        verification: [{ run: 'npm test', expected: 'all tests pass' }],
-      },
-    }, env);
-    let json;
-    try {
-      json = JSON.parse(result.stdout);
-    } catch {
-      throw new Error(`non-JSON stdout (status ${result.status}): ${result.stdout}\n${result.stderr}`);
-    }
-    assert.equal(result.status, 0, JSON.stringify(json));
-    assert.equal(json.ok, true);
-    assert.equal(json.gate.ok, true, JSON.stringify(json.gate.errors));
-    assert.match(json.prompt, /ROADMAP\.jsonl entry `004`/);
-  });
+  for (const host of ['claude', 'codex']) {
+    test(`crafts a gate-passing handoff for a Codex-suggested entry whose parent Codex closed (${host})`, () => {
+      seedCodexProject();
+      const result = runNodeScript(path.join(SCRIPTS_DIR, 'craft-handoff.js'), [], {
+        entry: '004',
+        host,
+        destination: 'clipboard',
+        judgment: {
+          role: 'a senior backend engineer',
+          goal: 'to add bounded retries to uploads so all tests pass',
+          context: 'Uploads go through parse() in src/alpha.js before they are sent.',
+          steps: ['Reproduce the dropped upload against the failing test.', 'Add bounded retries.'],
+          constraints: ['Do not change the upload API.'],
+          verification: [{ run: 'npm test', expected: 'all tests pass' }],
+        },
+      }, env);
+      let json;
+      try {
+        json = JSON.parse(result.stdout);
+      } catch {
+        throw new Error(`non-JSON stdout (status ${result.status}): ${result.stdout}\n${result.stderr}`);
+      }
+      assert.equal(result.status, 0, JSON.stringify(json));
+      assert.equal(json.ok, true);
+      assert.equal(json.host, host);
+      assert.equal(json.gate.ok, true, JSON.stringify(json.gate.errors));
+      assert.match(json.prompt, /ROADMAP\.jsonl entry `004`/);
+    });
+  }
 });
 
 describe('isValidModel', () => {

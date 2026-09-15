@@ -7,6 +7,16 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
+// Host detection, project resolution and several switches read these
+// variables. A suite started from inside Claude Code, Codex or a git hook must
+// not inherit them: every test file that spawns or calls Foreman loads this
+// module first, and a test that needs one (FOREMAN_HOST=codex, a project dir)
+// sets it explicitly.
+const INHERITED_HOST_ENV = /^(FOREMAN_|CODEX_|CLAUDE|PLUGIN_ROOT$|PLUGIN_DATA$|GIT_)/;
+for (const key of Object.keys(process.env)) {
+  if (INHERITED_HOST_ENV.test(key)) delete process.env[key];
+}
+
 const HOOKS_DIR = path.join(__dirname, '..', 'hooks');
 const SCRIPTS_DIR = path.join(__dirname, '..', 'scripts');
 

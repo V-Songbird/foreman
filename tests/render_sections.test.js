@@ -57,6 +57,24 @@ function run() {
 }
 
 describe('render-sections', () => {
+  // One project resolution for both hosts (scripts/runtime.js projectDir): an
+  // explicit Foreman selection wins, then Codex's working directory, then
+  // Claude Code's project variable. Blank values stand in for unset ones.
+  test('project root precedence is Foreman, Codex, then legacy Claude', () => {
+    const foreman = makeTmpProject();
+    const codex = makeTmpProject();
+    const legacy = makeTmpProject();
+    writeConfig(foreman, { omitSections: ['tone'] });
+    writeConfig(codex, { omitSections: ['example'] });
+    writeConfig(legacy, { omitSections: ['output_format'] });
+    const selected = (overrides) => JSON.parse(runRenderSections({
+      FOREMAN_PROJECT_DIR: '', CODEX_CWD: '', CLAUDE_PROJECT_DIR: legacy, ...overrides,
+    }).stdout).omit;
+    assert.deepEqual(selected({ FOREMAN_PROJECT_DIR: foreman, CODEX_CWD: codex }), ['tone']);
+    assert.deepEqual(selected({ CODEX_CWD: codex }), ['example']);
+    assert.deepEqual(selected({}), ['output_format']);
+  });
+
   test('no config.json -> no warnings', () => {
     const { status, json } = run();
     assert.equal(status, 0);

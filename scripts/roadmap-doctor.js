@@ -635,33 +635,42 @@ function applyRepairs(entries, findings) {
   return applied;
 }
 
-// The host events Foreman's hooks are registered against, read from the
-// manifest that registers them so the list cannot drift. TaskCreated and
-// TaskCompleted are not in Claude Code's public hook documentation: if a
-// future host stops delivering one, Foreman goes quiet rather than failing,
-// and nothing else would ever say why. So doctor says it, every run, at a
-// severity that counts toward neither errors nor warnings — this is a
-// disclosure, not a defect.
+// The host events Foreman's hooks are registered against, read from each
+// host's own registration file so the list cannot drift. If a host stops
+// delivering an event, or its hooks are disabled or untrusted, Foreman goes
+// quiet rather than failing, and nothing else would ever say why. So doctor
+// says it, every run, at a severity that counts toward neither errors nor
+// warnings — this is a disclosure, not a defect.
+const HOOK_REGISTRATIONS = [
+  ["Claude Code", "hooks.json"],
+  ["Codex", "codex-hooks.json"],
+];
+
 function hookDependencies() {
-  let events;
-  try {
-    const manifest = JSON.parse(
-      fs.readFileSync(path.join(__dirname, "..", "hooks", "hooks.json"), "utf-8")
-    );
-    events = Object.keys(manifest.hooks || {}).sort();
-  } catch {
-    return [];
+  const hosts = [];
+  for (const [host, file] of HOOK_REGISTRATIONS) {
+    try {
+      const manifest = JSON.parse(
+        fs.readFileSync(path.join(__dirname, "..", "hooks", file), "utf-8")
+      );
+      const events = Object.keys(manifest.hooks || {}).sort();
+      if (events.length) hosts.push(`${host}: ${events.join(", ")}`);
+    } catch {
+      // an unreadable registration names no events for that host
+    }
   }
-  if (!events.length) return [];
+  if (!hosts.length) return [];
   return [
     finding(
       "hook_dependencies",
       "info",
       [],
-      `Foreman's automatic behavior depends on these Claude Code hook events: ${events.join(", ")}. `
-        + "TaskCreated and TaskCompleted are not publicly documented — if a host stops "
-        + "delivering one, tasks stop opening and closing their roadmap entries on their "
-        + "own, and every command here keeps working by hand."
+      `Foreman's automatic behavior depends on these hook events — ${hosts.join("; ")}. `
+        + "In Claude Code, TaskCreated and TaskCompleted open and close a task's roadmap entry; "
+        + "Codex has neither event, so its handoffs do that explicitly with hooks/codex-task.js "
+        + "start and check, and Codex runs plugin hooks only after they are reviewed and trusted. "
+        + "If a host stops delivering an event, that assistance goes quiet, and every command "
+        + "here keeps working by hand."
     ),
   ];
 }
