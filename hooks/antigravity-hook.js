@@ -100,11 +100,39 @@ function writeState(conversationId, state) {
   }
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Queues outlive their conversations. A conversation that is new, or back
+// after a day of silence, deletes every queue idle for more than a day. The
+// scan reads the whole temp directory, so a live conversation, which rewrites
+// its own file on every call, skips it. Its own file is never deleted: it
+// latches the notice. A file that will not go waits for the next sweep.
+function pruneQueues(conversationId) {
+  const own = statePath(conversationId);
+  const dir = path.dirname(own);
+  const idle = (file) => Date.now() - fs.statSync(file).mtimeMs > DAY_MS;
+  try {
+    if (fs.existsSync(own) && !idle(own)) return;
+    for (const name of fs.readdirSync(dir)) {
+      if (!/^foreman-antigravity-[\w-]+\.json$/.test(name) || name === path.basename(own)) continue;
+      const file = path.join(dir, name);
+      try {
+        if (idle(file)) fs.unlinkSync(file);
+      } catch {
+        // gone mid-scan, or not ours to delete
+      }
+    }
+  } catch {
+    // an unreadable temp directory never blocks the invocation
+  }
+}
+
 function answer(value) {
   process.stdout.write(JSON.stringify(value));
 }
 
 function preInvocation(data, { payload, workspace }) {
+  pruneQueues(data.conversationId);
   const state = readState(data.conversationId);
   const messages = state.pending.splice(0);
   if (!state.started) {

@@ -6,9 +6,10 @@
 // children with FOREMAN_HOST pinned, so these also pin the wording those hooks
 // choose for this host, and the registration and manifest it ships under.
 
-const { test, describe, beforeEach } = require("node:test");
+const { test, describe, beforeEach, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { makeTmpProject, writeRoadmap, initGitRepo, commitFile, runNodeScript, HOOKS_DIR } = require("./helpers");
@@ -19,6 +20,14 @@ const { discoveryInstructions } = require("../scripts/discovery");
 const ROOT = path.resolve(__dirname, "..");
 const ENTRY = path.join(HOOKS_DIR, "antigravity-hook.js");
 const read = (file) => JSON.parse(fs.readFileSync(path.join(ROOT, file), "utf-8"));
+
+// Projects, queues and the shared hooks' own state files all land in one
+// private temp directory, which the hooks inherit and which goes when these
+// tests end: nothing is left in the system temp directory, and no sweep
+// touches a real conversation's queue.
+const TEMP = fs.mkdtempSync(path.join(os.tmpdir(), "foreman-agy-temp-"));
+for (const key of ["TEMP", "TMP", "TMPDIR"]) process.env[key] = TEMP;
+after(() => fs.rmSync(TEMP, { recursive: true, force: true }));
 
 let project;
 let conversation;
@@ -143,6 +152,46 @@ describe("PreInvocation carries the session notice once, in this host's words", 
     writeRoadmap(project, [{ id: "001", title: "a", status: "planned" }]);
     conversation = crypto.randomUUID();
     assert.deepEqual(run("PreInvocation", { invocationNum: 0 }), {});
+  });
+});
+
+describe("PreInvocation sweeps the queues other conversations left behind", () => {
+  const queue = (id) => path.join(TEMP, `foreman-antigravity-${id}.json`);
+  const twoDaysAgo = () => new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+  const leave = (file, when = new Date(), pending = []) => {
+    fs.writeFileSync(file, JSON.stringify({ started: true, pending }));
+    fs.utimesSync(file, when, when);
+  };
+
+  test("back after a day, a conversation removes day-old queues and keeps its own", (t) => {
+    writeRoadmap(project, [{ id: "001", title: "Ship the thing", status: "in_progress" }]);
+    const [stale, fresh, own, stuck] = [crypto.randomUUID(), crypto.randomUUID(), conversation, crypto.randomUUID()].map(queue);
+    const other = path.join(TEMP, "another-tool.json");
+    leave(stale, twoDaysAgo());
+    leave(fresh);
+    leave(own, twoDaysAgo(), ["said a day ago"]);
+    leave(other, twoDaysAgo());
+    fs.mkdirSync(stuck); // named like a queue, but unlink cannot remove a directory
+    t.after(() => fs.rmdirSync(stuck));
+    fs.utimesSync(stuck, twoDaysAgo(), twoDaysAgo());
+    assert.deepEqual(
+      run("PreInvocation", { invocationNum: 5 }),
+      { injectSteps: [{ ephemeralMessage: "said a day ago" }] },
+      "its queue arrives, and its latch keeps the notice from coming back"
+    );
+    assert.ok(!fs.existsSync(stale));
+    for (const file of [fresh, own, other, stuck]) assert.ok(fs.existsSync(file), file);
+  });
+
+  test("a new conversation sweeps, and a live one skips the scan", () => {
+    const before = queue(crypto.randomUUID());
+    leave(before, twoDaysAgo());
+    run("PreInvocation", { invocationNum: 0 });
+    assert.ok(!fs.existsSync(before));
+    const during = queue(crypto.randomUUID());
+    leave(during, twoDaysAgo());
+    run("PreInvocation", { invocationNum: 1 });
+    assert.ok(fs.existsSync(during), "the next conversation to start removes it");
   });
 });
 
