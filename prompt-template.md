@@ -24,9 +24,10 @@ blocks themselves. One exception: both flows read the "Checkpointing a
 task-split run" section here directly, at their Deliver step, because no
 script assembles that protocol.
 
-**One template, two hosts.** Foreman runs in Claude Code and in Codex. A few
-fixed blocks follow each vendor's own prompting guidance, so they appear once
-per host inside the template, tagged `host="claude"` or `host="codex"`:
+**One template, three hosts.** Foreman runs in Claude Code, Codex and
+Antigravity. A few fixed blocks follow each vendor's own prompting guidance,
+so they appear once per host inside the template, tagged `host="claude"` or
+`host="codex"`:
 `codex_runtime` (Codex only), `truth_grounding`, `scope_discipline`, `tone`,
 the closing paragraph (`closing`), `plan`, the autonomy paragraph
 (`autonomy`) and the verification-scope line (`verification_scope`, Codex
@@ -34,7 +35,11 @@ only). `craft-handoff.js` emits the variant for the host its `host` input
 names — or the host it detects when none is given — and `check-prompt.js
 --host` holds a prompt to that same variant. An assembled prompt carries the
 plain tag, never the `host` attribute, and never the `closing`, `autonomy` or
-`verification_scope` wrappers. Every untagged block is shared by both hosts.
+`verification_scope` wrappers. Every untagged block is shared by every host.
+Antigravity has no variant of its own: `craft-handoff.js` and
+`check-prompt.js --host antigravity` both give it the Codex variant of every
+tagged block, and the Codex path form below. Its delivery uses Antigravity's
+own tools, which [the shared runtime](skills/foreman/runtime.md) names.
 
 ---
 
@@ -43,8 +48,9 @@ plain tag, never the `host` attribute, and never the `closing`, `autonomy` or
 **Craft-time environment check (do this now, once, while assembling — not
 an instruction for the spawned session to act on later).** The commands below
 write this plugin's root as `${CLAUDE_PLUGIN_ROOT}`. This file is read as-is
-on both hosts; in Codex, which never substitutes that variable, use the
-installed plugin root — the directory that holds `skills/` and `scripts/`.
+on every host; in Codex and Antigravity, which never substitute that
+variable, use the installed plugin root — the directory that holds `skills/`
+and `scripts/`.
 
 0. **One mechanical call covers persona and omissions.** Run `node
    ${CLAUDE_PLUGIN_ROOT}/scripts/render-sections.js`
@@ -148,8 +154,9 @@ installed plugin root — the directory that holds `skills/` and `scripts/`.
    - `warnings` — surface alongside `render-sections.js`'s own.
 
 <!-- [Foreman: 107] -->
-**Paths in the assembled prompt.** The two hosts resolve plugin paths
-differently, so each prompt carries the form its host can run:
+**Paths in the assembled prompt.** Claude Code resolves plugin paths
+differently from Codex and Antigravity, so each prompt carries the form its
+host can run:
 
 - **Claude Code.** Every plugin path the prompt carries — `scripts/roadmap.js`
   in `scope_discipline`, the entry paragraph's `update-status` calls, anything
@@ -172,6 +179,11 @@ differently, so each prompt carries the form its host can run:
   (proceed only on `dispatchReady:true`) and verify the recorded close with
   `hooks/codex-task.js check --id ID`; the coordinator owns those calls for a
   delegated subagent.
+- **Antigravity.** Antigravity never substitutes that variable either, so its
+  prompt takes the Codex form: the same quoted absolute paths, the same
+  `check-prompt.js` errors, and the same `hooks/codex-task.js start` and
+  `check` calls. No hook opens or closes an entry there, so those calls are
+  the whole lifecycle.
 
 ```xml
 <codex_runtime host="codex">
@@ -656,7 +668,7 @@ To check a prompt on its own, write it to a temp file (the clipboard delivery
 path needs that file anyway), then run:
 
 ```
-node ${CLAUDE_PLUGIN_ROOT}/scripts/check-prompt.js <file> --destination <task|agent|clipboard> --profile <standard|reinforced> --host <claude|codex>
+node ${CLAUDE_PLUGIN_ROOT}/scripts/check-prompt.js <file> --destination <task|agent|clipboard> --profile <standard|reinforced> --host <claude|codex|antigravity>
 ```
 
 - `--host` — the host that will run the prompt. It picks the canonical

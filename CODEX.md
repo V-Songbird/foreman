@@ -150,11 +150,11 @@ acceptance passes the close check.
 
 Foreman lives in the Foundry submodule backed by
 `https://github.com/V-Songbird/foreman.git`. From 3.1.0, `main` holds the one
-package for both hosts. Both plugin manifests carry the same version, and
-Foundry's Claude Code and Codex catalogs pin the same `main` commit without a
-version of their own. The `Codex` branch keeps the last separate Codex release,
-3.0.4-codex.1, and the `Claude` branch keeps the last separate Claude Code
-release, 2.7.0. Neither takes new work.
+package for every host, and from 3.2.0 that includes Antigravity. The three
+plugin manifests carry the same version, and Foundry's Claude Code and Codex
+catalogs pin the same `main` commit without a version of their own. The
+separate releases ended with 3.0.4-codex.1 for Codex and 2.7.0 for Claude
+Code, and their `Codex` and `Claude` branches were deleted on 2026-09-15.
 
 ## Validation and limits
 

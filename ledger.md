@@ -33,9 +33,12 @@ matters.
 | Six months later | Search your saved changes for the job number |
 
 "Opens or edits a file" means through the assistant's own file tools: `Read`,
-`Edit` and `Write` in Claude Code, and `apply_patch` as well in Codex. Reading
-a file with a shell command shows nothing, on either host; the write-up for a
-new job still carries what was recorded about the files it plans to touch.
+`Edit` and `Write` in Claude Code, and `apply_patch` as well in Codex. In
+Antigravity they are `view_file`, `write_to_file`, `replace_file_content` and
+`multi_replace_file_content`, and what was recorded arrives at the model's next
+call. Reading a file with a shell command shows nothing, on any host; the
+write-up for a new job still carries what was recorded about the files it plans
+to touch.
 
 That first one is the point. The next job starts already knowing what the
 last one found out, instead of working it out again.

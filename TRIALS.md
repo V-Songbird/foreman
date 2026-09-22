@@ -21,7 +21,7 @@ four attention and recovery ones, and both report `null` with
 `"no_trial_log"` when there is none.
 
 <!-- [Foreman: 208] -->
-**Nearly all of it records today, on both hosts.**
+**Nearly all of it records today, on every host.**
 [`scripts/trial-log.js`](scripts/trial-log.js) is the writer. Every event a
 script or hook already sees is wired: it costs no skill instruction, because
 those calls were being made anyway. The skills write the events only the model
@@ -30,9 +30,10 @@ can see — which menu row a user chose, and that a question was asked: the
 `init_completed` and `reinit-snapshot` rows below. A question the session
 skipped is never logged. One kind is still not written,
 `failed-verification-retry`, which is why `recovery_attempted` is marked
-partly in the tables. Claude Code and Codex write the same events to the same
-log; where an event comes from a different place on each host, the text below
-names both.
+partly in the tables. Claude Code, Codex and Antigravity write the same events
+to the same log; where an event comes from a different place on each host, the
+text below names each. Antigravity follows the Codex lifecycle, so an event
+the text credits to `hooks/codex-task.js` comes from there too.
 
 ## What a trial may record
 
@@ -104,7 +105,7 @@ assuming it away.
 | ✓ | `init_started` | — | The init skill asked its first question, or began writing without one |
 | ✓ | `init_completed` | `tasks` (integer, entries written) | The init skill's write phase finished and committed |
 | ✓ | `first_pick` | `seconds_since_init` (integer, or `null`), `sessions_since_init` (integer, or `null`) | The first handoff of this project was delivered |
-| ✓ | `question_asked` | `flow` (one of `init`, `pick`, `add`, `correct`, `status`, `survey`) | One question interaction was put to the user: an `AskUserQuestion` call in Claude Code, a question-tool call or a plain-text question in Codex |
+| ✓ | `question_asked` | `flow` (one of `init`, `pick`, `add`, `correct`, `status`, `survey`) | One question interaction was put to the user: an `AskUserQuestion` call in Claude Code, a question-tool call or a plain-text question in Codex, an `ask_question` call in Antigravity |
 | ✓ | `commit_interrupted` | `hook` (one of `safe-commit`, `post-commit`, `task-completed`; only Claude Code writes `task-completed`), `reason_class` (see below) | A Foreman commit path stopped and handed the decision back |
 | partly | `recovery_attempted` | `kind` (one of `reinit-snapshot`, `resume-in-progress`, `failed-verification-retry`), `success` (boolean) | A recovery path ran to a definite outcome |
 
@@ -142,7 +143,8 @@ returns — `dirty_tree` (its `begin` reporting `dirty: true`),
 `head_moved_since_baseline`, `no_task_changes`, `unexpected_files`,
 `staging_incomplete`, `staging_failed`, `post_commit_attestation_failed` —
 plus `verification_declined` for the `requireVerification` hold (written by
-Claude Code's `hooks/task-completed.js`; Codex's stop reminder records none). Names only:
+Claude Code's `hooks/task-completed.js`; Codex's stop reminder records none,
+and Antigravity has neither). Names only:
 never the count of dirty files, never which files were unexpected.
 
 <!-- [Foreman: 283] -->
@@ -232,7 +234,8 @@ nothing else:
   useful task.
 - **`question_asked`** — every question interaction in `skills/`: one
   `AskUserQuestion` call in Claude Code, one question-tool call or one
-  plain-text question in Codex. One event per interaction, `flow` naming the
+  plain-text question in Codex, one `ask_question` call in Antigravity. One
+  event per interaction, `flow` naming the
   branch it sits in and never the question:
   `init` for every question `skills/init/SKILL.md` asks, `pick` / `add` /
   `correct` / `status` for `skills/roadmap/pick.md`, `add.md`, `correct.md` and
@@ -262,7 +265,8 @@ nothing else:
   `awaiting_acceptance` is excluded even though it is an open status and
   always carries commits: that work *has* come back and is waiting on the
   user. `success: true` when such work closes: from `hooks/task-completed.js`
-  in Claude Code, and from `hooks/codex-task.js check` in Codex.
+  in Claude Code, and from `hooks/codex-task.js check` in Codex and
+  Antigravity.
   A resume that takes three days is therefore three failures and one success:
   the rate is a per-day view of recovery, not a per-run one, and `attempts` is
   reported beside it so that stays visible.

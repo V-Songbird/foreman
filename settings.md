@@ -110,13 +110,14 @@ Foreman tells the hosts apart the same way everywhere: `FOREMAN_HOST`
 anything else — including running a script by hand in a terminal — counts as
 Claude Code.
 
-## Using both hosts on one project
+## Using more than one host on one project
 
-Claude Code and Codex read this same file, and every setting means the same
-thing in both, so keep the file as it is when you switch. What differs is when
-a few settings act: `discoverySuggestions` and `taskCloseGate` run through
-each host's own hooks, advice about session size exists only in Claude Code,
-and reviewed increments exist only in Codex. The roadmap, its archive and the
+Claude Code, Codex and Antigravity read this same file, and every setting means
+the same thing in each, so keep the file as it is when you switch. What differs
+is when a few settings act: `discoverySuggestions` and `taskCloseGate` run
+through each host's own hooks, and Antigravity has no event for
+`taskCloseGate`; advice about session size exists only in Claude Code, and
+reviewed increments exist only in Codex. The roadmap, its archive and the
 ledger are shared the same way — see [`roadmap-schema.md`](roadmap-schema.md).
 
 ## Sharing a session with another plugin

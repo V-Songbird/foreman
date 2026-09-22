@@ -20,11 +20,12 @@ cheaper (one shell call instead of read, reason, edit and reread) and safer
 — see "Using roadmap.js" below.
 
 This isn't just convention — `hooks/guard-roadmap-edit.js` (`PreToolUse` on
-`Edit`/`Write` in Claude Code, on `apply_patch`/`Edit`/`Write` in Codex)
-denies any direct edit of a file named `ROADMAP.jsonl` or `archive.jsonl` (see [Archived entries](#archived-entries--foremanarchivejsonl)),
+`Edit`/`Write` in Claude Code, on `apply_patch`/`Edit`/`Write` in Codex, and on
+`write_to_file`/`replace_file_content`/`multi_replace_file_content` in
+Antigravity, through `hooks/antigravity-hook.js`) denies any direct edit of a file named `ROADMAP.jsonl` or `archive.jsonl` (see [Archived entries](#archived-entries--foremanarchivejsonl)),
 pointing back at the CLI. Reading the file is still fine (inspecting it is
 harmless); only writing it through a file tool is blocked. A shell command is
-not guarded on either host: it stays open as an escape hatch for the rare case
+not guarded on any host: it stays open as an escape hatch for the rare case
 where the file is corrupt and the CLI itself can't parse it to operate on it.
 
 ---
@@ -136,10 +137,10 @@ is no separate increment store and no stored per-row status. See
 prose. `accepted:` records a reviewed result the user accepted; `unverified:`
 records a check nobody has run yet, such as a hand test left for the user or a
 review the user explicitly skipped; `verification resolved:` records later
-evidence for such a check, beside the original line. Both hosts read these
+evidence for such a check, beside the original line. Every host reads these
 lines — the pick flow offers to test first when an entry carries `unverified:`
-lines — but a prefix certifies nothing by itself, and Claude Code runs no
-increment-review protocol behind `accepted:`.
+lines — but a prefix certifies nothing by itself, and Claude Code and
+Antigravity run no increment-review protocol behind `accepted:`.
 
 ### `status` values
 
@@ -172,7 +173,7 @@ increment-review protocol behind `accepted:`.
   close). A pure-investigation close may have neither.
 - `dropped` — was `planned`/`in_progress`/`awaiting_acceptance`, later decided
   not worth doing.
-- `rejected` — a `claude-suggested` or `codex-suggested` entry the user explicitly declined at
+- `rejected` — a `claude-suggested`, `codex-suggested` or `antigravity-suggested` entry the user explicitly declined at
   proposal time. It never becomes `planned`. Kept on record (instead of just
   not writing it) so the discovery flow can check existing `rejected`
   entries before re-suggesting the same idea on a future commit.
@@ -262,7 +263,8 @@ rather than editing the file back.
 
 ## Writing suggested entries — pack context now, it's free
 
-When an entry's `source` is `claude-suggested` or `codex-suggested` (a
+When an entry's `source` is `claude-suggested`, `codex-suggested` or
+`antigravity-suggested` (a
 proposal from discovery or from `init`'s draft), write it dense: use everything already sitting in this session's
 context — exact file paths and line ranges, function/symbol names, the
 specific behavior or error observed, why it matters — and put it in `what`,
@@ -567,10 +569,11 @@ only way out.
 
 All access — from any caller — goes through `scripts/roadmap.js`, and
 `hooks/guard-roadmap-edit.js` mechanically blocks the alternative (direct
-`Edit`/`Write` in Claude Code, `apply_patch`/`Edit`/`Write` in Codex), not
-just prose. A shell command is outside that guard on both hosts. Skill names
-below are the same on both hosts; Claude Code calls them as
-`/foreman:<skill>`.
+`Edit`/`Write` in Claude Code, `apply_patch`/`Edit`/`Write` in Codex,
+`write_to_file`/`replace_file_content`/`multi_replace_file_content` in
+Antigravity), not just prose. A shell command is outside that guard on every
+host. Skill names below are the same on every host; Claude Code calls them as
+`/foreman:<skill>` and Antigravity as `/<skill>`.
 
 - `init` — creates it (loops `add` once per drafted task).
 - `roadmap` — `next-candidates` (Pick next task), `add` (Add a task),
@@ -599,7 +602,9 @@ below are the same on both hosts; Claude Code calls them as
   writes to the file itself — it only emits instructions telling the assistant
   to call `update-status`/`add`/`check-duplicate` through the shell, keeping
   every actual write in a reviewable, skill- or assistant-driven path rather
-  than a hook's hands. Registered on both hosts.
+  than a hook's hands. Registered in Claude Code and Codex; in Antigravity,
+  `hooks/antigravity-hook.js` runs it after a shell command, and what it says
+  reaches the model at its next call.
 - `foreman/hooks/session-start.js` — same in-process read pattern, at
   session start (`startup`/`clear` only; in Claude Code, SessionStart never
   fires for subagents). Emits one informational line when
@@ -607,7 +612,9 @@ below are the same on both hosts; Claude Code calls them as
   with no recent activity and tagging the awaiting ones, so work left dangling
   by a dead session — or finished work nobody has accepted — surfaces instead
   of rotting. Never writes, never instructs an action without the user asking.
-  Registered on both hosts.
+  Registered in Claude Code and Codex; in Antigravity,
+  `hooks/antigravity-hook.js` runs it at the first model call of a
+  conversation.
 
 Opening and closing a task are wired differently on each host, because only
 Claude Code has task events. Both paths perform the same single write, the
@@ -653,3 +660,13 @@ transition `planned` → `in_progress`, through `roadmap.js`'s own
   gates unrelated work, never reinterprets a question as completion, and never
   requires an entry awaiting acceptance to become `done`. A continuation it
   already caused (`stop_hook_active`) is not stopped again.
+
+**Antigravity** (the root `hooks.json`), which emits no task or stop events:
+
+- `foreman/hooks/antigravity-hook.js` — the one registered script. It
+  translates `PreInvocation`, `PreToolUse` and `PostToolUse` and runs
+  `guard-roadmap-edit.js`, `session-start.js`, `post-commit.js` and
+  `ledger-recall.js` as child processes. It never writes this file.
+- Opening and closing an entry is the handoff's own
+  `foreman/hooks/codex-task.js` `start` and `check`, as in Codex. No `Stop`
+  reminder exists there, so an unresolved `check` requests no continuation.
