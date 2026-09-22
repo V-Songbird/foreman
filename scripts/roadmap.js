@@ -692,7 +692,46 @@ function plannedTouchesInput(payload, command) {
   return value;
 }
 
+// [Foreman: 436] Titles, notes and lessons come from conversations and land in
+// files a project commits, so a write whose text looks like a credential is
+// refused before the lock, with nothing written. A small closed set, started
+// from hush's containsSecret list: provider key prefixes, private key blocks,
+// Authorization values and passwords inside URLs. The key and Authorization
+// shapes must also hold a digit, so prose such as "Basic authentication"
+// still passes. Only new writes are checked; what a file already holds stays
+// readable. The error names the field and the kind, never the text.
+const CREDENTIAL_PATTERNS = [
+  ["an API key (sk-...)", /\bsk-(?=[\w-]*\d)[\w-]{16,}/],
+  ["a GitHub token", /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_\w{20,})/],
+  ["an AWS access key id", /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/],
+  ["a Slack token", /\bxox[baprs]-[A-Za-z0-9-]{10,}/],
+  ["a private key block", /-----BEGIN [A-Z0-9 ]*PRIVATE KEY[A-Z0-9 ]*-----/],
+  ["an Authorization header value", /\b(?:Bearer|Basic)\s+(?=[\w.~+/=-]*\d)[\w.~+/=-]{16,}/],
+  ["a password inside a URL", /\b\w+:\/\/[^\s/:@]+:[^\s/:@]+@[^\s/]+/],
+];
+
+function credentialKind(text) {
+  const hit = CREDENTIAL_PATTERNS.find(([, pattern]) => pattern.test(text));
+  return hit ? hit[0] : null;
+}
+
+// The fields are the ones each command stores: strings, or arrays of them.
+function refuseCredentials(command, payload, fields) {
+  for (const field of fields) {
+    const value = (payload || {})[field];
+    for (const text of Array.isArray(value) ? value : [value]) {
+      const kind = typeof text === "string" ? credentialKind(text) : null;
+      if (kind) {
+        throw new Error(
+          `${command} refused: ${field} looks like it holds ${kind}. Nothing was written; remove the credential and send the call again`
+        );
+      }
+    }
+  }
+}
+
 function cmdAdd(root, payload) {
+  refuseCredentials("add", payload, ["title", "why", "what", "notes", "planned_touches", "touches", "doc"]);
   return withRoadmapLock(root, () => cmdAddUnlocked(root, payload));
 }
 
@@ -982,6 +1021,7 @@ function missingEntryError(resolve, id) {
 }
 
 function cmdUpdateStatus(root, payload) {
+  refuseCredentials("update-status", payload, ["notes", "lesson", "add_touches", "doc", "model"]);
   return withRoadmapLock(root, () => cmdUpdateStatusUnlocked(root, payload));
 }
 
@@ -1230,6 +1270,7 @@ function recordLesson(root, entry, { lesson, commit }) {
 // re-assert a status the caller read earlier, which would silently regress
 // an entry another session has since moved (e.g. planned -> in_progress).
 function cmdAnnotate(root, payload) {
+  refuseCredentials("annotate", payload, ["notes"]);
   return withRoadmapLock(root, () => cmdAnnotateUnlocked(root, payload));
 }
 
@@ -1360,6 +1401,9 @@ function touchesSetEqual(expectedValue, current) {
 }
 
 function cmdCorrect(root, payload) {
+  // expected.* repeats what the entry already holds, so only the new values
+  // are checked: a correction that removes a credential must still go through.
+  refuseCredentials("correct", payload, [...CORRECTABLE_TEXT, "planned_touches", "touches"]);
   return withRoadmapLock(root, () => cmdCorrectUnlocked(root, payload));
 }
 
@@ -2432,7 +2476,10 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
 {"ok":false,"error":"..."} (exit 1) on failure. Any mutating subcommand run
 against a file below the current format migrates it first (see "migrate"
 below) and adds a "migrated" field ({from, to, backup}) to its own result --
-absent when the file was already current.
+absent when the file was already current. add, update-status, annotate and
+correct refuse text that looks like a credential (an API key, a token, a
+private key block, an Authorization value or a password inside a URL): nothing
+is written, and the error names the field and the kind, never the text.
 
   add               stdin JSON: {title, why, what, source, depends_on?, planned_touches?, notes?, status?, doc?, kind?}
                     source: "user" | "claude-suggested" | "codex-suggested" | "antigravity-suggested"
@@ -2939,6 +2986,7 @@ module.exports = {
   validateDoc,
   validateKind,
   validateRan,
+  credentialKind,
   ID_PATTERN,
   ID_RE,
   isValidId,

@@ -23,6 +23,9 @@
 //   - add/update-status return a `warnings` field for long why/what/notes
 //     without failing the write
 //   - annotate appends notes and bumps updated_at without touching status
+//   - add, annotate, correct and update-status refuse credential-shaped text
+//     before writing, naming the field and never the text; prose about
+//     tokens and keys passes, and text already in the file stays readable
 //   - check-duplicate finds word-overlap matches against all entries,
 //     carrying each match's status so callers can tell declined from tracked
 //   - a corrupt line in the file fails loudly (ok:false, exit 1) instead of
@@ -1384,6 +1387,80 @@ describe('next-candidates', () => {
         'oldest ready task; may overlap in-progress work',
       ]);
     });
+  });
+});
+
+// [Foreman: 436]
+describe('credential-shaped text is refused before anything is written', () => {
+  const { credentialKind } = require('../scripts/roadmap');
+  // Built from parts so no complete credential-shaped string sits in this file.
+  const KEY = ['sk', 'fixture0123456789notareal'].join('-');
+  const file = () => path.join(project, 'ROADMAP.jsonl');
+  const ENTRY = { id: '001', title: 'a', why: 'a', what: 'a', status: 'in_progress', source: 'user', depends_on: [], touches: [], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '' };
+
+  beforeEach(() => writeRoadmap(project, [ENTRY]));
+
+  function assertRefused(command, payload, field) {
+    const before = fs.readFileSync(file(), 'utf-8');
+    const { status, json } = run([command], payload);
+    assert.equal(status, 1);
+    assert.equal(json.ok, false);
+    assert.match(json.error, new RegExp(`^${command} refused: ${field} looks like it holds an API key`));
+    assert.ok(!json.error.includes(KEY), 'the error repeats the credential');
+    assert.equal(fs.readFileSync(file(), 'utf-8'), before, `${command} wrote despite the refusal`);
+  }
+
+  test('each write command refuses a key-shaped value and never repeats it', () => {
+    const note = `deploy used ${KEY} for the smoke run`;
+    assertRefused('add', { title: 'b', why: 'b', what: 'b', source: 'user', notes: note }, 'notes');
+    assertRefused('annotate', { id: '001', notes: note }, 'notes');
+    assertRefused('update-status', { id: '001', status: 'in_progress', notes: note }, 'notes');
+    assertRefused('update-status', { id: '001', status: 'in_progress', lesson: note }, 'lesson');
+    // correct stores no notes; its text fields carry the same check.
+    assertRefused('correct', { id: '001', expected_updated_at: '2026-07-01', what: note, expected: { what: 'a' } }, 'what');
+  });
+
+  test('ordinary prose about tokens and keys still passes every command', () => {
+    const prose = 'Refresh the token before expiry; Basic authentication and Bearer tokens stay off, and the API key lives in the keychain.';
+    assert.equal(run(['add'], { title: 'b', why: prose, what: prose, source: 'user', notes: prose }).status, 0);
+    assert.equal(run(['annotate'], { id: '001', notes: prose }).status, 0);
+    assert.equal(run(['update-status'], { id: '001', status: 'in_progress', notes: prose }).status, 0);
+    const { updated_at } = run(['list', '--ids', '001']).json.entries[0];
+    assert.equal(run(['correct'], { id: '001', expected_updated_at: updated_at, what: prose, expected: { what: 'a' } }).status, 0);
+  });
+
+  test('text already in the file stays readable, and a correction that removes it goes through', () => {
+    writeRoadmap(project, [{ ...ENTRY, what: `old text with ${KEY}`, notes: `2026-07-01 ${KEY}` }]);
+    const listed = run(['list', '--ids', '001']);
+    assert.equal(listed.status, 0);
+    assert.ok(listed.json.entries[0].notes.includes(KEY));
+    assert.equal(run(['annotate'], { id: '001', notes: 'rotated the leaked key' }).status, 0);
+    const { updated_at } = run(['list', '--ids', '001']).json.entries[0];
+    const fixed = run(['correct'], { id: '001', expected_updated_at: updated_at, what: 'old text, credential removed', expected: { what: `old text with ${KEY}` } });
+    assert.equal(fixed.status, 0, JSON.stringify(fixed.json));
+  });
+
+  test('the closed pattern set flags one of each kind and leaves near misses alone', () => {
+    const hits = {
+      'an API key': KEY,
+      'a GitHub token': ['ghp', 'fixture0123456789abcdefNOTREAL'].join('_'),
+      'an AWS access key id': ['AKIA', 'IOSFODNN7EXAMPLE'].join(''),
+      'a Slack token': ['xoxb', '000000000000', 'fixturenotreal'].join('-'),
+      'a private key block': ['-----BEGIN', 'RSA PRIVATE KEY-----'].join(' '),
+      'an Authorization header value': `Authorization: Bearer ${['eyJfixture', '0123456789', 'notreal'].join('.')}`,
+      'a password inside a URL': ['https://deploy', 'hunter2fixture@example.invalid/repo'].join(':'),
+    };
+    for (const [kind, text] of Object.entries(hits)) {
+      assert.ok(String(credentialKind(text)).startsWith(kind), `${kind} not flagged`);
+    }
+    for (const text of [
+      'sk-learn-compatibility-layer and the risk-assessment-framework-2026',
+      'https://example.com:8080/path@anchor, git@github.com:org/repo.git, http://user@host/x',
+      '-----BEGIN CERTIFICATE-----',
+      'xoxo hugs, ghost_town, scripts/sk-helpers.js and a token budget of 4000',
+    ]) {
+      assert.equal(credentialKind(text), null, text);
+    }
   });
 });
 
