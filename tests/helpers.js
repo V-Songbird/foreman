@@ -17,6 +17,22 @@ for (const key of Object.keys(process.env)) {
   if (INHERITED_HOST_ENV.test(key)) delete process.env[key];
 }
 
+// One private temp directory per test process, removed when the process
+// exits. TEMP, TMP and TMPDIR point at it, so os.tmpdir() in every test file
+// that loads this module, and in every hook or script a test spawns, lands
+// inside it: temp projects and the hooks' state files never reach the system
+// temp directory, and a test that sweeps or locks temp files touches only its
+// own.
+const TEST_TEMP = fs.mkdtempSync(path.join(os.tmpdir(), 'foreman-test-'));
+for (const key of ['TEMP', 'TMP', 'TMPDIR']) process.env[key] = TEST_TEMP;
+process.on('exit', () => {
+  try {
+    fs.rmSync(TEST_TEMP, { recursive: true, force: true });
+  } catch {
+    // a file still held open keeps the directory; the run's result stands
+  }
+});
+
 const HOOKS_DIR = path.join(__dirname, '..', 'hooks');
 const SCRIPTS_DIR = path.join(__dirname, '..', 'scripts');
 

@@ -6,7 +6,7 @@
 // children with FOREMAN_HOST pinned, so these also pin the wording those hooks
 // choose for this host, and the registration and manifest it ships under.
 
-const { test, describe, beforeEach, after } = require("node:test");
+const { test, describe, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -20,14 +20,6 @@ const { discoveryInstructions } = require("../scripts/discovery");
 const ROOT = path.resolve(__dirname, "..");
 const ENTRY = path.join(HOOKS_DIR, "antigravity-hook.js");
 const read = (file) => JSON.parse(fs.readFileSync(path.join(ROOT, file), "utf-8"));
-
-// Projects, queues and the shared hooks' own state files all land in one
-// private temp directory, which the hooks inherit and which goes when these
-// tests end: nothing is left in the system temp directory, and no sweep
-// touches a real conversation's queue.
-const TEMP = fs.mkdtempSync(path.join(os.tmpdir(), "foreman-agy-temp-"));
-for (const key of ["TEMP", "TMP", "TMPDIR"]) process.env[key] = TEMP;
-after(() => fs.rmSync(TEMP, { recursive: true, force: true }));
 
 let project;
 let conversation;
@@ -156,7 +148,9 @@ describe("PreInvocation carries the session notice once, in this host's words", 
 });
 
 describe("PreInvocation sweeps the queues other conversations left behind", () => {
-  const queue = (id) => path.join(TEMP, `foreman-antigravity-${id}.json`);
+  // os.tmpdir() is this test process's private directory (tests/helpers.js),
+  // which the hook inherits, so no real conversation's queue is ever swept.
+  const queue = (id) => path.join(os.tmpdir(), `foreman-antigravity-${id}.json`);
   const twoDaysAgo = () => new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
   const leave = (file, when = new Date(), pending = []) => {
     fs.writeFileSync(file, JSON.stringify({ started: true, pending }));
@@ -166,7 +160,7 @@ describe("PreInvocation sweeps the queues other conversations left behind", () =
   test("back after a day, a conversation removes day-old queues and keeps its own", (t) => {
     writeRoadmap(project, [{ id: "001", title: "Ship the thing", status: "in_progress" }]);
     const [stale, fresh, own, stuck] = [crypto.randomUUID(), crypto.randomUUID(), conversation, crypto.randomUUID()].map(queue);
-    const other = path.join(TEMP, "another-tool.json");
+    const other = path.join(os.tmpdir(), "another-tool.json");
     leave(stale, twoDaysAgo());
     leave(fresh);
     leave(own, twoDaysAgo(), ["said a day ago"]);
