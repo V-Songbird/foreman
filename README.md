@@ -13,7 +13,7 @@
   <a href="#codex">Codex</a>&emsp;&emsp;&emsp;&emsp;<a href="#claude-code">Claude</a>
 </p>
 
-<p align="center"><a href="#get-started"><strong>Get started</strong></a> · <a href="#what-is-this">What is this?</a> · <a href="#how-it-works">How it works</a> · <a href="#what-you-can-do">What you can do</a> · <a href="#the-numbers">Evidence</a></p>
+<p align="center"><a href="#install"><strong>Get started</strong></a> · <a href="#what-is-this">What is this?</a> · <a href="#how-it-works">How it works</a> · <a href="#what-you-can-do">What you can do</a> · <a href="#the-numbers">Evidence</a></p>
 
 ## What is this?
 
@@ -36,7 +36,7 @@ The roadmap lives in your project. Foreman reads it, checks the relevant context
 
 ## What you can do
 
-| You say | You get |
+| You want to | Outcome |
 | --- | --- |
 | Add this to the roadmap | Requested work recorded with its reason and boundaries |
 | Where are we? | Status, blockers and work waiting for acceptance |
@@ -56,7 +56,7 @@ Plain sentences like the ones above work in every assistant. If you would rather
 | Check the plan against your code | `/foreman:survey` | the `survey` skill | `/survey` |
 | Write a one-off prompt with no roadmap entry | `/foreman:craft-prompt` | the `craft-prompt` skill | `/craft-prompt` |
 
-## Get started
+## Install
 
 Foreman is one plugin for the three assistants. Install it in the one you use; only the commands differ.
 
@@ -145,6 +145,13 @@ Foreman tied the well-written paragraph on correctness and cost more: 8.3% on So
 | Not measured | foreman | Not measured | Not measured |
 
 Codex functional tests establish specific behaviors, not a speed, cost or correctness advantage over a baseline. Comparative performance remains unmeasured.
+
+### Antigravity results
+
+<!-- foundry:evidence {"platform":"Antigravity","status":"pending","reason":"No Antigravity performance measurements are available."} -->
+| Model | Setup | Correct tasks | Mean session cost |
+| --- | --- | --- | --- |
+| Not measured | Not measured | Not measured | Not measured |
 
 *Results can vary between runs.*
 

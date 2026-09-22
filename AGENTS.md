@@ -48,12 +48,13 @@ alter a marketplace or start model sessions.
 ## Conventions
 
 The README serves every host. Its shared sections read the same for everyone; host differences
-sit in the How to ask table, one Get started subsection per host, the Differences between hosts
-table and one results table per host under The numbers. A feature one host lacks is named as not
-available there, never described with the other host's behavior. Keep benchmark questions and
-columns identical across the host tables; each table carries its own `foundry:evidence`
-declaration, model, source and date. Never present a Claude Code result as a Codex result, never
-treat unit tests as a performance run, and show `Not measured` where evidence is absent.
+sit in the How to ask table, one Install subsection per host, the Differences between hosts
+table and one results table per host under The numbers: Claude Code results, Codex results and
+Antigravity results. A feature one host lacks is named as not available there, never described
+with the other host's behavior. Keep benchmark questions and columns identical across the host
+tables; each table carries its own `foundry:evidence` declaration, model, source and date. Never
+present a Claude Code result as a Codex result, never treat unit tests as a performance run, and
+show `Not measured` where evidence is absent.
 
 Reviewed increments stay a Codex feature until the owner decides otherwise: the assembler
 accepts review rows on both hosts, but Claude Code's skills do not offer the protocol.
