@@ -1,22 +1,22 @@
-# Foreman: accepting a task increment by increment
+---
+type: knowledge
+summary: "The product contract for developing one roadmap task in increments that a person accepts one by one, implemented for Codex only; read before changing the review rows, the pause between increments or how acceptance is recorded."
+related_files:
+  - scripts/craft-handoff.js
+  - scripts/roadmap.js
+  - skills/roadmap/prepare-increments.md
+  - skills/roadmap/increment-review.md
+  - skills/roadmap/resume-increments.md
+  - skills/roadmap/close-increments.md
+  - docs/knowledge/scope.md
+---
 
-Canonical implementation contract for Codex — 2026-09-08.
+# Accepting a task increment by increment
 
-This contract consolidates the [original proposal](https://github.com/V-Songbird/foundry/blob/main/docs/foreman/research/NANOTASKS.md),
-the selective-pause design received on 2026-09-08 and its two reviews. The
-user's later request authorizes continuing and implementing this contract for
-Codex ONLY. For V1 it replaces the separate-store design. It does not certify
-acceptance of any implemented result or of the whole feature. Claude Code waits
-on the outcome of the Codex evaluation. The earlier documents remain background,
-not cumulative instructions.
-
-The Codex implementation ships in this package. The
-[evidence report](https://github.com/V-Songbird/foundry/blob/main/docs/foreman/validation/NANOTASKS-DOGFOOD.md)
-records tests, real decisions, controlled rehearsals and cleanup. For the
-implementation run, the user authorized finishing the remaining technical
-deliveries autonomously and omitting their intermediate reviews. That exception
-does not change product behavior and does not grant human acceptance of the
-whole feature, which remains separate.
+This contract is implemented for Codex only. Claude Code's skills do not offer
+the protocol, and the documentation says it is not available there yet. It
+does not certify acceptance of any implemented result or of the whole feature;
+that decision is separate.
 
 ## 1. Product agreement
 
@@ -46,9 +46,8 @@ Tests and tools supply evidence, but they do not replace the decision that the
 result matches the user's intention. The reviewed aspect does not have to be
 impossible to automate.
 
-This decision preserves the original request. The alternative, "ask only when a
-tool cannot verify it", would be a different product contract; the word
-nanotask does not make the two equivalent.
+The alternative, "ask only when a tool cannot verify it", would be a different
+product contract; the word nanotask does not make the two equivalent.
 
 ## 2. Minimal implementation and scope
 
@@ -57,10 +56,11 @@ and the existing checkpoints. It creates no other store, no persistent per-unit
 states, no propagation graph, no server and no execution across several parent
 entries.
 
-The exclusion of persistent acceptance and execution schemas in `SCOPE.md` also
-covers a side file. The proposed `.foreman/nanotasks/<parent>.json` is withdrawn
-from V1. Keeping brief evidence in `notes` must not turn into an event database
-or a complete schema hidden as text.
+The exclusion of persistent acceptance and execution schemas in
+[the product scope](scope.md) also covers a side file. A
+`.foreman/nanotasks/<parent>.json` store is outside V1. Keeping brief evidence
+in `notes` must not turn into an event database or a complete schema hidden as
+text.
 
 The promised experience is assisted acceptance and continuity. It does not
 promise a state machine that stops every client from skipping ahead, or an exact
@@ -97,10 +97,9 @@ Require at least one and validate complete pairs. The existing
 `{run,expected,goal,files}` form stays valid without reinterpreting its
 meaning. In a run with acceptance per increment, every row carries `review`.
 
-From the `look` design, this adopts the distinction of a human check, but as a
-review field attached to the row so that it can live beside `run`. It can be
-rendered as `Look:` / `Expected:`. There is no need to maintain two new input
-formats: `look` is not implemented.
+The human check is a review field attached to the row so that it can live
+beside `run`. It can be rendered as `Look:` / `Expected:`. There is no second
+input format for it.
 
 Only commands go to the command resolver. The count used to split work and to
 offer checkpoints counts increments with work of their own, not the total
@@ -108,7 +107,7 @@ number of checks. The agent recommendation requires executable checks and the
 other existing conditions. Do not invent a `run` to get past a validator.
 
 Tests that verify structure do not show that the text proposes good increments.
-Reviewing the result and dogfooding cover that part.
+Reviewing the result and real use cover that part.
 
 ## 4. Pause, decision and close
 
@@ -138,9 +137,9 @@ for infrastructure.
 
 A worker returns its result to the coordinator when that channel exists.
 Background availability does not mean there is no person, and it does not allow
-assuming that someone will answer. V1 must first support the current session
-and the clipboard; other destinations state their limits and do not replace the
-chosen destination.
+assuming that someone will answer. V1 supports the current session and the
+clipboard; other destinations state their limits and do not replace the chosen
+destination.
 
 Checkpoints follow `safe-commit`, branch restrictions and file ownership. A tree
 that was already modified can continue without commits. Recording acceptance
@@ -173,8 +172,8 @@ directly so that this evidence is not lost.
 `task n/total` is a visual aid, not a stable identity across rebuilt plans. A
 note written before the checkpoint is not automatically linked to the SHA of the
 later commit. Record the real reference when it exists; if the work has no
-commit, describe what was tested and state the limitation. Do not build hash
-manifests as a V1 requirement.
+commit, describe what was tested and state the limitation. Hash manifests are
+not a V1 requirement.
 
 When resuming, read the notes and the current work, compare them and rebuild the
 next increment. **Do not skip work only because `accepted:` appears.** If it
@@ -187,13 +186,13 @@ An omitted check that is later resolved keeps both notes. At close, interpret
 the evidence for that specific result, without erasing history or dropping an
 `unverified:` note because some other acceptance exists.
 
-The current `annotate` appends a line on every call; it is not idempotent. After
-an uncertain outcome, reread before repeating. Test duplications and
+`annotate` appends a line on every call; it is not idempotent. After an
+uncertain outcome, reread before repeating. Test duplications and
 interruptions; do not claim that an append plus a commit guarantees exactly one
 write. An older client can read the roadmap without knowing the new protocol:
 format compatibility does not mean behavioral compliance.
 
-## 6. Reconciled example
+## 6. Example
 
 Main task: "Add user sign-in".
 
@@ -204,10 +203,10 @@ Main task: "Add user sign-in".
 | Sign out and check the whole | Sign-out, updated access and an end-to-end check | Accept the result and, when it is presented explicitly, the whole task |
 
 Three increments, three decisions; each contains as many technical steps as it
-needs. This granularity satisfies approval between nanotasks without asking for
-confirmation to create each file or run each command.
+needs. This granularity satisfies approval between increments without asking
+for confirmation to create each file or run each command.
 
-## 7. Required checks and dogfooding
+## 7. Required checks
 
 Checks required before declaring the contract available:
 
@@ -226,26 +225,19 @@ Checks required before declaring the contract available:
 
 Run `node --test tests/*.test.js` for runtime changes and the installed
 validators when editing skills or metadata. The tests neither install nor
-publish. Use the checks available in the real checkout; do not inherit paths
-that do not exist, or assumed historical authorizations, to tolerate failures.
+publish.
 
-Dogfooding records what happened. A spontaneous return that did not happen is
-not invented; the return path must be tested through a rehearsal identified as
-such. Keep behavior tests, rehearsals with the user and spontaneous use apart.
 Reading text or checking that a sentence exists does not show that execution
-stops. A real pause, its decision and a real resume are part of the evidence for
-this delivery.
+stops. A real pause, its decision and a real resume are part of the evidence
+for any change to this protocol; keep behavior tests, rehearsals with the user
+and spontaneous use apart when recording it.
 
-The implementation history, delivery records and evidence live in [Foundry research](https://github.com/V-Songbird/foundry/tree/main/docs/foreman).
+## 8. Standing decision
 
-## 8. Agreed decision
+Foreman accepts each meaningful increment, implemented on the current split and
+notes, with assisted recovery and explicit limits. A separate V1 store and
+automatic advancement when no answer arrives are both out.
 
-The final recommendation is **acceptance of each meaningful increment,
-implemented on the current split and notes, with assisted recovery and explicit
-limits**. Both the separate V1 store and automatic advancement when no answer
-arrives are withdrawn.
-
-If pausing only on exclusively human checks is chosen instead, it must be
-recorded as an explicit change to the original request before rewriting the
-document or the tasks. None of the external texts, their "declined" annotations
-or this proposal amount to that user decision.
+Pausing only on exclusively human checks would be a different product contract.
+Adopting it requires an explicit change to this document before the tasks are
+rewritten.

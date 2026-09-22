@@ -1,3 +1,12 @@
+---
+type: knowledge
+summary: "Records user-facing Foreman changes by release for both hosts; read when upgrading or checking when a behavior changed."
+related_files:
+  - README.md
+  - .claude-plugin/plugin.json
+  - .codex-plugin/plugin.json
+---
+
 # Changelog
 
 All notable changes to Foreman are documented here. Foreman was named
@@ -14,7 +23,7 @@ listings pin a release commit and carry no version of their own. Claude Code
 releases up to 2.7.0 kept their number in the foundry marketplace listing
 instead.
 
-## 3.1.0 — Unreleased
+## 3.1.0 — 2026-09-15
 
 Foreman is now one plugin for Claude Code and Codex. Both install the same
 package from the foundry marketplace, share one version, and read and write the
@@ -272,9 +281,9 @@ reported as a missing function.
 The front page is rewritten to answer what Foreman is, why it exists and why
 you'd want it, and nothing else. How a task gets picked, what gets checked, the
 commands and the requirements all moved to
-[How Foreman works](HOW-IT-WORKS.md), linked from the front page along with
-[Settings](settings.md), [the roadmap file](roadmap-schema.md),
-[the ledger](ledger.md) and [the prompt template](prompt-template.md).
+[How Foreman works](../../HOW-IT-WORKS.md), linked from the front page along with
+[Settings](../../settings.md), [the roadmap file](../../roadmap-schema.md),
+[the ledger](../../ledger.md) and [the prompt template](../../prompt-template.md).
 
 ## 2.4.0 — 2026-08-29
 
@@ -294,7 +303,7 @@ Fixed an issue where finishing one task could leave your project looking like it
 
 ## 2.3.1 — 2026-08-29
 
-Fixed an issue where "How do you want to run this?" could describe a session as filling up when it had most of its room left, and steer the work to the clipboard for no reason. It now weighs context only when Claude Code knows the point your session compacts at; [`settings.md`](settings.md) says where to set that.
+Fixed an issue where "How do you want to run this?" could describe a session as filling up when it had most of its room left, and steer the work to the clipboard for no reason. It now weighs context only when Claude Code knows the point your session compacts at; [`settings.md`](../../settings.md) says where to set that.
 
 ## 2.3.0 — 2026-08-28
 
@@ -362,7 +371,7 @@ Foreman kept two separate records of what a finished task learned. There is one 
 - Commit-time roadmap suggestions are on by default. After you save changes, Foreman offers work worth tracking that it spotted in them, and no longer asks first. Set `"discoverySuggestions": false` in `.foreman/config.json` to turn it off.
 - One switch instead of two: `"ledger": {"enabled": true}`. If your settings still say `decisionLog` or `areaNotes`, leave them — both still work and both mean the ledger.
 - Foreman no longer writes decision documents, and no longer hands you a template to fill in. Where you write your decisions down is yours. Put one at `docs/foreman/019.md` and a `[Foreman: 019]` comment will point people at it.
-- `decision-log.md` is now [`ledger.md`](ledger.md), and covers the whole thing on one page in plain language.
+- `decision-log.md` is now [`ledger.md`](../../ledger.md), and covers the whole thing on one page in plain language.
 
 ### Removed
 
@@ -469,7 +478,7 @@ Foreman kept two separate records of what a finished task learned. There is one 
 
 ### Changed
 
-- The benchmark harness no longer ships in the installed plugin — it lives in the marketplace repo. The trial-log privacy contract moved to [`TRIALS.md`](TRIALS.md) at the plugin root, and the health tools now live under `scripts/health/`.
+- The benchmark harness no longer ships in the installed plugin — it lives in the marketplace repo. The trial-log privacy contract moved to [`TRIALS.md`](../../TRIALS.md) at the plugin root, and the health tools now live under `scripts/health/`.
 - Touching files in a project with no decision-log folder no longer pays the anchor scan.
 - Both prompt-crafting flows now read the destination question from one shared file, so a fix to it reaches both.
 

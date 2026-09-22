@@ -1,3 +1,14 @@
+---
+type: knowledge
+summary: "Foreman's product scope: who it is for, the jobs it owns, the mechanical-first rule, the feature admission test and the never-list; read before adding a feature or changing what the README promises."
+related_files:
+  - README.md
+  - skills/
+  - scripts/roadmap.js
+  - scripts/craft-handoff.js
+  - scripts/check-prompt.js
+---
+
 # Foreman scope
 
 Foreman is the install-and-forget project coordinator for solo developers.

@@ -1,7 +1,25 @@
-/docs/*
-!/docs/adr/
+# Foreman repository visibility and local generated files.
+# Keep the runtime, skills, tests and public documentation visible.
 
-# Plugin-local session state — written at run time, never published.
+# Private working material and documentation
+.private/
+docs/tasks/
+docs/decisions/
+docs/knowledge/private/
+docs/apis/private/
+
+# Machine-local agent state; shared instructions stay visible
+**/.claude/settings.local.json
+**/.claude/memory/
+CLAUDE.local.md
+AGENTS.override.md
+
+# Plugin-local session state written at run time, never published
 .assay/
 .foreman/
 .scribe/
+
+# Dependency cache and operating-system metadata
+node_modules/
+.DS_Store
+Thumbs.db

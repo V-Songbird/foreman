@@ -140,7 +140,7 @@ Codex functional tests establish specific behaviors, not a speed, cost or correc
 <!-- foundry:hero -->
 <p align="center"><img src="assets/hero.svg" alt="Foreman original product visualization" width="700"></p>
 
-The task trail above illustrates the workflow. The recorded demo below comes from Claude Code; it is not a Codex measurement. [Evidence and methodology](https://github.com/V-Songbird/foundry/tree/main/docs/foreman).
+The task trail above illustrates the workflow. The recorded demo below comes from Claude Code; it is not a Codex measurement.
 
 <details>
 <summary>Watch the recorded Claude Code demo</summary>
@@ -154,7 +154,9 @@ The task trail above illustrates the workflow. The recorded demo below comes fro
 
 [How it works](HOW-IT-WORKS.md) · [Settings](settings.md) · [Roadmap schema](roadmap-schema.md) · [Ledger](ledger.md) · [Foreman in Codex](CODEX.md) · [Codex handoff prompting](CODEX-PROMPTING.md)
 
-[Research and validation](https://github.com/V-Songbird/foundry/tree/main/docs/foreman) · [Benchmark instruments and retained evidence](https://github.com/V-Songbird/foundry/tree/main/benchmarks/foreman) · [Foundry](https://github.com/V-Songbird/foundry)
+[Product scope](docs/knowledge/scope.md) · [Incremental acceptance](docs/knowledge/incremental-acceptance.md) · [Changelog](docs/knowledge/changelog.md) · [Foundry](https://github.com/V-Songbird/foundry)
+
+The benchmark instruments and research records behind the numbers are kept outside this repository and are not distributed with the plugin.
 
 ## License
 

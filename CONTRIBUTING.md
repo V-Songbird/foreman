@@ -22,9 +22,7 @@ Foreman is one package for two hosts — the assistants it runs inside, Claude C
 .codex-plugin/
 └── plugin.json          # Codex metadata, the same release version, and
                          # the hooks field that names hooks/codex-hooks.json
-AGENTS.md                # contributor rules Codex reads
-.claude/rules/           # the same contributor rules, for Claude Code
-CHANGELOG.md             # one history for both hosts, newest first
+AGENTS.md                # contributor rules for both hosts; CLAUDE.md imports it
 LICENSE                  # MIT
 README.md                # one README for both hosts
 HOW-IT-WORKS.md          # how Foreman works, with the host differences
@@ -36,7 +34,8 @@ CODEX.md                 # Codex host notes and limits
 CODEX-PROMPTING.md       # the guidance Codex handoffs follow
 prompt-template.md       # the one handoff template; host-tuned blocks
                          # carry host="claude" or host="codex"
-docs/adr/                # product decisions
+docs/knowledge/          # product scope, the incremental-acceptance contract
+                         # and the changelog, one history for both hosts
 skills/                  # the five skills, shared by both hosts
 └── <skill>/
     ├── SKILL.md         # skill instructions
@@ -53,7 +52,7 @@ scripts/                 # dependency-free Node.js CLIs; runtime.js detects the 
 tests/                   # behavioral tests for both hosts
 ```
 
-The README's tone and style follow foundry's [`.github/PLUGIN_README_TEMPLATE.md`](https://github.com/V-Songbird/foundry/blob/main/.github/PLUGIN_README_TEMPLATE.md). Foreman keeps one README for both hosts; `.claude/rules/single-readme.md` says where the host-specific parts go.
+Foreman keeps one README for both hosts, plain-language sections first and technical depth behind links; [`AGENTS.md`](AGENTS.md) says where the host-specific parts go.
 
 ---
 
@@ -118,9 +117,9 @@ Public source names and attribution are allowed in documentation and commit mess
 
 ## Versions and the changelog
 
-Add an entry to `CHANGELOG.md`, under the unreleased version at the top, for every user-visible change, and say which host it affects when it is not both. Follow the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
+Add an entry to [`docs/knowledge/changelog.md`](docs/knowledge/changelog.md), under the unreleased version at the top, for every user-visible change, and say which host it affects when it is not both. Follow the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
 
-One version number covers both hosts; the next release is 3.1.0. Bump it in both manifests, `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`, in the release commit; a test fails when the two differ. Claude Code reads a plugin's version from `plugin.json` before anything in its marketplace entry, so the version lives only in the manifests. Both [foundry](https://github.com/V-Songbird/foundry) catalogs pin the same `main` commit with `ref: "main"` and carry no version for Foreman: a release only moves their `source.sha` to the release commit.
+One version number covers both hosts. Bump it in both manifests, `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`, in the release commit; a test fails when the two differ. Claude Code reads a plugin's version from `plugin.json` before anything in its marketplace entry, so the version lives only in the manifests. Both [foundry](https://github.com/V-Songbird/foundry) catalogs pin the same `main` commit with `ref: "main"` and carry no version for Foreman: a release only moves their `source.sha` to the release commit.
 
 ---
 

@@ -171,7 +171,7 @@ integrated-close instructions live in
 new configuration, universal client enforcement or automatic exact recovery is
 promised. Older clients may read the data without following the review
 protocol. The contract behind it is
-[incremental acceptance](docs/adr/NANOTASKS-RECONCILED.md).
+[incremental acceptance](docs/knowledge/incremental-acceptance.md).
 
 The test suite exercises the runtime directly in temporary repositories,
 including old data, task selection, locks, correction guards, staged closes,
@@ -192,7 +192,8 @@ and enabled hooks in a disposable project.
 The 2026-09-08 validation of reviewed increments — automated tests plus
 controlled headless cases covering waiting, feedback, pause, recovery, final
 acceptance, omissions and a failed required check — is recorded with its
-limits in [the evidence report](https://github.com/V-Songbird/foundry/blob/main/docs/foreman/validation/NANOTASKS-DOGFOOD.md).
+limits in the maintainer's validation records, which are kept outside this
+repository.
 Separate ephemeral executions recovered from notes and files; this does not
 establish `codex exec resume` against a persisted session.
 
