@@ -105,7 +105,8 @@ instead of asking it cold: run **one** bounded, read-only pass over the
 project now, before Call 2, and turn what it finds into the options. In
 Claude Code, dispatch **one** `Explore` agent at medium breadth; in Codex,
 read the project directly, using a collaboration worker only when useful
-independent work can proceed alongside it.
+independent work can proceed alongside it. In Antigravity, do the same as in
+Codex, with an `invoke_subagent` worker as that collaboration worker.
 
 The pass takes Call 1's request verbatim and returns four things:
 
@@ -164,6 +165,8 @@ shown.
 In Codex, ask for approach notes and keep requirements separate from
 suggested implementation steps: prescribe an order only when a dependency,
 an explicit user instruction, or the verification method requires it.
+Antigravity asks the Codex question, since its handoff takes the Codex form
+and labels these steps a suggested approach too.
 Options: `I'll describe them`, `Implement only, no analysis`
 `Implement only, no analysis` yields one `judgment.steps` bullet rather
 than two — the analyze half is dropped, never invented. For
@@ -197,7 +200,9 @@ review (`review:{action, expected}`) when they concern the same work.
 Human-only verification does not change the request into an investigation.
 Preserve an explicit request to approve each result before the next as
 `reviewEachIncrement:true` with `review` on every row; do not enable it for
-an ordinary split.
+an ordinary split. In Antigravity, gather the rows the Codex way, since the
+builder gives Antigravity the Codex form, but never add `reviewEachIncrement`
+or `review`: approval after each result is not available there.
 
 **Q3** — only when Call 1's task type was `Fix a bug`: "Paste the failing
 output — stack trace, error message, or test failure — verbatim."
