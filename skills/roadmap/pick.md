@@ -320,6 +320,9 @@ session's model, and a pasted prompt runs wherever the user pastes it.
        top-level `reviewEachIncrement:true` and `review:{action,expected}` on
        every row, preserving `goal` and the known `files`; never infer review
        mode from a split alone.
+     - In Antigravity, write the rows the Codex way, since the builder gives
+       Antigravity the Codex form, but never add `reviewEachIncrement` or
+       `review`: approval after each result is not available there.
 
      Set `testFirst: true` for the test-first ordering — write the invariant
      test first, confirm it passes against the unmodified code, break the
@@ -393,9 +396,9 @@ session's model, and a pasted prompt runs wherever the user pastes it.
    `planned` — even after this prompt is assembled, delivered, or copied —
    until whichever session actually starts the work opens it: in Claude Code
    through the task hook or the `update-status` call embedded in step 3's
-   prompt, in Codex through `hooks/codex-task.js start`. Picking or copying a
-   task is not the same as starting it; only the session that begins acting
-   on it should say so.
+   prompt, in Codex and Antigravity through `hooks/codex-task.js start`.
+   Picking or copying a task is not the same as starting it; only the
+   session that begins acting on it should say so.
 5. Deliver via whatever Q2 picked by following [delivery.md](delivery.md)
    (`${CLAUDE_PLUGIN_ROOT}/skills/roadmap/delivery.md`), using the `prompt`
    (and `tasks[]` when present) craft-handoff just returned — never re-derive,

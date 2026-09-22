@@ -23,7 +23,8 @@ mutations — never read or edit `ROADMAP.jsonl` directly — and run it with
 
 **Pre-check**: if `ROADMAP.jsonl` doesn't exist at the project root, offer
 to set up the roadmap first (`/foreman:init` in Claude Code; in
-Codex, [the init skill](../init/SKILL.md)) and stop here.
+Codex, [the init skill](../init/SKILL.md); `/init` in Antigravity) and stop
+here.
 
 ---
 
@@ -103,7 +104,9 @@ Give each candidate one read-only investigator. In Claude Code, dispatch one
 `Agent` (`subagent_type: Explore`) per candidate, in parallel (single
 message, multiple tool calls). In Codex, use available collaboration
 subagents for independent candidates, limiting concurrency to actual
-capacity. If delegation is unavailable or there is only one small candidate,
+capacity. In Antigravity, use `invoke_subagent` workers the same way,
+followed with `manage_subagents`.
+If delegation is unavailable or there is only one small candidate,
 investigate locally. Collect every result before claiming the survey
 complete.
 
@@ -354,6 +357,7 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js question_asked '{"flow":"survey"
 
 One event per interaction, never one per question: one `AskUserQuestion` call
 in Claude Code, however many questions it batches; one picker call or one
-plain-text question in Codex. A skipped question is never logged. It is a
+plain-text question in Codex; one `ask_question` call in Antigravity.
+A skipped question is never logged. It is a
 no-op unless the project set `trialLog`, so it needs no check first and never
 blocks the flow.

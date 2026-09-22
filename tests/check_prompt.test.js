@@ -1012,6 +1012,15 @@ describe('drift pins', () => {
       );
     }
   });
+
+  // [Foreman: 349]
+  test('craft-prompt names the host value for Antigravity as well as Claude Code and Codex', () => {
+    const skill = readSkill('craft-prompt', 'SKILL.md').replace(/\s+/g, ' ');
+    assert.ok(
+      skill.includes('`host` ← `"claude"` in Claude Code, `"codex"` in Codex, `"antigravity"` in Antigravity'),
+      'craft-prompt no longer sets host to "antigravity" in Antigravity'
+    );
+  });
 });
 
 // [Foreman: 138]

@@ -36,7 +36,8 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js init_started '{}'
 
 and, after each question interaction the user actually sees — one
 `AskUserQuestion` call in Claude Code, however many questions it batches;
-one picker call or one plain-text question in Codex — one event:
+one picker call or one plain-text question in Codex; one `ask_question` call
+in Antigravity — one event:
 
 ```
 node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js question_asked '{"flow":"init"}'
@@ -269,4 +270,5 @@ descriptive branch first (`codex/<descriptive-name>` in Codex).
 
 Report back: task count, one line that everything optional is off and gets
 asked about when it first matters, and point the user at the first pick —
-`/foreman:roadmap` in Claude Code, the roadmap skill in Codex.
+`/foreman:roadmap` in Claude Code, the roadmap skill in Codex, `/roadmap` in
+Antigravity.

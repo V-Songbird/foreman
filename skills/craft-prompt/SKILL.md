@@ -357,7 +357,8 @@ project configuration can omit sections; if the user picked one of those
 optional sections and it did not make it in, say so plainly rather than
 acting as if it had.
 
-- `host` ← `"claude"` in Claude Code, `"codex"` in Codex
+- `host` ← `"claude"` in Claude Code, `"codex"` in Codex, `"antigravity"`
+  in Antigravity, which the builder gives the Codex form of the prompt
 - `title` ← a short verb-first name for the task; `what` ← Call 2 Q4's
   answer (also what `resolve-symbols.js` scanned above for unresolved
   identifiers, so keep it the same text)
