@@ -25,7 +25,8 @@ or user-facing executor handles the following steps:
    Use the active host's available question mechanism, or ask a concise
    plain-text question if no suitable tool is available. Wait for a decision before adding
    inferred work or expanding scope; honor an explicit decision already given.
-3. Add uses `roadmap.js add` with `source:codex-suggested` and `status:planned`.
+3. Add uses `roadmap.js add` with the host's own source, `codex-suggested` in
+   Codex or `antigravity-suggested` in Antigravity, and `status:planned`.
    An explicit Reject uses the same call with `status:rejected`. Execute choices
    authorize only the chosen finding and destination; follow the normal execution
    workflow and do not infer permission to create a sidebar task.

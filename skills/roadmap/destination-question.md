@@ -45,6 +45,9 @@ skill requires it:
   explicit split choice without the follow-up. If background delegation is
   unavailable, disclose that limitation and offer the portable prompt; do not
   create a new sidebar task without an explicit user request.
+- In Antigravity, one `ask_question` with the four options, each description
+  and any current caution in its own option text; the tool supplies the
+  free-text answer itself.
 
 A free-text answer naming the destination is honored, and so is a fixed number
 of tasks: the split then cuts into that many slices at whatever verification
@@ -96,7 +99,7 @@ option's label — never to two:
 1. **A context reading arrived this turn** saying this session is at or
    above Foreman's line. Only a current, reliable reading counts: in Claude
    Code, Foreman's own `PostToolUse` hook emits it before this question when a
-   compaction window is configured; Codex supplies none today. No reading at
+   compaction window is configured; Codex and Antigravity supply none today. No reading at
    all means this rule does not hold, not that it fails — unknown context is
    unknown, so never infer a percentage from transcript length, model name, or
    another host's configuration. Recommend `Copy prompt to clipboard`. A

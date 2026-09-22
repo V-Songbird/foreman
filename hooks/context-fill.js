@@ -171,7 +171,7 @@ function main(data = readInput()) {
   // Codex has no stable context-occupancy hook field, and its payloads carry
   // model/turn_id where Claude Code's PostToolUse carries neither: never read a
   // Codex transcript as Claude usage or apply a Claude compaction setting.
-  if (hostName() === "codex" || data.model || data.turn_id) return;
+  if (hostName() !== "claude" || data.model || data.turn_id) return;
 
   const command = data.tool_input?.command || "";
   if (!PRE_QUESTION_SCRIPT.test(command)) return;

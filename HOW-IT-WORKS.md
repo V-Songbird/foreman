@@ -3,9 +3,9 @@
 The [README](README.md) says what Foreman is for. This page says how it does
 it, for anyone who wants to know before they trust it with a plan.
 
-Foreman runs inside two assistants, Claude Code and Codex. This page calls the
-assistant a *host*. Everything below works the same on both hosts unless a
-section says otherwise.
+Foreman runs inside three assistants, Claude Code, Codex and Antigravity. This
+page calls the assistant a *host*. Everything below works the same on every
+host unless a section says otherwise.
 
 ## The roadmap is a file
 
@@ -22,7 +22,7 @@ Every change goes through one small script. It checks ids and dependencies,
 lets only one change run at a time, refuses a correction written against an
 older copy of the entry, and checks the whole file before and after writing.
 A hook stops the assistant's file-editing tools from changing the file
-directly. A shell command is not stopped on either host, which is one more
+directly. A shell command is not stopped on any host, which is one more
 reason to ask Foreman instead.
 
 ## What happens, and when
@@ -96,10 +96,10 @@ session. It recommends one based on how full the session is, whether other
 work is in flight, how many checks the task has, and whether your working tree
 is clean. A poor fit is marked, never hidden — the choice stays yours.
 
-Codex does not tell Foreman how full a session is, so in Codex the
-recommendation leaves that part out. A Codex background worker is a subagent
-with a bounded job; the session that sent it checks what comes back and makes
-the roadmap changes itself.
+Codex and Antigravity do not tell Foreman how full a session is, so there the
+recommendation leaves that part out. A Codex or Antigravity background worker
+is a subagent with a bounded job; the session that sent it checks what comes
+back and makes the roadmap changes itself.
 
 ## How each host runs the work
 
@@ -107,21 +107,23 @@ Each host gives Foreman different events to hook into, so the same steps are
 wired differently. [Foreman in Codex](CODEX.md) covers the Codex side in more
 detail.
 
-| Step | Claude Code | Codex |
-| --- | --- | --- |
-| Where the hooks are registered | `hooks/hooks.json` | `hooks/codex-hooks.json`, named by the Codex manifest; review and trust them with `/hooks` |
-| A new session starts | A reminder about open entries, on startup and clear | The same |
-| Opening a task | A `TaskCreated` hook marks the entry in progress when the prompt becomes a task; other destinations do it from the prompt's own instructions | The prompt runs `hooks/codex-task.js start` and continues only when the entry is ready |
-| Finishing a task | With `taskCloseGate: "block"`, a `TaskCompleted` hook holds the first attempt while the entry is still open | `hooks/codex-task.js check` reports what is still open; with `taskCloseGate: "block"`, a `Stop` or `SubagentStop` hook then asks for one more turn |
-| After a shell command | A commit gets status and discovery reminders. Before the destination question, a note on how full the session is, when your window size is set | A commit gets status and discovery reminders |
-| Direct edits of roadmap files | Blocked for `Edit` and `Write` | Blocked for `apply_patch`, `Edit` and `Write` |
-| Lessons when a file is touched | `Read`, `Edit` and `Write` | `apply_patch`, `Read`, `Edit` and `Write` |
-| Background work | A background `Agent` | A subagent that reports to its coordinator |
-| Script paths inside prompts | `${CLAUDE_PLUGIN_ROOT}`, which Claude Code fills in | Quoted installed paths |
+| Step | Claude Code | Codex | Antigravity |
+| --- | --- | --- | --- |
+| Where the hooks are registered | `hooks/hooks.json` | `hooks/codex-hooks.json`, named by the Codex manifest; review and trust them with `/hooks` | `hooks.json` at the plugin root |
+| A new session starts | A reminder about open entries, on startup and clear | The same | The same reminder, at the first model call of a conversation |
+| Opening a task | A `TaskCreated` hook marks the entry in progress when the prompt becomes a task; other destinations do it from the prompt's own instructions | The prompt runs `hooks/codex-task.js start` and continues only when the entry is ready | The same explicit start |
+| Finishing a task | With `taskCloseGate: "block"`, a `TaskCompleted` hook holds the first attempt while the entry is still open | `hooks/codex-task.js check` reports what is still open; with `taskCloseGate: "block"`, a `Stop` or `SubagentStop` hook then asks for one more turn | `hooks/codex-task.js check` reports what is still open; there is no stop reminder |
+| After a shell command | A commit gets status and discovery reminders. Before the destination question, a note on how full the session is, when your window size is set | A commit gets status and discovery reminders | A commit gets the same reminders at the next model call |
+| Direct edits of roadmap files | Blocked for `Edit` and `Write` | Blocked for `apply_patch`, `Edit` and `Write` | Blocked for `write_to_file`, `replace_file_content` and `multi_replace_file_content` |
+| Lessons when a file is touched | `Read`, `Edit` and `Write` | `apply_patch`, `Read`, `Edit` and `Write` | `view_file` and the three write tools, at the next model call |
+| Background work | A background `Agent` | A subagent that reports to its coordinator | An `invoke_subagent` worker that reports to its coordinator |
+| Script paths inside prompts | `${CLAUDE_PLUGIN_ROOT}`, which Claude Code fills in | Quoted installed paths | Quoted installed paths, in the Codex form of the prompt |
 
-Shell commands are outside the edit and lesson hooks on both hosts. A prompt
+Shell commands are outside the edit and lesson hooks on every host. A prompt
 carries its own host's script paths, so a prompt copied out of one host should
-be crafted again in the other.
+be crafted again in the other. Antigravity lets a hook answer a tool call only
+with a decision, so what Foreman has to say after a commit or a file touch
+waits for the model's next call instead of arriving with the command.
 
 ## Review between increments
 
@@ -263,17 +265,17 @@ by name.
 You never need these — plain sentences work. They are here if you would rather
 call a skill by name.
 
-| You want to… | Claude Code | Codex skill |
-| --- | --- | --- |
-| Ask in your own words | `/foreman:foreman` | `foreman` |
-| Set up a roadmap for a project (one-time) | `/foreman:init` | `init` |
-| Get the next task, add one, fix one, or see where things stand | `/foreman:roadmap` | `roadmap` |
-| Check the plan against your actual code | `/foreman:survey` | `survey` |
-| Write a one-off prompt for something not on the roadmap | `/foreman:craft-prompt` | `craft-prompt` |
+| You want to… | Claude Code | Codex skill | Antigravity |
+| --- | --- | --- | --- |
+| Ask in your own words | `/foreman:foreman` | `foreman` | `/foreman` |
+| Set up a roadmap for a project (one-time) | `/foreman:init` | `init` | `/init` |
+| Get the next task, add one, fix one, or see where things stand | `/foreman:roadmap` | `roadmap` | `/roadmap` |
+| Check the plan against your actual code | `/foreman:survey` | `survey` | `/survey` |
+| Write a one-off prompt for something not on the roadmap | `/foreman:craft-prompt` | `craft-prompt` | `/craft-prompt` |
 
 ## Requirements
 
-Node.js 22 or later and Git, on both hosts. Foreman's scripts need no npm
+Node.js 22 or later and Git, on every host. Foreman's scripts need no npm
 packages and no server.
 
 - **Claude Code.** Built and tested against Claude Code 2.1.x. If a future
@@ -282,6 +284,10 @@ packages and no server.
 - **Codex.** A Codex host with plugin support, with Foreman's hooks trusted.
   The Codex versions Foreman was checked against are listed in
   [Foreman in Codex](CODEX.md).
+- **Antigravity.** The Antigravity CLI, which installs the plugin from a clone
+  of this repository. Its hook contract was read from the host's documentation
+  and driven by the test suite; a live session on that host has not been
+  recorded yet.
 
 Run the scripts from the project they should work on, or name that project
 with `FOREMAN_PROJECT_DIR` — see

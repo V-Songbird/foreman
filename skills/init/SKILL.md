@@ -8,7 +8,7 @@ allowed-tools: AskUserQuestion, Read, Write, Bash, PowerShell
 
 # foreman:init — bootstrap a project roadmap
 
-Foreman runs in Claude Code and in Codex. Every step applies to both unless it names a host. Read [the shared runtime](../foreman/runtime.md) first: it covers plugin paths, JSON payloads, questions and authorization for both hosts.
+Foreman runs in Claude Code, Codex and Antigravity. Every step applies to every host unless it names one. Read [the shared runtime](../foreman/runtime.md) first: it covers plugin paths, JSON payloads, questions and authorization for every host.
 
 Creates `ROADMAP.jsonl` and `.foreman/config.json` at the project root. Both
 are committed to git — they're a shared project artifact, not personal
@@ -231,7 +231,8 @@ descriptive branch first (`codex/<descriptive-name>` in Codex).
    ```
    `source` is `"user"` only for work the user stated. Work you proposed,
    including goals drafted from the repository, takes the host's value:
-   `"claude-suggested"` in Claude Code, `"codex-suggested"` in Codex.
+   `"claude-suggested"` in Claude Code, `"codex-suggested"` in Codex,
+   `"antigravity-suggested"` in Antigravity.
    The script computes the id, sets `status:"planned"`, stamps
    `created_at`/`updated_at`, and validates the file after every write —
    no manual parsing, no hand-computed ids. A drafted task may only

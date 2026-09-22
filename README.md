@@ -46,19 +46,19 @@ The roadmap lives in your project. Foreman reads it, checks the relevant context
 
 ### How to ask
 
-Plain sentences like the ones above work in both assistants. If you would rather call Foreman by name, each assistant has its own way:
+Plain sentences like the ones above work in every assistant. If you would rather call Foreman by name, each assistant has its own way:
 
-| You want to… | Claude Code | Codex |
-| --- | --- | --- |
-| Ask in your own words | `/foreman:foreman` | the `foreman` skill |
-| Set up a roadmap for a project (once) | `/foreman:init` | the `init` skill |
-| Pick, add, correct or review work | `/foreman:roadmap` | the `roadmap` skill |
-| Check the plan against your code | `/foreman:survey` | the `survey` skill |
-| Write a one-off prompt with no roadmap entry | `/foreman:craft-prompt` | the `craft-prompt` skill |
+| You want to… | Claude Code | Codex | Antigravity |
+| --- | --- | --- | --- |
+| Ask in your own words | `/foreman:foreman` | the `foreman` skill | `/foreman` |
+| Set up a roadmap for a project (once) | `/foreman:init` | the `init` skill | `/init` |
+| Pick, add, correct or review work | `/foreman:roadmap` | the `roadmap` skill | `/roadmap` |
+| Check the plan against your code | `/foreman:survey` | the `survey` skill | `/survey` |
+| Write a one-off prompt with no roadmap entry | `/foreman:craft-prompt` | the `craft-prompt` skill | `/craft-prompt` |
 
 ## Get started
 
-Foreman is one plugin for both assistants. Install it in the one you use; only the commands differ.
+Foreman is one plugin for the three assistants. Install it in the one you use; only the commands differ.
 
 ### Claude Code
 
@@ -84,9 +84,20 @@ codex plugin add foreman@foundry
 
 Review and trust its hooks with `/hooks`, then start a new Codex session. Ask Foreman to initialize the project, or select its installed `init` skill.
 
+### Antigravity
+
+Requirements: Node.js and Git (tested with Node.js 22), and the Antigravity CLI. Antigravity has no marketplace for third-party plugins, so install from a clone of this repository. Replace `<path-to-clone>` with that directory:
+
+```shell
+agy plugin install "<path-to-clone>"
+agy plugin list
+```
+
+The list should name `foreman`. Start a new conversation to load the plugin, then run `/init` once in the project.
+
 ### Switching between them
 
-Existing roadmap data can be reused. Both assistants read and write the same `ROADMAP.jsonl` and `.foreman/` files, so one project can move between them. Claude Code needs Foreman 2.7.0 or later to read entries that Codex wrote.
+Existing roadmap data can be reused. Every assistant reads and writes the same `ROADMAP.jsonl` and `.foreman/` files, so one project can move between them. Claude Code needs Foreman 2.7.0 or later to read entries that Codex wrote, and 3.2.0 or later for entries Antigravity wrote.
 
 ## Good to know
 
@@ -94,20 +105,20 @@ Foreman is for a solo developer. It does not become a team tracker, code-review 
 
 ### Differences between hosts
 
-Foreman does the same job in both assistants. The host — the assistant Foreman runs inside — decides which events and tools Foreman can use, so a few things work differently:
+Foreman does the same job in every assistant. The host — the assistant Foreman runs inside — decides which events and tools Foreman can use, so a few things work differently:
 
-| | Claude Code | Codex |
-| --- | --- | --- |
-| Starting a tracked task | A hook opens the roadmap entry when Foreman's prompt becomes a task | The prompt opens the entry with an explicit start command |
-| Reminder when a task ends with its entry still open (`taskCloseGate`) | The first attempt to finish stops until the entry is closed | After an explicit check finds the entry still open, Foreman asks Codex for one more turn |
-| Direct edits of the roadmap file are blocked for | `Edit` and `Write` | `apply_patch`, `Edit` and `Write` |
-| Lessons appear when a file is touched with | `Read`, `Edit` and `Write` | `apply_patch`, `Read`, `Edit` and `Write` |
-| Offering untracked work Foreman noticed | After a commit | After a commit, in every handoff and before reporting completion |
-| Advice based on how full the session is | When your auto-compact window is set ([settings](settings.md)) | Not available: Codex does not report it |
-| Stopping for your approval after each result of a task | Not available in Claude Code yet | On explicit request |
-| Model recorded when a task closes | Family name, such as `sonnet` | Exact model id |
+| | Claude Code | Codex | Antigravity |
+| --- | --- | --- | --- |
+| Starting a tracked task | A hook opens the roadmap entry when Foreman's prompt becomes a task | The prompt opens the entry with an explicit start command | The same explicit start command |
+| Reminder when a task ends with its entry still open (`taskCloseGate`) | The first attempt to finish stops until the entry is closed | After an explicit check finds the entry still open, Foreman asks Codex for one more turn | Not available: Antigravity has no task or stop event Foreman can use |
+| Direct edits of the roadmap file are blocked for | `Edit` and `Write` | `apply_patch`, `Edit` and `Write` | `write_to_file`, `replace_file_content` and `multi_replace_file_content` |
+| Lessons appear when a file is touched with | `Read`, `Edit` and `Write` | `apply_patch`, `Read`, `Edit` and `Write` | `view_file` and the three write tools, at the next model call |
+| Offering untracked work Foreman noticed | After a commit | After a commit, in every handoff and before reporting completion | After a commit, at the next model call, in every handoff and before reporting completion |
+| Advice based on how full the session is | When your auto-compact window is set ([settings](settings.md)) | Not available: Codex does not report it | Not available: Antigravity does not report it |
+| Stopping for your approval after each result of a task | Not available in Claude Code yet | On explicit request | Not available |
+| Model recorded when a task closes | Family name, such as `sonnet` | Exact model id | Exact model id |
 
-On both hosts, a shell command can still write the roadmap file, and reading a file through the shell shows no lessons. A prompt copied out of one assistant carries that assistant's script paths, so craft it again in the other. [Foreman in Codex](CODEX.md) covers the Codex side in detail.
+On every host, a shell command can still write the roadmap file, and reading a file through the shell shows no lessons. A prompt copied out of one assistant carries that assistant's script paths, so craft it again in the other. [Foreman in Codex](CODEX.md) covers the Codex side in detail; an Antigravity session gets the same form of prompt, run with its own tools.
 
 ## The numbers
 

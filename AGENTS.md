@@ -1,7 +1,7 @@
 # Foreman
 
-Foreman is one plugin for Claude Code and Codex: a roadmap beside the project's code, grounded
-handoffs and clear task status. Its hooks, scripts and tests are dependency-free Node.js and run
+Foreman is one plugin for Claude Code, Codex and Antigravity: a roadmap beside the project's
+code, grounded handoffs and clear task status. Its hooks, scripts and tests are dependency-free Node.js and run
 with Node.js 22 or later and Git; there is no install or build step. This repository is
 Foundry's Foreman submodule and ships from `main`.
 
@@ -14,17 +14,18 @@ Foundry's Foreman submodule and ships from `main`.
 
 ## Rules that outrank everything
 
-- One package on `main` serves both hosts: one runtime, one `skills/` tree with the five skills, one `prompt-template.md`, one README and one changelog. Develop on a topic branch and merge through a pull request.
-- Register Claude Code events only in `hooks/hooks.json` and Codex events only in `hooks/codex-hooks.json`. Host-specific code asks `scripts/runtime.js` which host is running; host-specific handoff wording is a `host="claude"` or `host="codex"` block in `prompt-template.md`.
-- Both manifests carry the same version, bumped together in the release commit; a test fails when they differ. Foundry's catalogs carry no version for Foreman and only move `source.sha`.
+- One package on `main` serves the three hosts: one runtime, one `skills/` tree with the five skills, one `prompt-template.md`, one README and one changelog. Develop on a topic branch and merge through a pull request.
+- Register Claude Code events only in `hooks/hooks.json`, Codex events only in `hooks/codex-hooks.json` and Antigravity events only in the root `hooks.json`, which runs `hooks/antigravity-hook.js`. Host-specific code asks `scripts/runtime.js` which host is running; host-specific handoff wording is a `host="claude"` or `host="codex"` block in `prompt-template.md`, and an Antigravity handoff takes the Codex form.
+- The three manifests, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json` and `plugin.json`, carry the same version, bumped together in the release commit; a test fails when they differ. Foundry's catalogs carry no version for Foreman and only move `source.sha`.
 
 ## Commands
 
 | Command | Purpose | Cost |
 | --- | --- | --- |
-| `node --test tests/*.test.js` | The suite, both hosts | Local temporary repositories; exercise changed hooks on Windows as well as Unix |
+| `node --test tests/*.test.js` | The suite, three hosts | Local temporary repositories; exercise changed hooks on Windows as well as Unix |
 | `node scripts/git-hooks/check-readme-nav.js README.md` | Every README nav anchor resolves | Local |
 | `claude plugin validate .` | Claude Code package shape | Local |
+| `agy plugin validate .` | Antigravity package shape | Local; needs the Antigravity CLI |
 | `node scripts/build-windows-launchers.js` | Codex Windows hook commands are current; `--write` regenerates them | Local |
 | `git config core.hooksPath scripts/git-hooks` | One-time: the pre-commit hook runs the suite and the nav check | Local |
 
@@ -35,18 +36,18 @@ alter a marketplace or start model sessions.
 
 | Path | Content |
 | --- | --- |
-| `skills/` | The five skills, one text for both hosts: `foreman`, `roadmap`, `init`, `survey`, `craft-prompt` |
-| `hooks/` | Hook scripts and both registrations; `lib.js` resolves project and host; `windows-launcher.ps1` is the source of the Codex Windows command |
+| `skills/` | The five skills, one text for every host: `foreman`, `roadmap`, `init`, `survey`, `craft-prompt` |
+| `hooks/` | Hook scripts and the Claude Code and Codex registrations; `antigravity-hook.js` translates Antigravity's events and runs the shared hooks as children; `lib.js` resolves project and host; `windows-launcher.ps1` is the source of the Codex Windows command |
 | `scripts/` | Dependency-free CLIs such as `roadmap.js`, `craft-handoff.js`, `check-prompt.js`, `safe-commit.js` and `ledger.js`; `health/` holds the metrics tools |
-| `tests/` | The `node:test` suite for both hosts |
+| `tests/` | The `node:test` suite for the three hosts |
 | `prompt-template.md` | The one handoff template, read at run time |
 | `HOW-IT-WORKS.md`, `settings.md`, `roadmap-schema.md`, `ledger.md`, `TRIALS.md`, `CODEX.md`, `CODEX-PROMPTING.md` | Reference pages the skills, scripts and tests load or cite; they stay at the root |
 | `docs/knowledge/` | The product scope, the incremental-acceptance contract and the changelog |
-| `.claude-plugin/`, `.codex-plugin/` | Host manifests with the same version; the Codex manifest names `hooks/codex-hooks.json` |
+| `.claude-plugin/`, `.codex-plugin/`, `plugin.json`, `hooks.json` | Host manifests with the same version; the Codex manifest names `hooks/codex-hooks.json`, and the root manifest and `hooks.json` are what Antigravity reads |
 
 ## Conventions
 
-The README serves both hosts. Its shared sections read the same for everyone; host differences
+The README serves every host. Its shared sections read the same for everyone; host differences
 sit in the How to ask table, one Get started subsection per host, the Differences between hosts
 table and one results table per host under The numbers. A feature one host lacks is named as not
 available there, never described with the other host's behavior. Keep benchmark questions and
@@ -68,3 +69,4 @@ functional tests only.
 - **Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` in skill text; Codex does not.** Skills carry a relative link beside each such path.
 - **A passing nav check verifies anchors, not measurements.** Review the source of every README claim; never run paid benchmarks, install plugins or publish to fill an evidence gap.
 - **A prompt copied out of one host carries that host's script paths.** Craft it again in the other.
+- **Antigravity's PostToolUse answer is always `{}`.** What a commit or a file touch has to say waits in a temp queue and reaches the model at its next call, through PreInvocation; nothing arrives at the moment of the command.

@@ -166,11 +166,13 @@ function extractHostBlock(text, tag, host) {
 }
 
 // The host a prompt is for: an explicit value must name a known host, and no
-// value means the host this process runs in.
+// value means the host this process runs in. A prompt has two forms, not
+// three: Antigravity takes Codex's, since neither host expands the plugin-root
+// variable, opens an entry from a task event or reads Claude Code's tools.
 function resolveHost(host) {
-  if (host === undefined || host === null || host === "") return detectHost();
-  if (!HOSTS.has(host)) throw new Error(`host must be one of ${[...HOSTS].join("|")}`);
-  return host;
+  const target = host === undefined || host === null || host === "" ? detectHost() : host;
+  if (!HOSTS.has(target)) throw new Error(`host must be one of ${[...HOSTS].join("|")}`);
+  return target === "antigravity" ? "codex" : target;
 }
 
 // Canonical fixed blocks for one host, parsed out of the template's ```xml

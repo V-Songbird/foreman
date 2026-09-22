@@ -269,7 +269,7 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
           `echo '{"id":"<id>","status":"awaiting_acceptance","commit":"<sha>"}' | node "${SCRIPT_PATH}" update-status ` +
           "(keeps commits[]/observed_touches accurate — observed_touches still " +
           "auto-folds from the commit's diff, same as always — and says what is true: finished, " +
-          `waiting on the user). Then ask the user ${host === "codex" ? "" : "(AskUserQuestion) "}` +
+          `waiting on the user). Then ask the user ${host === "claude" ? "(AskUserQuestion) " : ""}` +
           "whether this is actually verified and working. Only on confirmation, " +
           "close it out: " +
           `echo '{"id":"<id>","status":"done"}' | node "${SCRIPT_PATH}" update-status. ` +
@@ -335,13 +335,14 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
 // Nothing in the product writes this variable.
 const CONCRETE_BAR = /^(1|true)$/i.test(process.env.FOREMAN_DISCOVERY_CONCRETE_BAR || "");
 
-// Codex reads the one discovery policy its handoffs and checkpoints also carry
-// (skills/foreman/discovery.md). Claude Code keeps the measured commit-time
-// wording below, which names its own question and background-Agent tools.
+// Codex and Antigravity read the one discovery policy their handoffs and
+// checkpoints also carry (skills/foreman/discovery.md). Claude Code keeps the
+// measured commit-time wording below, which names its own question and
+// background-Agent tools.
 function discoveryBlock(host = hostName(), requireVerification = true) {
-  return host === "codex"
-    ? "[Foreman] Roadmap discovery is enabled for this project.\n" + discoveryInstructions()
-    : claudeDiscoveryBlock(requireVerification);
+  return host === "claude"
+    ? claudeDiscoveryBlock(requireVerification)
+    : "[Foreman] Roadmap discovery is enabled for this project.\n" + discoveryInstructions();
 }
 
 // An inline scope-creep log closes with the status the project's acceptance
@@ -498,8 +499,10 @@ function main() {
   }
   if (!blocks.length) return;
 
-  const nativeCaveat = data.model || data.turn_id
-    ? "[Foreman] A git commit command was invoked. This hook cannot reliably observe Codex's exit status; confirm the actual command succeeded and the intended commit is HEAD before acting on these advisory hints. Do not record an older HEAD as a new commit after a failed command.\n\n"
+  // A Codex payload carries model and turn_id; Antigravity's carries no exit
+  // status at all. Neither host confirms the commit landed.
+  const nativeCaveat = data.model || data.turn_id || hostName() === "antigravity"
+    ? "[Foreman] A git commit command was invoked. This hook cannot reliably observe this host's exit status; confirm the actual command succeeded and the intended commit is HEAD before acting on these advisory hints. Do not record an older HEAD as a new commit after a failed command.\n\n"
     : "";
   emit(nativeCaveat + blocks.join("\n\n"));
 }

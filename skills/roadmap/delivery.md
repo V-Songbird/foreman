@@ -1,7 +1,8 @@
 # Deliver a checked handoff
 
-Both hosts follow this file; a line that names a host applies to that host
-only. The crafting flow has already settled the destination
+Every host follows this file; a line that names a host applies to that host
+only, and a line that names Codex also applies to Antigravity unless an
+Antigravity line replaces it. The crafting flow has already settled the destination
 ([destination-question.md](destination-question.md)) and called
 `craft-handoff.js`.
 
@@ -107,6 +108,9 @@ model — never pass one.
   bookkeeping; its completion notification is its actual return, not a
   scheduled automation. Do not imply that a shared-tree subagent survives the
   host session.
+- In Antigravity, the same steps run through `invoke_subagent`, followed with
+  `manage_subagents`; the annotate marker is `dispatched to Antigravity
+  subagent <id>`.
 
 ## Clipboard or prompt file
 

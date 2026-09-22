@@ -1,7 +1,7 @@
 # Running Foreman
 
-Foreman runs in Claude Code and in Codex from the same files. Every rule here
-applies to both hosts unless a paragraph names one. A handoff adds the goal,
+Foreman runs in Claude Code, Codex and Antigravity from the same files. Every
+rule here applies to every host unless a paragraph names one. A handoff adds the goal,
 evidence, constraints, and completion criteria to the destination's own
 instructions; it does not replace them or select a fixed model.
 
@@ -9,7 +9,7 @@ instructions; it does not replace them or select a fixed model.
 
 `${CLAUDE_PLUGIN_ROOT}` in a command means Foreman's plugin root, the directory
 that holds `scripts/`, `hooks/`, and `skills/`. In Claude Code the harness fills
-it in. In Codex, resolve it from the loaded skill's actual location: a skill at
+it in. In Codex and Antigravity, resolve it from the loaded skill's actual location: a skill at
 `<plugin-root>/skills/<name>/SKILL.md` belongs to `<plugin-root>`. Replace the
 variable with that absolute path and quote it for the active shell; do not
 assume the shell defines a plugin-root variable. Supporting references are
@@ -54,6 +54,11 @@ not treat an unanswered question as approval.
   each a label plus a description. It appends its own free-text option, so never
   author one.
 - In Codex, use the picker and answer handling in [questions.md](questions.md).
+- In Antigravity, ask with `ask_question`: each option is the answer the user
+  would give, label first, then a short description. The tool adds its own
+  free-text option, so never author one, and allow several selections only
+  when the choices combine. Where a step names `AskUserQuestion` or the Codex
+  picker, this is the tool Antigravity uses in its place.
 - With no usable question tool, ask one self-contained plain-text question and
   never refer to options the user cannot see.
 
@@ -89,6 +94,10 @@ reasoning settings unless the user chose otherwise.
   A subagent id can be resumed only
   while the current host still knows it. A subagent stages and commits nothing;
   the coordinator owns integration, roadmap transitions, and final acceptance.
+- In Antigravity, a background agent is an `invoke_subagent` worker given the
+  returned prompt and the shared-tree restriction; follow it with
+  `manage_subagents`, wait for its result and integrate it as the coordinator,
+  under the same ownership rules as Codex.
 
 ## Bookkeeping and commits
 
@@ -111,6 +120,12 @@ actually starts the work opens it.
   `list --status in_progress,awaiting_acceptance --summary` to find the entries
   it implements. Hooks add assistance, but these explicit calls remain part of
   the flow, and a warning is not evidence of completion or acceptance.
+- In Antigravity, follow the Codex lifecycle above: `hooks/codex-task.js
+  start` when execution of a selected entry begins, `check` before reporting a
+  completed entry. No hook opens or closes an entry there and no stop reminder
+  exists, so those explicit calls are the whole lifecycle. The session notice
+  and a commit's reminders reach the model at its next call, not at the moment
+  of the command.
 
 Respect the user's branch restrictions before every mutation. Never switch,
 merge, or commit on a protected branch — one the user said not to modify, or
@@ -130,13 +145,14 @@ a staged close, `finish --no-commit` stages the owned work, `update-status` with
 follow-up commits without changing `awaiting_acceptance` to `done`. Record
 model and effort only as the executing environment knows them — a Claude family
 label (`haiku`, `sonnet`, `opus`, `fable`) in Claude Code, the exact model id in
-Codex — and omit unknown values.
+Codex and Antigravity — and omit unknown values.
 
 ## Discovery
 
 With `discoverySuggestions` on (the default), concrete findings outside the
 task's scope become roadmap suggestions. In Claude Code, the commit hook raises
-them after each commit. In Codex, follow [discovery.md](discovery.md) before
+them after each commit; in Antigravity, a commit's reminder arrives at the next
+model call. In Codex and Antigravity, follow [discovery.md](discovery.md) before
 reporting completion, including investigations and work without a commit; the
 `start` and `check` results carry the same reminder.
 
@@ -146,6 +162,7 @@ Trial logging is local and opt-in: every call is a no-op unless the project set
 `trialLog`, and a failure to record never interrupts work. Record only events
 that actually occurred. `question_asked` is one question interaction the user
 saw: one `AskUserQuestion` call in Claude Code, however many questions it
-batches; one picker call or one plain-text question in Codex. A skipped question
+batches; one picker call or one plain-text question in Codex; one
+`ask_question` call in Antigravity. A skipped question
 is never logged. Log counts, booleans, ranks, and the writer's closed vocabulary
 only; never task text, paths, or user input.

@@ -395,7 +395,7 @@ const RECALL_MAX_CHARS = 1200;
 // serve an unstored, unstaleness-checked claim through the one channel this
 // feature exists to keep honest.
 const MACHINE_NOTE_RE =
-  /^(scope drift —|correction applied:|id reassigned from |dispatched to background agent|dispatched to Codex subagent|survey \(unconfirmed\):|deferred:|orchestrator:|lesson recorded:|lesson not recorded|unverified:|verification resolved:|accepted:|changes requested:|paused:|review pending:)/;
+  /^(scope drift —|correction applied:|id reassigned from |dispatched to background agent|dispatched to Codex subagent|dispatched to Antigravity subagent|survey \(unconfirmed\):|deferred:|orchestrator:|lesson recorded:|lesson not recorded|unverified:|verification resolved:|accepted:|changes requested:|paused:|review pending:)/;
 
 // The longest line of `notes` that a human (or a closing session) actually
 // wrote: date stamp stripped, machine lines dropped, capped.

@@ -8,7 +8,7 @@ allowed-tools: AskUserQuestion, Read, Bash, PowerShell, Agent
 
 # foreman:survey — ground-truth the roadmap's near-term candidates
 
-Foreman runs in Claude Code and in Codex. Every step applies to both unless it names a host. Read [the shared runtime](../foreman/runtime.md) first: it covers plugin paths, JSON payloads, questions and authorization for both hosts.
+Foreman runs in Claude Code, Codex and Antigravity. Every step applies to every host unless it names one. Read [the shared runtime](../foreman/runtime.md) first: it covers plugin paths, JSON payloads, questions and authorization for every host.
 
 This is the advanced code investigation flow, the one Foreman flow that
 investigates the codebase against the roadmap. Fast pick does not run it: it

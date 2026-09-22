@@ -34,7 +34,7 @@ jobs:
           node -e '
             const fs = require("fs");
             const read = (f) => JSON.parse(fs.readFileSync(f, "utf-8"));
-            for (const f of [".claude-plugin/plugin.json", ".codex-plugin/plugin.json", "hooks/hooks.json", "hooks/codex-hooks.json"]) read(f);
+            for (const f of [".claude-plugin/plugin.json", ".codex-plugin/plugin.json", "plugin.json", "hooks/hooks.json", "hooks/codex-hooks.json", "hooks.json"]) read(f);
             if (read(".codex-plugin/plugin.json").hooks !== "./hooks/codex-hooks.json") {
               throw new Error("the Codex manifest must register hooks/codex-hooks.json");
             }

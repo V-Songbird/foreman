@@ -1,7 +1,7 @@
 {
   "name": "foreman",
   "version": "3.1.0",
-  "description": "Project continuity for Claude Code and Codex: a roadmap beside your code, grounded handoffs, and clear task status.",
+  "description": "Project continuity for Claude Code, Codex and Antigravity: a roadmap beside your code, grounded handoffs, and clear task status.",
   "author": {
     "name": "Victor Villegas",
     "email": "victor.villegas@tuta.com"

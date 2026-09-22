@@ -517,8 +517,9 @@ const STATUSES = new Set([
   "rejected",
 ]);
 // Each host records its own suggestions: `claude-suggested` from Claude Code,
-// `codex-suggested` from Codex. One project can carry both.
-const SOURCES = new Set(["user", "claude-suggested", "codex-suggested"]);
+// `codex-suggested` from Codex, `antigravity-suggested` from Antigravity. One
+// project can carry all of them.
+const SOURCES = new Set(["user", "claude-suggested", "codex-suggested", "antigravity-suggested"]);
 // Statuses nothing is waiting on any more: the entry will not move again, so
 // a dependent of a dropped/rejected one is stranded rather than blocked.
 // `awaiting_acceptance` is deliberately NOT here: the user can still send it
@@ -2434,7 +2435,7 @@ below) and adds a "migrated" field ({from, to, backup}) to its own result --
 absent when the file was already current.
 
   add               stdin JSON: {title, why, what, source, depends_on?, planned_touches?, notes?, status?, doc?, kind?}
-                    source: "user" | "claude-suggested" | "codex-suggested"
+                    source: "user" | "claude-suggested" | "codex-suggested" | "antigravity-suggested"
                     planned_touches: the PREDICTED file/area surface (the
                     editable half; "touches" is still accepted as an input
                     alias for it). observed_touches is never an input -- it

@@ -146,10 +146,9 @@ describe('doctor on a healthy roadmap', () => {
   test('the info disclosure names the events each host registers', () => {
     writeRoadmap(project, [base('001')]);
     const { message } = assertFinding(doctor(), 'hook_dependencies', 'info');
-    for (const [host, file] of [['Claude Code', 'hooks.json'], ['Codex', 'codex-hooks.json']]) {
-      const registered = Object.keys(
-        JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', file), 'utf-8')).hooks
-      );
+    for (const [host, file] of [['Claude Code', 'hooks/hooks.json'], ['Codex', 'hooks/codex-hooks.json'], ['Antigravity', 'hooks.json']]) {
+      const registration = JSON.parse(fs.readFileSync(path.join(__dirname, '..', file), 'utf-8'));
+      const registered = Object.keys(registration.hooks || registration.foreman);
       assert.ok(registered.length, `${file} registers no events`);
       const named = (message.split(`${host}: `)[1] || '').split(/[;.]/)[0].split(', ');
       assert.deepEqual(named.sort(), registered.sort(), message);

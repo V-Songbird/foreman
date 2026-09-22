@@ -1,7 +1,7 @@
 # Foreman settings
 
 Foreman keeps optional project settings in `.foreman/config.json`, and the
-same file serves Claude Code and Codex. Initialization writes it as an empty
+same file serves Claude Code, Codex and Antigravity. Initialization writes it as an empty
 object, `{}`, when it is missing and leaves an existing file exactly as it is,
 because every setting below already has a safe default in the code that reads
 it. Most projects never open it.
@@ -11,10 +11,10 @@ it. Most projects never open it.
 | Setting | What it does |
 | --- | --- |
 | `requireVerification` | Hold off marking a task done after a commit until you confirm it's verified. The task waits on you, with its commit recorded. Your confirmation closes it, and "not ready" sends it back. On by default. Set `false` to close a task as soon as its commit lands. |
-| `discoverySuggestions` | Offer work Foreman noticed that the roadmap does not track yet — a bug, a gap, an improvement — and ask you before anything is added. On by default. Set `false` to turn it off. In Claude Code the offer comes after each commit. In Codex it comes after each commit too, and every handoff carries it, so the session also looks before reporting completion; that covers investigations and work that was never committed. The roadmap itself is never pasted into the commit's context. |
+| `discoverySuggestions` | Offer work Foreman noticed that the roadmap does not track yet — a bug, a gap, an improvement — and ask you before anything is added. On by default. Set `false` to turn it off. In Claude Code the offer comes after each commit. In Codex it comes after each commit too, and every handoff carries it, so the session also looks before reporting completion; that covers investigations and work that was never committed. Antigravity works like Codex, with the commit's offer arriving at the model's next call. The roadmap itself is never pasted into the commit's context. |
 | `checkpoints` | How a split run saves its work: `{baseBranch, branch, onFinish}`. By default it uses a `foreman/<slug>` branch and asks once, at the end of the first run, what to do with it — squash, merge, PR, or keep. Your answer is remembered here. Checkpoint commits stay local, and a run that starts on a dirty tree makes **no** automated commits at all. Existing branch restrictions still apply, and Foreman never picks a protected branch on its own. |
 | `usePersona` | Whether handoff prompts open with a "You are a…" role sentence (default `true`), or plain domain framing. It never chooses which model runs the task. |
-| `omitSections` | Prompt sections to leave out entirely: `tone`, `example`, `background`, `output_format`. Default none. The grounding and acceptance rules always stay, and so does the short block that points a Codex session at its own host instructions (`codex_runtime`). |
+| `omitSections` | Prompt sections to leave out entirely: `tone`, `example`, `background`, `output_format`. Default none. The grounding and acceptance rules always stay, and so does the short block that points a Codex or Antigravity session at its host instructions (`codex_runtime`). |
 | `ledger` **[Beta]** | One place for what a finished task learned, described in [`ledger.md`](ledger.md): `{enabled, dir}`. Off by default, and the youngest setting here — expect rough edges. A finished task can leave one sentence about the code it touched. The next task that plans to touch those files is handed it, and so is anyone who opens one of them. Every sentence comes with a note saying whether that code has moved since, and one that turns out to be wrong can be retired so it stops being quoted. `dir` (default `docs/foreman`) says where a `[Foreman: 019]` comment should look for a written decision, if your project keeps one — Foreman only reads there, never writes. Turning it back off deletes nothing already recorded. If your settings still say `decisionLog` or `areaNotes`, leave them; both still work, and `decisionLog.gate` no longer does anything. |
 
 Two of them are asked for you, once, at the moment they first matter:
@@ -27,8 +27,8 @@ asked again: a no to the ledger is stored as `"ledger": {"enabled": false}`.
 ## Everything else
 
 `taskCloseGate` decides what happens when a tracked task finishes with its
-roadmap entry still open. `"off"` (default) says nothing. `"block"` works on
-both hosts, each through its own hooks:
+roadmap entry still open. `"off"` (default) says nothing. `"block"` works in
+Claude Code and Codex, each through its own hooks:
 
 - **Claude Code** stops the first completion attempt with instructions to
   close the entry; the retry then passes.
@@ -37,6 +37,9 @@ both hosts, each through its own hooks:
   or `SubagentStop` in that session or subagent then asks for one more turn to
   close it. Each check arms the reminder once, and a turn that is already
   continuing because of it is not stopped again.
+- **Antigravity** has no task event and no stop event Foreman can scope to a
+  session, so `"block"` changes nothing there. `hooks/codex-task.js check`
+  still reports what is open.
 
 Neither host holds back an entry that is waiting for your acceptance, or
 anything unrelated to the task.
@@ -96,11 +99,16 @@ yourself, set `FOREMAN_PROJECT_DIR`; it wins everywhere.
   hook event reports, then `CODEX_CWD`, then `CLAUDE_PROJECT_DIR`. The event
   comes first because a `CLAUDE_PROJECT_DIR` that Codex inherited belongs to
   some other session.
+- **Hooks in Antigravity** look at `FOREMAN_PROJECT_DIR`, then the first
+  workspace folder the event reports, then the directory of the command or
+  file the call names. Nothing inherited from another host is read.
 
 Foreman tells the hosts apart the same way everywhere: `FOREMAN_HOST`
-(`claude` or `codex`) wins when it is set; otherwise `PLUGIN_ROOT`,
-`CODEX_THREAD_ID` or `CODEX_SESSION_ID` means Codex, and anything else —
-including running a script by hand in a terminal — counts as Claude Code.
+(`claude`, `codex` or `antigravity`) wins when it is set; otherwise
+`PLUGIN_ROOT`, `CODEX_THREAD_ID` or `CODEX_SESSION_ID` means Codex,
+`ANTIGRAVITY_CONVERSATION_ID` or `ANTIGRAVITY_AGENT` means Antigravity, and
+anything else — including running a script by hand in a terminal — counts as
+Claude Code.
 
 ## Using both hosts on one project
 

@@ -8,7 +8,7 @@ allowed-tools: AskUserQuestion, Skill, Read
 
 # foreman — the one entrance
 
-Foreman runs in Claude Code and in Codex. Every step applies to both unless it names a host. Read [the shared runtime](runtime.md) first: it covers plugin paths, JSON payloads, questions and authorization for both hosts.
+Foreman runs in Claude Code, Codex and Antigravity. Every step applies to every host unless it names one. Read [the shared runtime](runtime.md) first: it covers plugin paths, JSON payloads, questions and authorization for every host.
 
 This skill routes. It does not add, pick, correct, or survey anything
 itself, and it never reads or writes `ROADMAP.jsonl`. Every step

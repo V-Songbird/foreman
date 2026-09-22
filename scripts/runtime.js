@@ -2,18 +2,23 @@
 
 const path = require("path");
 
-const HOSTS = new Set(["claude", "codex"]);
+const HOSTS = new Set(["claude", "codex", "antigravity"]);
 
 // Which agent host runs this process. FOREMAN_HOST wins so tests and wrappers
 // can pin it. Otherwise each host's own markers decide: Codex sets PLUGIN_ROOT
-// for plugin hooks and CODEX_THREAD_ID/CODEX_SESSION_ID for shell commands.
-// Claude Code sets neither (its hooks get CLAUDE_PLUGIN_ROOT, which Codex also
-// sets for compatibility), so everything else is Claude Code, including plain
-// terminal use of these scripts.
+// for plugin hooks and CODEX_THREAD_ID/CODEX_SESSION_ID for shell commands;
+// Antigravity's environment carries ANTIGRAVITY_CONVERSATION_ID and
+// ANTIGRAVITY_AGENT, and its plugin hooks run through hooks/antigravity-hook.js,
+// which pins FOREMAN_HOST. Claude Code sets none of these (its hooks get
+// CLAUDE_PLUGIN_ROOT, which Codex also sets for compatibility), so everything
+// else is Claude Code, including plain terminal use of these scripts. Codex's
+// markers are read first: a Codex session opened from Antigravity's terminal
+// inherits that editor's variables.
 function detectHost(env = process.env) {
   const forced = String(env.FOREMAN_HOST || "").trim().toLowerCase();
   if (HOSTS.has(forced)) return forced;
-  return env.PLUGIN_ROOT || env.CODEX_THREAD_ID || env.CODEX_SESSION_ID ? "codex" : "claude";
+  if (env.PLUGIN_ROOT || env.CODEX_THREAD_ID || env.CODEX_SESSION_ID) return "codex";
+  return env.ANTIGRAVITY_CONVERSATION_ID || env.ANTIGRAVITY_AGENT ? "antigravity" : "claude";
 }
 
 // Explicit project selection wins. Codex hosts need not provide CODEX_CWD;

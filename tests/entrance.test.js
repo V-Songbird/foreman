@@ -166,7 +166,7 @@ describe("one package for Claude Code and Codex", () => {
       const description = JSON.parse(fields.description);
       assert.ok(description.length <= 1024, "description too long for Codex");
       assert.doesNotMatch(description, /[<>]/, "Codex rejects angle brackets in a description");
-      assert.match(skill, /Foreman runs in Claude Code and in Codex\. Every step applies to both unless it names a host\./);
+      assert.match(skill, /Foreman runs in Claude Code, Codex and Antigravity\. Every step applies to every host unless it names one\./);
       assert.match(skill, /\[the shared runtime\]\((?:\.\.\/foreman\/)?runtime\.md\)/);
     });
 
@@ -193,7 +193,9 @@ describe("one package for Claude Code and Codex", () => {
   test("the shared runtime states each host's capability, acceptance, and branch boundaries", () => {
     const runtime = fs.readFileSync(path.join(SKILLS, "foreman", "runtime.md"), "utf-8");
     assert.match(runtime, /`\$\{CLAUDE_PLUGIN_ROOT\}` in a command means Foreman's plugin root/);
-    assert.match(runtime, /In Codex, resolve it from the loaded skill's actual location/);
+    assert.match(runtime, /In Codex and Antigravity, resolve it from the loaded skill's actual location/);
+    assert.match(runtime, /In Antigravity, ask with `ask_question`/);
+    assert.match(runtime, /In Antigravity, follow the Codex lifecycle above/);
     assert.match(runtime, /`FOREMAN_PROJECT_DIR`, then\s+`CODEX_CWD`, then `CLAUDE_PROJECT_DIR`, then the shell working directory/);
     assert.match(runtime, /Never interpolate\s+user-written text into a shell command/);
     assert.match(runtime, /Create a new\s+sidebar task only when the user explicitly requests one/);

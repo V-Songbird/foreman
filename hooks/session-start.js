@@ -43,6 +43,7 @@ function daysBetween(fromYmd, toYmd) {
 const RESUME_HINT = {
   claude: "/foreman:roadmap offers to resume, accept, or review.",
   codex: "ask Foreman to resume, accept, or review.",
+  antigravity: "ask Foreman to resume, accept, or review.",
 };
 
 // [Foreman: 131] `awaiting_acceptance` entries are surfaced here too, tagged

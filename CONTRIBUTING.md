@@ -2,7 +2,7 @@
 
 This plugin is part of the [Foundry Collection](https://github.com/V-Songbird/foundry) and is maintained by a single author. Contributions are welcome in the form of bug reports, suggestions, and pull requests.
 
-Foreman is one package for two hosts — the assistants it runs inside, Claude Code and Codex. Most of the code serves both, so a change to shared behavior reaches both hosts at once.
+Foreman is one package for three hosts — the assistants it runs inside, Claude Code, Codex and Antigravity. Most of the code serves all of them, so a change to shared behavior reaches every host at once.
 
 ---
 
@@ -22,9 +22,11 @@ Foreman is one package for two hosts — the assistants it runs inside, Claude C
 .codex-plugin/
 └── plugin.json          # Codex metadata, the same release version, and
                          # the hooks field that names hooks/codex-hooks.json
-AGENTS.md                # contributor rules for both hosts; CLAUDE.md imports it
+plugin.json              # Antigravity metadata and the same release version
+hooks.json               # Antigravity hook wiring, keyed by the plugin name
+AGENTS.md                # contributor rules for every host; CLAUDE.md imports it
 LICENSE                  # MIT
-README.md                # one README for both hosts
+README.md                # one README for every host
 HOW-IT-WORKS.md          # how Foreman works, with the host differences
 settings.md              # .foreman/config.json reference
 roadmap-schema.md        # ROADMAP.jsonl and .foreman/ file reference
@@ -35,8 +37,8 @@ CODEX-PROMPTING.md       # the guidance Codex handoffs follow
 prompt-template.md       # the one handoff template; host-tuned blocks
                          # carry host="claude" or host="codex"
 docs/knowledge/          # product scope, the incremental-acceptance contract
-                         # and the changelog, one history for both hosts
-skills/                  # the five skills, shared by both hosts
+                         # and the changelog, one history for every host
+skills/                  # the five skills, shared by every host
 └── <skill>/
     ├── SKILL.md         # skill instructions
     ├── *.md             # branch and reference files the skill loads
@@ -46,23 +48,25 @@ hooks/
 ├── hooks.json           # Claude Code hook wiring
 ├── codex-hooks.json     # Codex hook wiring
 ├── windows-launcher.ps1 # source of the Codex Windows hook command
-├── codex-task.js        # Codex task start/check
+├── codex-task.js        # explicit task start/check for Codex and Antigravity
+├── antigravity-hook.js  # Antigravity entrypoint: translates its events and
+│                        # runs the shared hooks as child processes
 └── *.js                 # hook scripts; lib.js resolves the project and host
 scripts/                 # dependency-free Node.js CLIs; runtime.js detects the host
-tests/                   # behavioral tests for both hosts
+tests/                   # behavioral tests for the three hosts
 ```
 
-Foreman keeps one README for both hosts, plain-language sections first and technical depth behind links; [`AGENTS.md`](AGENTS.md) says where the host-specific parts go.
+Foreman keeps one README for every host, plain-language sections first and technical depth behind links; [`AGENTS.md`](AGENTS.md) says where the host-specific parts go.
 
 ---
 
 ## What to keep in mind
 
-**Skills are instruction files both hosts follow.** A change to a `SKILL.md` or one of its reference files changes how Claude Code and Codex carry out that skill — be precise, and try the affected skill in a real session on each host you can before submitting. Label a step that applies to only one host.
+**Skills are instruction files every host follows.** A change to a `SKILL.md` or one of its reference files changes how Claude Code, Codex and Antigravity carry out that skill — be precise, and try the affected skill in a real session on each host you can before submitting. Label a step that applies to only one host.
 
-**Hooks are scripts that run on every tool call or session event.** Keep them fast (no network, no blocking I/O), tolerant of missing host data, and test them on both Unix and Windows. Register Claude Code events in `hooks/hooks.json` and Codex events in `hooks/codex-hooks.json`, never both in one file. After changing a Codex hook command or `hooks/windows-launcher.ps1`, regenerate the Windows commands with `node scripts/build-windows-launchers.js --write`; without `--write`, the script only checks that they are current.
+**Hooks are scripts that run on every tool call or session event.** Keep them fast (no network, no blocking I/O), tolerant of missing host data, and test them on both Unix and Windows. Register Claude Code events in `hooks/hooks.json`, Codex events in `hooks/codex-hooks.json` and Antigravity events in the root `hooks.json`, never two hosts in one file. Antigravity's registration runs `hooks/antigravity-hook.js`, which translates the event and runs the shared hook scripts as child processes; a new shared hook reaches that host only when the entrypoint learns its event. After changing a Codex hook command or `hooks/windows-launcher.ps1`, regenerate the Windows commands with `node scripts/build-windows-launchers.js --write`; without `--write`, the script only checks that they are current.
 
-**Host differences live in one place each.** Scripts ask `scripts/runtime.js` which host is running (`FOREMAN_HOST`, then Codex's own environment markers, otherwise Claude Code). Handoff wording that differs by host is a tagged block in `prompt-template.md`; `craft-handoff.js` takes a `host` input and `check-prompt.js` takes `--host`.
+**Host differences live in one place each.** Scripts ask `scripts/runtime.js` which host is running (`FOREMAN_HOST`, then Codex's own environment markers, then Antigravity's, otherwise Claude Code). Handoff wording that differs by host is a tagged block in `prompt-template.md`; `craft-handoff.js` takes a `host` input and `check-prompt.js` takes `--host`, and both give an Antigravity handoff the Codex form.
 
 **Reviewed increments are Codex-only for now.** The prompt builder accepts review rows on both hosts, but Claude Code's skills do not offer the protocol until the owner decides otherwise.
 
@@ -83,6 +87,7 @@ Validate the package for each host when you can:
 
 - **Claude Code:** `claude plugin validate .`
 - **Codex:** the installed plugin-creator validator for `.codex-plugin/plugin.json`, and skill-creator's `quick_validate.py` for edited skills. Those validators live in the Codex installation, not in this repository. The plugin-creator validator does not accept the manifest's `hooks` field yet, although Codex itself reads it.
+- **Antigravity:** `agy plugin validate .` with the Antigravity CLI installed.
 
 Installed-host smoke tests complement the local hook fixtures; report which one you actually ran.
 
@@ -119,7 +124,7 @@ Public source names and attribution are allowed in documentation and commit mess
 
 Add an entry to [`docs/knowledge/changelog.md`](docs/knowledge/changelog.md), under the unreleased version at the top, for every user-visible change, and say which host it affects when it is not both. Follow the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
 
-One version number covers both hosts. Bump it in both manifests, `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`, in the release commit; a test fails when the two differ. Claude Code reads a plugin's version from `plugin.json` before anything in its marketplace entry, so the version lives only in the manifests. Both [foundry](https://github.com/V-Songbird/foundry) catalogs pin the same `main` commit with `ref: "main"` and carry no version for Foreman: a release only moves their `source.sha` to the release commit.
+One version number covers every host. Bump it in the three manifests, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json` and `plugin.json`, in the release commit; a test fails when they differ. Claude Code reads a plugin's version from `plugin.json` before anything in its marketplace entry, so the version lives only in the manifests. Both [foundry](https://github.com/V-Songbird/foundry) catalogs pin the same `main` commit with `ref: "main"` and carry no version for Foreman: a release only moves their `source.sha` to the release commit.
 
 ---
 

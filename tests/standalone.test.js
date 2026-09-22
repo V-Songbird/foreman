@@ -7,7 +7,8 @@
 // are the host integrations and are not covered here.
 //
 // Every child below is spawned with EVERY host variable deleted from its
-// environment (CLAUDE*, CODEX_*, FOREMAN_*, PLUGIN_ROOT, PLUGIN_DATA) and cwd
+// environment (CLAUDE*, CODEX_*, ANTIGRAVITY_*, FOREMAN_*, PLUGIN_ROOT,
+// PLUGIN_DATA) and cwd
 // set to a temp fixture project, so a future change that quietly re-couples
 // one of these three scripts to either harness fails here instead of shipping.
 //
@@ -45,7 +46,7 @@ const RENDER = path.join(SCRIPTS_DIR, 'render-sections.js');
 const CHECK = path.join(SCRIPTS_DIR, 'check-prompt.js');
 
 // The host variables tests/helpers.js scrubs from this process.
-const HOST_ENV = /^(FOREMAN_|CODEX_|CLAUDE|PLUGIN_ROOT$|PLUGIN_DATA$)/;
+const HOST_ENV = /^(FOREMAN_|CODEX_|CLAUDE|ANTIGRAVITY_|PLUGIN_ROOT$|PLUGIN_DATA$)/;
 
 /** process.env with every host variable removed. */
 function harnessFreeEnv() {

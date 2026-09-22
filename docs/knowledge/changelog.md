@@ -1,10 +1,11 @@
 ---
 type: knowledge
-summary: "Records user-facing Foreman changes by release for both hosts; read when upgrading or checking when a behavior changed."
+summary: "Records user-facing Foreman changes by release for every host; read when upgrading or checking when a behavior changed."
 related_files:
   - README.md
   - .claude-plugin/plugin.json
   - .codex-plugin/plugin.json
+  - plugin.json
 ---
 
 # Changelog
@@ -14,14 +15,53 @@ Relay through 0.4.8-alpha — the 0.5.0-alpha entry below records the
 rename, and older entries keep the name they shipped under.
 
 From 3.1.0, Foreman is one package for Claude Code and Codex with one version
-number. Before that the two hosts had separate release lines, both kept below:
-2.6.1 to 2.7.0 for Claude Code, and 3.0.1-codex.1 to 3.0.4-codex.1 for Codex.
-Looking for a version number? It is written in both plugin manifests,
-`.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`, which always
-carry the same one. The [foundry marketplace](https://github.com/V-Songbird/foundry)
+number, and from 3.2.0 the same package also runs on Antigravity. Before 3.1.0
+the two hosts had separate release lines, both kept below: 2.6.1 to 2.7.0 for
+Claude Code, and 3.0.1-codex.1 to 3.0.4-codex.1 for Codex. Looking for a
+version number? It is written in the plugin manifests,
+`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json` and `plugin.json`,
+which always carry the same one. The [foundry marketplace](https://github.com/V-Songbird/foundry)
 listings pin a release commit and carry no version of their own. Claude Code
 releases up to 2.7.0 kept their number in the foundry marketplace listing
 instead.
+
+## 3.2.0 — Unreleased
+
+Foreman now runs on Antigravity from the same package, installed from a clone
+with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
+`/survey` and `/craft-prompt` there.
+
+### Antigravity
+
+- Direct edits of `ROADMAP.jsonl`, `.foreman/archive.jsonl` and
+  `.foreman/notes.jsonl` through `write_to_file`, `replace_file_content` and
+  `multi_replace_file_content` are blocked, the same way Claude Code's and
+  Codex's editing tools are.
+- The first model call of a conversation mentions roadmap entries still in
+  progress or awaiting acceptance, and offers to archive finished entries once
+  many have piled up.
+- A commit brings the status and discovery reminders, and touching a file
+  brings its decision documents and recorded lessons. Antigravity lets a hook
+  answer a tool call only with a decision, so these reach the model at its next
+  call rather than with the command, and the commit reminder says that the
+  command's exit status could not be observed.
+- Handoff prompts take the Codex form: quoted installed script paths, the
+  explicit `hooks/codex-task.js start` and `check` lifecycle, and the
+  discovery policy in every handoff. Questions use `ask_question` and
+  background work uses `invoke_subagent`.
+- Suggestions an Antigravity session records carry
+  `source: "antigravity-suggested"`; an older Foreman reports that value as
+  `unknown_source` until it is upgraded.
+- Not available there: the `taskCloseGate` reminder, which needs a task or
+  stop event, the session-fullness advice, and review between increments.
+
+### Every host
+
+- `FOREMAN_HOST=antigravity` pins the host, and `ANTIGRAVITY_CONVERSATION_ID`
+  or `ANTIGRAVITY_AGENT` in the environment selects it when nothing is pinned.
+  Codex's own markers still win when both are present.
+- `craft-handoff.js` and `check-prompt.js --host` accept `antigravity` and
+  build the Codex form of the prompt for it.
 
 ## 3.1.0 — 2026-09-15
 

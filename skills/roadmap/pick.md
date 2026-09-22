@@ -235,6 +235,8 @@ summary of them:
 - In Codex, the marker is `dispatched to Codex subagent <id>`; use it only if
   the current host still knows that session or agent, through its follow-up
   capability, and inspect the result.
+- In Antigravity, the marker is `dispatched to Antigravity subagent <id>`,
+  reached through `manage_subagents` under the same condition.
 
 On success, that *is* the resume — relay what the worker reports and stop
 here; the worker's session closes its entry the same as any other handoff (in
@@ -337,13 +339,14 @@ session's model, and a pasted prompt runs wherever the user pastes it.
    ```
    echo '{"entry":"<id>","host":"claude|codex","destination":"task|agent|clipboard","resume":<true only if this pick came from in_progress>,"split":<true only when Q2 picked "Execute here, split by check">,"request":"<specific request preserving the task type>","judgment":{"role":"<role>","goal":"<goal sentence>","context":"<context prose>","steps":["<what to implement/fix>"],"constraints":["<hard limits, patterns to follow>"],"verification":[{"run":"<exact command>","expected":"<pass/fail signal>"}],"testFirst":<true only for a silent-failure entry>,"invariants":["<one observable assertion per line>"]}}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/craft-handoff.js
    ```
-   `host` is `claude` in Claude Code and `codex` in Codex. In Claude Code,
-   remember: the copy of this skill you are reading has
+   `host` is `claude` in Claude Code, `codex` in Codex and `antigravity` in
+   Antigravity, which the builder gives the Codex form of the prompt. In
+   Claude Code, remember: the copy of this skill you are reading has
    the variable already resolved to a version-pinned cache path — type
    `${CLAUDE_PLUGIN_ROOT}` back literally in the stdin JSON above and in
    the delivery calls below; the gate errors on a resolved plugins-cache
-   path. In Codex, send the JSON through a payload file or here-string as
-   the runtime describes.
+   path. In Codex and Antigravity, send the JSON through a payload file or
+   here-string as the runtime describes.
 
    Returns one JSON line: `{ok, prompt, profile, signals, tasks?,
    ledger_ask?, gate, warnings}`. `profile` and `signals` are internal

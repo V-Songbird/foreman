@@ -641,9 +641,11 @@ function applyRepairs(entries, findings) {
 // quiet rather than failing, and nothing else would ever say why. So doctor
 // says it, every run, at a severity that counts toward neither errors nor
 // warnings — this is a disclosure, not a defect.
+// Antigravity's file sits at the plugin root and is keyed by the plugin name.
 const HOOK_REGISTRATIONS = [
-  ["Claude Code", "hooks.json"],
-  ["Codex", "codex-hooks.json"],
+  ["Claude Code", "hooks/hooks.json"],
+  ["Codex", "hooks/codex-hooks.json"],
+  ["Antigravity", "hooks.json"],
 ];
 
 function hookDependencies() {
@@ -651,9 +653,9 @@ function hookDependencies() {
   for (const [host, file] of HOOK_REGISTRATIONS) {
     try {
       const manifest = JSON.parse(
-        fs.readFileSync(path.join(__dirname, "..", "hooks", file), "utf-8")
+        fs.readFileSync(path.join(__dirname, "..", file), "utf-8")
       );
-      const events = Object.keys(manifest.hooks || {}).sort();
+      const events = Object.keys(manifest.hooks || manifest.foreman || {}).sort();
       if (events.length) hosts.push(`${host}: ${events.join(", ")}`);
     } catch {
       // an unreadable registration names no events for that host
@@ -667,10 +669,10 @@ function hookDependencies() {
       [],
       `Foreman's automatic behavior depends on these hook events — ${hosts.join("; ")}. `
         + "In Claude Code, TaskCreated and TaskCompleted open and close a task's roadmap entry; "
-        + "Codex has neither event, so its handoffs do that explicitly with hooks/codex-task.js "
-        + "start and check, and Codex runs plugin hooks only after they are reviewed and trusted. "
-        + "If a host stops delivering an event, that assistance goes quiet, and every command "
-        + "here keeps working by hand."
+        + "Codex and Antigravity have neither event, so their handoffs do that explicitly with "
+        + "hooks/codex-task.js start and check, and Codex runs plugin hooks only after they are "
+        + "reviewed and trusted. If a host stops delivering an event, that assistance goes quiet, "
+        + "and every command here keeps working by hand."
     ),
   ];
 }

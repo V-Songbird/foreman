@@ -8,7 +8,7 @@ allowed-tools: AskUserQuestion, TaskCreate, TaskUpdate, Agent, Read, Write, Bash
 
 # foreman:craft-prompt — interactive prompt builder
 
-Foreman runs in Claude Code and in Codex. Every step applies to both unless it names a host. Read [the shared runtime](../foreman/runtime.md) first: it covers plugin paths, JSON payloads, questions and authorization for both hosts.
+Foreman runs in Claude Code, Codex and Antigravity. Every step applies to every host unless it names one. Read [the shared runtime](../foreman/runtime.md) first: it covers plugin paths, JSON payloads, questions and authorization for every host.
 
 Advanced tool, separate from Foreman's core job. An ordinary
 implementation request does not call for a prompt-crafting interview: it

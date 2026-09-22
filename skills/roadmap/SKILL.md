@@ -8,7 +8,7 @@ allowed-tools: AskUserQuestion, Read, Write, Bash, PowerShell, TaskCreate, TaskU
 
 # foreman:roadmap — pick, add to, correct, review, or check the project roadmap
 
-Foreman runs in Claude Code and in Codex. Every step applies to both unless it names a host. Read [the shared runtime](../foreman/runtime.md) first: it covers plugin paths, JSON payloads, questions and authorization for both hosts.
+Foreman runs in Claude Code, Codex and Antigravity. Every step applies to every host unless it names one. Read [the shared runtime](../foreman/runtime.md) first: it covers plugin paths, JSON payloads, questions and authorization for every host.
 
 All reads/writes to `ROADMAP.jsonl` at the project root go through
 `${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js` — never read or edit the file
