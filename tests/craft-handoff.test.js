@@ -447,6 +447,25 @@ describe('${CLAUDE_PLUGIN_ROOT} travels literal in a Claude Code task or agent h
     assert.ok(!json.prompt.includes('plugins\\cache\\foundry'));
   });
 
+  // [Foreman: 500] No tool shell defines the variable, so one version-free
+  // sentence says where the root is, once, before the first command naming it.
+  test('the first root mention carries one version-free resolver sentence', () => {
+    writeRoadmap(project, [entryFields()]);
+    for (const destination of ['task', 'agent', 'clipboard']) {
+      const { json } = run(project, { entry: '001', destination, host: 'claude', judgment: goodJudgment() });
+      assert.equal(json.ok, true, JSON.stringify(json));
+      const lookup = 'use the `installPath` recorded for `foreman@<marketplace>` in `~/.claude/plugins/installed_plugins.json`, or, in a session started with `--plugin-dir`, that directory.';
+      assert.equal(json.prompt.split(lookup).length, 2, destination);
+      const at = json.prompt.indexOf(lookup);
+      const firstCommand = json.prompt.indexOf('/scripts/roadmap.js');
+      assert.ok(at < firstCommand, `${destination}: the sentence comes before the first command`);
+      assert.ok(!/plugins[\\/]cache[\\/]/.test(json.prompt), destination);
+      assert.equal(json.prompt.includes('were resolved when this prompt was written'), destination === 'clipboard', destination);
+    }
+    const codex = run(project, { entry: '001', destination: 'task', host: 'codex', judgment: goodJudgment() }).json;
+    assert.ok(!codex.prompt.includes('installed_plugins.json'));
+  });
+
   test('a clipboard handoff quotes a root with a space', () => {
     writeRoadmap(project, [entryFields()]);
     const plugin = path.join(makeTmpProject(), 'Foreman plugin');

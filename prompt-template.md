@@ -176,6 +176,11 @@ host can run:
   A clipboard handoff is the one exception: pasted as plain text, it reaches
   no shell that defines the variable, so `craft-handoff.js` writes the root it
   runs from and `check-prompt.js --destination clipboard` accepts that path.
+  No tool shell defines the variable either, so `craft-handoff.js` puts one
+  version-free sentence before the first block that names the root. It points
+  at the `installPath` recorded in `~/.claude/plugins/installed_plugins.json`,
+  or the `--plugin-dir` directory. On the clipboard the same sentence covers a
+  resolved path that went stale after an update.
 - **Codex.** Codex never substitutes that variable, so `craft-handoff.js`
   writes quoted absolute paths resolved from the running assembler, and
   `check-prompt.js --host codex` errors on an unresolved `${CLAUDE_PLUGIN_ROOT}`

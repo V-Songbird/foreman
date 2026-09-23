@@ -86,6 +86,9 @@ const DESTINATIONS = new Set(["task", "agent", "clipboard"]);
 // Claude Code's prompts carry this literal, never expanded — [Foreman: 107] —
 // except on the clipboard, where assemble writes PLUGIN_ROOT — [Foreman: 500].
 const CLAUDE_ROOT = "${CLAUDE_PLUGIN_ROOT}";
+const ROOT_LOOKUP = "the `installPath` recorded for `foreman@<marketplace>` in `~/.claude/plugins/installed_plugins.json`, or, in a session started with `--plugin-dir`, that directory";
+const ROOT_RESOLVER = `\`${CLAUDE_ROOT}\` below is Foreman's plugin root, the directory that holds \`scripts/roadmap.js\`. If your shell leaves it empty, use ${ROOT_LOOKUP}.`;
+const CLIPBOARD_ROOT_RESOLVER = `The Foreman script paths below were resolved when this prompt was written. If one no longer exists because Foreman was updated since, use ${ROOT_LOOKUP}.`;
 // Codex's prompts carry the installed root, and both hosts read skill files
 // from it at craft time.
 const PLUGIN_ROOT = path.resolve(__dirname, "..").replace(/\\/g, "/");
@@ -1462,6 +1465,11 @@ function assemble(root, input) {
       ? text.replace(/\$\{CLAUDE_PLUGIN_ROOT\}([^\s`'"]*)/g, (match, rest) =>
         /[^\w./:@-]/.test(PLUGIN_ROOT) ? shellQuote(PLUGIN_ROOT + rest) : PLUGIN_ROOT + rest)
       : text;
+  // [Foreman: 500] No Claude Code tool shell defines the variable either, so
+  // one version-free sentence says where the root is. It goes before the first
+  // block that names it. A clipboard handoff names a path fixed at craft time
+  // instead, so its sentence covers that path going stale.
+  const rootResolver = destination === "clipboard" ? CLIPBOARD_ROOT_RESOLVER : ROOT_RESOLVER;
 
   function buildParts(includeEntry) {
     const parts = [];
@@ -1515,6 +1523,8 @@ function assemble(root, input) {
     if (reinforced) parts.push(`<plan>\n${judgment.question && canonical.investigationPlan ? canonical.investigationPlan : canonical.plan}\n</plan>`);
     if (workflowStage) parts.push(WORKFLOW_STAGE_SENTENCES[host]);
     else if (includeOutputFormat) parts.push(`<output_format>\n${defaultOutputFormat}\n</output_format>`);
+    const firstRoot = parts.findIndex((part) => part && part.includes(CLAUDE_ROOT));
+    if (firstRoot !== -1) parts.splice(firstRoot, 0, rootResolver);
     return pastedPaths(parts.filter(Boolean).join("\n\n") + "\n");
   }
 

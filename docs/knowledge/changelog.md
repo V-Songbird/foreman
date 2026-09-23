@@ -68,6 +68,13 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
 - The session-start hook, which mentions open entries, may take 10 seconds
   instead of 5, so a slow first session after boot on Windows no longer cuts
   it off.
+- A handoff copied to the clipboard names Foreman's scripts by the plugin
+  root it was crafted from, because a pasted prompt reaches no shell that
+  defines `${CLAUDE_PLUGIN_ROOT}`. Every other handoff keeps the variable and
+  adds one sentence on where the root is when the shell leaves it empty: the
+  `installPath` in `~/.claude/plugins/installed_plugins.json`, or the
+  `--plugin-dir` directory. A clipboard handoff carries the same pointer for a
+  path that went stale after an update.
 
 ### Every host
 
