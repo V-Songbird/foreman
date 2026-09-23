@@ -13,7 +13,8 @@
 //     never a reissue
 //   - add's exact-title dedup and check-duplicate both see archived entries
 //   - an active entry depending on an archived done parent is ready, both in
-//     next-candidates and under the require_ready dispatch guard
+//     next-candidates and under the require_ready dispatch guard, and its
+//     next-candidates and list --ids rows still carry that parent's doc
 //   - an archived dropped parent still strands its active dependent in doctor
 //   - the interrupted-move state (one id in both files) is a doctor
 //     duplicate_across_files error, and re-running the move finishes it
@@ -308,6 +309,24 @@ describe('dependencies across the boundary', () => {
     // Not "missing" — the parent resolved, out of the archive.
     assert.deepEqual(json.findings.filter((f) => f.code === 'missing_dependency'), []);
     assert.equal(json.summary.errors, 0);
+  });
+
+  // [Foreman: 338] Archiving moves exactly the finished parents that carry
+  // decision docs, so their dependents' rows must still point at them. Direct
+  // parents only: a grandparent's doc stays out.
+  test("an archived parent's doc still reaches its dependent's rows", () => {
+    writeRoadmap(project, [
+      entry('001', { status: 'done', commits: ['a1'], doc: 'docs/decisions/root.md' }),
+      entry('002', { status: 'done', commits: ['a2'], doc: 'docs/decisions/auth.md', depends_on: ['001'] }),
+      entry('003', { status: 'done', commits: ['a3'], doc: 'none' }),
+      entry('004', { depends_on: ['002', '003'] }),
+    ]);
+    run(['archive'], { ids: ['001', '002', '003'] });
+
+    const { candidates } = run(['next-candidates']).json;
+    assert.deepEqual(candidates.map((c) => c.id), ['004']);
+    assert.deepEqual(candidates[0].depends_on_docs, ['docs/decisions/auth.md']);
+    assert.deepEqual(run(['list', '--ids', '004']).json.entries[0].depends_on_docs, ['docs/decisions/auth.md']);
   });
 
   test('add accepts a depends_on id that lives in the archive', () => {

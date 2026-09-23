@@ -1668,9 +1668,12 @@ function cmdList(root, filters) {
     // the direct dependencies' decision-document pointers so the caller can
     // honor settled decisions without loading those dependency entries too.
     // Whole-roadmap list output remains the stored entries unchanged.
+    // A listing of the archive already holds its own parents, so only the
+    // active listing looks across the boundary.
+    const resolve = filters.archived ? null : archiveResolver(root);
     filtered = filtered.map((e) => ({
       ...e,
-      depends_on_docs: dependencyDocs(e, byId),
+      depends_on_docs: dependencyDocs(e, byId, resolve),
       ...(reportsEvidence(e) ? { commit_evidence: evidenceSummary(root, e) } : {}),
     }));
   }
@@ -1691,9 +1694,13 @@ function reportsEvidence(entry) {
 // Upstream decision docs the dispatch should read before starting, so a task
 // building on an earlier decision does not silently re-decide it. Direct
 // parents only, and "none" explicitly means there is no document pointer.
-function dependencyDocs(entry, byId) {
+// [Foreman: 338] Archiving moves exactly the finished parents that carry
+// decision docs, so a parent missing from `byId` is looked up through
+// `resolve` (the command's archiveResolver, read at most once) and still
+// hands its doc to the dependent.
+function dependencyDocs(entry, byId, resolve) {
   return (entry.depends_on || [])
-    .map((dep) => byId.get(dep))
+    .map((dep) => byId.get(dep) || (resolve ? resolve(dep) : null))
     .filter((dependency) => dependency && typeof dependency.doc === "string" && dependency.doc !== "none")
     .map((dependency) => dependency.doc);
 }
@@ -1860,7 +1867,7 @@ function cmdNextCandidates(root, filters) {
       created_at: e.created_at,
       notes: e.notes || "",
       // Direct parents only, not the transitive chain. [Foreman: 097]
-      depends_on_docs: dependencyDocs(e, byId),
+      depends_on_docs: dependencyDocs(e, byId, resolve),
       ...(e.doc !== undefined ? { doc: e.doc } : {}),
       ...(e.kind !== undefined ? { kind: e.kind } : {}),
     }))
@@ -2706,7 +2713,8 @@ is written, and the error names the field and the kind, never the text.
   list              flag: --status planned,in_progress   (optional, comma-separated)
                     flag: --ids 002,005   (optional, comma-separated, combinable with --status)
                     targeted full rows add depends_on_docs (direct
-                    dependency document paths only)
+                    dependency document paths only, archived parents
+                    included)
                     flag: --summary   (optional: entries carry only
                     id/title/status/depends_on/planned_touches -- use for
                     whole-roadmap renders and not-done digests, then fetch

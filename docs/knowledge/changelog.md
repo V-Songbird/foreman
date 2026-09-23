@@ -66,6 +66,9 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   that looks like a credential: a provider API key, a private key block, an
   `Authorization` value or a password inside a URL. Nothing is written, and
   the error names the field and the kind of credential, never the text.
+- A direct parent's decision `doc` still reaches its dependent's
+  `next-candidates` and `list --ids` rows after the parent is archived, so
+  the handoff keeps pointing at the settled decision.
 
 ## 3.1.0 — 2026-09-15
 
