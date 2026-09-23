@@ -103,6 +103,8 @@ Existing roadmap data can be reused. Every assistant reads and writes the same `
 
 Foreman is for a solo developer. It does not become a team tracker, code-review service, unattended scheduler or workflow server. Your project keeps its own data. The optional ledger is off until requested; disabling it deletes no existing notes.
 
+A lesson's verdict says whether its files changed since it was recorded, not whether the lesson was ever right, so a wrong lesson keeps being served until you retire it.
+
 ### Differences between hosts
 
 Foreman does the same job in every assistant. The host — the assistant Foreman runs inside — decides which events and tools Foreman can use, so a few things work differently:

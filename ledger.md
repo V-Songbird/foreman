@@ -82,11 +82,16 @@ A recorded sentence is a claim about code, and code moves. A three-month-old
 claim served as fact is worse than no claim at all, because it sounds sure of
 itself.
 
-So every sentence you are shown is checked first, and comes with a verdict:
-**unchanged since**, **may be out of date**, or **cannot tell**. A sentence
-about files that no longer exist is dropped rather than shown. And when
-Foreman cannot tell, you get the file names only — never a claim it could
-not check.
+So every sentence you are shown is checked against its files first, and
+comes with a verdict: **unchanged since**, **may be out of date**, or
+**cannot tell**. A sentence about files that no longer exist is dropped
+rather than shown. And when Foreman cannot tell, you get the file names
+only — never a claim it could not check.
+
+The verdict says whether the files a sentence names changed since it was
+recorded. It never says whether the sentence was right to begin with. A
+wrong sentence about files nobody touched still reads **unchanged since**,
+and it keeps being served until it is retired.
 
 ## When one turns out to be wrong
 
