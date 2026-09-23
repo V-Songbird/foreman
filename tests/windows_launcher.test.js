@@ -5,9 +5,24 @@ const fs = require("node:fs"), path = require("node:path"), cp = require("node:c
 const { makeTmpProject, writeRoadmap } = require("./helpers");
 const { build, main } = require("../scripts/build-windows-launchers");
 
-// Only Codex registrations are encoded launchers; hooks/hooks.json keeps
-// Claude Code's plain commandWindows strings.
+// Only Codex registrations are encoded launchers. hooks/hooks.json registers
+// Claude Code's hooks in exec form, `node` plus one script argument, which
+// needs no per-platform string.
 const CODEX_HOOKS = path.join(__dirname, "../hooks/codex-hooks.json");
+
+// [Foreman: 345]
+test("Claude Code hooks run in exec form with no commandWindows", () => {
+  const wiring = JSON.parse(fs.readFileSync(path.join(__dirname, "../hooks/hooks.json"), "utf8"));
+  const handlers = Object.values(wiring.hooks).flat().flatMap((group) => group.hooks);
+  assert.ok(handlers.length);
+  for (const handler of handlers) {
+    assert.equal(handler.command, "node", JSON.stringify(handler));
+    assert.equal(handler.args.length, 1, JSON.stringify(handler));
+    assert.match(handler.args[0], /^\$\{CLAUDE_PLUGIN_ROOT\}\/hooks\/[\w-]+\.js$/);
+    assert.ok(fs.existsSync(path.join(__dirname, "../hooks", path.basename(handler.args[0]))), handler.args[0]);
+    assert.equal(handler.commandWindows, undefined, JSON.stringify(handler));
+  }
+});
 
 test("Windows commands match their readable source without changing policy", () => {
   main();

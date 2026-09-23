@@ -257,8 +257,8 @@ describe('context-fill — wiring', () => {
     const block = wiring.hooks.PostToolUse.find((b) => b.matcher === '^(Bash|PowerShell)$');
     assert.ok(block, 'no Bash/PowerShell PostToolUse block');
     assert.ok(
-      block.hooks.some((h) => h.command.includes('context-fill.js') && h.commandWindows.includes('context-fill.js')),
-      'context-fill.js is not wired on both platforms'
+      block.hooks.some((h) => h.command === 'node' && h.args.includes('${CLAUDE_PLUGIN_ROOT}/hooks/context-fill.js')),
+      'context-fill.js is not wired in exec form'
     );
   });
 

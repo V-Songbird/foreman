@@ -55,6 +55,13 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
 - Not available there: the `taskCloseGate` reminder, which needs a task or
   stop event, the session-fullness advice, and review between increments.
 
+### Claude Code
+
+- Hooks are registered in exec form, `node` with the script as its one
+  argument, so they start without a shell on every platform. The
+  `commandWindows` strings, which current Claude Code does not read, are
+  gone.
+
 ### Every host
 
 - `FOREMAN_HOST=antigravity` pins the host, and `ANTIGRAVITY_CONVERSATION_ID`
