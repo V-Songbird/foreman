@@ -12,6 +12,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const { spawnSync } = require("node:child_process");
 const { makeTmpProject, writeRoadmap, initGitRepo, commitFile, runNodeScript, HOOKS_DIR } = require("./helpers");
 const { HOSTS, detectHost } = require("../scripts/runtime");
 const { resolveHost, readCanonical } = require("../scripts/check-prompt");
@@ -28,8 +29,13 @@ beforeEach(() => {
   conversation = crypto.randomUUID();
 });
 
+// [Foreman: 470] The entrypoint gives each child hook 4 s. A loaded machine can
+// spend that on starting node alone, so these runs raise the budget to stay
+// inside runNodeScript's own 30 s limit and assert the outcome, not the speed.
+const SLOW_MACHINE = { FOREMAN_HOOK_TIMEOUT_MS: "25000" };
+
 function run(event, payload = {}, env = {}) {
-  const result = runNodeScript(ENTRY, [event], { conversationId: conversation, workspacePaths: [project], ...payload }, env);
+  const result = runNodeScript(ENTRY, [event], { conversationId: conversation, workspacePaths: [project], ...payload }, { ...SLOW_MACHINE, ...env });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stderr, "");
   return result.stdout ? JSON.parse(result.stdout) : "";
@@ -240,5 +246,26 @@ describe("malformed input and unknown events", () => {
     const unknown = runNodeScript(ENTRY, ["Stop"], { conversationId: conversation }, {});
     assert.equal(unknown.status, 0);
     assert.equal(unknown.stdout, "");
+  });
+});
+
+// [Foreman: 470] Production keeps its 4 s child budget; the variable the suite
+// sets can only raise it.
+describe("the child hook budget", () => {
+  test("stays 4 s unless the environment raises it", () => {
+    // Read at load, so each value needs its own process.
+    const budget = (value) => {
+      const env = value === undefined ? {} : { FOREMAN_HOOK_TIMEOUT_MS: value };
+      const probe = spawnSync(process.execPath, ["-e", `process.stdout.write(String(require(${JSON.stringify(ENTRY)}).HOOK_TIMEOUT_MS))`], {
+        encoding: "utf-8",
+        env: { ...process.env, ...env },
+      });
+      assert.equal(probe.status, 0, probe.stderr);
+      return Number(probe.stdout);
+    };
+    assert.equal(budget(undefined), 4000);
+    assert.equal(budget("1000"), 4000);
+    assert.equal(budget("not a number"), 4000);
+    assert.equal(budget("25000"), 25000);
   });
 });

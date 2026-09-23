@@ -51,6 +51,12 @@ function translate(data) {
   };
 }
 
+// [Foreman: 470] Each child hook gets 4 s, so a stalled one never holds up
+// Antigravity. The test suite raises that budget through
+// FOREMAN_HOOK_TIMEOUT_MS, so a loaded machine slows a test instead of
+// failing it; the variable can only raise the budget, never lower it.
+const HOOK_TIMEOUT_MS = Math.max(4000, Number.parseInt(process.env.FOREMAN_HOOK_TIMEOUT_MS, 10) || 0);
+
 function runHook(script, payload, workspace) {
   const env = {};
   for (const [key, value] of Object.entries(process.env)) if (!INHERITED.has(key)) env[key] = value;
@@ -60,7 +66,7 @@ function runHook(script, payload, workspace) {
     input: JSON.stringify(payload),
     encoding: "utf-8",
     env,
-    timeout: 4000,
+    timeout: HOOK_TIMEOUT_MS,
     windowsHide: true,
   });
   return result.status === 0 && typeof result.stdout === "string" ? result.stdout : "";
@@ -194,4 +200,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { main, translate, EVENTS };
+module.exports = { main, translate, EVENTS, HOOK_TIMEOUT_MS };

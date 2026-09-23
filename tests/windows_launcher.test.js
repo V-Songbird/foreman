@@ -45,8 +45,10 @@ test("fnm fallback works without a Node PATH entry", { skip: process.platform !=
   delete env.FNM_MULTISHELL_PATH;
   const handler = require(CODEX_HOOKS).hooks.PreToolUse[0].hooks[0];
   const input = JSON.stringify({ cwd: root, tool_name: "apply_patch", tool_input: { command: "*** Begin Patch\n*** Delete File: ROADMAP.jsonl\n*** End Patch" } });
+  // [Foreman: 470] cmd.exe, PowerShell and fnm take seconds to start on a
+  // loaded machine, so the bound only catches a hang; the assertions are the test.
   const result = cp.spawnSync("cmd.exe", ["/d", "/s", "/c", `"${handler.commandWindows}"`], {
-    env, input, encoding: "utf8", windowsVerbatimArguments: true, windowsHide: true, timeout: 10000,
+    env, input, encoding: "utf8", windowsVerbatimArguments: true, windowsHide: true, timeout: 120000,
   });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision, "deny");
