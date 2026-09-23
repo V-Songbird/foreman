@@ -1125,11 +1125,11 @@ function claudeEntryParagraphText({ id, resume, requireVerification, askLesson, 
   // check, because one append is exactly one line (roadmap.js appendNote
   // folds embedded newlines).
   //
-  // [Foreman] Two bars on top of "has no command", both from live misfires:
-  // a check blocked on unbuilt work fired Test on an entry nobody could
-  // test, and an Electron project sent its owner to the window session after
-  // session until one of them wrote a skill that drives the app instead. A
-  // note is for what the session cannot reach, not for what it did not try.
+  // [Foreman] Two bars on top of "has no command". A check blocked on unbuilt
+  // work is not an `unverified:` line, since nobody can answer it yet. Nor is
+  // a check the session could reach by driving the app itself, with a skill,
+  // script or harness. A note is for what the session cannot reach, not for
+  // what it did not try.
   const splitStep = reviewEachIncrement
     ? INCREMENT_SPLIT_STEP
     : requireVerification && destination !== "agent"

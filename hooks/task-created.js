@@ -21,10 +21,8 @@
 // single transition planned -> in_progress, and only for an entry that
 // Foreman's own handoff paragraph named. Anything else: silent no-op.
 //
-// Input schema (verified empirically 2026-07-10 — undocumented in
-// hooks.md): common fields + task_id, task_subject, task_description.
-// Re-checked by the task-schema canary through CLI 2.1.261 (2026-09-05),
-// unchanged.
+// Input fields read: the common hook fields plus task_id, task_subject and
+// task_description.
 
 const fs = require("fs");
 const path = require("path");
