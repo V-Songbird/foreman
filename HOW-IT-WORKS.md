@@ -282,9 +282,11 @@ call a skill by name.
 Node.js 22 or later and Git, on every host. Foreman's scripts need no npm
 packages and no server.
 
-- **Claude Code.** Built and tested against Claude Code 2.1.x. If a future
-  Claude Code stops sending Foreman something it relies on, `/foreman:roadmap`
-  will tell you rather than going quiet.
+- **Claude Code.** Built and tested against Claude Code 2.1.x. Foreman cannot
+  tell when a host stops sending an event it relies on; its automatic help
+  just goes quiet. Asking `/foreman:roadmap` to check the roadmap lists, as an
+  info finding, the hook events Foreman depends on in each host, so a quiet
+  Foreman can be diagnosed, and every command keeps working by hand.
 - **Codex.** A Codex host with plugin support, with Foreman's hooks trusted.
   The Codex versions Foreman was checked against are listed in
   [Foreman in Codex](CODEX.md).
