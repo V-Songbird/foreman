@@ -1670,11 +1670,10 @@ describe('craft-prompt grounds its file options before asking', () => {
   });
 });
 
-// [Foreman: 444] Three measurement switches were declined on 2026-08-18 and cut
-// from the product on 2026-09-22: the anti-test-gaming clause on the testFirst
-// branch, an <output_format> for the standard profile, and a concrete
-// inclusion bar for the discovery block. Re-opening one means rebuilding it,
-// so these tests keep all three out.
+// [Foreman: 444] Three switches are not in the product: the anti-test-gaming
+// clause on the testFirst branch, an <output_format> for the standard profile,
+// and a concrete inclusion bar for the discovery block. Adding one back is a
+// product decision, not an edit, so these tests keep all three out.
 describe('the declined benchmark switches are not in the product', () => {
   const SWITCHES = ['FOREMAN_TEST_GAMING_CLAUSE', 'FOREMAN_STANDARD_OUTPUT_SHAPE', 'FOREMAN_DISCOVERY_CONCRETE_BAR'];
 
@@ -1714,11 +1713,9 @@ describe('the declined benchmark switches are not in the product', () => {
 });
 
 // [Foreman 4a] The extras clause — "if you find a pre-existing bug next door,
-// report it, don't fix it here" — was measured over 48 sessions and DECLINED:
-// zero extras in either control on two task shapes and two models, and +40%
-// output tokens on Sonnet. No switch was kept, so nothing in the product
-// emits it; the arms live entirely in the benchmark harness. This
-// test guards the absence, so a future edit cannot reintroduce it silently.
+// report it, don't fix it here" — is not part of any handoff: nothing in the
+// product emits it and no switch turns it on. This test guards the absence,
+// so a future edit cannot reintroduce it silently.
 describe('the extras clause is not in the product', () => {
   test('no crafted prompt carries it, on either profile', () => {
     const build = (judgmentOverrides) => run(project, {

@@ -1610,9 +1610,8 @@ function assemble(root, input) {
   // [Foreman] In Claude Code `<context>` renders on the reinforced profile
   // only, so a fact the crafting session put in `judgment.context` is absent
   // from every standard handoff. That is deliberate — but it was silent, and a
-  // session that supplied one had no way to learn the fact never shipped.
-  // Found by rendering a benchmark arm and diffing it against the facts it was
-  // built from: the arm's `fix location:` line had vanished. A Codex handoff
+  // session that supplied one had no way to learn the fact never shipped, so
+  // the dropped block is announced. A Codex handoff
   // keeps task-specific context and invariants on both profiles, so it drops
   // nothing here.
   if (host === "claude" && judgment.context && gateResult.profile !== "reinforced") {

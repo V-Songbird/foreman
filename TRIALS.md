@@ -108,9 +108,9 @@ assuming it away.
 | ✓ | `recovery_attempted` | `kind` (one of `reinit-snapshot`, `resume-in-progress`), `success` (boolean) | A recovery path ran to a definite outcome |
 
 `recovery_attempted` records `resume-in-progress`, both halves, and
-`reinit-snapshot` from the init skill. On 2026-09-22 the owner retired a
-third kind, `failed-verification-retry`: nothing wrote it, and writing it
-would have added text to every handoff.
+`reinit-snapshot` from the init skill. A third kind,
+`failed-verification-retry`, is retired and `trial-log.js` refuses it:
+nothing wrote it, and writing it would add text to every handoff.
 
 <!-- [Foreman: 208] -->
 `first_pick`'s `seconds_since_init` is always `null` as recorded today, and
