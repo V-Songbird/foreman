@@ -13,7 +13,7 @@ const os = require("node:os");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { spawnSync } = require("node:child_process");
-const { makeTmpProject, writeRoadmap, initGitRepo, commitFile, runNodeScript, HOOKS_DIR } = require("./helpers");
+const { makeTmpProject, writeRoadmap, initGitRepo, commitFile, runNodeScript, HOOKS_DIR, SPAWN_TIMEOUT_MS } = require("./helpers");
 const { HOSTS, detectHost } = require("../scripts/runtime");
 const { resolveHost, readCanonical } = require("../scripts/check-prompt");
 const { discoveryInstructions } = require("../scripts/discovery");
@@ -31,8 +31,17 @@ beforeEach(() => {
 
 // [Foreman: 470] The entrypoint gives each child hook 4 s. A loaded machine can
 // spend that on starting node alone, so these runs raise the budget to stay
-// inside runNodeScript's own 30 s limit and assert the outcome, not the speed.
-const SLOW_MACHINE = { FOREMAN_HOOK_TIMEOUT_MS: "25000" };
+// inside runNodeScript's own limit and assert the outcome, not the speed.
+// [Foreman: 544] The budget follows that limit, 5 s below it: 25 s by default,
+// and more when FOREMAN_TEST_SPAWN_TIMEOUT_MS raises the limit.
+const SLOW_MACHINE = { FOREMAN_HOOK_TIMEOUT_MS: String(SPAWN_TIMEOUT_MS - 5000) };
+
+// A child hook that ran out of time leaves the queued context unread, so a
+// missing injectSteps is named rather than surfacing as a TypeError.
+function injected(result) {
+  assert.ok(Array.isArray(result && result.injectSteps), `PreInvocation returned no injectSteps: ${JSON.stringify(result)}`);
+  return result.injectSteps;
+}
 
 function run(event, payload = {}, env = {}) {
   const result = runNodeScript(ENTRY, [event], { conversationId: conversation, workspacePaths: [project], ...payload }, { ...SLOW_MACHINE, ...env });
@@ -137,7 +146,7 @@ describe("PreInvocation carries the session notice once, in this host's words", 
   test("open entries are announced on the first model call of a conversation only", () => {
     writeRoadmap(project, [{ id: "001", title: "Ship the thing", status: "in_progress" }]);
     const first = run("PreInvocation", { invocationNum: 0 });
-    assert.equal(first.injectSteps.length, 1);
+    assert.equal(injected(first).length, 1);
     const notice = first.injectSteps[0].ephemeralMessage;
     assert.match(notice, /\[Foreman\] Roadmap entries still open: 001/);
     assert.match(notice, /ask Foreman to resume, accept, or review\./);
@@ -207,7 +216,7 @@ describe("PostToolUse answers nothing and queues context for the next model call
     const command = call("run_command", { CommandLine: "git commit -m 'ship'", Cwd: project }, { modelName: "gemini" });
     assert.deepEqual(run("PostToolUse", command), {});
     const next = run("PreInvocation", { invocationNum: 3 });
-    assert.equal(next.injectSteps.length, 1);
+    assert.equal(injected(next).length, 1);
     const text = next.injectSteps[0].ephemeralMessage;
     assert.match(text, /^\[Foreman\] A git commit command was invoked\. This hook cannot reliably observe this host's exit status/);
     assert.match(text, /This commit may complete an in-progress ROADMAP\.jsonl task \(001/);
@@ -230,7 +239,7 @@ describe("PostToolUse answers nothing and queues context for the next model call
     fs.writeFileSync(inProject("src", "a.js"), "// [Foreman: 001]\n");
     assert.deepEqual(run("PostToolUse", call("view_file", { AbsolutePath: inProject("src", "a.js") })), {});
     const next = run("PreInvocation", { invocationNum: 2 });
-    assert.match(next.injectSteps[0].ephemeralMessage, /decision docs \(docs\/foreman\/001\.md\)/);
+    assert.match(injected(next)[0].ephemeralMessage, /decision docs \(docs\/foreman\/001\.md\)/);
   });
 });
 
