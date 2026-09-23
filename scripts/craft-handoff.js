@@ -32,7 +32,16 @@ const path = require("path");
 const { discoveryInstructions } = require("./discovery");
 const { render, projectDir, readConfig } = require("./render-sections.js");
 const { resolve: resolveSymbols, candidateIdentifiers } = require("./resolve-symbols.js");
-const { readEntries, readArchive, cmdList, touchesOverlap, today, anchorIdsIn } = require("./roadmap.js");
+const {
+  readEntries,
+  readArchive,
+  cmdList,
+  touchesOverlap,
+  normalizedTouch,
+  submodulePaths,
+  today,
+  anchorIdsIn,
+} = require("./roadmap.js");
 
 // [Foreman: 285] Every finished entry this project ever had, active file
 // first. Recall, the overlap check and anchor titles are readings of history,
@@ -1033,7 +1042,21 @@ function entryParagraphText(options) {
     : claudeEntryParagraphText(options);
 }
 
-function claudeEntryParagraphText({ id, resume, requireVerification, askLesson, destination, investigation, reviewEachIncrement = false }) {
+// [Foreman: 410] The submodule every planned path sits inside, as .gitmodules
+// spells it, or null. Work there commits in the submodule's own repository,
+// where a staged close at the project root would see only the gitlink. A
+// surface that is empty, at the root or spread across repositories keeps the
+// root close.
+function plannedSubmodule(root, touches) {
+  const paths = (touches || []).map(normalizedTouch).filter(Boolean);
+  if (!paths.length) return null;
+  return submodulePaths(root).find((sub) => {
+    const base = normalizedTouch(sub);
+    return paths.every((file) => file === base || file.startsWith(`${base}/`));
+  }) || null;
+}
+
+function claudeEntryParagraphText({ id, resume, requireVerification, askLesson, destination, investigation, reviewEachIncrement = false, submodule = null }) {
   const opening = resume
     ? `This task is ROADMAP.jsonl entry \`${id}\`, already marked \`in_progress\` by an earlier session — don't re-mark it; earlier findings may sit in its \`notes\` (included above), read them before re-deriving anything.`
     : `This task is ROADMAP.jsonl entry \`${id}\`. Mark it \`in_progress\` before doing anything else — Foreman's picking flow deliberately leaves it \`planned\` until you do:\n\`echo '{"id":"${id}","status":"in_progress"}' | node ${CLAUDE_ROOT}/scripts/roadmap.js update-status\``;
@@ -1074,7 +1097,9 @@ function claudeEntryParagraphText({ id, resume, requireVerification, askLesson, 
     : "";
   const closeIntro = `When the work concludes, close the entry the same way — the status it actually earned (\`done\`, \`dropped\`, \`rejected\`) and your full findings in \`notes\`.${holdSentence}`;
 
-  const stageStep = `Stage the task's own files with the safe-commit primitive — never \`git add -A\`:\n\`echo '{"id":"${id}","expected":["<the files this task owns>"]}' | node ${CLAUDE_ROOT}/scripts/safe-commit.js finish --baseline <baseline.head> --no-commit\`\nThen close with \`staged:true\` (the script folds the staged files into \`observed_touches\` and stages ROADMAP.jsonl alongside), then commit once with \`Foreman: ${id}\` as the final line of the message.`;
+  const stageStep = submodule
+    ? `The planned files sit inside the submodule \`${submodule}\`, so commit there, not at the project root — never stage the \`${submodule}\` gitlink, and never \`git add -A\`:\n\`git -C ${submodule} add -- <the files this task owns>\`\nThen commit once with \`git -C ${submodule} commit\`, with \`Foreman: ${id}\` as the final line of the message, and close with that commit's full sha from \`git -C ${submodule} rev-parse HEAD\`. The script resolves it inside the submodule and folds its files into \`observed_touches\` with the \`${submodule}/\` prefix.`
+    : `Stage the task's own files with the safe-commit primitive — never \`git add -A\`:\n\`echo '{"id":"${id}","expected":["<the files this task owns>"]}' | node ${CLAUDE_ROOT}/scripts/safe-commit.js finish --baseline <baseline.head> --no-commit\`\nThen close with \`staged:true\` (the script folds the staged files into \`observed_touches\` and stages ROADMAP.jsonl alongside), then commit once with \`Foreman: ${id}\` as the final line of the message.`;
 
   // An investigation writes findings, not code: no commit boundary, no staging,
   // and a close that records notes instead of staged files.
@@ -1082,7 +1107,9 @@ function claudeEntryParagraphText({ id, resume, requireVerification, askLesson, 
 
   const fields = investigation
     ? ['"status":"<status>"', '"notes":"<findings>"']
-    : ['"status":"<status>"', '"staged":true', '"notes":"<findings>"'];
+    : submodule
+      ? ['"status":"<status>"', '"commit":"<the submodule commit sha>"', '"notes":"<findings>"']
+      : ['"status":"<status>"', '"staged":true', '"notes":"<findings>"'];
   const closeCall = `\`echo '{"id":"${id}",${fields.join(",")}}' | node ${CLAUDE_ROOT}/scripts/roadmap.js update-status\``;
 
   // [Foreman: 260] roadmap-schema.md:112-113 — model/effort are self-reported
@@ -1106,7 +1133,7 @@ function claudeEntryParagraphText({ id, resume, requireVerification, askLesson, 
   return steps.filter(Boolean).join("\n");
 }
 
-function codexEntryParagraphText({ id, resume, requireVerification, askLesson, destination, investigation, reviewEachIncrement = false }) {
+function codexEntryParagraphText({ id, resume, requireVerification, askLesson, destination, investigation, reviewEachIncrement = false, submodule = null }) {
   const code = (value) => "`" + value + "`";
   const opening = resume
     ? "This task is ROADMAP.jsonl entry " + code(id) + ", already marked " + code("in_progress") + " by an earlier session. Read recorded findings before resuming."
@@ -1130,10 +1157,16 @@ function codexEntryParagraphText({ id, resume, requireVerification, askLesson, d
           : "If recorded " + code("unverified:") + " checks remain, offer Test first and describe those checks; otherwise offer acceptance or review. On acceptance, close with:\n") + jsonCommand("roadmap.js", "update-status", { id, status: "done" }))
     : "";
   const closeIntro = "Close with the status actually earned (" + code("done") + ", " + code("dropped") + ", or " + code("rejected") + ") and observed findings in " + code("notes") + "." + holdSentence;
-  const stageStep = "When committing is authorized and the baseline was clean, stage only owned files using safe-commit; never " + code("git add -A") + ":\n"
-    + jsonCommand("safe-commit.js", "finish --baseline <baseline.head> --no-commit", { id, expected: ["<the files this task owns>"] })
-    + "\nThen close with " + code("staged:true") + " to derive " + code("observed_touches") + " from staged files, and commit once with " + code("Foreman: " + id) + " as the final message line. If no commit is allowed, omit staged and record observed files explicitly.";
-  const closeCall = jsonCommand("roadmap.js", "update-status", { id, status: "<status>", notes: "<observed findings>", add_touches: investigation ? [] : ["<observed files>"] });
+  const stageStep = submodule
+    ? "When committing is authorized and the baseline was clean, commit inside the submodule " + code(submodule) + " that holds the planned files, not at the project root; never stage its gitlink or use " + code("git add -A") + ":\n"
+      + "Command: " + code("git -C " + shellQuote(submodule) + " add -- <the files this task owns>")
+      + "\nCommit once there with " + code("Foreman: " + id) + " as the final message line, then close with that commit's full sha from " + code("git -C " + shellQuote(submodule) + " rev-parse HEAD") + "; " + code("observed_touches") + " derives from it with the " + code(submodule + "/") + " prefix. If no commit is allowed, omit commit and record observed files explicitly in " + code("add_touches") + "."
+    : "When committing is authorized and the baseline was clean, stage only owned files using safe-commit; never " + code("git add -A") + ":\n"
+      + jsonCommand("safe-commit.js", "finish --baseline <baseline.head> --no-commit", { id, expected: ["<the files this task owns>"] })
+      + "\nThen close with " + code("staged:true") + " to derive " + code("observed_touches") + " from staged files, and commit once with " + code("Foreman: " + id) + " as the final message line. If no commit is allowed, omit staged and record observed files explicitly.";
+  const closeCall = submodule && !investigation && destination !== "agent"
+    ? jsonCommand("roadmap.js", "update-status", { id, status: "<status>", commit: "<the submodule commit sha>", notes: "<observed findings>" })
+    : jsonCommand("roadmap.js", "update-status", { id, status: "<status>", notes: "<observed findings>", add_touches: investigation ? [] : ["<observed files>"] });
   const checkStep = "After recording the close, verify the lifecycle checkpoint:\nCommand: "
     + code(pluginCommand("../hooks/codex-task.js", "check --id " + shellQuote(id)))
     + "\nA failure means the entry is still open; resolve it before claiming closure. Read and act on the returned discovery policy before reporting completion; a successful checkpoint does not mean that observed out-of-scope findings have been reviewed."
@@ -1331,6 +1364,7 @@ function assemble(root, input) {
         investigation: Boolean(judgment.question),
         askLesson: isEntry && readLedger(root).enabled,
         host,
+        submodule: plannedSubmodule(root, record.planned_touches),
       })
     : "";
 

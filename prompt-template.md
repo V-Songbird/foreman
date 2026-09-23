@@ -915,6 +915,16 @@ explicitly authorized decision artifact.
   recorded and the roadmap never trails uncommitted. Then mark the final
   task completed. The entry-paragraph and gate rules above are
   unchanged. When subagents help, the coordinator owns these writes.
+<!-- [Foreman: 410] -->
+- **An entry whose planned files all sit inside one submodule closes
+  there.** `craft-handoff.js` reads the submodule paths from `.gitmodules`
+  and writes that entry paragraph's close as a commit inside the
+  submodule, with `Foreman: <id>` as the final line, followed by
+  `update-status` with that commit's sha. `roadmap.js` resolves the sha in
+  the submodule and records its files with the submodule prefix. A staged
+  close at the project root would only see the gitlink, and
+  `safe-commit.js finish` refuses to stage a gitlink unless `expected`
+  names that exact path.
 - **After the last task, `onFinish` decides the branch's fate** — only if
   this run created the branch. When the run checkpointed on a pre-existing
   branch, or `branch` is `false`, skip this step entirely. `"ask"` (the

@@ -29,6 +29,7 @@ const {
   commitTrailerFor,
   isValidId,
   touchesOverlap,
+  normalizedTouch,
   ignoredPaths,
   notStagedWarning,
 } = require("./roadmap");
@@ -230,6 +231,18 @@ function worktreeDirty(root) {
   ]);
 }
 
+// [Foreman: 410] The paths among `files` that are gitlinks — a submodule's
+// pointer in the index. Staging one records whatever commit the submodule
+// sits on, so a close whose work lives inside a submodule would land its
+// trailer on a superproject commit.
+function gitlinksIn(root, files) {
+  if (!files.length) return [];
+  return git(root, ["ls-files", "--stage", "-z", "--", ...files])
+    .split("\0")
+    .filter((line) => line.startsWith("160000 "))
+    .map((line) => line.slice(line.indexOf("\t") + 1).replaceAll("\\", "/"));
+}
+
 // An expected entry is an area hint, exactly as `touches` is: `src/api`
 // owns every file beneath it. Same normalized, prefix-aware comparison
 // next-candidates uses for collisions, so one rule covers both.
@@ -345,6 +358,24 @@ function finishUnit(root, options) {
     (file) => isSharedLedger(file) && !(roadmapClose && file === ROADMAP_FILE)
   );
   if (!changed.length) return { ok: false, reason: "no_task_changes", baseline };
+
+  // [Foreman: 410] A gitlink is staged only when `expected` names that exact
+  // path. An area hint is not enough — `lib/a.js` overlaps `lib` in both
+  // directions — and neither is --allow-unexpected. Nothing is staged yet.
+  const unnamedLinks = gitlinksIn(root, changed).filter(
+    (file) => !expected.some((area) => normalizedTouch(area) === normalizedTouch(file))
+  );
+  if (unnamedLinks.length) {
+    return {
+      ok: false,
+      reason: "gitlink_not_expected",
+      baseline,
+      expected,
+      gitlinks: unnamedLinks,
+      staged: false,
+      error: `${unnamedLinks.join(", ")} is a submodule: commit the work inside it and close the entry with update-status and that commit, or name the exact path in expected to stage its pointer`,
+    };
+  }
 
   // [Foreman: 335] A declared roadmap close in a private roadmap: git ignores
   // ROADMAP.jsonl, so neither diff nor ls-files ever lists it, nothing here
@@ -491,6 +522,10 @@ error; a refusal is a successful call reporting ok:false).
             baseline, when nothing changed, or when a changed file matches
             no expected entry -- unexpected_files names them. Re-run with
             --allow-unexpected only after the user approved those files.
+            A changed submodule gitlink is refused as gitlink_not_expected
+            unless expected names that exact path; neither an area hint
+            nor --allow-unexpected stages one. Work inside a submodule
+            commits there and closes with update-status commit:<sha>.
             --no-commit stages and stops, for the close-in-commit flow:
             finish --no-commit, then update-status staged:true, then one
             git commit carrying the returned trailer.
