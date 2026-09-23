@@ -83,7 +83,11 @@ node scripts/git-hooks/check-readme-nav.js
 
 Tests give each script or hook they spawn 30 seconds. On a heavily loaded
 machine, set `FOREMAN_TEST_SPAWN_TIMEOUT_MS` to a larger number of
-milliseconds to raise that limit; a smaller value is ignored.
+milliseconds to raise that limit; a smaller value is ignored. The test
+helpers stretch the suite's other time bounds by the same factor, and pass it
+to the scripts they run as `FOREMAN_TEST_TIME_SCALE`, a test-only variable
+that lengthens the symbol chain's time budget and never shortens it. Leave it
+unset outside the suite.
 
 PRs that change script behavior without updating tests will not be merged. Preserve meaningful assertions when adapting a host-specific test, and test observable behavior and edge cases, not only new wording. Do not install anything, or write a user's marketplace or configuration, as part of a test.
 

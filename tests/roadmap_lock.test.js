@@ -8,7 +8,13 @@ const os = require("node:os");
 const path = require("node:path");
 
 // Loaded first: it clears inherited host variables before any child runs Foreman.
-require("./helpers");
+const { TIME_SCALE } = require("./helpers");
+
+// [Foreman: 566] Every time bound below stretches with the suite's spawn limit
+// (TIME_SCALE is 1 by default), so a loaded machine slows these tests instead
+// of failing them. The lock's own defaults are untouched.
+const TEST_TIMEOUT_MS = 10000 * TIME_SCALE;
+const CHILD_WAIT_MS = 2000 * TIME_SCALE;
 
 const {
   lockPathForRoot,
@@ -120,7 +126,7 @@ describe("withRoadmapLock", () => {
     assert.deepEqual(activeClaims(expectedLockPath), []);
   });
 
-  test("serializes concurrent child processes without losing an update", { timeout: 10000 }, async () => {
+  test("serializes concurrent child processes without losing an update", { timeout: TEST_TIMEOUT_MS }, async () => {
     const project = makeTemporaryDirectory("foreman-lock-shared");
     const counterPath = path.join(project, "counter.txt");
     const modulePath = path.resolve(__dirname, "../scripts/roadmap-lock.js");
@@ -135,11 +141,11 @@ describe("withRoadmapLock", () => {
         const value = Number(fs.readFileSync(counter, "utf8"));
         Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 75);
         fs.writeFileSync(counter, String(value + 1), "utf8");
-      });
+      }, { waitMs: Number(process.argv[4]) });
     `;
 
     const children = Array.from({ length: 5 }, () =>
-      spawn(process.execPath, ["-e", worker, modulePath, project, counterPath], {
+      spawn(process.execPath, ["-e", worker, modulePath, project, counterPath, String(CHILD_WAIT_MS)], {
         stdio: ["ignore", "ignore", "pipe"],
       })
     );
@@ -151,7 +157,7 @@ describe("withRoadmapLock", () => {
     assert.deepEqual(activeClaims(lockPathForRoot(project)), []);
   });
 
-  test("roadmap mutation commands automatically share the same lock", { timeout: 10000 }, async () => {
+  test("roadmap mutation commands automatically share the same lock", { timeout: TEST_TIMEOUT_MS }, async () => {
     const project = makeTemporaryDirectory("foreman-lock-roadmap");
     const roadmapModule = path.resolve(__dirname, "../scripts/roadmap.js");
     const worker = `
@@ -196,7 +202,7 @@ describe("withRoadmapLock", () => {
     assert.deepEqual(activeClaims(lockPath), []);
   });
 
-  test("serializes contenders recovering the same abandoned owner", { timeout: 10000 }, async () => {
+  test("serializes contenders recovering the same abandoned owner", { timeout: TEST_TIMEOUT_MS }, async () => {
     const project = makeTemporaryDirectory("foreman-lock-recovery-race");
     const lockPath = lockPathForRoot(project);
     const counterPath = path.join(project, "counter.txt");
@@ -218,10 +224,10 @@ describe("withRoadmapLock", () => {
         const value = Number(fs.readFileSync(counter, "utf8"));
         Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 60);
         fs.writeFileSync(counter, String(value + 1), "utf8");
-      }, { waitMs: 4000, retryMs: 5 });
+      }, { waitMs: Number(process.argv[4]), retryMs: 5 });
     `;
     const children = Array.from({ length: 6 }, () =>
-      spawn(process.execPath, ["-e", worker, modulePath, project, counterPath], {
+      spawn(process.execPath, ["-e", worker, modulePath, project, counterPath, String(2 * CHILD_WAIT_MS)], {
         stdio: ["ignore", "ignore", "pipe"],
       })
     );
@@ -488,6 +494,6 @@ describe("withRoadmapLock", () => {
 
     const elapsed = Date.now() - startedAt;
     assert.ok(elapsed >= 50, `wait returned too early after ${elapsed}ms`);
-    assert.ok(elapsed < 500, `wait exceeded its short bound: ${elapsed}ms`);
+    assert.ok(elapsed < 500 * TIME_SCALE, `wait exceeded its short bound: ${elapsed}ms`);
   });
 });

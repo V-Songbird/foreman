@@ -22,6 +22,13 @@ for (const key of Object.keys(process.env)) {
   if (INHERITED_HOST_ENV.test(key)) delete process.env[key];
 }
 
+// [Foreman: 566] The same slack for every other time bound a test sets or a
+// test-driven script keeps: 1 by default, and larger as the spawn limit rises,
+// never smaller. Scripts read it as FOREMAN_TEST_TIME_SCALE, a test-only
+// variable, so a child and an in-process call see the same scale.
+const TIME_SCALE = SPAWN_TIMEOUT_MS / 30000;
+if (TIME_SCALE > 1) process.env.FOREMAN_TEST_TIME_SCALE = String(TIME_SCALE);
+
 // One private temp directory per test process, removed when the process
 // exits. TEMP, TMP and TMPDIR point at it, so os.tmpdir() in every test file
 // that loads this module, and in every hook or script a test spawns, lands
@@ -156,4 +163,5 @@ module.exports = {
   HOOKS_DIR,
   SCRIPTS_DIR,
   SPAWN_TIMEOUT_MS,
+  TIME_SCALE,
 };

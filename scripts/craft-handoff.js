@@ -642,6 +642,13 @@ const CHAIN_KEEP = 3;
 const CHAIN_TITLE = 40;
 const CHAIN_MAX_CHARS = 900;
 const CHAIN_TIME_BUDGET_MS = 6000;
+// [Foreman: 566] Test-only: the suite's helpers set FOREMAN_TEST_TIME_SCALE
+// when a loaded machine raises FOREMAN_TEST_SPAWN_TIMEOUT_MS. It can only
+// stretch the budget and each call's timeout, never shorten them, and a user's
+// session never sets it.
+function chainTimeScale() {
+  return Math.max(1, Number(process.env.FOREMAN_TEST_TIME_SCALE) || 1);
+}
 // Same closing clause as <prior_work>'s header: a chain line reads as a list
 // of past decisions, and the frame has to say they are history.
 const CHAIN_HEADER =
@@ -686,7 +693,8 @@ function symbolChainText(root, record, files, history) {
     const flat = typeof text === "string" ? text.replace(/\s+/g, " ").trim() : "";
     return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
   };
-  const deadline = Date.now() + CHAIN_TIME_BUDGET_MS;
+  const scale = chainTimeScale();
+  const deadline = Date.now() + CHAIN_TIME_BUDGET_MS * scale;
   const lines = [];
   let total = CHAIN_HEADER.length;
   for (const { name, file } of pairs) {
@@ -694,7 +702,7 @@ function symbolChainText(root, record, files, history) {
     // the end gets only what is left of it, not its full own timeout.
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;
-    const shapers = symbolShapers(root, file, name, { timeout: Math.min(SYMBOL_LOG_TIMEOUT_MS, remaining) });
+    const shapers = symbolShapers(root, file, name, { timeout: Math.min(SYMBOL_LOG_TIMEOUT_MS * scale, remaining) });
     if (!shapers || !shapers.length) continue;
     // Newest first, deduped, and never the task's own id — a resumed task
     // reading "shaped by you" learns nothing.
