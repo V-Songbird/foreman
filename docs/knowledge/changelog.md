@@ -79,6 +79,44 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   `installPath` in `~/.claude/plugins/installed_plugins.json`, or the
   `--plugin-dir` directory. A clipboard handoff carries the same pointer for a
   path that went stale after an update.
+- When Claude Code loads Foreman from a directory rather than from the
+  plugins cache, as with `--plugin-dir`, the session-start hook names that
+  root in one `[Foreman] Plugin root:` line, with or without a roadmap. The
+  handoff's root sentence points at that line first. An installed Foreman
+  adds no line.
+- A handoff keeps `${CLAUDE_PLUGIN_ROOT}` as written in the user's own text:
+  the entry, the judgment, and the history and lessons it quotes. A Claude
+  Code plugin project's why and steps can name the variable for its own
+  hooks. A clipboard handoff resolves only Foreman's own paths, and the root
+  sentence sits where Foreman first names its own root.
+- Task and clipboard handoffs outside a Workflow stage carry a keep-going
+  paragraph: keep working until the goal is met, and pause only for a
+  destructive action, a real scope change or input only the user can give.
+  Agent handoffs keep their own autonomy paragraph.
+- `check-prompt.js` fails such a task or clipboard prompt without that
+  paragraph, which opens "Keep going until the goal above is met:". A
+  hand-assembled prompt that passed 3.1.0's gate fails until it carries the
+  paragraph. Prompts from `craft-handoff.js` already do.
+- A background agent's autonomy paragraph follows the Prompting Claude Fable
+  5.1 page. The agent does not ask permission before doing the work, retries
+  after errors, gathers missing information itself, keeps going in a long
+  session and checks the evidence before a command that changes system state.
+- The closing of every handoff opens "Don't reason in prose between tool
+  calls." instead of asking the session to reason through its approach
+  first.
+- A clipboard handoff with several checks tells a session without
+  `TaskCreate` and `TaskUpdate`, such as the desktop app, to say once that the
+  tasks could not be tracked. It still works the checks in order with every
+  checkpoint.
+
+### Codex
+
+- A handoff whose user text names `${CLAUDE_PLUGIN_ROOT}` passes the gate.
+  The gate still refuses the variable in Foreman's own commands, and
+  `check-prompt.js --host codex` on a finished prompt still refuses it
+  anywhere. Antigravity handoffs, which take the Codex form, behave the same.
+- Review between increments offers Accept, Request changes and Pause in
+  English only. The Spanish labels that followed them are gone.
 
 ### Every host
 
@@ -104,6 +142,30 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   handoff commits inside that submodule and records that commit.
   `safe-commit.js finish` no longer stages a submodule's gitlink unless its
   `expected` list names that exact path.
+- A split run, and a clipboard handoff's checkpoint embed, make only the
+  close the entry paragraph names. For a submodule entry each checkpoint
+  commits inside the submodule, and for a git-ignored roadmap the last task
+  commits before it closes. A run no longer gets two conflicting closes.
+- A staged close commits all pending roadmap bookkeeping: `ROADMAP.jsonl`,
+  `.foreman/notes.jsonl` and `.foreman/archive.jsonl`, each when it is
+  pending and not ignored. The next task's `safe-commit.js finish` no longer
+  refuses a lesson left pending, an archive move reaches the commit, and
+  `begin` no longer calls the tree dirty for a new archive file.
+- A requested number of split tasks is met by merging neighbouring rows,
+  never by splitting one. A merged task keeps its first row's subject, and a
+  count at or above the number of rows keeps one task per row.
+- A handoff crafted without a goal opens on the entry's title and its "Done
+  when" sentence instead of "complete the task". A title that starts with
+  "Implement" or "Decide" is no longer doubled in the request line.
+- The gate warns on a line that asks the session to think harder or step by
+  step. Effort is the control, and such a line only slows the first reply.
+- Opening a file serves its lessons by the handoff's rules: file names only
+  when Foreman cannot tell whether a lesson is stale, and nothing for a
+  lesson whose own text names a file that changed under it.
+- A pick reads only the instructions its case needs. Accepting, resuming,
+  reconciling, the ledger question, each destination and each host's rules
+  load when they come up, and a routed pick, add or status skips the roadmap
+  menu. A pick no longer asks for the destination when the user named it.
 - Duplicate checks, pick hints and the doctor's similar-title finding count
   words in every script, not ASCII only, so an accented or Cyrillic title
   keeps its words whole. Chinese and Japanese text without spaces still
