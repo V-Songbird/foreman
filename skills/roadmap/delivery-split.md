@@ -9,15 +9,20 @@ never re-split by hand. Work them in order; each row's check verifies that
 row's own work.
 
 A fixed number of tasks the user asked for, in the request or as the answer to
-the destination question, is honored: the split then cuts into that many
-slices at whatever verification boundaries exist instead of one per row. Don't
+the destination question, is honored by merging, never by splitting: with
+fewer tasks than rows, join neighbouring rows into that many tasks, as even in
+size as the rows allow, earlier tasks taking any extra row. A merged task
+keeps its first row's subject and joins its rows' descriptions in order, so
+row 1's full prompt still opens the first task and the entry paragraph still
+closes the last. A count at or above the number of rows keeps one task per
+row: the verification boundaries are the only places a split can cut. Don't
 add a confirmation question — the created rows are the preview (in Claude Code,
 a wrong one is removed with `TaskUpdate` `status: "deleted"`).
 
-- In Claude Code, one `TaskCreate` per row, in order (each row's own
-  `subject`/`description`, plus its own present-continuous `activeForm`), each
-  chained to the previous one with `TaskUpdate` `addBlockedBy: ["<previous
-  task's id>"]`; `TaskUpdate` per row as you go.
+- In Claude Code, one `TaskCreate` per row or merged task, in order (each
+  row's own `subject`/`description`, plus its own present-continuous
+  `activeForm`), each chained to the previous one with `TaskUpdate`
+  `addBlockedBy: ["<previous task's id>"]`; `TaskUpdate` per row as you go.
 - In Codex, keep that order with a supported plan tool or an explicit local
   sequence; there is no assumed native task-dependency API. When
   `reviewEachIncrement:true` is present, follow the

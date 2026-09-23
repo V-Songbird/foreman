@@ -858,8 +858,8 @@ Code, `hooks/task-completed.js` gates every completing task whose
 description names an entry, so repeating it would demand the entry close
 while siblings are still pending; `hooks/task-created.js` still opens the
 entry the moment that last row is created, before any work starts). A fixed
-number (the execution-mode question's free-text answer) cuts into that many
-slices the same way.
+number of tasks the user asks for merges neighbouring rows into that many, as
+`skills/roadmap/delivery-split.md` says; it never cuts a row.
 
 The crafting skill's own job is only to turn each returned row into a
 tracked unit, in order. Claude Code: one `TaskCreate` per row, chaining every

@@ -386,6 +386,23 @@ describe('task split — entry paragraph on the last row only', () => {
     }
   });
 
+  // [Foreman: 560] A requested task count is met by merging neighbouring rows at
+  // delivery, never by re-splitting them: the script keeps one row per check,
+  // with the full prompt only on row 1 and the entry paragraph only last.
+  test('a requested task count merges neighbouring rows and never cuts one', () => {
+    const skill = fs.readFileSync(path.join(SCRIPTS_DIR, '..', 'skills', 'roadmap', 'delivery-split.md'), 'utf-8').replace(/\s+/g, ' ');
+    assert.match(skill, /is honored by merging, never by splitting/);
+    assert.match(skill, /row 1's full prompt still opens the first task and the entry paragraph still closes the last/);
+    assert.match(skill, /A count at or above the number of rows keeps one task per row/);
+    assert.doesNotMatch(skill, /cuts into that many slices/);
+    writeRoadmap(project, [entryFields()]);
+    const verification = [1, 2, 3].map((n) => ({ run: `npm test -- part${n}`, expected: 'pass', goal: `slice ${n}` }));
+    const { json } = run(project, { entry: '001', destination: 'task', split: true, judgment: goodJudgment({ verification }) });
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.deepEqual(json.tasks.map((row) => row.description.includes('<task_context>')), [true, false, false]);
+    assert.deepEqual(json.tasks.map((row) => row.description.includes('ROADMAP.jsonl entry `001`')), [false, false, true]);
+  });
+
   test('a single verification pair still produces one row, carrying both the full prompt and the entry paragraph', () => {
     writeRoadmap(project, [entryFields()]);
     const { json } = run(project, {

@@ -42,8 +42,8 @@ skill requires it:
   free-text answer itself.
 
 A free-text answer naming the destination is honored, and so is a fixed number
-of tasks, which [delivery-split.md](delivery-split.md) cuts into that many
-slices.
+of tasks, which [delivery-split.md](delivery-split.md) meets by merging
+neighbouring rows.
 
 ## Probe the tree before asking
 
