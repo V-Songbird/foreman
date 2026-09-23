@@ -57,6 +57,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
 
 ### Claude Code
 
+- Foreman now needs Claude Code 2.1.147 or later. Its hooks use the exec form
+  Claude Code reads from 2.1.139, and the commit hook's `PowerShell(git *)` rule
+  matches only from 2.1.147, so an older version misses the commit hook after a
+  PowerShell `git commit`.
 - Hooks are registered in exec form, `node` with the script as its one
   argument, so they start without a shell on every platform. The
   `commandWindows` strings, which current Claude Code does not read, are
