@@ -1495,7 +1495,7 @@ function assemble(root, input) {
   // instead, so its sentence covers that path going stale.
   const rootResolver = destination === "clipboard" ? CLIPBOARD_ROOT_RESOLVER : ROOT_RESOLVER;
 
-  function buildParts(includeEntry) {
+  function buildParts(includeEntry, { marked = false } = {}) {
     const parts = [];
     if (host === "codex") parts.push(`<codex_runtime>\n${canonical.codexRuntime}\n</codex_runtime>`);
     if (recoveryBlock) parts.push(recoveryBlock);
@@ -1549,7 +1549,8 @@ function assemble(root, input) {
     else if (includeOutputFormat) parts.push(`<output_format>\n${defaultOutputFormat}\n</output_format>`);
     const firstRoot = parts.findIndex((part) => part && part.includes(CLAUDE_ROOT));
     if (firstRoot !== -1) parts.splice(firstRoot, 0, rootResolver);
-    return pastedPaths(parts.filter(Boolean).join("\n\n") + "\n").split(USER_ROOT).join(CLAUDE_ROOT);
+    const text = pastedPaths(parts.filter(Boolean).join("\n\n") + "\n");
+    return marked ? text : text.split(USER_ROOT).join(CLAUDE_ROOT);
   }
 
   const basePrompt = buildParts(false);
@@ -1564,7 +1565,17 @@ function assemble(root, input) {
     ...(workflowStage ? { workflowStage: true } : {}),
     ...(isEntry ? { entry: entryId, resume: Boolean(input.resume) } : {}),
   };
-  const gateResult = checkPrompt(prompt, gateOpts);
+  // [Foreman: 565] The gate reads the prompt with the user's text still held
+  // behind USER_ROOT, so a plugin-root placeholder it finds is one Foreman
+  // wrote: Codex refuses those, while a user's why or steps may name the
+  // variable for their own plugin. What the gate reports quotes the real text.
+  const unmark = (value) => (typeof value === "string" ? value.split(USER_ROOT).join(CLAUDE_ROOT) : value);
+  const rawGate = checkPrompt(buildParts(true, { marked: true }), gateOpts);
+  const gateResult = {
+    ...rawGate,
+    errors: rawGate.errors.map((e) => ({ ...e, error: unmark(e.error), example: unmark(e.example) })),
+    warnings: rawGate.warnings.map(unmark),
+  };
   const gate = { ok: gateResult.errors.length === 0, profile: gateResult.profile, errors: gateResult.errors, warnings: gateResult.warnings };
 
   let tasks;

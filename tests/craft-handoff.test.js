@@ -525,6 +525,20 @@ describe('${CLAUDE_PLUGIN_ROOT} travels literal in a Claude Code task or agent h
     }
   });
 
+  // [Foreman: 565] Codex refuses a plugin-root placeholder in the lines Foreman
+  // writes; the user's own text may name the variable for their plugin.
+  test('a Codex handoff whose why names ${CLAUDE_PLUGIN_ROOT} passes the gate', () => {
+    const why = 'hooks.json runs ${CLAUDE_PLUGIN_ROOT}/hooks/x.js';
+    writeRoadmap(project, [entryFields({ why })]);
+    for (const destination of ['task', 'agent', 'clipboard']) {
+      const { json } = run(project, { entry: '001', destination, host: 'codex', judgment: goodJudgment() });
+      assert.equal(json.ok, true, `${destination}: ${JSON.stringify(json.gate)}`);
+      assert.ok(json.prompt.includes(`Why this task exists: ${why}`), destination);
+      assert.ok(!json.prompt.includes('${CLAUDE_PLUGIN_ROOT}/scripts/'), destination);
+      assert.ok(!json.prompt.includes('\u0000'), destination);
+    }
+  });
+
   test('a clipboard handoff quotes a root with a space', () => {
     writeRoadmap(project, [entryFields()]);
     const plugin = path.join(makeTmpProject(), 'Foreman plugin');
