@@ -168,14 +168,14 @@ Codex functional tests establish specific behaviors, not a speed, cost or correc
 *Results can vary between runs.*
 
 <!-- foundry:hero -->
-<p align="center"><img src="assets/hero.svg" alt="Foreman original product visualization" width="700"></p>
+<p align="center"><img src="assets/hero.svg" alt="Nothing gets lost: one task id, 019, links its roadmap entry, the code anchor in the source, its decision note and its commit in git history." width="700"></p>
 
 The task trail above illustrates the workflow. The recorded demo below comes from Claude Code; it is not a Codex measurement.
 
 <details>
 <summary>Watch the recorded Claude Code demo</summary>
 
-<p align="center"><img src="assets/demo.svg" alt="Recorded Claude Code demonstration of Foreman" width="700"></p>
+<p align="center"><img src="assets/demo.svg" alt="A recorded session on a small command-line notes tool with three tasks on its roadmap. The user asks what is next, Foreman ranks two tasks with a reason each and recommends saving notes to a file, the user copies the prompt to the clipboard, and a fresh session receives the handoff prompt." width="700"></p>
 
 </details>
 <!-- /foundry:hero -->
