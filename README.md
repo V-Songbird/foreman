@@ -38,15 +38,15 @@ The roadmap lives in your project. Foreman reads it, checks the relevant context
 
 | You want to | Outcome |
 | --- | --- |
-| Add this to the roadmap | Requested work recorded with its reason and boundaries |
-| Where are we? | Status, blockers and work waiting for acceptance |
-| What's next? | A recommended task and a choice of where to run it |
+| Add work to the roadmap | Requested work recorded with its reason and boundaries |
+| See where things stand | Status, blockers and work waiting for acceptance |
+| Choose the next task | A recommended task and a choice of where to run it |
 | Check whether the plan still matches the code | A grounded review before choosing work |
-| Craft a prompt for this | A checked handoff without requiring a roadmap entry |
+| Get a prompt for one-off work | A checked handoff without requiring a roadmap entry |
 
 ### How to ask
 
-Plain sentences like the ones above work in every assistant. If you would rather call Foreman by name, each assistant has its own way:
+Plain sentences work in every assistant: "add this to the roadmap", "where are we?", "what's next?", "check whether the plan still matches the code" or "craft a prompt for this". If you would rather call Foreman by name, each assistant has its own way:
 
 | You want to… | Claude Code | Codex | Antigravity |
 | --- | --- | --- | --- |
@@ -105,15 +105,15 @@ agy plugin uninstall foreman
 agy plugin install "<path-to-foundry>/foreman"
 ```
 
-### Switching between them
-
-Existing roadmap data can be reused. Every assistant reads and writes the same `ROADMAP.jsonl` and `.foreman/` files, so one project can move between them. Claude Code needs Foreman 2.7.0 or later to read entries that Codex wrote, and 3.2.0 or later for entries Antigravity wrote.
-
 ## Good to know
 
 Foreman is for a solo developer. It does not become a team tracker, code-review service, unattended scheduler or workflow server. Your project keeps its own data. The optional ledger is off until requested; disabling it deletes no existing notes.
 
 A lesson's verdict says whether its files changed since it was recorded, not whether the lesson was ever right, so a wrong lesson keeps being served until you retire it.
+
+### Switching between assistants
+
+Existing roadmap data can be reused. Every assistant reads and writes the same `ROADMAP.jsonl` and `.foreman/` files, so one project can move between them. Claude Code needs Foreman 2.7.0 or later to read entries that Codex wrote, and 3.2.0 or later for entries Antigravity wrote.
 
 ### Differences between hosts
 
