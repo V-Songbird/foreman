@@ -232,7 +232,7 @@ describe("attention cost — trial log", () => {
       { event: "pick_overridden", ts: DATE, session: "bbb", chosen_rank: 3 },
       { event: "question_asked", ts: DATE, session: "bbb", flow: "pick" },
       { event: "commit_interrupted", ts: DATE, session: "bbb", hook: "safe-commit", reason_class: "unexpected_files" },
-      { event: "recovery_attempted", ts: DATE, session: "bbb", kind: "failed-verification-retry", success: false },
+      { event: "recovery_attempted", ts: DATE, session: "bbb", kind: "reinit-snapshot", success: false },
     ]));
     const metrics = trialMetrics(log);
 
@@ -252,7 +252,7 @@ describe("attention cost — trial log", () => {
     assert.equal(metrics.recovery_success.rate, 0.5);
     assert.deepEqual(metrics.recovery_success.by_kind, {
       "resume-in-progress": { attempts: 1, succeeded: 1 },
-      "failed-verification-retry": { attempts: 1, succeeded: 0 },
+      "reinit-snapshot": { attempts: 1, succeeded: 0 },
     });
   });
 

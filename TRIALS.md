@@ -21,19 +21,17 @@ four attention and recovery ones, and both report `null` with
 `"no_trial_log"` when there is none.
 
 <!-- [Foreman: 208] -->
-**Nearly all of it records today, on every host.**
+**All of it records today, on every host.**
 [`scripts/trial-log.js`](scripts/trial-log.js) is the writer. Every event a
 script or hook already sees is wired: it costs no skill instruction, because
 those calls were being made anyway. The skills write the events only the model
 can see — which menu row a user chose, and that a question was asked: the
 `pick_accepted`, `pick_overridden`, `question_asked`, `init_started`,
 `init_completed` and `reinit-snapshot` rows below. A question the session
-skipped is never logged. One kind is still not written,
-`failed-verification-retry`, which is why `recovery_attempted` is marked
-partly in the tables. Claude Code, Codex and Antigravity write the same events
-to the same log; where an event comes from a different place on each host, the
-text below names each. Antigravity follows the Codex lifecycle, so an event
-the text credits to `hooks/codex-task.js` comes from there too.
+skipped is never logged. Claude Code, Codex and Antigravity write the same
+events to the same log; where an event comes from a different place on each
+host, the text below names each. Antigravity follows the Codex lifecycle, so an
+event the text credits to `hooks/codex-task.js` comes from there too.
 
 ## What a trial may record
 
@@ -107,11 +105,12 @@ assuming it away.
 | ✓ | `first_pick` | `seconds_since_init` (integer, or `null`), `sessions_since_init` (integer, or `null`) | The first handoff of this project was delivered |
 | ✓ | `question_asked` | `flow` (one of `init`, `pick`, `add`, `correct`, `status`, `survey`) | One question interaction was put to the user: an `AskUserQuestion` call in Claude Code, a question-tool call or a plain-text question in Codex, an `ask_question` call in Antigravity |
 | ✓ | `commit_interrupted` | `hook` (one of `safe-commit`, `post-commit`, `task-completed`; only Claude Code writes `task-completed`), `reason_class` (see below) | A Foreman commit path stopped and handed the decision back |
-| partly | `recovery_attempted` | `kind` (one of `reinit-snapshot`, `resume-in-progress`, `failed-verification-retry`), `success` (boolean) | A recovery path ran to a definite outcome |
+| ✓ | `recovery_attempted` | `kind` (one of `reinit-snapshot`, `resume-in-progress`), `success` (boolean) | A recovery path ran to a definite outcome |
 
-`recovery_attempted` records `resume-in-progress` today, both halves, and
-`reinit-snapshot` from the init skill. `failed-verification-retry` sits inside
-the destination session's fix loop and is not written yet.
+`recovery_attempted` records `resume-in-progress`, both halves, and
+`reinit-snapshot` from the init skill. On 2026-09-22 the owner retired a
+third kind, `failed-verification-retry`: nothing wrote it, and writing it
+would have added text to every handoff.
 
 <!-- [Foreman: 208] -->
 `first_pick`'s `seconds_since_init` is always `null` as recorded today, and
@@ -281,13 +280,6 @@ nothing else:
   failure is what stops one old interruption from turning every later close on
   the project — including tasks that ran start to finish — into a recorded
   recovery.
-- **`recovery_attempted`, `failed-verification-retry`** — not written yet. It belongs to the destination
-  session, at the bounded fix loop `prompt-template.md`'s verification block
-  fixes ("after two failed fix attempts, stop and report"): `success: true`
-  when a retry made the command pass, `false` when the ceiling was reached.
-  Only a tracked destination can record it — a clipboard handoff runs where
-  this log does not exist, so its retries are invisible and the metric is a
-  floor, never a total.
 
 <!-- [Foreman: 283] -->
 ### Ledger events
@@ -342,9 +334,9 @@ the same log:
   problem, so the breakdown is the number that matters and the aggregate is
   context.
 - **`recovery_success`** — `recovery_attempted` with `success: true` over all
-  of them, with `by_kind` giving reinitialization, resume, and failed
-  verification their own attempt/success pairs. The product strategy asks about
-  those three separately and the aggregate hides which one is failing.
+  of them, with `by_kind` giving reinitialization and resume their own
+  attempt/success pairs. The product strategy asks about each recovery path
+  separately, and the aggregate hides which one is failing.
 
 The three derivable metrics in the same report — task-to-commit accuracy,
 dirty-file capture, and prompt overhead — need no trial and are computed from
@@ -410,10 +402,10 @@ single project can supply:
   floor.** They share the recommendation metrics' denominator, so they become
   reportable at exactly the same moment and no earlier.
 - **`recovery_success` has no volume floor worth setting.** Recovery events are
-  rare by design — a project that never crashes, never gets interrupted, and
-  never fails a verification produces none, and that is a good outcome rather
-  than a failed trial. Report `attempts` and `by_kind` raw at any count, and a
-  rate only above 10 attempts of a single kind.
+  rare by design — a project that never crashes and never gets interrupted
+  produces none, and that is a good outcome rather than a failed trial. Report
+  `attempts` and `by_kind` raw at any count, and a rate only above 10 attempts
+  of a single kind.
 - **Success.** The product strategy again sets no numeric threshold, and this
   document again does not invent one. The decisions the numbers feed are
   already written down. The open question these answer is whether "users accept
@@ -424,7 +416,7 @@ single project can supply:
   the derivable task-to-commit accuracy metric's problem, not the commit
   path's. For recovery, the exit criteria are the bar: "reinitialization has a
   confirmed recovery path" and "interrupted work has a tested, understandable
-  recovery path" — `by_kind` says which of the three is not there yet.
+  recovery path" — `by_kind` says which of the two is not there yet.
 - **Prompt overhead needs no trial at all**, and its decision is already
   stated: "the correct product response is likely a short default handoff and
   an optional reinforced handoff, not indiscriminate prompt reduction". The

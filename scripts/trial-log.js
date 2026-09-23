@@ -73,7 +73,7 @@ const REASON_CLASSES = [
   "post_commit_attestation_failed",
   "verification_declined",
 ];
-const RECOVERY_KINDS = ["reinit-snapshot", "resume-in-progress", "failed-verification-retry"];
+const RECOVERY_KINDS = ["reinit-snapshot", "resume-in-progress"];
 // Why a close's lesson did or did not reach the store. Fixed tokens only,
 // never the prose the user typed and never a path out of it — the whole
 // question this answers is what fraction of closes record a lesson at all,
