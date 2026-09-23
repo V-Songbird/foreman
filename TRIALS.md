@@ -101,7 +101,7 @@ assuming it away.
 | --- | --- | --- | --- |
 | ✓ | `session_start` | — | A main session started on a project that has a roadmap |
 | ✓ | `init_started` | — | The init skill asked its first question, or began writing without one |
-| ✓ | `init_completed` | `tasks` (integer, entries written) | The init skill's write phase finished and committed |
+| ✓ | `init_completed` | `tasks` (integer, entries written) | The init skill's write phase finished and committed, or, in a private roadmap, after the write |
 | ✓ | `first_pick` | `seconds_since_init` (integer, or `null`), `sessions_since_init` (integer, or `null`) | The first handoff of this project was delivered |
 | ✓ | `question_asked` | `flow` (one of `init`, `pick`, `add`, `correct`, `status`, `survey`) | One question interaction was put to the user: an `AskUserQuestion` call in Claude Code, a question-tool call or a plain-text question in Codex, an `ask_question` call in Antigravity |
 | ✓ | `commit_interrupted` | `hook` (one of `safe-commit`, `post-commit`, `task-completed`; only Claude Code writes `task-completed`), `reason_class` (see below) | A Foreman commit path stopped and handed the decision back |
@@ -225,8 +225,9 @@ nothing else:
   `init_started` with no `init_completed`, which is the correct record of an
   abandoned setup.
 - **`init_completed`** — the same file's Write phase, after the `add` loop and
-  the commit of the files init wrote. `tasks` is how many `add` calls
-  succeeded, not how many were drafted.
+  the commit of the files init wrote, or, in a private roadmap, after the
+  write: when git ignores every file init wrote, there is no commit to wait
+  for. `tasks` is how many `add` calls succeeded, not how many were drafted.
 - **`first_pick`** — recorded today by `scripts/craft-handoff.js`, after the
   in-process `check-prompt.js` gate passes and only when the log holds no
   earlier `first_pick`. A pick that never survived the gate is not a first
