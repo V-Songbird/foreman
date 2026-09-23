@@ -2171,6 +2171,23 @@ describe('the entry close in each roadmap mode', () => {
       assert.doesNotMatch(json.prompt, /"?staged"?:true/);
     });
 
+    // [Foreman: 554] An in-session split carries one close, on its last row.
+    test(`a git-ignored roadmap's split rows carry one sha close and no staged close, on host ${host}`, () => {
+      roadmapRepo(true);
+      const verification = [
+        { run: 'npm test', expected: 'all tests pass', goal: 'first slice' },
+        { run: 'npm run lint', expected: 'no lint errors', goal: 'second slice' },
+      ];
+      const { status, json } = run(project, { entry: '001', destination: 'task', host, split: true, judgment: goodJudgment({ verification }) });
+      assert.equal(status, 0, JSON.stringify(json));
+      assert.equal(json.tasks.length, 2);
+      const rows = json.tasks.map((row) => row.description).join('\n');
+      assert.equal(rows.split('"commit":"<the commit sha from finish>"').length, 2, 'one close across the rows');
+      assert.match(json.tasks[1].description, /git-ignores ROADMAP\.jsonl/);
+      assert.doesNotMatch(rows, /--no-commit/);
+      assert.doesNotMatch(rows, /"?staged"?:true/);
+    });
+
     test(`a tracked roadmap keeps the staged close, on host ${host}`, () => {
       roadmapRepo(false);
       const { status, json } = run(project, { entry: '001', destination: 'task', host, judgment: goodJudgment() });

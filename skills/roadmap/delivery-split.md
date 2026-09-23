@@ -41,9 +41,11 @@ checkpoints stay local and are never pushed, the roadmap-entry close, and what
 happens to the branch at the end. A branch restriction the user gave overrides
 every configured finish policy. Two things that section does not say and this
 flow does: a roadmap handoff always carries an entry, so its entry close
-always applies — stage with `safe-commit.js finish --no-commit`, close with
-`staged:true`, then commit with `Foreman: <id>` as the message's final line;
-and skip checkpointing and just work the tasks if git is unavailable.
+always applies — make exactly the close the last row's entry paragraph names,
+and no other: the staged close at the project root, the commit inside the
+submodule for an entry whose files all sit in one, or the commit before the
+close for a project that git-ignores `ROADMAP.jsonl`; and skip checkpointing
+and just work the tasks if git is unavailable.
 
 An investigation (`judgment.question`) uses split rows to collect diagnostic
 evidence: skip checkpointing, branch creation, staging, and commits; a failed

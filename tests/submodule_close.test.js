@@ -137,6 +137,37 @@ describe('the handoff close for work inside a submodule', () => {
     });
   }
 
+  // [Foreman: 554] An in-session split carries the entry paragraph on its last
+  // row, and that is the run's only close: no row stages at the project root.
+  for (const host of ['claude', 'codex']) {
+    test(`a split handoff carries only the submodule close, on host ${host}`, () => {
+      superproject();
+      const r = runNodeScript(CRAFT, [], {
+        entry: '001',
+        destination: 'task',
+        host,
+        split: true,
+        judgment: {
+          role: 'an engineer',
+          goal: 'to change the lib',
+          steps: ['Change lib/a.js.'],
+          verification: [
+            { run: 'node --version', expected: 'prints a version', goal: 'first slice' },
+            { run: 'git --version', expected: 'prints a version', goal: 'second slice' },
+          ],
+        },
+      }, env);
+      const json = JSON.parse(r.stdout);
+      assert.equal(json.ok, true, r.stdout + r.stderr);
+      assert.equal(json.tasks.length, 2);
+      const rows = json.tasks.map((row) => row.description).join('\n');
+      assert.equal(rows.split('"commit":"<the submodule commit sha>"').length, 2, 'one close across the rows');
+      assert.match(json.tasks[1].description, /git -C '?lib'? rev-parse HEAD/);
+      assert.doesNotMatch(rows, /safe-commit\.js'? finish/);
+      assert.doesNotMatch(rows, /"?staged"?:true/);
+    });
+  }
+
   test('a surface outside the submodule keeps the staged close at the root', () => {
     superproject();
     const current = roadmap(['list', '--ids', '001']).entries[0];

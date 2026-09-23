@@ -936,6 +936,11 @@ explicitly authorized decision artifact.
   them and ask the user, then re-run with `--allow-unexpected` if they
   approve), commits, and attests the result. Its `commit` is the next
   task's baseline. Never `git add -A` — the primitive owns staging.
+  For an entry whose planned files all sit inside one submodule, checkpoint
+  inside it instead: `git -C <submodule> add -- <the files this task
+  changed>`, never the submodule's gitlink at the project root, then
+  `git -C <submodule> commit` with the same `task <n>/<total>: <task subject>`
+  message. The root primitive would refuse that gitlink.
   Checkpoints always stay local, no comment — never push them.
   `onFinish` is the only step that reaches a remote, and only through
   its `Open a PR` option. In Codex, send that JSON from a UTF-8 file rather
@@ -950,7 +955,8 @@ explicitly authorized decision artifact.
   decision from the acceptance of an intermediate row. Both protocols travel
   in reviewed handoffs.
 - **A roadmap-entry close lands inside the last checkpoint commit** (when
-  the handoff carries one): stage the task's own files with
+  the handoff carries one), in the one form its entry paragraph names. For a
+  tracked roadmap outside a submodule, stage the task's own files with
   `safe-commit.js finish --no-commit`, close the entry with `staged:true`
   (observed_touches derives from the index, and the script stages ROADMAP.jsonl
   alongside), then commit with `Foreman: <id>` as the message's final
