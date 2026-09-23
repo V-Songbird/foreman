@@ -1000,6 +1000,25 @@ describe('background-agent autonomy paragraph — pause policy', () => {
       assert.ok(!json.warnings.some((w) => w.includes('think harder')), `${host} ${destination}`);
     }
   });
+
+  // [Foreman: 517] The Claude agent paragraph follows the Fable 5.1 page's
+  // reminder, and both Claude paragraphs name the same three pauses.
+  test('the Claude agent paragraph carries the Fable 5.1 additions and the shared pauses', () => {
+    writeRoadmap(project, [entryFields()]);
+    const PAUSES = 'a destructive or irreversible action, a real scope change, or input';
+    const agent = run(project, { entry: '001', destination: 'agent', host: 'claude', judgment: goodJudgment() }).json;
+    assert.equal(agent.ok, true, JSON.stringify(agent));
+    for (const line of [
+      'asking permission before doing the work is not.',
+      'That includes retrying after errors and gathering missing information yourself.',
+      'Do not stop because the context or session is long.',
+      'check that the evidence actually supports that specific action.',
+    ]) assert.ok(agent.prompt.includes(line), line);
+    assert.ok(!agent.prompt.includes('after already discussing with the user'), 'the Fable 5 wording is still shipped');
+    assert.deepEqual(agent.warnings.filter((w) => w.includes('echo its reasoning')), []);
+    const task = run(project, { entry: '001', destination: 'task', host: 'claude', judgment: goodJudgment() }).json;
+    for (const prompt of [agent.prompt, task.prompt]) assert.ok(prompt.includes(PAUSES));
+  });
 });
 
 // Reviewer style note (a): a malformed judgment field must fail loudly at

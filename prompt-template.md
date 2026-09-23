@@ -5,14 +5,27 @@
      source-b: https://code.claude.com/docs/en/sub-agents.md
      source-c: Anthropic Prompting 101 — Code w/ Claude 2025-05-22
      source-d: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1
-               The autonomy reminder, its pause policy and the reasoning_extraction
-               warning cited as source-d are quoted from its predecessor,
+               The background-agent autonomy paragraph quotes the first block
+               of its "Finish the whole task" section, with two parts left
+               out. Its stop sentence names two of the three pauses, so the
+               pause policy stands in for it. Its exception for a user who
+               asks a question or describes a problem is also left out:
+               every handoff ends in an explicit request, and its "thinking
+               out loud" trips the gate's reasoning-echo warning. The
+               section's "Delivering work" block is not carried: the page
+               allows the first block alone when prompt length matters, and
+               scope_discipline already sets a reinforced handoff's scope.
+               The pause policy and the reasoning_extraction warning cited
+               as source-d are quoted from its predecessor,
                https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5
+               The user-present paragraph is Foreman's own wording of the
+               same three pauses.
      source-e: Claude Code 2.1.214 embedded delegation guidance
      source-f: https://code.claude.com/docs/en/prompt-library.md
      source-g: https://platform.claude.com/docs/en/build-with-claude/structured-outputs.md
      source-h: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices
-               (the living reference for every current Claude model)
+               (the living reference for every current Claude model; no
+               fixed block quotes it)
      codex sources: CODEX-PROMPTING.md, checked 2026-09-06 -->
 
 The handed-off session — whether run here in this session, by a background
@@ -452,29 +465,34 @@ For a tracked task, the responsible coordinator opens the entry before work and 
 <autonomy host="claude">
 [BACKGROUND-AGENT DESTINATION — if the chosen destination is a background
 `Agent`, include the following paragraph verbatim right here. It is the
-official autonomous-operation reminder plus the pause policy source-d
-pairs it with; the agent harness carries neither (probe-confirmed), and a
+official autonomous-operation reminder plus the pause policy that lists
+its stops; the agent harness carries neither (probe-confirmed), and a
 background agent has no user to answer a question. Ship the pair — the
 reminder alone bans asking without saying when asking is still right,
 which is the one thing `scope_discipline` needs on this destination.
 Omit it for the other two destinations — an `Execute here` or pasted
 session has a user present, and takes the paragraph after this one.
 You are operating autonomously. The user is not watching in real time and
-cannot answer questions mid-task, so asking "Want me to…?" or "Shall
-I…?" will block the work. For reversible actions that follow from the
+cannot answer questions mid-task, so asking 'Want me to…?' or 'Shall
+I…?' will block the work. For reversible actions that follow from the
 original request, proceed without asking. Offering follow-ups after the
-task is done is fine; asking permission after already discussing with the
-user before doing the work is not.
+task is done is fine; asking permission before doing the work is not.
 Pause for the user only when the work genuinely requires them: a
 destructive or irreversible action, a real scope change, or input that
 only they can provide. If you hit one of these, ask and end the turn,
 rather than ending on a promise.
 Before ending your turn, check your last paragraph. If it is a plan, an
 analysis, a question outside those three pauses, a list of next steps, or
-a promise about work you have not done ("I'll…", "let me know when…"), do
-that work now with tool calls. End your turn only when the task is
-complete, you have paused for one of those three reasons, or you are
-blocked on input only the user can provide.]
+a promise about work you have not done ('I'll…', 'let me know when…'), do
+that work now with tool calls. That includes retrying after errors and
+gathering missing information yourself. Do not stop because the context
+or session is long. End your turn only when the task is complete, you
+have paused for one of those three reasons, or you are blocked on input
+only the user can provide.
+Before running a command that changes system state (such as restarts,
+deletes, or config edits), check that the evidence actually supports that
+specific action. A signal that pattern-matches to a known failure may
+have a different cause.]
 [USER-PRESENT DESTINATION — for `Execute here` or a pasted session, include
 the following paragraph verbatim right here instead. A session with a user
 present also stops mid-task to report, so this names its only pauses, as
