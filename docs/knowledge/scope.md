@@ -334,38 +334,31 @@ mutation that caused them. No second roadmap read or model derivation.
 **Exit criterion:** immediate structural consequences are available without
 another whole-roadmap reasoning pass.
 
-### Test critical-path ranking before changing it
+### Keep the unblocks-based ranking
 
-**Risk addressed:** `unblocks_total` rewards broad downstream impact. The head of the
-longest remaining dependency chain may sometimes be the more useful pick, but
-adding another ranking rule without evidence would make established behavior
-harder to explain.
+**Risk considered:** `unblocks_total` rewards broad downstream impact. The
+head of the longest remaining dependency chain can look like the more useful
+pick, but another ranking rule would make established behavior harder to
+explain.
 
-**Mechanism:**
+**Verdict:** the current ranking stays, and no critical-depth rule ships,
+neither as the first key nor as a late tie-breaker. A solo developer works
+one task at a time, so only the next pick matters, and where candidates tie
+on `unblocks_total`, direct `unblocks` already separates them.
 
-1. Implement longest-open-chain computation in the benchmark or replay layer,
-   not the production sorter.
-2. Replay real and synthetic roadmaps through:
-   - current ranking;
-   - critical-depth-first ranking;
-   - critical depth as a late tie-breaker.
-3. Record disagreement cases and judge whether the alternative clearly
-   improves the solo-developer recommendation.
-4. Ship only the smallest rule supported by the evidence, preferably an
-   internal tie-breaker.
-
-**Mechanical ownership:** if adopted, critical depth is derived at read time.
-There is no stored priority, estimate, category, or ranking configuration.
+**Mechanical ownership:** `next-candidates` in `scripts/roadmap.js` ranks by
+hint match, then `unblocks_total`, then direct `unblocks`, then no collision
+with in-progress work, then age. Every key is derived at read time. There is
+no stored priority, estimate, category, or ranking configuration.
 
 **Verification:**
 
 - dependency cycles remain rejected before ranking;
 - ranking is deterministic;
-- hint matching and collision avoidance keep their documented precedence;
-- the new rule improves measured picks rather than merely changing them.
+- hint matching and collision avoidance keep their documented precedence.
 
-**Exit criterion:** either a replay-backed ranking improvement ships, or the
-current algorithm is explicitly retained with no production change.
+**Exit criterion:** met. The current algorithm is retained with no
+production change.
 
 ### Tighten closure-note honesty without a new schema
 
