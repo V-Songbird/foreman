@@ -54,14 +54,23 @@ function buildStdin(stdinData) {
   return JSON.stringify(stdinData);
 }
 
+// [Foreman: 568] A child killed at its time limit fails its test with a
+// message naming it and the limit, rather than a parse error on empty stdout.
+function unlessTimedOut(result, label, timeout = SPAWN_TIMEOUT_MS) {
+  if (result.error && result.error.code === 'ETIMEDOUT') {
+    throw new Error(`${label} timed out after ${timeout} ms`);
+  }
+  return result;
+}
+
 /** Run a .js file by absolute path and return the raw spawnSync result. */
 function runNodeScript(fullPath, argv, stdinData, env) {
-  return spawnSync('node', [fullPath, ...(argv || [])], {
+  return unlessTimedOut(spawnSync('node', [fullPath, ...(argv || [])], {
     input: buildStdin(stdinData),
     encoding: 'utf-8',
     timeout: SPAWN_TIMEOUT_MS,
     env: { ...process.env, ...(env || {}) },
-  });
+  }), path.basename(fullPath));
 }
 
 /** Run a hook script from hooks/ and return the raw spawnSync result. */
@@ -164,4 +173,5 @@ module.exports = {
   SCRIPTS_DIR,
   SPAWN_TIMEOUT_MS,
   TIME_SCALE,
+  unlessTimedOut,
 };

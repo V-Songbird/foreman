@@ -12,7 +12,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { spawnSync } = require("node:child_process");
-const { makeTmpProject, writeRoadmap, writeConfig, runScriptRaw, runNodeScript, HOOKS_DIR } = require("./helpers");
+const { makeTmpProject, writeRoadmap, writeConfig, runScriptRaw, runNodeScript, HOOKS_DIR, SPAWN_TIMEOUT_MS, unlessTimedOut } = require("./helpers");
 const { patchPaths, projectDir } = require("../hooks/lib");
 const { commitFailed } = require("../hooks/post-commit");
 const { currentScope } = require("../hooks/codex-task");
@@ -204,7 +204,7 @@ test("native launcher passes stdin under Windows cmd and PowerShell", { skip: pr
   const env = { ...process.env, PLUGIN_ROOT: path.resolve(__dirname, "..") };
   for (const [shell, args] of [["cmd.exe", ["/d", "/s", "/c", `"${handler.commandWindows}"`]], ["powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", handler.commandWindows]]]) {
     // Codex's command_runner uses a raw outer-quoted argument for cmd /C.
-    const result = spawnSync(shell, args, { input, env, encoding: "utf-8", windowsHide: true, windowsVerbatimArguments: shell === "cmd.exe" });
+    const result = unlessTimedOut(spawnSync(shell, args, { input, env, encoding: "utf-8", timeout: SPAWN_TIMEOUT_MS, windowsHide: true, windowsVerbatimArguments: shell === "cmd.exe" }), `${shell} running the Codex hook`);
     assert.equal(result.status, 0, result.stderr);
     assert.ok(result.stdout.trim(), `${shell}: empty output (${result.stderr})`);
     assert.equal(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision, "deny", shell);

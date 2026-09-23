@@ -21,7 +21,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('node:child_process');
 
-const { runRoadmap, makeTmpProject, writeRoadmap, writeArchiveFile, initGitRepo, commitFile, SCRIPTS_DIR } = require('./helpers.js');
+const { runRoadmap, makeTmpProject, writeRoadmap, writeArchiveFile, initGitRepo, commitFile, SCRIPTS_DIR, SPAWN_TIMEOUT_MS, unlessTimedOut } = require('./helpers.js');
 const ledger = require(path.join(SCRIPTS_DIR, 'ledger.js'));
 const { today } = require(path.join(SCRIPTS_DIR, 'roadmap.js'));
 
@@ -670,11 +670,12 @@ describe('the first-relevant ask', () => {
   }
 
   function craft(project) {
-    const result = spawnSync(process.execPath, [CRAFT], {
+    const result = unlessTimedOut(spawnSync(process.execPath, [CRAFT], {
       input: JSON.stringify({ entry: '001', destination: 'clipboard', judgment: JUDGMENT }),
       encoding: 'utf-8',
+      timeout: SPAWN_TIMEOUT_MS,
       env: cleanEnv(project),
-    });
+    }), 'craft-handoff.js');
     return JSON.parse(result.stdout);
   }
 

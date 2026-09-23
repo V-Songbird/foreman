@@ -2,7 +2,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs"), path = require("node:path"), cp = require("node:child_process");
-const { makeTmpProject, writeRoadmap } = require("./helpers");
+const { makeTmpProject, writeRoadmap, SPAWN_TIMEOUT_MS, unlessTimedOut } = require("./helpers");
 const { build, main } = require("../scripts/build-windows-launchers");
 
 // Only Codex registrations are encoded launchers. hooks/hooks.json registers
@@ -47,9 +47,10 @@ test("fnm fallback works without a Node PATH entry", { skip: process.platform !=
   const input = JSON.stringify({ cwd: root, tool_name: "apply_patch", tool_input: { command: "*** Begin Patch\n*** Delete File: ROADMAP.jsonl\n*** End Patch" } });
   // [Foreman: 470] cmd.exe, PowerShell and fnm take seconds to start on a
   // loaded machine, so the bound only catches a hang; the assertions are the test.
-  const result = cp.spawnSync("cmd.exe", ["/d", "/s", "/c", `"${handler.commandWindows}"`], {
-    env, input, encoding: "utf8", windowsVerbatimArguments: true, windowsHide: true, timeout: 120000,
-  });
+  const timeout = Math.max(120000, SPAWN_TIMEOUT_MS);
+  const result = unlessTimedOut(cp.spawnSync("cmd.exe", ["/d", "/s", "/c", `"${handler.commandWindows}"`], {
+    env, input, encoding: "utf8", windowsVerbatimArguments: true, windowsHide: true, timeout,
+  }), "the Codex Windows launcher", timeout);
   assert.equal(result.status, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision, "deny");
 });

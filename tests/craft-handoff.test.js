@@ -30,7 +30,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('node:child_process');
 
-const { runNodeScript, makeTmpProject, writeRoadmap, writeArchiveFile, writeConfig, initGitRepo, commitFile, SCRIPTS_DIR } = require('./helpers.js');
+const { runNodeScript, makeTmpProject, writeRoadmap, writeArchiveFile, writeConfig, initGitRepo, commitFile, SCRIPTS_DIR, SPAWN_TIMEOUT_MS, unlessTimedOut } = require('./helpers.js');
 const { today } = require(path.join(SCRIPTS_DIR, 'roadmap.js'));
 const { TEMPLATE_PATH, WORKFLOW_STAGE_SENTENCES } = require(path.join(SCRIPTS_DIR, 'check-prompt.js'));
 const { assemble, relevantFilesText, rankSymbols, SYMBOL_KEEP, checkpointEmbedText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
@@ -626,11 +626,11 @@ describe('installed Codex plugin commands', () => {
     assert.ok(match, 'no opening lifecycle command');
     const windows = process.platform === 'win32';
     const shellEnv = { ...process.env, FOREMAN_HOST: 'codex', FOREMAN_PROJECT_DIR: project };
-    const opened = spawnSync(windows ? 'powershell.exe' : 'sh', windows
+    const opened = unlessTimedOut(spawnSync(windows ? 'powershell.exe' : 'sh', windows
       ? ['-NoProfile', '-NonInteractive', '-Command', match[1]]
       : ['-c', match[1]], {
-      encoding: 'utf8', windowsHide: true, timeout: 30000, env: shellEnv,
-    });
+      encoding: 'utf8', windowsHide: true, timeout: SPAWN_TIMEOUT_MS, env: shellEnv,
+    }), 'the opening lifecycle command');
     assert.equal(opened.status, 0, opened.stdout + opened.stderr);
     assert.equal(JSON.parse(opened.stdout).dispatchReady, true);
     const entries = fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
@@ -644,11 +644,11 @@ describe('installed Codex plugin commands', () => {
       ? "'" + payload.replace(/'/g, "''") + "'"
       : "'" + payload.replace(/'/g, "'\"'\"'") + "'";
     const command = (windows ? 'Get-Content -LiteralPath ' + quotedPayload + ' -Raw -Encoding utf8' : 'cat ' + quotedPayload) + ' | ' + annotation[1];
-    const annotated = spawnSync(windows ? 'powershell.exe' : 'sh', windows
+    const annotated = unlessTimedOut(spawnSync(windows ? 'powershell.exe' : 'sh', windows
       ? ['-NoProfile', '-NonInteractive', '-Command', command]
       : ['-c', command], {
-      encoding: 'utf8', windowsHide: true, timeout: 30000, env: shellEnv,
-    });
+      encoding: 'utf8', windowsHide: true, timeout: SPAWN_TIMEOUT_MS, env: shellEnv,
+    }), 'the annotate command');
     assert.equal(annotated.status, 0, annotated.stdout + annotated.stderr);
     const after = fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
     assert.ok(after.find((entry) => entry.id === '001').notes.endsWith(notes));

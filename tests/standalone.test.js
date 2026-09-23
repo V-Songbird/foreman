@@ -31,7 +31,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const { makeTmpProject, SCRIPTS_DIR } = require('./helpers.js');
+const { makeTmpProject, SCRIPTS_DIR, SPAWN_TIMEOUT_MS, unlessTimedOut } = require('./helpers.js');
 const {
   readCanonical,
   PLACEHOLDER_FRAGMENTS,
@@ -64,13 +64,13 @@ function harnessFreeEnv() {
  * forwards process.env — the whole point here is to control the env exactly.
  */
 function runStandalone(script, argv, stdinData, cwd) {
-  return spawnSync('node', [script, ...(argv || [])], {
+  return unlessTimedOut(spawnSync('node', [script, ...(argv || [])], {
     input: stdinData === null || stdinData === undefined ? undefined : String(stdinData),
     encoding: 'utf-8',
-    timeout: 30000,
+    timeout: SPAWN_TIMEOUT_MS,
     cwd,
     env: harnessFreeEnv(),
-  });
+  }), path.basename(script));
 }
 
 function json(result) {

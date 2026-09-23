@@ -29,3 +29,12 @@ test('runNodeScript waits 30 s unless the environment raises it', () => {
   assert.equal(limit('not a number'), 30000);
   assert.equal(limit('120000'), 120000);
 });
+
+// [Foreman: 568] A hung child names itself and the limit when it is killed.
+test('a child killed at its limit fails with a message naming it', () => {
+  const { unlessTimedOut } = require(HELPERS);
+  const hung = spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 10000)'], { timeout: 200 });
+  assert.throws(() => unlessTimedOut(hung, 'hang.js', 200), /^Error: hang\.js timed out after 200 ms$/);
+  const done = spawnSync(process.execPath, ['-e', '']);
+  assert.equal(unlessTimedOut(done, 'noop.js'), done);
+});
