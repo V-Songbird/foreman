@@ -16,7 +16,7 @@ store or persistent status per increment. Ordinary splits keep their behavior.
 2. Present the result, its limits, observed check results, a usable artifact or
    concrete work reference, and the row's `review.action` / `review.expected`.
    The reviewer must be able to tell which result the question concerns.
-3. Offer **Accept / Request changes / Pause** (**Aceptar / Pedir cambios / Pausar**). Do not recommend or preselect acceptance as if it were a decision.
+3. Offer **Accept / Request changes / Pause**. Do not recommend or preselect acceptance as if it were a decision.
    Ask one question about that result and wait for the user before dependent work.
    Only an actual answer can resolve the review. Passing tests is evidence, never human acceptance.
 

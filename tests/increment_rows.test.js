@@ -106,7 +106,7 @@ for (const destination of ['task', 'clipboard', 'agent']) {
     const result = assemble(root, input([mixed], { destination, reviewEachIncrement: true }));
     assert.equal(result.ok, true);
     assert.equal(result.reviewEachIncrement, true);
-    assert.match(result.prompt, /Aceptar \/ Pedir cambios \/ Pausar/);
+    assert.match(result.prompt, /Accept \/ Request changes \/ Pause\*\*\. Do not/);
     assert.match(result.prompt, /wait for the user before dependent work/);
     assert.match(result.prompt, /without a human channel, preserve the pending result and stop/);
     assert.match(result.prompt, /Intermediate acceptance does not close the parent/);
