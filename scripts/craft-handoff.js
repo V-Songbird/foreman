@@ -12,9 +12,8 @@
 // paragraph and the checkpoint/split delivery artifacts, and runs
 // check-prompt.js's gate in-process as the last step.
 //
-// Both crafting flows route here now (wave2-design-2026-07-28.md, entries
-// 3-4 of 6): skills/roadmap/pick.md calls it with an `entry` id, and
-// skills/craft-prompt/SKILL.md calls it entry-less, with the same
+// Both crafting flows route here: skills/roadmap/pick.md calls it with an
+// `entry` id, and skills/craft-prompt/SKILL.md calls it entry-less, with the same
 // title/why/what/judgment fields given inline on stdin instead.
 //
 // stdin JSON in, one JSON line out: {ok, prompt, profile, signals, tasks?,
@@ -427,10 +426,9 @@ function recallExcerpt(notes) {
 
 // [Foreman: 284] A lead's prose is the entry's `why` — the reason the work
 // existed — and only when that is empty does the longest human note line
-// stand in. Read on this repo's own roadmap: the longest note is the shipping
-// log ("Shipped in e1f2f2b, suite green") often enough that the reason a
-// function looks the way it does never reached a later handoff, while the
-// `why` said it in one sentence every time. Same cap and the same cut mark as
+// stand in. The longest note is often the shipping log ("Shipped in <sha>,
+// suite green"), so the reason a function looks the way it does never
+// reached a later handoff, while the `why` states it in one sentence. Same cap and the same cut mark as
 // the note excerpt, so the ceiling arithmetic below is unchanged.
 function leadExcerpt(entry) {
   const why = typeof entry.why === "string" ? entry.why.replace(/\s+/g, " ").trim() : "";
@@ -438,7 +436,7 @@ function leadExcerpt(entry) {
   return recallExcerpt(entry.notes);
 }
 
-// A recalled lead with no freshness signal is the measured harm this stamp
+// A recalled lead with no freshness signal is the harm this stamp
 // exists to fix: a hard-repeated stale path anchors the destination on the
 // decoy. Three-valued and never optimistic — every way of failing to date a
 // lead lands on "unknown", so "unchanged since" is only ever said when git
@@ -520,8 +518,8 @@ function priorWorkText(entries, record, root) {
 // object feeds `.some(Boolean)` and would promote every serving handoff to
 // the reinforced profile.
 
-// Flat, not grouped by area. The P0 probe (2026-08-18) measured that two
-// thirds of closed entries have no dominant area at all, so an area-diverse
+// Flat, not grouped by area. Most closed entries have no dominant area at
+// all, so an area-diverse
 // window would drop a genuinely relevant record to make room for a heading
 // that is an artifact of the prefix rule.
 const NOTES_KEEP = 6;
@@ -544,13 +542,10 @@ const NOTES_CLOSER =
  * [Foreman: 286] Deliberately NO reach ceiling here, unlike priorWorkText.
  * The ceiling made sense for entry-level leads — a busy file's whole history
  * is noise — but a lesson is one specific claim, and the busiest files are
- * exactly where claims pile up. With the ceiling copied over, this repo's four
- * most-worked files (craft-handoff.js among them) could never reach a
- * handoff, while hooks/ledger-recall.js served the same records unfiltered
- * the moment the file was opened. Replayed over the last 20 handoffs: 33
- * lessons served with the ceiling, 75 without, the block 349 vs 575 chars,
- * and 4 of 20 handoffs went from no lesson to some. NOTES_KEEP and
- * NOTES_MAX_CHARS are the bound.
+ * exactly where claims pile up. With the ceiling copied over, a project's
+ * most-worked files could never reach a handoff, while
+ * hooks/ledger-recall.js served the same records unfiltered the moment the
+ * file was opened. NOTES_KEEP and NOTES_MAX_CHARS are the bound.
  */
 function selectNotes(records, record) {
   const planned = record.planned_touches || [];
@@ -612,10 +607,9 @@ function ledgerText(root, record) {
 // a hand-typed anchor comment. `git log -L :<symbol>:<file>` follows the
 // function's own range through history, and the `Foreman:` trailers staged
 // closes already write name the entries — so the chain "005 created it, 030
-// changed it" is already in git. Probed on this repo's 30 most recent closed
-// entries before it was built: 21 of the 26 symbols their prose named
-// resolved to at least one other entry, 11 to a chain of two or more, at
-// 40 ms a symbol.
+// changed it" is already in git. Most functions a task names do lead back to
+// at least one earlier entry, and one `git log -L` call per symbol is cheap
+// enough to run at craft time.
 //
 // Same discipline as the two blocks above: inside <background>, both
 // profiles, NEVER a computeSignals key. Bounded three ways — at most
@@ -739,9 +733,7 @@ function symbolChainText(root, record, files, history) {
 // cap counted collected ids between files, which bounded nothing a reader
 // sees: one file carrying fourteen anchors contributed all fourteen, and a
 // file full of stray brackets could spend the budget on lines that are then
-// dropped as unresolvable. Measured before the fix, at 2.0.0: a third to a
-// half of served blocks were over ANCHOR_KEEP, the worst running to 23 lines
-// and 3,342 characters.
+// dropped as unresolvable, so served blocks regularly ran past ANCHOR_KEEP.
 const ANCHOR_MAX_FILES = 12;
 const ANCHOR_KEEP = 6;
 // Header + lines, all in, and whole lines only — the same ceiling and the
