@@ -120,6 +120,8 @@ git config core.hooksPath scripts/git-hooks
 
 This enables a `pre-commit` hook that runs `node --test tests/*.test.js` and blocks the commit on failure, then checks the README's navigation links when `README.md` is staged. The test step no-ops if this plugin has no `tests/` directory.
 
+Foreman, Hush and Razor keep byte-identical copies of `pre-commit`; change them together.
+
 Public source names and attribution are allowed in documentation and commit messages. Keep credentials and personal session data out of commits.
 
 ---
