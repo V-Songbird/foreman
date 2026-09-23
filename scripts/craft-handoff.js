@@ -1002,11 +1002,13 @@ function checkpointEmbedText(cfg, checkCount, entryId, hasReview = false, review
       ? "ask the user squash/merge/PR/keep the branch"
       : `apply \`${cfg.onFinish}\` directly, no question`;
   const codex = host === "codex";
+  // [Foreman: 501] A session without TaskCreate used to skip the tracking in
+  // silence; the fallback keeps the order and the checkpoints, and says so.
   return [
     "Checkpoint protocol for this multi-task run (the pasted session cannot read prompt-template.md, so this rides in the prompt itself):",
     codex
       ? `- track one local acceptance row per ${hasReview ? "increment" : "Run:/Expected: pair"} (${checkCount} total) using an available plan tool or checklist; complete each row before its dependent successor, without creating user-owned tasks`
-      : `- create one tracked task per ${hasReview ? "increment" : "Run:/Expected: pair"} (${checkCount} total) with \`TaskCreate\`, then chain every task from the second onward with one \`TaskUpdate\` \`addBlockedBy: ["<the previous task's id>"]\``,
+      : `- create one tracked task per ${hasReview ? "increment" : "Run:/Expected: pair"} (${checkCount} total) with \`TaskCreate\`, then chain every task from the second onward with one \`TaskUpdate\` \`addBlockedBy: ["<the previous task's id>"]\`. Some Claude Code surfaces, such as the desktop app, offer neither tool: then say once that the tasks could not be tracked, and still work the ${hasReview ? "increments" : "pairs"} in order with every checkpoint below`,
     `- settle the branch first: ${branchLine}; ${branchAction}`,
     ...(codex
       ? ["- explicit user branch restrictions override these settings and finish choices; before writes, create or use an authorized branch and never merge into a branch the user forbids modifying"]

@@ -752,6 +752,12 @@ describe('decision entries and the clipboard checkpoint embed', () => {
     assert.ok(json.prompt.includes('with `TaskCreate`'), json.prompt);
     assert.ok(json.prompt.includes('`addBlockedBy: ["<the previous task\'s id>"]`'), json.prompt);
     assert.ok(!json.prompt.includes('has no Foreman scripts to call'), json.prompt);
+    // [Foreman: 501] A surface without the task tools says so and keeps the
+    // order and every checkpoint, instead of skipping the tracking silently.
+    assert.ok(
+      json.prompt.includes('Some Claude Code surfaces, such as the desktop app, offer neither tool: then say once that the tasks could not be tracked, and still work the pairs in order with every checkpoint below'),
+      json.prompt
+    );
   });
 
   // Codex has no such task tools: its embed keeps one local acceptance row per
