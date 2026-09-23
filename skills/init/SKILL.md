@@ -2,7 +2,7 @@
 name: init
 description: "Bootstraps a project's ROADMAP.jsonl and .foreman/config.json from the user's goals and the repository, or appends to an existing roadmap. Asks only what the request leaves open — what the project is, its near-term goals, and whether an inferred draft looks right — then writes and commits only the files it changes, leaving every optional behavior at its built-in default. The ledger and checkpoint policy are never asked here; each is asked the first time it could actually matter. Use for Foreman setup or an explicitly requested reinitialization; existing history and settings are preserved unless replacement was authorized."
 when_to_use: "Trigger when the user wants to set up Foreman's roadmap for a project, says \"init foreman\", \"set up the roadmap\", \"initialize foreman\", \"start a roadmap\", or invokes /foreman:init. Usually a one-time-per-project action."
-argument-hint: "<brief project description — optional seed>"
+argument-hint: "<project description — optional seed>"
 allowed-tools: AskUserQuestion, Read, Write, Bash, PowerShell
 ---
 

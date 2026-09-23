@@ -2,7 +2,7 @@
 name: craft-prompt
 description: "Advanced surface, separate from Foreman's core roadmap job — a standalone prompt builder for work that has no roadmap entry behind it. Use on an explicit prompt-crafting request. Builds or refines a self-contained prompt for a fresh session following Foreman's template: asks which optional sections to include, gathers the missing intent, grounds paths and checks, assembles the XML, then runs it here as one or several tracked tasks, hands it to a background agent, or copies it to the clipboard."
 when_to_use: "Trigger only on an explicit request to build or refine a standalone prompt — \"craft a prompt\", \"build a prompt\", \"write me a prompt\", \"refine this prompt\", \"foreman prompt\", or invokes /foreman:craft-prompt. An ordinary work request is not one of those: wanting something built, tracked, or handed to a background Agent is roadmap work — it goes to the `foreman` entrance, which picks or adds the entry and builds the handoff itself."
-argument-hint: "<brief task description — optional seed>"
+argument-hint: "<task description — optional seed>"
 allowed-tools: AskUserQuestion, TaskCreate, TaskUpdate, Agent, Read, Write, Bash, PowerShell
 ---
 
