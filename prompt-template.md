@@ -1,13 +1,18 @@
 # Foreman — prompt template
 
-<!-- foreman:practices lastmod:2026-09-15
+<!-- foreman:practices lastmod:2026-09-23
      source-a: https://code.claude.com/docs/en/best-practices.md
      source-b: https://code.claude.com/docs/en/sub-agents.md
      source-c: Anthropic Prompting 101 — Code w/ Claude 2025-05-22
-     source-d: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5
+     source-d: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1
+               The autonomy reminder, its pause policy and the reasoning_extraction
+               warning cited as source-d are quoted from its predecessor,
+               https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5
      source-e: Claude Code 2.1.214 embedded delegation guidance
      source-f: https://code.claude.com/docs/en/prompt-library.md
      source-g: https://platform.claude.com/docs/en/build-with-claude/structured-outputs.md
+     source-h: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices
+               (the living reference for every current Claude model)
      codex sources: CODEX-PROMPTING.md, checked 2026-09-06 -->
 
 The handed-off session — whether run here in this session, by a background
