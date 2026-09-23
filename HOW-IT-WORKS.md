@@ -61,6 +61,10 @@ a prompt, Foreman opens those files and checks them.
 - A name in the task description that matches nothing in any of those files is
   flagged, so an invented function name does not travel into the work.
 
+Names are read from JavaScript, TypeScript, Python and Kotlin files only; any
+other file type gets the path checks alone, with a warning that its names were
+skipped.
+
 The same check runs over the prompt itself: a missing step, or a verification
 command that cannot actually run, is caught before delivery.
 
