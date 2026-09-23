@@ -1527,123 +1527,45 @@ describe('craft-prompt grounds its file options before asking', () => {
   });
 });
 
-// [Foreman 4.2] The standard profile ends on the closure-evidence sentence and
-// says nothing about the final message — the one part of a handoff a human
-// reads. Giving it the canonical <output_format> costs words on the profile
-// whose stated purpose is the length it saves, so the switch ships before the
-// default does and a measurement decides the default.
-describe('the standard profile output shape switch', () => {
-  const shaped = { FOREMAN_STANDARD_OUTPUT_SHAPE: '1' };
+// [Foreman: 444] Three measurement switches were declined on 2026-08-18 and cut
+// from the product on 2026-09-22: the anti-test-gaming clause on the testFirst
+// branch, an <output_format> for the standard profile, and a concrete
+// inclusion bar for the discovery block. Re-opening one means rebuilding it,
+// so these tests keep all three out.
+describe('the declined benchmark switches are not in the product', () => {
+  const SWITCHES = ['FOREMAN_TEST_GAMING_CLAUSE', 'FOREMAN_STANDARD_OUTPUT_SHAPE', 'FOREMAN_DISCOVERY_CONCRETE_BAR'];
 
-  function standardRun(env) {
-    // No signals set, so computeSignals leaves this on the standard profile.
-    return run(project, {
-      title: 'Fix the token refresh bug',
-      what: 'Fix the retry path in the auth middleware so the failing test passes.',
-      planned_touches: ['src/auth/middleware.js'],
-      destination: 'clipboard',
-      request: 'Fix the token refresh bug in the auth middleware.',
-      judgment: goodJudgment(),
-    }, env);
-  }
-
-  test('standard carries no output_format by default', () => {
-    const { json } = standardRun();
-    assert.equal(json.ok, true, JSON.stringify(json));
-    assert.equal(json.profile, 'standard');
-    assert.ok(!json.prompt.includes('<output_format>'));
-    assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
-  });
-
-  test('the switch adds it, and the prompt still passes the gate', () => {
-    const { json } = standardRun(shaped);
-    assert.equal(json.ok, true, JSON.stringify(json));
-    assert.equal(json.profile, 'standard', 'the switch must not promote the profile');
-    assert.ok(json.prompt.includes('<output_format>'), 'the switch did not add the block');
-    assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
-  });
-
-  test('the switch is the only difference the prompt shows', () => {
-    const plain = standardRun().json.prompt;
-    const withShape = standardRun(shaped).json.prompt;
-    const removed = withShape.replace(/\n*<output_format>[\s\S]*?<\/output_format>/, '');
-    assert.equal(removed.trim(), plain.trim(), 'the switch changed something other than the block');
-  });
-
-  test('an unset or unrecognised value keeps today behaviour', () => {
-    for (const value of ['', '0', 'false', 'yes', 'on']) {
-      const { json } = standardRun({ FOREMAN_STANDARD_OUTPUT_SHAPE: value });
-      assert.ok(
-        !json.prompt.includes('<output_format>'),
-        `"${value}" turned the shape on; only 1 and true may`
-      );
+  test('no shipped script or hook names them', () => {
+    for (const dir of ['scripts', 'hooks']) {
+      const root = path.join(__dirname, '..', dir);
+      for (const name of fs.readdirSync(root, { recursive: true })) {
+        const file = path.join(root, name);
+        if (!fs.statSync(file).isFile()) continue;
+        const text = fs.readFileSync(file, 'utf-8');
+        for (const variable of SWITCHES) {
+          assert.ok(!text.includes(variable), `${dir}/${name} names ${variable} again`);
+        }
+      }
     }
   });
 
-  test('omitSections still wins over the switch', () => {
-    writeConfig(project, { omitSections: ['output_format'] });
-    const { json } = standardRun(shaped);
-    assert.ok(!json.prompt.includes('<output_format>'), 'the switch overrode an explicit opt-out');
-    assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
-  });
-});
-
-// [Foreman 4.1] The testFirst branch is the one place a session authors the
-// very check it is graded on. The anti-gaming clause names that shortcut, and
-// the house's own recorded lesson is that naming a failure can prime it — so
-// the clause ships behind a switch and a measurement decides the default.
-describe('the anti-test-gaming clause', () => {
-  const CLAUSE = 'The test verifies the rule; it does not define it.';
-  const on = { FOREMAN_TEST_GAMING_CLAUSE: '1' };
-
-  function testFirstRun(env, judgmentOverrides = {}) {
-    return run(project, {
-      title: 'Fix the token refresh bug',
-      what: 'Fix the retry path in the auth middleware so the failing test passes.',
-      planned_touches: ['src/auth/middleware.js'],
-      destination: 'clipboard',
-      request: 'Fix the token refresh bug in the auth middleware.',
-      judgment: goodJudgment({ testFirst: true, ...judgmentOverrides }),
-    }, env);
-  }
-
-  test('it is absent by default, even on the testFirst branch', () => {
-    const { json } = testFirstRun();
-    assert.equal(json.ok, true, JSON.stringify(json));
-    assert.ok(json.prompt.includes('Write the invariant test first'), 'the branch did not fire');
-    assert.ok(!json.prompt.includes(CLAUSE));
-  });
-
-  test('the switch adds it, and the prompt still passes the gate', () => {
-    const { json } = testFirstRun(on);
-    assert.equal(json.ok, true, JSON.stringify(json));
-    assert.ok(json.prompt.includes(CLAUSE), 'the switch did not add the clause');
-    assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
-  });
-
-  test('it costs nothing on a handoff that is not testFirst', () => {
-    const { json } = run(project, {
-      title: 'Fix the token refresh bug',
-      what: 'Fix the retry path in the auth middleware so the failing test passes.',
-      planned_touches: ['src/auth/middleware.js'],
-      destination: 'clipboard',
-      request: 'Fix the token refresh bug in the auth middleware.',
-      judgment: goodJudgment(),
-    }, on);
-    assert.equal(json.ok, true, JSON.stringify(json));
-    assert.ok(!json.prompt.includes(CLAUSE), 'the clause leaked outside the testFirst branch');
-  });
-
-  test('the clause is the only difference the prompt shows', () => {
-    const plain = testFirstRun().json.prompt;
-    const clause = testFirstRun(on).json.prompt;
-    assert.equal(clause.replace(CLAUSE + ' Write it to hold for every input the rule covers, not only the one named here.\n', ''), plain);
-  });
-
-  test('an unrecognised value keeps today behaviour', () => {
-    for (const value of ['', '0', 'false', 'yes']) {
-      const { json } = testFirstRun({ FOREMAN_TEST_GAMING_CLAUSE: value });
-      assert.ok(!json.prompt.includes(CLAUSE), `"${value}" turned the clause on; only 1 and true may`);
+  test('setting them changes no crafted prompt', () => {
+    const on = Object.fromEntries(SWITCHES.map((variable) => [variable, '1']));
+    for (const overrides of [{}, { testFirst: true }]) {
+      const input = {
+        title: 'Fix the token refresh bug',
+        what: 'Fix the retry path in the auth middleware so the failing test passes.',
+        planned_touches: ['src/auth/middleware.js'],
+        destination: 'clipboard',
+        request: 'Fix the token refresh bug in the auth middleware.',
+        judgment: goodJudgment(overrides),
+      };
+      const plain = run(project, input).json;
+      assert.equal(plain.ok, true, JSON.stringify(plain));
+      assert.equal(plain.profile, 'standard');
+      assert.ok(!plain.prompt.includes('<output_format>'), 'the standard profile carries an output format');
+      assert.ok(!plain.prompt.includes('The test verifies the rule'), 'the anti-gaming clause is back');
+      assert.equal(run(project, input, on).json.prompt, plain.prompt);
     }
   });
 });
@@ -1651,8 +1573,8 @@ describe('the anti-test-gaming clause', () => {
 // [Foreman 4a] The extras clause — "if you find a pre-existing bug next door,
 // report it, don't fix it here" — was measured over 48 sessions and DECLINED:
 // zero extras in either control on two task shapes and two models, and +40%
-// output tokens on Sonnet. Unlike §4.1-4.3 no switch was kept, so nothing in
-// the product emits it; the arms live entirely in the benchmark harness. This
+// output tokens on Sonnet. No switch was kept, so nothing in the product
+// emits it; the arms live entirely in the benchmark harness. This
 // test guards the absence, so a future edit cannot reintroduce it silently.
 describe('the extras clause is not in the product', () => {
   test('no crafted prompt carries it, on either profile', () => {

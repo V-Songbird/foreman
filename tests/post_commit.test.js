@@ -16,8 +16,8 @@
 //   - a failed commit (confirmed nonzero exit code) stays silent
 //   - a commit with no confirmed exit code fails open (still fires)
 //   - host wording: Claude Code gets the inline discovery block, which names
-//     its question tool and keeps the measured inclusion-bar switch; Codex
-//     gets skills/foreman/discovery.md, the policy its checkpoints also carry
+//     its question tool and keeps its inclusion bar; Codex gets
+//     skills/foreman/discovery.md, the policy its checkpoints also carry
 
 const { test, describe, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
@@ -782,73 +782,33 @@ describe('commit scope resolution', () => {
   });
 });
 
-// [Foreman 4.3] The discovery block's inclusion bar was two qualitative words,
-// "CONFIRMED" and "not vague hunches", on a model that follows exactly that
-// and reports less. The concrete criterion already existed two clauses later
-// but governed how to WRITE a candidate, not what got in. Both gates have to
-// swap together or it is a no-op, so the pin is that they move as a pair.
-describe('the discovery inclusion bar switch', () => {
-  const HOOK = path.join(__dirname, '..', 'hooks', 'post-commit.js');
+// Claude Code's discovery block opens and closes on one inclusion bar:
+// "CONFIRMED ... not vague hunches" going in, "Say nothing if nothing is
+// confirmed" where it binds hardest. [Foreman: 444] A measured alternative
+// bar was declined and its switch cut; the absence test lives in
+// tests/craft-handoff.test.js with the other two declined switches.
+describe('the discovery inclusion bar', () => {
+  const { discoveryBlock } = require('../hooks/post-commit');
 
-  // CONCRETE_BAR resolves at module load, so each variant needs its own child.
-  // The switch governs Claude Code's inline wording; the host is passed so no
-  // variant depends on detection.
-  function strings(env, host = 'claude') {
-    const result = spawnSync(
-      'node',
-      ['-e', `const m = require(${JSON.stringify(HOOK)}); process.stdout.write(JSON.stringify({ block: m.discoveryBlock(${JSON.stringify(host)}) }));`],
-      { encoding: 'utf-8', env: { ...process.env, ...(env || {}) } }
-    );
-    assert.equal(result.status, 0, result.stderr);
-    return JSON.parse(result.stdout);
-  }
-
-  test('by default both gates carry today wording', () => {
-    const { block } = strings();
+  test('both gates carry the inclusion bar, around the shared rules', () => {
+    const block = discoveryBlock('claude');
     assert.match(block, /CONFIRMED opportunities, bugs, or ideas/);
     assert.match(block, /not vague\s+hunches/);
-    assert.match(block, /Say nothing if nothing is confirmed\./);
-  });
-
-  test('the switch swaps both gates, never just one', () => {
-    const { block } = strings({ FOREMAN_DISCOVERY_CONCRETE_BAR: '1' });
-    assert.ok(!/CONFIRMED opportunities/.test(block), 'the opening bar did not swap');
-    assert.ok(!/vague\s+hunches/.test(block), 'the hunches wording survived');
-    assert.ok(
-      !/Say nothing if nothing is confirmed\./.test(block),
-      'the closing gate did not swap, so the change is a no-op where it binds hardest'
-    );
-    assert.match(block, /exact\s+path, symbol, or behaviour you observed/);
-    assert.match(block, /If nothing in this commit clears that bar, say nothing\./);
-  });
-
-  test('everything the bar does not govern is untouched', () => {
-    const plain = strings().block;
-    const swapped = strings({ FOREMAN_DISCOVERY_CONCRETE_BAR: '1' }).block;
+    assert.match(block, /Say nothing if nothing is confirmed\.$/);
     for (const shared of [
       'MUST go through the duplicate check',
       'do NOT run extra',
       'Never act without asking',
       'skip the suggestions',
     ]) {
-      assert.ok(plain.includes(shared), `control lost "${shared}"`);
-      assert.ok(swapped.includes(shared), `treatment lost "${shared}"`);
-    }
-  });
-
-  test('an unrecognised value keeps today wording', () => {
-    for (const value of ['', '0', 'false', 'yes']) {
-      const { block } = strings({ FOREMAN_DISCOVERY_CONCRETE_BAR: value });
-      assert.match(block, /Say nothing if nothing is confirmed\./, `"${value}" swapped the bar`);
+      assert.ok(block.includes(shared), `the block lost "${shared}"`);
     }
   });
 
   // Codex reads skills/foreman/discovery.md, the policy its handoffs and
-  // checkpoints also carry, so no environment switch may change it.
-  test('the switch never changes the Codex policy', () => {
-    const plain = strings({}, 'codex').block;
-    assert.equal(strings({ FOREMAN_DISCOVERY_CONCRETE_BAR: '1' }, 'codex').block, plain);
-    assert.ok(plain.includes(discoveryInstructions()));
+  // checkpoints also carry.
+  test('Codex gets the shared discovery policy instead', () => {
+    assert.ok(discoveryBlock('codex').includes(discoveryInstructions()));
   });
 });
 
