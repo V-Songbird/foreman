@@ -79,16 +79,20 @@ function safeCommit(argv, payload) {
   return JSON.parse(r.stdout);
 }
 
-function craft(host) {
+function craft(host, destination = 'task', checks = 1) {
+  const verification = [
+    { run: 'node --version', expected: 'prints a version' },
+    { run: 'git --version', expected: 'prints a version' },
+  ].slice(0, checks);
   const r = runNodeScript(CRAFT, [], {
     entry: '001',
-    destination: 'task',
+    destination,
     host,
     judgment: {
       role: 'an engineer',
       goal: 'to change the lib',
       steps: ['Change lib/a.js.'],
-      verification: [{ run: 'node --version', expected: 'prints a version' }],
+      verification,
     },
   }, env);
   const json = JSON.parse(r.stdout);
@@ -115,6 +119,21 @@ describe('the handoff close for work inside a submodule', () => {
       assert.match(prompt, /"commit":"<the submodule commit sha>"/);
       assert.doesNotMatch(prompt, /safe-commit\.js'? finish/);
       assert.doesNotMatch(prompt, /"staged":true/);
+    });
+  }
+
+  // [Foreman: 496] A clipboard handoff with two checks carries a checkpoint
+  // embed; it must commit inside the submodule too and carry only that close.
+  for (const host of ['claude', 'codex']) {
+    test(`the clipboard checkpoint embed commits inside the submodule, on host ${host}`, () => {
+      superproject();
+      const prompt = craft(host, 'clipboard', 2);
+      assert.match(prompt, /Checkpoint protocol for this multi-task run/);
+      assert.match(prompt, /settle the branch first: inside the submodule `lib`, where this run commits/);
+      assert.match(prompt, /stage only the files that task changed inside `lib` \(`git -C lib add -- <those paths>`/);
+      assert.match(prompt, /commit its files inside `lib` with `Foreman: 001` as the final line/);
+      assert.doesNotMatch(prompt, /safe-commit\.js'? finish/);
+      assert.doesNotMatch(prompt, /"?staged"?:true/);
     });
   }
 

@@ -984,10 +984,16 @@ function checkpointsConfig(root) {
 // compact block appended to task_rules, per prompt-template.md's "Clipboard
 // checkpoint embed" section. Only when the destination is clipboard and the
 // prompt carries two or more increment rows.
-function checkpointEmbedText(cfg, checkCount, entryId, hasReview = false, reviewEachIncrement = false, host = resolveHost()) {
-  const branchLine = cfg.baseBranch
+// [Foreman: 496] `close` is the close the entry paragraph chose: `submodule`
+// (the one every planned path sits in) moves the branch, every checkpoint and
+// the last close inside that submodule; `privateRoadmap` makes the last close
+// commit first and record the sha. Neither set keeps the staged close.
+function checkpointEmbedText(cfg, checkCount, entryId, hasReview = false, reviewEachIncrement = false, host = resolveHost(), close = {}) {
+  const { submodule = null, privateRoadmap = false } = close || {};
+  const sub = submodule ? `\`${submodule}\`` : "";
+  const branchLine = (submodule ? `inside the submodule ${sub}, where this run commits: ` : "") + (cfg.baseBranch
     ? `the base branch is \`${cfg.baseBranch}\``
-    : "detect the base branch with `git symbolic-ref --short refs/remotes/origin/HEAD` (name after `origin/`, fallback `main`)";
+    : "detect the base branch with `git symbolic-ref --short refs/remotes/origin/HEAD` (name after `origin/`, fallback `main`)");
   const branchAction = cfg.branch
     ? "with branch creation on, create `foreman/<slug>` only when starting on the base branch, otherwise checkpoint in place"
     : "checkpoint in place (branch creation is off)";
@@ -1016,11 +1022,19 @@ function checkpointEmbedText(cfg, checkCount, entryId, hasReview = false, review
         ? "- before task 1, inspect `git status --porcelain`; if non-empty, preserve existing changes and continue the work without checkpoint commits for this run"
         : "- before task 1, check `git status --porcelain`; if it is non-empty, say so once and make no checkpoint commits at all for this run"),
     reviewEachIncrement
-      ? "- after each task's required checks pass and the user accepts that result, follow the embedded increment_review protocol: annotate the observed decision, then use safe-commit begin/finish boundaries and owned paths for eligible checkpoints; leave commits local, never push"
-      : "- after each task's check passes, stage only the files that task changed (`git add -- <those paths>`, never `git add -A`) and commit `task <n>/<total>: <task subject>`; leave it local, never push",
+      ? (submodule
+        ? `- after each task's required checks pass and the user accepts that result, follow the embedded increment_review protocol: annotate the observed decision, then commit eligible checkpoints inside ${sub} with \`git -C ${submodule} add -- <owned paths>\` and \`git -C ${submodule} commit\`, never its gitlink at the project root; leave commits local, never push`
+        : "- after each task's required checks pass and the user accepts that result, follow the embedded increment_review protocol: annotate the observed decision, then use safe-commit begin/finish boundaries and owned paths for eligible checkpoints; leave commits local, never push")
+      : submodule
+        ? `- after each task's check passes, stage only the files that task changed inside ${sub} (\`git -C ${submodule} add -- <those paths>\`, never \`git add -A\` and never the ${sub} gitlink at the project root) and commit there with \`git -C ${submodule} commit\` as \`task <n>/<total>: <task subject>\`; leave it local, never push`
+        : "- after each task's check passes, stage only the files that task changed (`git add -- <those paths>`, never `git add -A`) and commit `task <n>/<total>: <task subject>`; leave it local, never push",
     ...(entryId
       ? [
-          "- the last task carries the roadmap close instead of a `task <n>/<total>` commit: stage with `safe-commit.js finish --no-commit`, close the entry with `staged:true`, then make that one commit with `Foreman: " + entryId + "` as its final line",
+          submodule
+            ? `- the last task carries the roadmap close instead of a \`task <n>/<total>\` commit: commit its files inside ${sub} with \`Foreman: ${entryId}\` as the final line, then close the entry with \`update-status\` and that commit's sha from \`git -C ${submodule} rev-parse HEAD\``
+            : privateRoadmap
+              ? `- the last task carries the roadmap close instead of a \`task <n>/<total>\` commit: this project git-ignores ROADMAP.jsonl, so commit its files with \`safe-commit.js finish\` and a \`message_title\`, which appends \`Foreman: ${entryId}\` as the final line, then close the entry with \`update-status\` and the returned \`commit\``
+              : "- the last task carries the roadmap close instead of a `task <n>/<total>` commit: stage with `safe-commit.js finish --no-commit`, close the entry with `staged:true`, then make that one commit with `Foreman: " + entryId + "` as its final line",
         ]
       : []),
     `- after the last task (only if this run created the branch): ${onFinishLine}`,
@@ -1361,8 +1375,14 @@ function assemble(root, input) {
 
   const checkCount = hasVerification ? judgment.verification.length : 0;
   const wantsClipboardEmbed = destination === "clipboard" && checkCount >= 2 && !judgment.question;
+  // [Foreman: 496] One close choice for the entry paragraph and the
+  // checkpoint embed, so a pasted run never carries two closes.
+  const close = {
+    submodule: plannedSubmodule(root, record.planned_touches),
+    privateRoadmap: isEntry && ignoredPaths(root, ["ROADMAP.jsonl"]).length > 0,
+  };
   const checkpointEmbed = wantsClipboardEmbed
-    ? checkpointEmbedText(checkpointsConfig(root), checkCount, isEntry ? entryId : null, hasReview, reviewEachIncrement, host)
+    ? checkpointEmbedText(checkpointsConfig(root), checkCount, isEntry ? entryId : null, hasReview, reviewEachIncrement, host, close)
     : null;
 
   const entryParagraph = isEntry
@@ -1379,8 +1399,7 @@ function assemble(root, input) {
         investigation: Boolean(judgment.question),
         askLesson: isEntry && readLedger(root).enabled,
         host,
-        submodule: plannedSubmodule(root, record.planned_touches),
-        privateRoadmap: ignoredPaths(root, ["ROADMAP.jsonl"]).length > 0,
+        ...close,
       })
     : "";
 

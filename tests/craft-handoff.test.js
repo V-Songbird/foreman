@@ -2030,6 +2030,22 @@ describe('the entry close in each roadmap mode', () => {
       assert.doesNotMatch(json.prompt, /"?staged"?:true/);
     });
 
+    // [Foreman: 496] The clipboard checkpoint embed's last close follows suit.
+    test(`a git-ignored roadmap's checkpoint embed closes with the sha too, on host ${host}`, () => {
+      roadmapRepo(true);
+      const verification = [
+        { run: 'npm test', expected: 'all tests pass' },
+        { run: 'npm run lint', expected: 'no lint errors' },
+      ];
+      const { status, json } = run(project, { entry: '001', destination: 'clipboard', host, judgment: goodJudgment({ verification }) });
+      assert.equal(status, 0, JSON.stringify(json));
+      assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+      assert.match(json.prompt, /Checkpoint protocol for this multi-task run/);
+      assert.match(json.prompt, /the last task carries the roadmap close instead of a `task <n>\/<total>` commit: this project git-ignores ROADMAP\.jsonl/);
+      assert.doesNotMatch(json.prompt, /--no-commit/);
+      assert.doesNotMatch(json.prompt, /"?staged"?:true/);
+    });
+
     test(`a tracked roadmap keeps the staged close, on host ${host}`, () => {
       roadmapRepo(false);
       const { status, json } = run(project, { entry: '001', destination: 'task', host, judgment: goodJudgment() });
