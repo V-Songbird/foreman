@@ -9,8 +9,8 @@
 
 <p align="center"><strong>Available on</strong></p>
 <p align="center">
-  <a href="#codex"><img src="assets/edition-codex.svg" alt="Codex" width="80" height="80" /></a>&emsp;&emsp;<a href="#claude-code"><img src="assets/edition-claude.svg" alt="Claude" width="80" height="80" /></a><br />
-  <a href="#codex">Codex</a>&emsp;&emsp;&emsp;&emsp;<a href="#claude-code">Claude</a>
+  <a href="#codex"><img src="assets/edition-codex.svg" alt="Codex" width="80" height="80" /></a>&emsp;&emsp;<a href="#claude-code"><img src="assets/edition-claude.svg" alt="Claude" width="80" height="80" /></a>&emsp;&emsp;<a href="#antigravity"><img src="assets/edition-antigravity.svg" alt="Antigravity" width="80" height="80" /></a><br />
+  <a href="#codex">Codex</a>&emsp;&emsp;&emsp;&emsp;<a href="#claude-code">Claude</a>&emsp;&emsp;&emsp;<a href="#antigravity">Antigravity</a>
 </p>
 
 <p align="center"><a href="#install"><strong>Get started</strong></a> · <a href="#what-is-this">What is this?</a> · <a href="#how-it-works">How it works</a> · <a href="#what-you-can-do">What you can do</a> · <a href="#the-numbers">Evidence</a></p>
