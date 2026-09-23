@@ -36,6 +36,7 @@ const {
   recordedCommits,
   evidenceSummary,
   trailerShasFor,
+  resolveSha,
 } = require("./commit-evidence");
 
 const { projectDir } = require("./runtime");
@@ -878,6 +879,24 @@ function filesTouchedByCommit(root, sha) {
   return gitFilesIn(root, ["show", "--pretty=format:", "--name-only", "--relative", sha], Boolean);
 }
 
+// [Foreman: 569] The message of a commit a close records, read in the repo
+// that holds it, root or submodule. null when git cannot find the commit or
+// is missing, so such a close goes through as before.
+function commitMessageFor(root, sha) {
+  const where = resolveSha(root, sha);
+  if (!where.exists) return null;
+  try {
+    return execFileSync("git", ["log", "-1", "--format=%B", where.full], {
+      cwd: where.in_submodule ? path.join(root, where.in_submodule) : root,
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: 30000,
+    });
+  } catch {
+    return null;
+  }
+}
+
 // The staged-close twin of filesTouchedByCommit: the index instead of a
 // landed commit, so a close can derive touches BEFORE the commit exists
 // and ride inside it. Same fail-soft contract. ROADMAP.jsonl itself is
@@ -1179,6 +1198,18 @@ function cmdUpdateStatusUnlocked(root, payload) {
         reason: "dependencies_not_done",
         blocking_dependencies: unfinishedDependencies,
       };
+    }
+  }
+  // [Foreman: 569] A commit whose trailer names only other entries is their
+  // work. Recording it would fold their files into this entry, and nothing
+  // takes a recorded sha back out, so the close is refused before any write.
+  // A commit with no trailer, or one git cannot read, is accepted.
+  if (commit) {
+    const named = trailerIdsIn(commitMessageFor(root, commit));
+    if (named.length && !named.includes(String(id))) {
+      throw new Error(
+        `commit ${commit} carries the trailer "Foreman: ${named.join(", ")}", not ${id} — record the commit whose message ends "${commitTrailerFor(id)}"`
+      );
     }
   }
   // [Foreman: 283] Read before the status moves: the omitted-lesson row below
@@ -2581,6 +2612,9 @@ is written, and the error names the field and the kind, never the text.
                     commit's actual changed files (git show, best-effort,
                     silent if git/the sha is unavailable) -- add_touches adds
                     more on top, for anything outside that commit's diff.
+                    A commit whose "Foreman:" trailer names other entries
+                    and not this id is refused, writing nothing; one with no
+                    trailer, or one git cannot find, is recorded as given.
                     planned_touches is never folded into: it is the entry's
                     prediction, and scope_drift is that prediction measured
                     against what the close actually derived

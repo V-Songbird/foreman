@@ -502,6 +502,74 @@ describe('update-status auto-derives observed_touches from the commit', () => {
   });
 });
 
+// [Foreman: 569] A commit whose trailer names only other entries is refused,
+// so a close that ran after a failed commit cannot record the old HEAD.
+describe('update-status refuses another entry\'s commit', () => {
+  const { spawnSync } = require('node:child_process');
+  function commitWith(repo, file, message) {
+    fs.writeFileSync(path.join(repo, file), `${message}\n`, 'utf-8');
+    spawnSync('git', ['add', file], { cwd: repo });
+    spawnSync('git', ['commit', '-q', '-m', message], { cwd: repo });
+    return spawnSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf-8' }).stdout.trim();
+  }
+
+  beforeEach(() => {
+    writeRoadmap(project, [
+      { id: '001', title: 'a', why: 'a', what: 'a', status: 'in_progress', source: 'user', depends_on: [], touches: [], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '' },
+      { id: '002', title: 'b', why: 'b', what: 'b', status: 'in_progress', source: 'user', depends_on: [], touches: [], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '' },
+    ]);
+    initGitRepo(project);
+  });
+
+  test('a commit trailered for another entry is refused and nothing is written', () => {
+    const sha = commitWith(project, 'b.txt', 'Other work\n\nForeman: 002');
+    const before = fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf-8');
+    const { status, json } = run(['update-status'], { id: '001', status: 'awaiting_acceptance', commit: sha });
+    assert.equal(status, 1);
+    assert.equal(json.ok, false);
+    assert.ok(json.error.includes(`commit ${sha}`), json.error);
+    assert.ok(json.error.includes('"Foreman: 002", not 001'), json.error);
+    assert.equal(fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf-8'), before);
+  });
+
+  test('a short sha of such a commit is refused too', () => {
+    const sha = commitWith(project, 'b.txt', 'Other work\n\nForeman: 002');
+    const { status } = run(['update-status'], { id: '001', status: 'done', commit: sha.slice(0, 7) });
+    assert.equal(status, 1);
+  });
+
+  for (const [label, message] of [
+    ['names this entry', 'Own work\n\nForeman: 001'],
+    ['names this entry among others', 'Shared work\n\nForeman: 002, 001'],
+    ['has no trailer', 'Untrailered work'],
+  ]) {
+    test(`a commit that ${label} is recorded`, () => {
+      const sha = commitWith(project, 'a.txt', message);
+      const { status, json } = run(['update-status'], { id: '001', status: 'done', commit: sha });
+      assert.equal(status, 0, JSON.stringify(json));
+      assert.deepEqual(json.entry.commits, [sha]);
+      assert.deepEqual(json.entry.observed_touches, ['a.txt']);
+    });
+  }
+
+  test('another entry\'s commit inside a submodule is refused', () => {
+    fs.writeFileSync(path.join(project, '.gitmodules'), '[submodule "sub"]\n\tpath = sub\n\turl = ./sub\n', 'utf-8');
+    const sub = path.join(project, 'sub');
+    fs.mkdirSync(sub, { recursive: true });
+    initGitRepo(sub);
+    const sha = commitWith(sub, 'b.txt', 'Other work\n\nForeman: 002');
+    const { status, json } = run(['update-status'], { id: '001', status: 'done', commit: sha });
+    assert.equal(status, 1);
+    assert.ok(json.error.includes('"Foreman: 002"'), json.error);
+  });
+
+  test('a sha git cannot find still closes', () => {
+    const { status, json } = run(['update-status'], { id: '001', status: 'done', commit: 'deadbeef' });
+    assert.equal(status, 0);
+    assert.deepEqual(json.entry.commits, ['deadbeef']);
+  });
+});
+
 // A submodule layout: ROADMAP.jsonl sits at the project root, but the commit
 // being closed lives inside a submodule the root repo cannot see.
 describe('update-status derives touches from a commit inside a submodule', () => {
