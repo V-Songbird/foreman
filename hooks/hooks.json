@@ -56,6 +56,14 @@
         "hooks": [
           {
             "type": "command",
+            "if": "Bash(git *)",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/post-commit.js"],
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "if": "PowerShell(git *)",
             "command": "node",
             "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/post-commit.js"],
             "timeout": 5

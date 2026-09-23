@@ -61,6 +61,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   argument, so they start without a shell on every platform. The
   `commandWindows` strings, which current Claude Code does not read, are
   gone.
+- The commit hook starts only for a Bash or PowerShell call that runs `git`,
+  through an `if` rule on each of its two registrations, so other shell calls
+  no longer start a Node process for it. The session-fullness hook still runs
+  on every shell call.
 
 ### Every host
 

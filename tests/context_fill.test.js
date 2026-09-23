@@ -262,6 +262,16 @@ describe('context-fill — wiring', () => {
     );
   });
 
+  // [Foreman: 346] post-commit acts only on git commits, so it starts only
+  // for shell calls that run git; context-fill still sees every shell call.
+  test('post-commit starts only on git shell calls, context-fill on every one', () => {
+    const wiring = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf-8'));
+    const block = wiring.hooks.PostToolUse.find((b) => b.matcher === '^(Bash|PowerShell)$');
+    const rules = (script) => block.hooks.filter((h) => h.args.includes(`\${CLAUDE_PLUGIN_ROOT}/hooks/${script}`)).map((h) => h.if);
+    assert.deepEqual(rules('post-commit.js'), ['Bash(git *)', 'PowerShell(git *)']);
+    assert.deepEqual(rules('context-fill.js'), [undefined]);
+  });
+
   // Codex's Windows commands are encoded from `command` and verified against it
   // (tests/windows_launcher.test.js), so the readable command is the one read.
   test('codex-hooks.json does not register it', () => {
