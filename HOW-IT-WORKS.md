@@ -38,14 +38,16 @@ reason to ask Foreman instead.
 
 ## Two ways to get a task
 
-The cheap one is what you get by default.
+The cheaper one is what you get by default.
 
 - **Fast pick** — Foreman sorts the roadmap it already has and recommends one.
-  It reads no code, so it is quick and nearly free. This is what you get unless
+  It reads no code. Its own instructions still add roughly 17,000 to 19,000
+  tokens to the session, depending on the host. This is what you get unless
   you ask for the other one.
 - **Reconcile and pick** — it reads your code first, finds where the plan has
-  gone stale, and offers you each fix before recommending anything. This one
-  costs real money, so Foreman never starts it on its own. You have to ask.
+  gone stale, and offers you each fix before recommending anything. It does
+  everything Fast pick does and reads code on top, so it always costs more.
+  Foreman never starts it on its own. You have to ask.
 
 ## The prompt is checked before you see it
 
