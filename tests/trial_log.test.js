@@ -118,6 +118,21 @@ describe('trial log — the closed vocabulary', () => {
     assert.deepEqual(lines(), []);
   });
 
+  // [Foreman: 558] failed-verification-retry is a retired recovery kind:
+  // nothing writes it, so the writer refuses it while the two kinds a flow
+  // does write stay legal.
+  test('the retired recovery kind is refused and the two live kinds are accepted', () => {
+    const retired = record('recovery_attempted', { kind: 'failed-verification-retry', success: true });
+    assert.equal(retired.recorded, false);
+    assert.equal(retired.reason, 'invalid');
+    assert.match(retired.error, /not a legal value/);
+    assert.deepEqual(lines(), []);
+    for (const kind of ['reinit-snapshot', 'resume-in-progress']) {
+      assert.equal(record('recovery_attempted', { kind, success: false }).recorded, true, kind);
+    }
+    assert.deepEqual(lines().map((line) => line.kind), ['reinit-snapshot', 'resume-in-progress']);
+  });
+
   // The privacy guarantee is only worth something if a free-text value cannot
   // ride along on an otherwise-legal event.
   test('an extra key is refused rather than passed through', () => {
