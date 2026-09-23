@@ -122,4 +122,17 @@ function resolveAll(root, records, budget = newBudget()) {
   return out;
 }
 
-module.exports = { newBudget, resolve, resolveAll };
+// [Foreman: 525] What a lesson may be served as, on every path that serves one:
+// the handoff's lessons block and the file-open hook. Null means serve nothing.
+function servedBody(record, verdict) {
+  // Dead: every file it names is gone, so there is nothing left to check it
+  // against. Serving it could only mislead.
+  if (verdict.state === 'dead') return null;
+  // The graded rule: a possibly-stale record whose own prose names one of the
+  // files that moved under it is the decoy case, not a hedge case.
+  if (verdict.state === 'stale' && (verdict.changed || []).some((file) => record.lesson.includes(file))) return null;
+  // When Foreman cannot tell, the file names only, never a claim it could not check.
+  return verdict.state === 'unknown' ? (record.paths || []).join(', ') : record.lesson;
+}
+
+module.exports = { newBudget, resolve, resolveAll, servedBody };

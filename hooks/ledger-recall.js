@@ -100,10 +100,17 @@ function lessonsFor(root, relPath) {
     .filter((record) => (record.paths || []).some((stored) => stored === wanted));
   if (!matched.length) return [];
 
+  // [Foreman: 525] The handoff's serving rules, from the one function both
+  // paths call: file names only when the verdict is unknown, and nothing for a
+  // possibly-stale lesson whose prose names a file that changed under it.
   const budget = noteStaleness.newBudget(NOTE_GIT_BUDGET);
   return noteStaleness
     .resolveAll(root, matched.slice(0, NOTE_LIMIT), budget)
-    .map(({ record, label }) => `${record.lesson} ${label}`);
+    .map(({ record, ...verdict }) => {
+      const body = noteStaleness.servedBody(record, verdict);
+      return body === null ? null : `${body} ${verdict.label}`;
+    })
+    .filter(Boolean);
 }
 
 function lessonMessage(relPath, lessons) {

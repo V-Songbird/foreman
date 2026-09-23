@@ -595,14 +595,11 @@ function ledgerText(root, record) {
   let total = NOTES_HEADER.length + 1 + NOTES_CLOSER.length;
   for (const { stored, matches } of selected) {
     const verdict = noteStaleness.resolve(root, stored, budget);
-    // Dead: every file it names is gone, so there is nothing left to check it
-    // against. Serving it could only mislead.
-    if (verdict.state === "dead") continue;
-    // The graded rule: a possibly-stale record whose own prose names one of
-    // the files that moved under it is the decoy case, not a hedge case.
-    if (verdict.state === "stale" && verdict.changed.some((f) => stored.lesson.includes(f))) continue;
+    // [Foreman: 525] The serving rules live in one place, shared with
+    // hooks/ledger-recall.js, so the two paths cannot drift.
+    const body = noteStaleness.servedBody(stored, verdict);
+    if (body === null) continue;
     const { plan, kept } = matches[0];
-    const body = verdict.state === "unknown" ? stored.paths.join(", ") : stored.lesson;
     const line = `- ${body} ${verdict.label} (matched: planned ${plan} ↔ recorded ${kept})`;
     if (total + 1 + line.length > NOTES_MAX_CHARS) break;
     lines.push(line);

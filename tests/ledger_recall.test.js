@@ -20,7 +20,8 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
-const { runScriptRaw, makeTmpProject, writeConfig, writeRoadmap } = require('./helpers');
+const { spawnSync } = require('child_process');
+const { runScriptRaw, makeTmpProject, writeConfig, writeRoadmap, initGitRepo } = require('./helpers');
 const ledger = require(path.join(__dirname, '..', 'scripts', 'ledger.js'));
 const anchors = require(path.join(__dirname, '..', 'hooks', 'ledger-recall.js'));
 
@@ -144,13 +145,16 @@ describe('ledger-recall hook, the lesson channel', () => {
     });
   }
 
-  test('surfaces a lesson recorded about the touched file, with its freshness label', () => {
+  // [Foreman: 525] An unanchored lesson cannot be checked, so the hook serves
+  // what the handoff serves: the file names only, never the claim.
+  test('an unanchored lesson is served as its file names, with its freshness label', () => {
     writeConfig(project, { areaNotes: { enabled: true } });
     const target = writeFile('src/parser.js', 'module.exports = {};\n');
     recordLesson('src/parser.js', 'punctuation is handled only in the word split');
 
     const out = run(payload(target, { session_id: 's-lesson' }));
-    assert.match(out, /punctuation is handled only in the word split/);
+    assert.doesNotMatch(out, /punctuation is handled only in the word split/);
+    assert.match(out, /- src\/parser\.js \[entry 042, 2026-08-01 — anchor unresolvable, staleness unknown\]/);
     assert.match(out, /Recorded about src\/parser\.js/);
     // Never a bare claim: the ledger's rule is that every served line says how
     // stale it is, and this channel is not an exception to it.
@@ -195,9 +199,9 @@ describe('ledger-recall hook, the lesson channel', () => {
     recordLesson('src/parser.js', 'newest claim', { date: '2026-08-01' });
 
     const out = run(payload(target, { session_id: 's-cap' }));
-    assert.match(out, /newest claim/);
-    assert.match(out, /middle claim/);
-    assert.doesNotMatch(out, /oldest claim/);
+    assert.match(out, /entry 042, 2026-08-01/);
+    assert.match(out, /entry 042, 2026-07-15/);
+    assert.doesNotMatch(out, /entry 042, 2026-07-01/);
     assert.equal(anchors.NOTE_LIMIT, 2);
   });
 
@@ -209,7 +213,32 @@ describe('ledger-recall hook, the lesson channel', () => {
 
     const out = run(payload(target, { session_id: 's-both' }));
     assert.match(out, /019\.md/);
-    assert.match(out, /punctuation is handled only in the word split/);
+    assert.match(out, /- src\/parser\.js \[entry 042/);
+  });
+
+  // [Foreman: 525] The handoff's graded rule on the file-open path too: a
+  // possibly-stale lesson whose own prose names the file that changed under it
+  // is not served; one that does not name it is served with its hedge.
+  test('a possibly-stale lesson that names its changed file is not served', () => {
+    const git = (...args) => {
+      const r = spawnSync('git', args, { cwd: project, encoding: 'utf-8' });
+      assert.equal(r.status, 0, r.stderr);
+      return r.stdout;
+    };
+    writeConfig(project, { areaNotes: { enabled: true } });
+    initGitRepo(project);
+    const target = writeFile('src/parser.js', 'module.exports = {};\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'base');
+    const sha = git('rev-parse', 'HEAD').trim();
+    recordLesson('src/parser.js', 'src/parser.js keeps the word split', { anchor: { kind: 'commit', sha } });
+    recordLesson('src/parser.js', 'punctuation is handled only in the word split', { anchor: { kind: 'commit', sha }, date: '2026-08-02' });
+    fs.writeFileSync(target, 'module.exports = { changed: true };\n');
+    git('commit', '-q', '-a', '-m', 'change the parser');
+
+    const out = run(payload(target, { session_id: 's-graded' }));
+    assert.match(out, /- punctuation is handled only in the word split \[entry 042, 2026-08-02, at [0-9a-f]{7} — possibly stale/);
+    assert.doesNotMatch(out, /keeps the word split/);
   });
 
   test('the same file in the same session says it once', () => {
