@@ -422,7 +422,10 @@ acting as if it had.
 
 In Claude Code, every plugin path this call's stdin JSON carries — and
 every path in the returned `prompt` — is the literal string
-`${CLAUDE_PLUGIN_ROOT}`. Remember: the copy of this skill you are reading
+`${CLAUDE_PLUGIN_ROOT}`. The one exception is a clipboard `prompt`: it
+names the root `craft-handoff.js` runs from, because a pasted prompt
+reaches no shell that defines the variable; deliver it as returned.
+Remember: the copy of this skill you are reading
 has the variable already resolved to a version-pinned cache path, and
 baking that in breaks the prompt on the next version bump; the gate errors
 on it. Type it back literally.

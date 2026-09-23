@@ -310,7 +310,10 @@ function checkPrompt(prompt, opts) {
     if (/\$\{(?:CLAUDE|CODEX)_PLUGIN_ROOT\}/.test(prompt)) {
       errors.push(problem("unresolved plugin root in the prompt body — Codex does not expand this placeholder", "Replace the placeholder with the installed plugin path resolved by craft-handoff.js; refresh it if the installation moves.", null));
     }
-  } else {
+  } else if (opts.destination !== "clipboard") {
+    // [Foreman: 500] A clipboard prompt is exempt: pasted as plain text, it
+    // reaches no shell that defines the variable, so it carries the resolved
+    // root on purpose and is used right after it is crafted.
     const pinned = prompt.match(PLUGIN_CACHE_PATH_RE);
     if (pinned) {
       errors.push(problem(`resolved plugin path in the prompt body ("${pinned[0]}") — write \${CLAUDE_PLUGIN_ROOT} instead, or every bookkeeping command dies at the next version bump`, "Replace the resolved path with the literal ${CLAUDE_PLUGIN_ROOT} so the command survives the next version bump.", 'node "${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js" update-status'));

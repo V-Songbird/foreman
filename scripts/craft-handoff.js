@@ -84,7 +84,8 @@ const {
 } = require("./check-prompt.js");
 
 const DESTINATIONS = new Set(["task", "agent", "clipboard"]);
-// Claude Code's prompts carry this literal, never expanded — [Foreman: 107].
+// Claude Code's prompts carry this literal, never expanded — [Foreman: 107] —
+// except on the clipboard, where assemble writes PLUGIN_ROOT — [Foreman: 500].
 const CLAUDE_ROOT = "${CLAUDE_PLUGIN_ROOT}";
 // Codex's prompts carry the installed root, and both hosts read skill files
 // from it at craft time.
@@ -1456,6 +1457,16 @@ function assemble(root, input) {
       ? `<example>\n${judgment.example.before} → ${judgment.example.after}\n</example>`
       : "";
 
+  // [Foreman: 500] A pasted prompt is plain text, and no shell it reaches
+  // defines CLAUDE_PLUGIN_ROOT, so a Claude Code clipboard handoff names the
+  // root this script runs from. Other destinations keep the variable; Codex
+  // prompts never carry it.
+  const pastedPaths = (text) =>
+    destination === "clipboard"
+      ? text.replace(/\$\{CLAUDE_PLUGIN_ROOT\}([^\s`'"]*)/g, (match, rest) =>
+        /[^\w./:@-]/.test(PLUGIN_ROOT) ? shellQuote(PLUGIN_ROOT + rest) : PLUGIN_ROOT + rest)
+      : text;
+
   function buildParts(includeEntry) {
     const parts = [];
     if (host === "codex") parts.push(`<codex_runtime>\n${canonical.codexRuntime}\n</codex_runtime>`);
@@ -1507,7 +1518,7 @@ function assemble(root, input) {
     if (reinforced) parts.push(`<plan>\n${judgment.question && canonical.investigationPlan ? canonical.investigationPlan : canonical.plan}\n</plan>`);
     if (workflowStage) parts.push(WORKFLOW_STAGE_SENTENCES[host]);
     else if (includeOutputFormat) parts.push(`<output_format>\n${defaultOutputFormat}\n</output_format>`);
-    return parts.filter(Boolean).join("\n\n") + "\n";
+    return pastedPaths(parts.filter(Boolean).join("\n\n") + "\n");
   }
 
   const basePrompt = buildParts(false);

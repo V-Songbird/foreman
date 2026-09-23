@@ -421,18 +421,45 @@ describe('verification preflight — every command, not just the first', () => {
   });
 });
 
-describe('${CLAUDE_PLUGIN_ROOT} travels literal in a Claude Code handoff, never expanded', () => {
+describe('${CLAUDE_PLUGIN_ROOT} travels literal in a Claude Code task or agent handoff, never expanded', () => {
+  const env = { CLAUDE_PLUGIN_ROOT: 'C:\\Users\\x\\.claude\\plugins\\cache\\foundry\\foreman\\1.2.3' };
+
   test('stays literal even with the real env var set', () => {
     writeRoadmap(project, [entryFields()]);
-    const { json } = run(
-      project,
-      { entry: '001', destination: 'task', host: 'claude', judgment: goodJudgment() },
-      { CLAUDE_PLUGIN_ROOT: 'C:\\Users\\x\\.claude\\plugins\\cache\\foundry\\foreman\\1.2.3' }
-    );
+    for (const destination of ['task', 'agent']) {
+      const { json } = run(project, { entry: '001', destination, host: 'claude', judgment: goodJudgment() }, env);
+      assert.equal(json.ok, true, JSON.stringify(json));
+      assert.ok(json.prompt.includes('${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js'), destination);
+      assert.ok(!json.prompt.includes('plugins\\cache\\foundry'));
+      assert.ok(!json.prompt.includes('plugins/cache/foundry'));
+    }
+  });
+
+  // [Foreman: 500] A pasted prompt reaches no shell that defines the variable.
+  test('a clipboard handoff names the root craft-handoff.js runs from instead', () => {
+    writeRoadmap(project, [entryFields()]);
+    const { json } = run(project, { entry: '001', destination: 'clipboard', host: 'claude', judgment: goodJudgment() }, env);
     assert.equal(json.ok, true, JSON.stringify(json));
-    assert.ok(json.prompt.includes('${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js'));
+    const root = path.resolve(SCRIPTS_DIR, '..').replace(/\\/g, '/');
+    assert.ok(json.prompt.includes(`${root}/scripts/roadmap.js`), json.prompt);
+    assert.ok(json.prompt.includes(`${root}/scripts/safe-commit.js`));
+    assert.ok(!json.prompt.includes('${CLAUDE_PLUGIN_ROOT}'));
     assert.ok(!json.prompt.includes('plugins\\cache\\foundry'));
-    assert.ok(!json.prompt.includes('plugins/cache/foundry'));
+  });
+
+  test('a clipboard handoff quotes a root with a space', () => {
+    writeRoadmap(project, [entryFields()]);
+    const plugin = path.join(makeTmpProject(), 'Foreman plugin');
+    fs.mkdirSync(plugin);
+    fs.cpSync(SCRIPTS_DIR, path.join(plugin, 'scripts'), { recursive: true });
+    fs.cpSync(path.join(SCRIPTS_DIR, '..', 'skills'), path.join(plugin, 'skills'), { recursive: true });
+    fs.copyFileSync(TEMPLATE_PATH, path.join(plugin, 'prompt-template.md'));
+    const crafted = runNodeScript(path.join(plugin, 'scripts', 'craft-handoff.js'), [], {
+      entry: '001', destination: 'clipboard', host: 'claude', judgment: goodJudgment(),
+    }, { FOREMAN_PROJECT_DIR: project });
+    assert.equal(crafted.status, 0, crafted.stdout + crafted.stderr);
+    const script = `${plugin.replace(/\\/g, '/')}/scripts/roadmap.js`;
+    assert.ok(JSON.parse(crafted.stdout).prompt.includes(`node '${script}' update-status`), crafted.stdout);
   });
 });
 

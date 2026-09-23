@@ -168,6 +168,9 @@ host can run:
   loaded with the variable substituted by the harness, so what you read there
   is expanded and what you write must not be. Type the variable back.
   `check-prompt.js` errors on a versioned plugin-cache path in the prompt body.
+  A clipboard handoff is the one exception: pasted as plain text, it reaches
+  no shell that defines the variable, so `craft-handoff.js` writes the root it
+  runs from and `check-prompt.js --destination clipboard` accepts that path.
 - **Codex.** Codex never substitutes that variable, so `craft-handoff.js`
   writes quoted absolute paths resolved from the running assembler, and
   `check-prompt.js --host codex` errors on an unresolved `${CLAUDE_PLUGIN_ROOT}`
@@ -644,8 +647,9 @@ A block a standard prompt does keep is still held to the template verbatim —
 - [ ] every plugin path in the prompt body is the unexpanded
       `${CLAUDE_PLUGIN_ROOT}` string in Claude Code, never a resolved
       plugins-cache path with a version segment — even where the crafting
-      skill's own text showed it already resolved; in Codex it is a quoted
-      absolute installed path instead, never an unexpanded variable
+      skill's own text showed it already resolved, except that a clipboard
+      handoff carries the root `craft-handoff.js` runs from; in Codex it is
+      a quoted absolute installed path instead, never an unexpanded variable
 - [ ] no "as we discussed" / "from earlier" — zero assumed context
 - [ ] a verb-first imperative name (under 60 chars) and a 1–2 sentence
       plain-language summary are ready — a tracked task and a background
@@ -694,11 +698,12 @@ never deliver a prompt the checker rejected. Surface its `warnings`
 alongside the delivery message. The checker validates structure (guardrail
 blocks verbatim, no unfilled placeholders, omit compliance, verification
 present); it can't judge content quality — the checklist above still
-applies to what the fields actually say. In Claude Code one of its errors
-fires on a resolved plugins-cache path with a version segment — the fix is
-always to type `${CLAUDE_PLUGIN_ROOT}` back in place of it, never to strip
-the command. In Codex the matching error fires on an unexpanded variable,
-and the fix is the installed path `craft-handoff.js` resolves.
+applies to what the fields actually say. In Claude Code, outside the
+clipboard, one of its errors fires on a resolved plugins-cache path with a
+version segment — the fix is always to type `${CLAUDE_PLUGIN_ROOT}` back in
+place of it, never to strip the command. In Codex the matching error fires
+on an unexpanded variable, and the fix is the installed path
+`craft-handoff.js` resolves.
 
 ## Delivery mechanics
 

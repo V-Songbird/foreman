@@ -785,6 +785,17 @@ describe('host claude: plugin paths and plan', () => {
     assert.ok(json.errors.some((e) => e.error.includes('resolved plugin path')), JSON.stringify(json.errors));
   });
 
+  // [Foreman: 500] A pasted prompt reaches no shell that defines the variable,
+  // so a clipboard handoff carries the resolved root on purpose.
+  test('a clipboard prompt may carry the resolved root', () => {
+    const project = makeTmpProject();
+    const prompt = goodPrompt({
+      entry_paragraph: `This task is ROADMAP.jsonl entry \`107\`. Mark it \`in_progress\` before doing anything else:\n\`echo '{"id":"107","status":"in_progress"}' | node ${CACHE_PATH} update-status\``,
+    });
+    const { status, json } = check(project, prompt, ['--destination', 'clipboard', '--entry', '107']);
+    assert.equal(status, 0, JSON.stringify(json));
+  });
+
   test('a backslash cache path is caught too', () => {
     const project = makeTmpProject();
     const prompt = goodPrompt({
