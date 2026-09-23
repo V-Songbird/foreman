@@ -497,7 +497,9 @@ have a different cause.]
 [USER-PRESENT DESTINATION — for `Execute here` or a pasted session, include
 the following paragraph verbatim right here instead. A session with a user
 present also stops mid-task to report, so this names its only pauses, as
-the Codex `scope_discipline` does. A Workflow stage takes neither paragraph.
+the Codex `scope_discipline` does. A Workflow stage for `Execute here` or a
+pasted session takes neither paragraph; one sent to a background `Agent`
+carries the autonomy paragraph above, like any agent handoff.
 Keep going until the goal above is met: do the reversible work it needs
 without asking for permission, and don't stop to report progress or a
 plan. Pause only for a destructive or irreversible action, a real scope

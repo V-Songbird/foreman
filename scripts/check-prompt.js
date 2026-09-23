@@ -92,8 +92,9 @@ const WORKFLOW_STAGE_SENTENCES = {
 const AUTONOMY_SENTENCE = "You are operating autonomously.";
 // [Foreman: 516] Its user-present counterpart, which every Claude Code task or
 // clipboard handoff carries: a session with a user present also stops mid-task
-// to report. Codex's scope_discipline names its pauses instead, and a Workflow
-// stage takes neither paragraph.
+// to report. Codex's scope_discipline names its pauses instead. A Workflow
+// stage on a task or clipboard destination takes neither paragraph; one on an
+// agent destination carries the autonomy paragraph, like any agent handoff.
 const KEEP_GOING_SENTENCE = "Keep going until the goal above is met:";
 
 // How each host's closing paragraph starts; the gate names it in its error.
