@@ -11,27 +11,20 @@
 // code — the 0.16.2 prose rule ("close the entry, then complete the task")
 // can be ignored; this makes it harder to.
 //
-// Probed 2026-07-14 (headless CLI 2.1.210, brief §2.1/§4 M1) and re-probed
-// 2026-07-23 (CLI 2.1.216), 2026-08-13 (CLI 2.1.228), 2026-08-21 (CLI
-// 2.1.238), 2026-08-25 (CLI 2.1.241), 2026-08-28 (CLI 2.1.251),
-// 2026-09-03 (CLI 2.1.257) and 2026-09-05 (CLI 2.1.261), unchanged every time:
 // TaskCompleted accepts the same top-level
 // {"decision":"block","reason":"..."} shape as Stop/SubagentStop — a real
 // block (the TaskUpdate call itself returns success:false, updatedFields:[],
-// with the reason as its own tool_result text, not a system-reminder). No
-// harness-side retry after a block was observed (one firing per task_id
-// across all probe runs); a haiku driver that saw a genuine block still
-// described the completion as successful in its own prose despite quoting
-// the reason verbatim, so the reason text below is written as an imperative
-// instruction sequence rather than a description.
+// with the reason as its own tool_result text, not a system-reminder). The
+// harness does not retry after a block (one firing per task_id), and a model
+// that gets a block can still describe the completion as successful, so the
+// reason text below is written as an imperative instruction sequence rather
+// than a description.
 //
-// That block is the ONLY output channel this event has. The 2026-07-23
-// re-probe emitted, on TaskCompleted, `systemMessage`,
-// `hookSpecificOutput.additionalContext`, plain stdout and stderr: every one
-// left zero trace — no transcript attachment of any kind, no tool-result
-// text, no model mention — while the same hook on SessionStart,
-// UserPromptSubmit, PostToolUse and Stop produced hook_system_message and
-// hook_additional_context attachments for the first two fields. The gate
+// That block is the ONLY output channel this event has. On TaskCompleted,
+// `systemMessage`, `hookSpecificOutput.additionalContext`, plain stdout and
+// stderr all leave no trace — no transcript attachment, no tool-result text,
+// no model mention — although the first two reach the model on SessionStart,
+// UserPromptSubmit, PostToolUse and Stop. The gate
 // below therefore offers `off` and `block` only: an advisory mode on this
 // event cannot reach anyone, so it is not offered rather than shipped
 // silent. Do not add another output field here expecting it to arrive.

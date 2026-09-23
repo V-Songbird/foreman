@@ -194,7 +194,7 @@ function readEntriesFrom(file, label) {
 }
 
 // [Foreman: 132] ACTIVE entries only, and deliberately unchanged in shape:
-// every existing caller (list, next-candidates, the hooks, the replay harness)
+// every existing caller (list, next-candidates, the hooks, external readers)
 // excludes archived work by construction instead of remembering to filter.
 function readEntries(root) {
   return readEntriesFrom(roadmapPath(root), "ROADMAP.jsonl");
@@ -535,8 +535,8 @@ const CREATE_STATUSES = new Set(["planned", "rejected"]);
 // producing a recorded decision, not code). Only "decision" is ever stored;
 // an entry with no kind is a build, the same omit-when-default shape as doc.
 // The pick flow reads it to hand a decision entry a "decide, don't build"
-// rule — grounded in a measured ~33% baseline over-execution rate on
-// decision-shaped entries without it.
+// rule, because without one a session tends to build what it was only asked
+// to decide.
 const KINDS = new Set(["build", "decision"]);
 
 // [Foreman: 102]
@@ -1621,9 +1621,8 @@ function cmdCorrectUnlocked(root, payload) {
 }
 
 // [Foreman: 260] The reader for `model`/`effort`. Both are self-reported at
-// close and, before this, nothing read them back -- 57 of 244 entries here
-// carried a model and the only code touching the field was doctor.js's enum
-// check. A field nothing reads is a field nobody keeps filling in, so `list
+// close and, before this, nothing read them back: the only code touching the
+// field was doctor.js's enum check. A field nothing reads is a field nobody keeps filling in, so `list
 // --stats` reports what the corpus actually holds, unrecorded entries
 // included: a blank count that stays high is the honest signal that the
 // field is not earning its place.

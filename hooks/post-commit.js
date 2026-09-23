@@ -326,8 +326,8 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
 // instead of the whole backlog injected whether or not anything is found.
 //
 // Codex and Antigravity read the one discovery policy their handoffs and
-// checkpoints also carry (skills/foreman/discovery.md). Claude Code keeps the
-// measured commit-time wording below, which names its own question and
+// checkpoints also carry (skills/foreman/discovery.md). Claude Code keeps its
+// own commit-time wording below, which names its own question and
 // background-Agent tools.
 function discoveryBlock(host = hostName(), requireVerification = true) {
   return host === "claude"
