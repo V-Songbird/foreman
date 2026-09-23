@@ -925,6 +925,15 @@ explicitly authorized decision artifact.
   close at the project root would only see the gitlink, and
   `safe-commit.js finish` refuses to stage a gitlink unless `expected`
   names that exact path.
+<!-- [Foreman: 469] -->
+- **A project that git-ignores `ROADMAP.jsonl` commits before it closes.**
+  The roadmap cannot ride in the commit, so a staged close there would
+  stage nothing and only warn. `craft-handoff.js` asks `git check-ignore`
+  and, for such a project, writes the entry paragraph's close as
+  `safe-commit.js finish` with a `message_title`, which commits with
+  `Foreman: <id>` as the final line, followed by `update-status` with the
+  returned `commit`. The recorded sha is the evidence `doctor` counts. A
+  project that tracks its roadmap keeps the staged close.
 - **After the last task, `onFinish` decides the branch's fate** — only if
   this run created the branch. When the run checkpointed on a pre-existing
   branch, or `branch` is `false`, skip this step entirely. `"ask"` (the

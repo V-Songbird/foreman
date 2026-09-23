@@ -2005,3 +2005,39 @@ describe('reviewed increment titles (codex)', () => {
     assert.equal(ordinary.tasks[0].subject, 'Fix token refresh bug — check 1/1');
   });
 });
+
+// [Foreman: 469] A git-ignored roadmap cannot ride in the commit, so the
+// entry paragraph commits first through safe-commit and closes with the
+// returned sha; a tracked roadmap keeps the staged close.
+describe('the entry close in each roadmap mode', () => {
+  function roadmapRepo(ignore) {
+    initGitRepo(project);
+    fs.writeFileSync(path.join(project, '.gitignore'), ignore ? 'ROADMAP.jsonl\n' : '', 'utf-8');
+    writeRoadmap(project, [entryFields()]);
+  }
+
+  for (const host of ['claude', 'codex']) {
+    test(`a git-ignored roadmap commits first and closes with the sha, on host ${host}`, () => {
+      roadmapRepo(true);
+      const { status, json } = run(project, { entry: '001', destination: 'task', host, judgment: goodJudgment() });
+      assert.equal(status, 0, JSON.stringify(json));
+      assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+      assert.match(json.prompt, /git-ignores ROADMAP\.jsonl/);
+      assert.match(json.prompt, /safe-commit\.js'? finish --baseline <baseline\.head>`/);
+      assert.match(json.prompt, /"message_title":"<one-line summary>"/);
+      assert.match(json.prompt, /"commit":"<the commit sha from finish>"/);
+      assert.doesNotMatch(json.prompt, /--no-commit/);
+      assert.doesNotMatch(json.prompt, /"?staged"?:true/);
+    });
+
+    test(`a tracked roadmap keeps the staged close, on host ${host}`, () => {
+      roadmapRepo(false);
+      const { status, json } = run(project, { entry: '001', destination: 'task', host, judgment: goodJudgment() });
+      assert.equal(status, 0, JSON.stringify(json));
+      assert.match(json.prompt, /finish --baseline <baseline\.head> --no-commit/);
+      assert.match(json.prompt, /"?staged"?:true/);
+      assert.doesNotMatch(json.prompt, /git-ignores ROADMAP\.jsonl/);
+      assert.doesNotMatch(json.prompt, /"commit":"</);
+    });
+  }
+});
