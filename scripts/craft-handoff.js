@@ -838,6 +838,16 @@ function contextText(judgmentContext, dependsOnDocs) {
 
 // ---- <task_context>
 
+// [Foreman: 493] With no judgment goal the goal line still names the work: the
+// record's title, and the "Done when …" sentence of its `what` when it has
+// one. A judgment goal always wins, so a crafted handoff reads as before.
+function derivedGoal(record) {
+  const title = String((record && record.title) || "").trim().replace(/[.!?]$/, "");
+  if (!title) return "";
+  const done = String((record && record.what) || "").match(/\bDone when\s+([\s\S]+?)(?:[.!?](?=\s|$)|$)/i);
+  return done ? `to finish "${title}": done when ${done[1].replace(/\s+/g, " ").trim()}` : `to finish "${title}"`;
+}
+
 // [Foreman: 291] The purpose line is the entry's own `why`, verbatim, whenever
 // the record has one. Before this the destination learned why the task existed
 // only through the crafting session's paraphrase of that field into the goal
@@ -849,7 +859,7 @@ function contextText(judgmentContext, dependsOnDocs) {
 function taskContextText(usePersona, judgment, record) {
   const role = judgment.role || "a senior engineer";
   const opener = usePersona ? `You are ${role}.` : `Domain: ${role}.`;
-  let goal = String(judgment.goal || "complete the task").trim();
+  let goal = String(judgment.goal || derivedGoal(record) || "complete the task").trim();
   if (!/[.!?]$/.test(goal)) goal += ".";
   const why = record && typeof record.why === "string" ? record.why.replace(/\s+/g, " ").trim() : "";
   const purpose = why ? `\nWhy this task exists: ${why}` : judgment.purpose ? `\n${judgment.purpose}` : "";
@@ -1427,13 +1437,16 @@ function assemble(root, input) {
   // code" — synthesizing `Implement: <title>.` as the request sentence puts
   // the contradiction in the one line that carries the actual ask.
   const requestSubject = record.title || judgment.goal || "the task described above";
+  // [Foreman: 493] A subject that already opens with the verb keeps it once:
+  // "Implement slugify" is the request, "Implement: Implement slugify" is not.
+  const request = (verb, subject) => (new RegExp(`^${verb}\\b`, "i").test(subject) ? subject : `${verb}: ${subject}`);
   const requestSentence =
     input.request ||
     (isDecision
-      ? `Decide: ${requestSubject}, and state why the chosen option wins.`
+      ? `${request("Decide", requestSubject)}, and state why the chosen option wins.`
       : judgment.question
         ? `Investigate: ${judgment.question}`
-        : `Implement: ${requestSubject}.`);
+        : `${request("Implement", requestSubject)}.`);
   const invariantsText =
     keepsEvidenceBlocks && judgment.invariants && judgment.invariants.length
       ? `<invariants>\n${judgment.invariants.join("\n")}\n</invariants>`

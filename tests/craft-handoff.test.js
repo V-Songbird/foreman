@@ -2063,3 +2063,29 @@ describe('the entry close in each roadmap mode', () => {
     });
   }
 });
+
+// [Foreman: 493] A handoff without a judgment goal still names the entry's
+// done condition, and a title that opens with the verb is not doubled.
+describe('the goal and request lines without a judgment goal', () => {
+  const title = 'Implement slugify and clamp in src/text.js';
+  const what = 'Add slugify(text) and clamp(n, lo, hi) to src/text.js. Done when both are exported and npm test passes.';
+  const bare = { steps: ['Add both helpers.'], verification: [{ run: 'npm test', expected: 'all tests pass' }] };
+
+  test('the goal line carries the title and the done clause', () => {
+    writeRoadmap(project, [entryFields({ title, what })]);
+    const { status, json } = run(project, { entry: '001', destination: 'clipboard', host: 'claude', judgment: bare });
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+    assert.ok(json.prompt.includes(`Your goal is to finish "${title}": done when both are exported and npm test passes.`), json.prompt);
+    assert.ok(!json.prompt.includes('Your goal is complete the task.'), json.prompt);
+    assert.ok(json.prompt.split('\n').includes(`${title}.`), 'the request line is the title, once');
+    assert.ok(!json.prompt.includes('Implement: Implement'), json.prompt);
+  });
+
+  test('a judgment goal still wins, word for word', () => {
+    writeRoadmap(project, [entryFields({ title, what })]);
+    const { json } = run(project, { entry: '001', destination: 'clipboard', host: 'claude', judgment: { ...bare, goal: 'to ship both helpers' } });
+    assert.ok(json.prompt.includes('Your goal is to ship both helpers.'), json.prompt);
+    assert.ok(!json.prompt.includes('to finish "'), json.prompt);
+  });
+});
