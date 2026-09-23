@@ -409,6 +409,16 @@ for (const host of HOSTS) {
         const { json } = check(project, goodPrompt(), ['--destination', 'clipboard']);
         assert.equal(json.ok, true);
         assert.ok(!json.warnings.some((w) => w.includes('echo its reasoning')));
+        assert.ok(!json.warnings.some((w) => w.includes('think harder')));
+      });
+
+      // [Foreman: 459]
+      test('a think-harder line is a warning, not an error', () => {
+        const project = makeTmpProject();
+        const prompt = goodPrompt({ request: 'Think step by step, then fix the bug.' });
+        const { json } = check(project, prompt, ['--destination', 'clipboard']);
+        assert.equal(json.ok, true);
+        assert.ok(json.warnings.some((w) => w.includes('think harder ("step by step")')), JSON.stringify(json.warnings));
       });
 
       test('agent destination requires the autonomy paragraph; others warn if it appears', () => {

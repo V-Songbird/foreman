@@ -113,6 +113,8 @@ function bookkeepingCommand(host, script, args, payload) {
     : `\`echo '${JSON.stringify(payload)}' | ${scriptCommand(host, script, args)}\``;
 }
 const AUTONOMY_MARKER = "You are operating autonomously.";
+// [Foreman: 459] Its user-present counterpart, Claude Code only.
+const KEEP_GOING_MARKER = "Keep going until the goal above is met:";
 // Used only if a template's tone block loses its quoted default.
 const DEFAULT_TONE_FALLBACK = {
   claude: "Minimal, professional conversation — silent by default, say only what the user actually needs to know.",
@@ -174,20 +176,22 @@ function templateDefaults(host) {
   const fixCeilingLine = fullLineContaining(xml, FIX_CEILING_SENTENCE);
   // Codex calibrates verification to the change on the line after the ceiling.
   const verificationScope = canonical.host === "codex" ? extractHostBlock(xml, "verification_scope", "codex") : null;
-  // The autonomy paragraph runs from its marker to the end of its bracket,
+  // Each autonomy paragraph runs from its marker to the end of its bracket,
   // read inside the host's own variant.
   const autonomyInner = extractHostBlock(xml, "autonomy", canonical.host) || "";
-  const autonomyAt = autonomyInner.indexOf(AUTONOMY_MARKER);
-  const autonomyEnd = autonomyAt === -1 ? -1 : autonomyInner.indexOf("]", autonomyAt);
-  const autonomyParagraph =
-    autonomyAt === -1 || autonomyEnd === -1 ? null : norm(autonomyInner.slice(autonomyAt, autonomyEnd));
+  const paragraphFrom = (marker) => {
+    const at = autonomyInner.indexOf(marker);
+    const end = at === -1 ? -1 : autonomyInner.indexOf("]", at);
+    return at === -1 || end === -1 ? null : norm(autonomyInner.slice(at, end));
+  };
   return {
     canonical,
     defaultTone,
     defaultOutputFormat,
     noInventionLine,
     fixCeilingLine: verificationScope ? `${fixCeilingLine}\n${verificationScope.trim()}` : fixCeilingLine,
-    autonomyParagraph,
+    autonomyParagraph: paragraphFrom(AUTONOMY_MARKER),
+    keepGoingParagraph: paragraphFrom(KEEP_GOING_MARKER),
   };
 }
 
@@ -1378,7 +1382,7 @@ function assemble(root, input) {
   const reinforced = Object.values(signals).some(Boolean);
   const profile = reinforced ? "reinforced" : "standard";
 
-  const { canonical, defaultTone, defaultOutputFormat, noInventionLine, fixCeilingLine, autonomyParagraph } =
+  const { canonical, defaultTone, defaultOutputFormat, noInventionLine, fixCeilingLine, autonomyParagraph, keepGoingParagraph } =
     templateDefaults(host);
 
   const omit = new Set(config.omit);
@@ -1513,6 +1517,7 @@ function assemble(root, input) {
     if (exampleText) parts.push(exampleText);
     parts.push(requestSentence);
     if (destination === "agent" && autonomyParagraph) parts.push(autonomyParagraph);
+    else if (destination !== "agent" && !workflowStage) parts.push(keepGoingParagraph);
     if (reinforced) parts.push(canonical.closing);
     else parts.push(CLOSURE_EVIDENCE_SENTENCE);
     if (reinforced) parts.push(`<plan>\n${judgment.question && canonical.investigationPlan ? canonical.investigationPlan : canonical.plan}\n</plan>`);

@@ -49,6 +49,7 @@ const PLACEHOLDER_FRAGMENTS = [
   "[Repeat the Run:/Expected: pair",
   "[OPTIONAL",
   "[BACKGROUND-AGENT DESTINATION",
+  "[USER-PRESENT DESTINATION",
   "[Before snippet",
   "[The immediate",
   "[Only if something downstream",
@@ -62,6 +63,12 @@ const PLACEHOLDER_FRAGMENTS = [
 // not error: other targets tolerate them.
 const REASONING_ECHO_RE =
   /\b(?:show|explain|reproduce|transcribe|echo)\b[^.\n]{0,60}\b(?:your|its)\s+(?:reasoning|thought process|chain of thought|internal thinking)\b|\bthink(?:ing)? out loud\b/i;
+
+// [Foreman: 459] Lines asking the destination to think harder or step by
+// step. Current models set their own reasoning depth and effort is the
+// control, so such a line only slows the first reply. Warning, not error.
+const THINK_HARDER_RE =
+  /\bthink(?:ing)?\s+(?:harder|hard|carefully|deeply)\b|\bstep[- ]by[- ]step\b|\bultrathink\b|\bin your thinking\b/i;
 
 // Phrases that assume the crafting conversation's context — the handed-off
 // session has none.
@@ -86,7 +93,7 @@ const AUTONOMY_SENTENCE = "You are operating autonomously.";
 
 // How each host's closing paragraph starts; the gate names it in its error.
 const CLOSING_PREFIX = {
-  claude: "Reason through the approach",
+  claude: "Don't reason in prose between tool calls.",
   codex: "Complete the requested outcome",
 };
 
@@ -496,6 +503,10 @@ function checkPrompt(prompt, opts) {
     warnings.push(codex
       ? `asks the destination to echo its reasoning ("${echo[0]}") — ask for the outcome, evidence, and concise decision rationale instead`
       : `asks the destination to echo its reasoning ("${echo[0]}") — this can trigger reasoning_extraction refusals on Fable-class models; ask for the outcome instead`);
+  }
+  const think = prompt.match(THINK_HARDER_RE);
+  if (think) {
+    warnings.push(`asks the destination to think harder ("${think[0]}") — the model sets its own reasoning depth and effort is the control; drop the line`);
   }
 
   return { errors, warnings, configWarnings: config.warnings, profile, host };

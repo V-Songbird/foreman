@@ -414,7 +414,7 @@ if the interview selected it.]
 [The immediate, specific request in one sentence.]
 
 <closing host="claude">
-Reason through the approach and edge cases in your thinking before editing — not in prose between tool calls. The steps and commands above are a working plan, not a narration script: whatever output style governs this session decides what you say aloud, so don't announce step transitions or restate command results in chat. The same style governs the register of your final message. Full evidence and findings belong in their durable home — the roadmap entry, the commit message, or the artifact the task names — with the final message stating the outcome and pointing there. Closure notes and findings describe only observed work and cite supporting files, commands, commits, or outcomes; never restate planned scope as evidence that it was executed.
+Don't reason in prose between tool calls. The steps and commands above are a working plan, not a narration script: whatever output style governs this session decides what you say aloud, so don't announce step transitions or restate command results in chat. The same style governs the register of your final message. Full evidence and findings belong in their durable home — the roadmap entry, the commit message, or the artifact the task names — with the final message stating the outcome and pointing there. Closure notes and findings describe only observed work and cite supporting files, commands, commits, or outcomes; never restate planned scope as evidence that it was executed.
 </closing>
 <closing host="codex">
 Complete the requested outcome and verify it with the checks above. Share concise progress when useful and report the outcome, evidence, and remaining limits. Explain decisions briefly when they help the user assess the result; do not provide a transcript of internal reasoning. Closure notes and findings describe only observed work and cite supporting files, commands, commits, or outcomes; never restate planned scope as evidence that it was executed.
@@ -448,7 +448,7 @@ background agent has no user to answer a question. Ship the pair — the
 reminder alone bans asking without saying when asking is still right,
 which is the one thing `scope_discipline` needs on this destination.
 Omit it for the other two destinations — an `Execute here` or pasted
-session has a user present.
+session has a user present, and takes the paragraph after this one.
 You are operating autonomously. The user is not watching in real time and
 cannot answer questions mid-task, so asking "Want me to…?" or "Shall
 I…?" will block the work. For reversible actions that follow from the
@@ -465,6 +465,14 @@ a promise about work you have not done ("I'll…", "let me know when…"), do
 that work now with tool calls. End your turn only when the task is
 complete, you have paused for one of those three reasons, or you are
 blocked on input only the user can provide.]
+[USER-PRESENT DESTINATION — for `Execute here` or a pasted session, include
+the following paragraph verbatim right here instead. A session with a user
+present also stops mid-task to report, so this names its only pauses, as
+the Codex `scope_discipline` does. A Workflow stage takes neither paragraph.
+Keep going until the goal above is met: do the reversible work it needs
+without asking for permission, and don't stop to report progress or a
+plan. Pause only for a destructive or irreversible action, a real scope
+change, or input only the user can provide.]
 </autonomy>
 <autonomy host="codex">
 [BACKGROUND-AGENT DESTINATION — include the paragraph below only for a delegated subagent.]
@@ -563,9 +571,10 @@ one-sentence goal), the concise truth line below, `<relevant_files>` with its
 symbols, `<prior_work>` when anything was recalled, `<task_rules>`
 (constraints plus the `Verification (REQUIRED):` Run:/Expected: and
 Look:/Expected: pairs and the bounded fix ceiling that closes them), the
-closure-evidence sentence, and the ROADMAP.jsonl entry paragraph when the
-handoff carries one. In Claude Code everything else is dropped — the point of
-the profile is the length it saves. A Codex standard handoff also opens with
+`autonomy` paragraph that fits the destination, the closure-evidence
+sentence, and the ROADMAP.jsonl entry paragraph when the handoff carries
+one. In Claude Code everything else is dropped — the point of the profile
+is the length it saves. A Codex standard handoff also opens with
 `<codex_runtime>` and keeps task-specific `<context>` and `<invariants>` when
 they are supplied, since that host's handoffs treat them as evidence. The fix
 ceiling is not an exception to the cut: it belongs to the verification block

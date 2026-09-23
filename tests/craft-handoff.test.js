@@ -968,6 +968,19 @@ describe('background-agent autonomy paragraph — pause policy', () => {
       }
     });
   }
+
+  // [Foreman: 459] A user-present Claude session also stops mid-task to
+  // report, so Execute here and pasted handoffs name its only pauses.
+  test('user-present Claude handoffs carry the keep-going paragraph; agents and Codex do not', () => {
+    writeRoadmap(project, [entryFields()]);
+    const KEEP = 'Keep going until the goal above is met: do the reversible work it needs without asking for permission';
+    for (const [host, destination, carries] of [['claude', 'clipboard', true], ['claude', 'task', true], ['claude', 'agent', false], ['codex', 'task', false]]) {
+      const { json } = run(project, { entry: '001', destination, host, judgment: goodJudgment() });
+      assert.equal(json.ok, true, JSON.stringify(json));
+      assert.equal(json.prompt.includes(KEEP), carries, `${host} ${destination}`);
+      assert.ok(!json.warnings.some((w) => w.includes('think harder')), `${host} ${destination}`);
+    }
+  });
 });
 
 // Reviewer style note (a): a malformed judgment field must fail loudly at
