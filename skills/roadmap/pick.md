@@ -66,15 +66,8 @@ answer or say no, Fast pick continues unchanged.
    only choice-time fields; do not fetch or reconstruct the unselected
    entries' details.
 
-   **If args carried a pick hint**, pass it to the script instead of
-   filtering yourself: `--hint "<the hint's words>"`. Relevance ranking is
-   mechanical — the script scores each candidate by how many of the
-   hint's words appear in its fields and sorts by that first, so take the
-   returned order as given, same as the no-hint case. If the result says
-   `hint_matched: false`, say in one line that nothing matches the hint
-   and present the returned top 3 as usual — never invent a candidate to
-   satisfy a hint, and never let a hint surface a blocked or
-   non-`planned` entry (the script's filter already decided that).
+   **If args carried a pick hint**, read [hint.md](hint.md)
+   (`${CLAUDE_PLUGIN_ROOT}/skills/roadmap/hint.md`) before running the command.
 
    **Never paste or print this JSON output into your chat response.** It's
    input to the next step, not something to show. It deliberately contains
@@ -172,13 +165,9 @@ Plus the standard escape to describe something else not on the list.
 
 **Defer**: if the user waves a candidate off as "not yet", "later", or "not
 until X" — rather than just picking a different one — or names a prerequisite
-outside the dependency graph, mark it `deferred` so it stops resurfacing as a
-recommendation; their words are the authorization:
-`echo '{"id":"<id>","status":"deferred","notes":"deferred: <trigger>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
-(capture the trigger they named in `notes`, sent the way the runtime says
-user-written text travels). Then re-run
-`next-candidates --menu` and re-ask Q1. Don't defer on your own judgment —
-a task that merely ranks lower stays `planned`.
+outside the dependency graph, read [defer.md](defer.md)
+(`${CLAUDE_PLUGIN_ROOT}/skills/roadmap/defer.md`) and follow it. Don't defer on
+your own judgment — a task that merely ranks lower stays `planned`.
 
 **Selected-entry load**: after Q1 (or the single-option skip) chooses an
 entry, fetch that entry alone:

@@ -41,7 +41,7 @@ reason to ask Foreman instead.
 The cheaper one is what you get by default.
 
 - **Fast pick** — Foreman sorts the roadmap it already has and recommends one.
-  It reads no code. Its own instructions still add roughly 13,000 to 17,000
+  It reads no code. Its own instructions still add roughly 13,000 to 16,000
   tokens to the session, depending on the host, and less when you say how the
   work should run. This is what you get unless you ask for the other one.
 - **Reconcile and pick** — it reads your code first, finds where the plan has

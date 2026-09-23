@@ -129,7 +129,8 @@ describe('the model-side trial events', () => {
   test('one question interaction means the same thing on both hosts', () => {
     const flat = skill('foreman', 'runtime.md').replace(/\s+/g, ' ');
     assert.match(flat, /`question_asked` is one question interaction the user saw: one `AskUserQuestion` call in Claude Code, however many questions it batches; one picker call or one plain-text question in Codex/);
-    for (const rel of ['roadmap/SKILL.md', 'roadmap/add.md', 'roadmap/correct.md']) {
+    // [Foreman: 561] The roadmap menu's question log moved to menu.md with the menu.
+    for (const rel of ['roadmap/menu.md', 'roadmap/add.md', 'roadmap/correct.md']) {
       assert.match(skill(...rel.split('/')).replace(/\s+/g, ' '), /question interaction/, `${rel} counts something else`);
     }
   });
