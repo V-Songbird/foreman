@@ -1257,6 +1257,11 @@ function slugify(text, maxLen = 40) {
 // row 1, the entry paragraph on the last row only. [load-bearing placement]
 
 function buildTaskRows(verification, basePrompt, entryParagraph, titleBase, reviewEachIncrement = false) {
+  // [Foreman: 555] The base prompt carries the root sentence only when it names
+  // the root itself, which a standard profile does not. The entry paragraph
+  // names it on the last row, so that row gets the sentence first.
+  const lastRowNeedsResolver = Boolean(entryParagraph) && entryParagraph.includes(CLAUDE_ROOT) && !basePrompt.includes(ROOT_RESOLVER);
+  const lastRowEntry = lastRowNeedsResolver ? `${ROOT_RESOLVER}\n\n${entryParagraph}` : entryParagraph;
   return verification.map((pair, i) => {
     const isFirst = i === 0;
     const isLast = i === verification.length - 1;
@@ -1268,7 +1273,7 @@ function buildTaskRows(verification, basePrompt, entryParagraph, titleBase, revi
       const filesLine = pair.files && pair.files.length ? `Files: ${pair.files.join(", ")}\n` : "";
       description = `${pair.goal || subject}\n${filesLine}${verificationText(pair)}`;
     }
-    if (isLast && entryParagraph) description += `\n\n${entryParagraph}`;
+    if (isLast && entryParagraph) description += `\n\n${lastRowEntry}`;
     return { subject, description };
   });
 }

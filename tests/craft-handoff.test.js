@@ -367,6 +367,25 @@ describe('task split — entry paragraph on the last row only', () => {
     assert.ok(json.tasks[0].description.includes('<task_context>'), 'row 1 must carry the full assembled prompt');
   });
 
+  // [Foreman: 555] A standard-profile base prompt names no root, so the entry
+  // paragraph on the last row is the first mention and carries the sentence.
+  test('the row whose entry paragraph first names the root carries the root sentence', () => {
+    writeRoadmap(project, [entryFields()]);
+    const sentence = "`${CLAUDE_PLUGIN_ROOT}` below is Foreman's plugin root";
+    for (const verification of [
+      [{ run: 'npm test -- auth', expected: 'auth tests pass', goal: 'auth slice' }, { run: 'npm test', expected: 'all tests pass', goal: 'the rest' }],
+      [{ run: 'npm test', expected: 'all tests pass' }],
+    ]) {
+      const { json } = run(project, { entry: '001', destination: 'task', host: 'claude', split: true, judgment: goodJudgment({ verification }) });
+      assert.equal(json.ok, true, JSON.stringify(json));
+      assert.equal(json.profile, 'standard');
+      const last = json.tasks[json.tasks.length - 1].description;
+      const at = last.indexOf(sentence);
+      assert.ok(at !== -1 && at < last.indexOf('${CLAUDE_PLUGIN_ROOT}/scripts/'), `${verification.length} rows: the sentence must precede the first root mention`);
+      assert.equal(json.tasks.map((t) => t.description).join('\n').split(sentence).length, 2, 'the sentence appears once across the rows');
+    }
+  });
+
   test('a single verification pair still produces one row, carrying both the full prompt and the entry paragraph', () => {
     writeRoadmap(project, [entryFields()]);
     const { json } = run(project, {
