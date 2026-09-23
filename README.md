@@ -86,14 +86,24 @@ Review and trust its hooks with `/hooks`, then start a new Codex session. Ask Fo
 
 ### Antigravity
 
-Requirements: Node.js and Git (tested with Node.js 22), and the Antigravity CLI. Antigravity has no marketplace for third-party plugins, so install from a clone of this repository. Replace `<path-to-clone>` with that directory:
+Requirements: Node.js and Git (tested with Node.js 22), and the Antigravity CLI. Antigravity has no marketplace for third-party plugins, so install from a clone of the [foundry repository](https://github.com/V-Songbird/foundry). Its `foreman` folder is a submodule checked out at the commit Foundry pins for the current release. Clone it with its submodules, then install that folder. Replace `<path-to-foundry>` with the clone's directory:
 
 ```shell
-agy plugin install "<path-to-clone>"
+git clone --recurse-submodules https://github.com/V-Songbird/foundry.git
+agy plugin install "<path-to-foundry>/foreman"
 agy plugin list
 ```
 
 The list should name `foreman`. Start a new conversation to load the plugin, then run `/init` once in the project.
+
+The install is a copy of that checkout. Install from the pinned commit, not from a clone of this repository, whose branches can hold unreleased work. To move to a newer release, update the clone, then replace the copy:
+
+```shell
+git -C "<path-to-foundry>" pull
+git -C "<path-to-foundry>" submodule update --init foreman
+agy plugin uninstall foreman
+agy plugin install "<path-to-foundry>/foreman"
+```
 
 ### Switching between them
 
