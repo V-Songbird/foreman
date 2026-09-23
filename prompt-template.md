@@ -958,9 +958,12 @@ explicitly authorized decision artifact.
   the handoff carries one), in the one form its entry paragraph names. For a
   tracked roadmap outside a submodule, stage the task's own files with
   `safe-commit.js finish --no-commit`, close the entry with `staged:true`
-  (observed_touches derives from the index, and the script stages ROADMAP.jsonl
-  alongside), then commit with `Foreman: <id>` as the message's final
-  line — entry and commit link through that trailer, so no sha gets
+  (observed_touches derives from the index, and the script stages all
+  pending roadmap bookkeeping alongside: `ROADMAP.jsonl`,
+  `.foreman/notes.jsonl` and `.foreman/archive.jsonl`, other entries' edits
+  included), then commit with `Foreman: <id>` as the message's final
+  line — the trailer names the entry that closed. Entry and commit link
+  through that trailer, so no sha gets
   recorded and the roadmap never trails uncommitted. Then mark the final
   task completed. The entry-paragraph and gate rules above are
   unchanged. When subagents help, the coordinator owns these writes.

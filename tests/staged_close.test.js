@@ -24,6 +24,7 @@ const {
   writeRoadmap,
   writeConfig,
   initGitRepo,
+  runNodeScript,
 } = require('./helpers');
 
 const { trailerIdsIn, commitTrailerFor } = require('../scripts/roadmap');
@@ -193,5 +194,87 @@ describe('post-commit.js trailer behavior', () => {
     writeFile('src/thing.js', 'x\n');
     commitAllWithMessage('record the follow-up\n\nForeman: 001');
     assert.equal(runHook(), '');
+  });
+});
+
+// [Foreman: 539] A staged close commits Foreman's pending bookkeeping as it
+// stands, whoever wrote it, so the committed roadmap never trails the working
+// one: other entries' roadmap edits, a lesson a `commit:` close stored, and an
+// archive move all ride in the next staged close's commit.
+describe('a staged close commits all pending bookkeeping', () => {
+  const SAFE_COMMIT = path.join(__dirname, '..', 'scripts', 'safe-commit.js');
+
+  function safeCommit(argv, payload) {
+    const r = runNodeScript(SAFE_COMMIT, argv, payload, env);
+    return JSON.parse(r.stdout);
+  }
+
+  function roadmap(argv, payload) {
+    const r = runRoadmap(argv, payload, env);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    return JSON.parse(r.stdout);
+  }
+
+  /** A tracked roadmap with `entries`, committed, and a clean tree. */
+  function trackedRoadmap(entries) {
+    initGitRepo(project);
+    writeRoadmap(project, entries);
+    commitAllWithMessage('base');
+  }
+
+  /** One task on `001` under the primitive: begin, write, finish, staged close, commit. */
+  function closeStaged(file) {
+    const begin = safeCommit(['begin']);
+    assert.equal(begin.dirty, false, JSON.stringify(begin));
+    writeFile(file, 'work\n');
+    const finish = safeCommit(['finish', '--baseline', begin.baseline.head, '--no-commit'], { id: '001', expected: [file] });
+    assert.equal(finish.ok, true, JSON.stringify(finish));
+    const close = roadmap(['update-status'], { id: '001', status: 'done', staged: true });
+    assert.equal(close.roadmap_staged, true, JSON.stringify(close));
+    git('commit', '-q', '-m', 'close 001', '-m', 'Foreman: 001');
+    return finish;
+  }
+
+  const atHead = (rel) => git('show', `HEAD:${rel}`);
+  const clean = () => git('status', '--porcelain') === '';
+
+  test("another entry's mid-task annotate rides in the close's commit", () => {
+    trackedRoadmap([entry('001', 'in_progress'), entry('002', 'planned')]);
+    const begin = safeCommit(['begin']);
+    writeFile('src/a.js', 'work\n');
+    roadmap(['annotate'], { id: '002', notes: 'noted while 001 ran' });
+    const finish = safeCommit(['finish', '--baseline', begin.baseline.head, '--no-commit'], { id: '001', expected: ['src/a.js'] });
+    assert.equal(finish.ok, true, JSON.stringify(finish));
+    roadmap(['update-status'], { id: '001', status: 'done', staged: true });
+    git('commit', '-q', '-m', 'close 001', '-m', 'Foreman: 001');
+    assert.ok(clean(), git('status', '--porcelain'));
+    assert.match(atHead('ROADMAP.jsonl'), /noted while 001 ran/);
+  });
+
+  test('a lesson a commit: close stored neither blocks the next finish nor stays uncommitted', () => {
+    trackedRoadmap([entry('001', 'in_progress'), entry('002', 'in_progress')]);
+    writeConfig(project, { ledger: { enabled: true } });
+    commitAllWithMessage('ledger on');
+    writeFile('src/b.js', 'work\n');
+    git('add', '--', 'src/b.js');
+    git('commit', '-q', '-m', 'work for 002', '-m', 'Foreman: 002');
+    const sha = git('rev-parse', 'HEAD').trim();
+    const stored = roadmap(['update-status'], { id: '002', status: 'done', commit: sha, lesson: 'src/b.js keeps the retry state.' });
+    assert.equal(stored.lesson && stored.lesson.stored, true, JSON.stringify(stored));
+
+    const finish = closeStaged('src/a.js');
+    assert.ok((finish.ledger_excluded || []).includes('.foreman/notes.jsonl'), JSON.stringify(finish));
+    assert.ok(clean(), git('status', '--porcelain'));
+    assert.match(atHead('.foreman/notes.jsonl'), /keeps the retry state/);
+  });
+
+  test('an archive move is committed whole by the next staged close', () => {
+    const full = { why: 'w', what: 'x', source: 'user', created_at: localToday(), updated_at: localToday() };
+    trackedRoadmap([entry('001', 'in_progress', full), entry('002', 'done', full), entry('003', 'done', full)]);
+    roadmap(['archive'], { ids: ['002', '003'] });
+    closeStaged('src/a.js');
+    assert.ok(clean(), git('status', '--porcelain'));
+    const ids = `${atHead('ROADMAP.jsonl')}\n${atHead('.foreman/archive.jsonl')}`;
+    for (const id of ['001', '002', '003']) assert.match(ids, new RegExp(`"id":"${id}"`), `${id} is missing at HEAD`);
   });
 });

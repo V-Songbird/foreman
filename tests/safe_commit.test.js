@@ -663,7 +663,9 @@ describe('safe-commit and an auto-migration backup mid-task', () => {
     });
 
     assert.equal(json.ok, true, JSON.stringify(json));
-    assert.deepEqual(json.files, ['ROADMAP.jsonl', 'src/a.js']);
+    // [Foreman: 539] The staged close carries the migrated archive too, so the
+    // commit holds both halves of the roadmap in the same format.
+    assert.deepEqual(json.files, ['.foreman/archive.jsonl', 'ROADMAP.jsonl', 'src/a.js']);
     assert.ok(json.ledger_excluded.some((f) => f.startsWith('ROADMAP.jsonl.backup-')));
     assert.deepEqual(json.attested.forbidden_files, []);
     const backups = backupsIn(project, 'ROADMAP.jsonl.backup-');

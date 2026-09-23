@@ -151,8 +151,9 @@ function isSharedLedger(file) {
   const normalized = file.replaceAll("\\", "/");
   // [Foreman: 132] The archive is the roadmap's other half — same single
   // writer rule, so a worker must not commit it either. safe-commit's
-  // roadmap_close carve-out stays ROADMAP.jsonl only: a close writes the
-  // roadmap, never the archive. A project's own CHANGELOG.md is NOT one of
+  // roadmap_close carve-out is CLOSE_BOOKKEEPING below: [Foreman: 539] a
+  // staged close stages every pending bookkeeping file, the archive included.
+  // A project's own CHANGELOG.md is NOT one of
   // Foreman's files and never was — an ordinary edit to it belongs in the
   // task's own commit like any other change.
   // The trial log and its session marker are Foreman's own writes into the
@@ -170,8 +171,11 @@ function isSharedLedger(file) {
 
 // [Foreman: 184] Every path `git status` reports as differing, porcelain -z so
 // special characters survive; a rename/copy record carries both sides.
+// [Foreman: 539] Untracked files are listed one by one, so a new
+// .foreman/archive.jsonl reads as bookkeeping rather than as an unknown
+// .foreman/ directory.
 function dirtyFiles(root) {
-  const tokens = git(root, ["status", "--porcelain", "-z"]).split("\0").filter(Boolean);
+  const tokens = git(root, ["status", "--porcelain", "-z", "--untracked-files=all"]).split("\0").filter(Boolean);
   const files = [];
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
@@ -188,12 +192,15 @@ function dirtyFiles(root) {
 // confined to shared-ledger files is Foreman's own bookkeeping (the entry's
 // in_progress flip on a tracked roadmap), not someone else's work in the
 // tree. Anything else keeps the ordinary dirty refusal.
-// The lesson ledger counts as bookkeeping HERE and nowhere else: a close that
+// The lesson ledger counts as bookkeeping here and in finish: a close that
 // records a lesson writes `.foreman/notes.jsonl`, so the very act of closing
 // one task would otherwise cost the next one its baseline. It stays out of
 // isSharedLedger because a staged close deliberately stages it into its own
 // commit, which that predicate would forbid.
 const NOTES_LEDGER = ".foreman/notes.jsonl";
+// [Foreman: 539] What a staged close stages (roadmap.js stageRoadmapFile), so
+// a declared roadmap close may carry each of them in its commit.
+const CLOSE_BOOKKEEPING = new Set([ROADMAP_FILE, NOTES_LEDGER, ".foreman/archive.jsonl"]);
 
 function ledgerOnlyDirt(root) {
   const files = dirtyFiles(root);
@@ -301,7 +308,7 @@ function attestCommit(root, options) {
   // declare up front rather than discover afterwards.
   const files = zsplit(git(root, ["diff", "--name-only", "--no-renames", "-z", baseline, commit]));
   const forbiddenFiles = files.filter(
-    (file) => isSharedLedger(file) && !(roadmapClose && file === ROADMAP_FILE)
+    (file) => isSharedLedger(file) && !(roadmapClose && CLOSE_BOOKKEEPING.has(file))
   );
   if (forbiddenFiles.length) reasons.push("shared_ledger_committed");
 
@@ -351,12 +358,14 @@ function finishUnit(root, options) {
   // untracked backup an auto-migration may have left sitting in the tree —
   // is left out in EVERY mode, so a close never rides bookkeeping dirt into
   // its own commit and a plain unit leaves it for whoever owns it.
-  const changed = changedAll.filter(
-    (file) => !isSharedLedger(file) || (roadmapClose && file === ROADMAP_FILE)
-  );
-  const ledgerExcluded = changedAll.filter(
-    (file) => isSharedLedger(file) && !(roadmapClose && file === ROADMAP_FILE)
-  );
+  // [Foreman: 539] The lesson store is left out the same way: a lesson another
+  // close stored is bookkeeping for the next staged close, not this unit's.
+  // finish itself still stages only ROADMAP.jsonl for a declared close; what
+  // the staged close already put in the index is allowed below.
+  const bookkeeping = (file) =>
+    (isSharedLedger(file) || file === NOTES_LEDGER) && !(roadmapClose && file === ROADMAP_FILE);
+  const changed = changedAll.filter((file) => !bookkeeping(file));
+  const ledgerExcluded = changedAll.filter(bookkeeping);
   if (!changed.length) return { ok: false, reason: "no_task_changes", baseline };
 
   // [Foreman: 410] A gitlink is staged only when `expected` names that exact
@@ -384,7 +393,7 @@ function finishUnit(root, options) {
   const ignored = roadmapClose ? ignoredPaths(root, [ROADMAP_FILE]) : [];
   const notice = ignored.length ? { warnings: [notStagedWarning(id, ignored)] } : {};
 
-  const allowed = roadmapClose ? [...expected, ROADMAP_FILE] : expected;
+  const allowed = roadmapClose ? [...expected, ...CLOSE_BOOKKEEPING] : expected;
   const unexpected = changed.filter((file) => !isOwned(file, allowed));
   if (unexpected.length && !options.allowUnexpected) {
     // Nothing is staged yet, so refusing here leaves the index exactly as

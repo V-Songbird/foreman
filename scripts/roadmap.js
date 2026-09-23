@@ -958,25 +958,42 @@ function notStagedWarning(id, ignored) {
   return `git-ignored here, so not staged: ${ignored.join(", ")}.${link}`;
 }
 
-// Best-effort `git add` of the files a staged close writes, so it needs no
-// extra caller step to fold them into the pending commit. `staged` false (git
+// Best-effort `git add` of Foreman's bookkeeping, so a staged close needs no
+// extra caller step to fold it into the pending commit. `staged` false (git
 // absent / not a repo) never fails the close — the caller just stages them
-// itself. The notes file is staged only when this close actually wrote to
-// it; an unrelated pending edit to it is not this close's business.
+// itself.
+// [Foreman: 539] The commit carries every pending bookkeeping file, whoever
+// wrote it: the roadmap, the lesson store and the archive, so another close's
+// lesson or an archive move reaches history with this close instead of
+// trailing it. A path that neither exists nor is tracked is left out, since
+// `git add` fails on it.
 // [Foreman: 335] An ignored file is left out rather than handed to `git add`,
 // which refuses it and fails the whole call even after staging the rest;
-// `ignored` names what was left out so the close can say so.
-function stageRoadmapFile(root, extraPaths = []) {
-  const paths = ["ROADMAP.jsonl", ...extraPaths];
-  const ignored = ignoredPaths(root, paths);
-  const toStage = paths.filter((file) => !ignored.includes(file));
+// `ignored` names what this close wrote and git will not carry, so the close
+// can say so: the roadmap, and the lesson store when `written` names it.
+function stageRoadmapFile(root, written = []) {
+  const paths = ["ROADMAP.jsonl", ledger.NOTES_RELATIVE, ARCHIVE_LABEL];
+  const ignoredAll = ignoredPaths(root, paths);
+  const ignored = ["ROADMAP.jsonl", ...written].filter((file) => ignoredAll.includes(file));
+  let tracked = [];
+  try {
+    tracked = execFileSync("git", ["ls-files", "--", ...paths], {
+      cwd: root,
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).split(/\r?\n/).filter(Boolean);
+  } catch {
+    tracked = [];
+  }
+  const toStage = paths.filter((file) => !ignoredAll.includes(file)
+    && (fs.existsSync(path.join(root, file)) || tracked.includes(file)));
   if (!toStage.length) return { staged: false, ignored };
   try {
     execFileSync("git", ["add", "--", ...toStage], {
       cwd: root,
       stdio: ["ignore", "ignore", "ignore"],
     });
-    return { staged: !ignored.includes("ROADMAP.jsonl"), ignored };
+    return { staged: !ignoredAll.includes("ROADMAP.jsonl"), ignored };
   } catch {
     return { staged: false, ignored };
   }
@@ -2572,7 +2589,9 @@ is written, and the error names the field and the kind, never the text.
                     the task's own files with "safe-commit.js finish
                     --no-commit" and BEFORE committing: observed_touches
                     auto-folds from the index instead of a commit, the script stages
-                    ROADMAP.jsonl itself, and the result carries trailer
+                    the pending bookkeeping itself (ROADMAP.jsonl,
+                    .foreman/notes.jsonl, .foreman/archive.jsonl, other
+                    entries' edits included), and the result carries trailer
                     ("Foreman: <id>") to put as the commit message's final
                     line -- entry and commit link through that trailer, so
                     the close lands inside its own commit with no sha
