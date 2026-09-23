@@ -62,6 +62,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   Codex's own markers still win when both are present.
 - `craft-handoff.js` and `check-prompt.js --host` accept `antigravity` and
   build the Codex form of the prompt for it.
+- `roadmap.js` `add`, `annotate`, `correct` and `update-status` refuse text
+  that looks like a credential: a provider API key, a private key block, an
+  `Authorization` value or a password inside a URL. Nothing is written, and
+  the error names the field and the kind of credential, never the text.
 
 ## 3.1.0 — 2026-09-15
 

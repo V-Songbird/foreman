@@ -331,6 +331,28 @@ manage it. Concurrent commands serialize automatically; a crashed owner's
 lock is recovered, and a live lock that outlasts the short wait returns one
 error instead of risking a lost update. Read-only commands take no lock.
 
+**Credential-shaped text is refused.** Titles, notes and lessons come from
+conversations and land in files a project may commit, so four commands check
+the text fields they store before taking the lock:
+
+| Command | Fields checked |
+| --- | --- |
+| `add` | `title`, `why`, `what`, `notes`, `planned_touches` (or `touches`), `doc` |
+| `annotate` | `notes` |
+| `correct` | the new `title`, `why`, `what` and `planned_touches` (or `touches`) |
+| `update-status` | `notes`, `lesson`, `add_touches`, `doc`, `model` |
+
+The check is a small closed set of shapes: a provider API key (an `sk-` key,
+a GitHub token, an AWS access key id, a Slack token), a private key block, an
+`Authorization` value (`Bearer` or `Basic`), and a password inside a URL. The
+`sk-` key and `Authorization` shapes must also hold a digit, so prose such as
+"Basic authentication" or "Bearer tokens" passes. A match refuses the whole
+call: nothing is written, the command exits 1, and the error names the field
+and the kind of credential, never the text. `correct` checks only the new
+values, never `expected`, so a correction that removes a credential goes
+through. Text already in the files is never checked, so an older entry stays
+readable.
+
 ---
 
 ## Private roadmap — git-ignored files
@@ -497,7 +519,11 @@ files intersect that record's files is served it back.
   `{"kind":"entry"}` otherwise, resolved later through the entry's
   `Foreman: <id>` trailers. A rebase splits a sha from its trailer, so
   commit-kind falls through to trailer resolution when the sha is gone.
-- `lesson` — 500 characters, **hard refused** above it, never truncated.
+- `lesson` — 500 characters, **hard refused** above it, never truncated. A
+  longer lesson still lets the close through and lands on the entry's notes
+  instead. A lesson that looks like a credential refuses the whole
+  `update-status` call, status included, and nothing is written (see
+  [Using roadmap.js](#using-roadmapjs)).
 - `area` — derived, cosmetic, for readable grouping only. Selection is always
   path-level.
 
