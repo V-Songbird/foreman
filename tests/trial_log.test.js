@@ -21,6 +21,7 @@ const { test, describe, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
 const {
   makeTmpProject,
@@ -401,6 +402,33 @@ describe('trial log — wired surfaces', () => {
       !JSON.stringify(interrupted).includes(returned.reason),
       'the working-tree prose must not reach the log'
     );
+  });
+
+  // [Foreman: 497] finish refusing a submodule's gitlink is an interruption
+  // like any other refusal, recorded once by its closed name.
+  test('a refused gitlink records one commit_interrupted with its reason', () => {
+    on();
+    initGitRepo(project);
+    const lib = path.join(project, 'lib');
+    fs.mkdirSync(lib);
+    initGitRepo(lib);
+    commitFile(lib, 'a.js', 'one\n');
+    fs.writeFileSync(path.join(project, '.gitmodules'), '[submodule "lib"]\n\tpath = lib\n\turl = ./lib\n');
+    const git = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf-8' });
+    git(project, '-c', 'advice.addEmbeddedRepo=false', 'add', '.gitmodules', 'lib', '.foreman/config.json');
+    git(project, 'commit', '-q', '-m', 'base');
+    const env = { CLAUDE_PROJECT_DIR: project };
+    const begin = JSON.parse(runNodeScript(path.join(SCRIPTS_DIR, 'safe-commit.js'), ['begin'], null, env).stdout);
+    assert.equal(begin.dirty, false, JSON.stringify(begin));
+    commitFile(lib, 'a.js', 'two\n');
+
+    const result = JSON.parse(
+      runNodeScript(path.join(SCRIPTS_DIR, 'safe-commit.js'), ['finish', '--baseline', begin.baseline.head, '--no-commit'], { expected: ['lib/a.js'] }, env).stdout
+    );
+    assert.equal(result.reason, 'gitlink_not_expected', JSON.stringify(result));
+    const interrupted = lines().filter((l) => l.event === 'commit_interrupted');
+    assert.equal(interrupted.length, 1);
+    assert.deepEqual({ hook: interrupted[0].hook, reason_class: interrupted[0].reason_class }, { hook: 'safe-commit', reason_class: 'gitlink_not_expected' });
   });
 
   test('a clean begin is not an interruption', () => {

@@ -140,11 +140,12 @@ separately. Both are `null` on a project whose init predates the trial.
 `reason_class` is one of the refusal names `scripts/safe-commit.js` already
 returns — `dirty_tree` (its `begin` reporting `dirty: true`),
 `head_moved_since_baseline`, `no_task_changes`, `unexpected_files`,
-`staging_incomplete`, `staging_failed`, `post_commit_attestation_failed` —
-plus `verification_declined` for the `requireVerification` hold (written by
-Claude Code's `hooks/task-completed.js`; Codex's stop reminder records none,
-and Antigravity has neither). Names only:
-never the count of dirty files, never which files were unexpected.
+`staging_incomplete`, `staging_failed`, `post_commit_attestation_failed`,
+`gitlink_not_expected` (a submodule pointer `finish` was not given by its
+exact path) — plus `verification_declined` for the `requireVerification`
+hold (written by Claude Code's `hooks/task-completed.js`; Codex's stop
+reminder records none, and Antigravity has neither). Names only: never the
+count of dirty files, never which files were unexpected.
 
 <!-- [Foreman: 283] -->
 ### Ledger events
@@ -248,10 +249,11 @@ nothing else:
 - **`commit_interrupted`** — every `ok:false` return from
   `scripts/safe-commit.js` (`begin` reporting `dirty: true`, and `finish`'s
   `head_moved_since_baseline` / `no_task_changes` / `unexpected_files` /
-  `staging_incomplete`), recorded by the caller that receives it, plus, in
-  Claude Code, `hooks/task-completed.js` when `requireVerification` holds a
-  close (`verification_declined`). `hook` names the surface, `reason_class` copies
-  the refusal name verbatim and nothing else from the result.
+  `staging_incomplete` / `gitlink_not_expected`), recorded by the caller
+  that receives it, plus, in Claude Code, `hooks/task-completed.js` when
+  `requireVerification` holds a close (`verification_declined`). `hook`
+  names the surface, `reason_class` copies the refusal name verbatim and
+  nothing else from the result.
 - **`recovery_attempted`, `reinit-snapshot`** — `skills/init/SKILL.md`, Write
   phase step 1's four-option question after a failed snapshot. `success: true`
   for a retry that exited 0 or a backup that copied; `success: false` for

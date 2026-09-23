@@ -71,6 +71,9 @@ const REASON_CLASSES = [
   // the metric a floor for no reason.
   "staging_failed",
   "post_commit_attestation_failed",
+  // [Foreman: 497] finish refusing a submodule gitlink its expected list does
+  // not name exactly.
+  "gitlink_not_expected",
   "verification_declined",
 ];
 const RECOVERY_KINDS = ["reinit-snapshot", "resume-in-progress"];
