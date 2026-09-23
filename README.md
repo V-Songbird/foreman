@@ -110,7 +110,7 @@ Foreman does the same job in every assistant. The host — the assistant Foreman
 | | Claude Code | Codex | Antigravity |
 | --- | --- | --- | --- |
 | Starting a tracked task | A hook opens the roadmap entry when Foreman's prompt becomes a task | The prompt opens the entry with an explicit start command | The same explicit start command |
-| Reminder when a task ends with its entry still open (`taskCloseGate`) | The first attempt to finish stops until the entry is closed | After an explicit check finds the entry still open, Foreman asks Codex for one more turn | Not available: Antigravity has no task or stop event Foreman can use |
+| Reminder when a task ends with its entry still open (`taskCloseGate`) | Once per task, the first attempt to finish is stopped with instructions to close the entry; the retry passes | After an explicit check finds the entry still open, Foreman asks Codex for one more turn | Not available: Antigravity has no task or stop event Foreman can use |
 | Direct edits of the roadmap file are blocked for | `Edit` and `Write` | `apply_patch`, `Edit` and `Write` | `write_to_file`, `replace_file_content` and `multi_replace_file_content` |
 | Lessons appear when a file is touched with | `Read`, `Edit` and `Write` | `apply_patch`, `Read`, `Edit` and `Write` | `view_file` and the three write tools, at the next model call |
 | Offering untracked work Foreman noticed | After a commit | After a commit, in every handoff and before reporting completion | After a commit, at the next model call, in every handoff and before reporting completion |
