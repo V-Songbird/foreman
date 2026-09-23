@@ -89,6 +89,17 @@ const CLAUDE_ROOT = "${CLAUDE_PLUGIN_ROOT}";
 const ROOT_LOOKUP = "the `installPath` recorded for `foreman@<marketplace>` in `~/.claude/plugins/installed_plugins.json`, or, in a session started with `--plugin-dir`, that directory";
 const ROOT_RESOLVER = `\`${CLAUDE_ROOT}\` below is Foreman's plugin root, the directory that holds \`scripts/roadmap.js\`. If your shell leaves it empty, use ${ROOT_LOOKUP}.`;
 const CLIPBOARD_ROOT_RESOLVER = `The Foreman script paths below were resolved when this prompt was written. If one no longer exists because Foreman was updated since, use ${ROOT_LOOKUP}.`;
+// [Foreman: 553] An entry's title, why, what and notes, and the judgment, may
+// name ${CLAUDE_PLUGIN_ROOT} for the user's own plugin. Only the text Foreman
+// writes names Foreman's root, so user text holds the variable behind this
+// marker while the root is resolved and located, then gets it back as written.
+const USER_ROOT = "\u0000USER_PLUGIN_ROOT\u0000";
+function holdUserRoot(value) {
+  if (typeof value === "string") return value.split(CLAUDE_ROOT).join(USER_ROOT);
+  if (Array.isArray(value)) return value.map(holdUserRoot);
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, holdUserRoot(item)]));
+  return value;
+}
 // Codex's prompts carry the installed root, and both hosts read skill files
 // from it at craft time.
 const PLUGIN_ROOT = path.resolve(__dirname, "..").replace(/\\/g, "/");
@@ -1415,20 +1426,22 @@ function assemble(root, input) {
       })
     : "";
 
-  const taskContextBlock = taskContextText(config.usePersona, judgment, record);
-  const backgroundInner = relevantFilesText(symbolResult.files, symbolResult.references, symbolResult.unresolved, record);
+  const taskContextBlock = holdUserRoot(taskContextText(config.usePersona, judgment, record));
+  const backgroundInner = holdUserRoot(relevantFilesText(symbolResult.files, symbolResult.references, symbolResult.unresolved, record));
   // One read of the roadmap and the archive for every history consumer below.
   const history = historyEntries(root);
-  const priorWork = priorWorkText(history, record, root);
-  const lessons = ledgerText(root, record);
-  const anchors = anchorsText(root, record, config.ledger.dir, history);
-  const chain = symbolChainText(root, record, symbolResult.files, history);
-  const ctxText = contextText(judgment.context, record.depends_on_docs);
+  const priorWork = holdUserRoot(priorWorkText(history, record, root));
+  const lessons = holdUserRoot(ledgerText(root, record));
+  const anchors = holdUserRoot(anchorsText(root, record, config.ledger.dir, history));
+  const chain = holdUserRoot(symbolChainText(root, record, symbolResult.files, history));
+  const ctxText = holdUserRoot(contextText(judgment.context, record.depends_on_docs));
   const includeTone = !workflowStage && reinforced && (destination === "agent" || !omit.has("tone"));
   const includeBackground = !omit.has("background");
   const includeOutputFormat = !workflowStage && reinforced && !omit.has("output_format");
-  const rulesBlock = taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkpointEmbed, reviewEachIncrement, host);
-  const recoveryBlock = reviewEachIncrement && input.resume ? incrementResumeText(record, host) : "";
+  // These two mix Foreman's own commands with the user's text, so the user's
+  // side is held before they are built.
+  const rulesBlock = taskRulesText(holdUserRoot(record), holdUserRoot(judgment), hasVerification, fixCeilingLine, checkpointEmbed, reviewEachIncrement, host);
+  const recoveryBlock = reviewEachIncrement && input.resume ? incrementResumeText(holdUserRoot(record), host) : "";
   // [Foreman: 231] Claude Code's standard profile is the length it saves, so
   // <context> and <invariants> ride on reinforced only there. A Codex handoff
   // treats both as task evidence and keeps them on either profile.
@@ -1440,20 +1453,20 @@ function assemble(root, input) {
   // [Foreman: 493] A subject that already opens with the verb keeps it once:
   // "Implement slugify" is the request, "Implement: Implement slugify" is not.
   const request = (verb, subject) => (new RegExp(`^${verb}\\b`, "i").test(subject) ? subject : `${verb}: ${subject}`);
-  const requestSentence =
+  const requestSentence = holdUserRoot(
     input.request ||
     (isDecision
       ? `${request("Decide", requestSubject)}, and state why the chosen option wins.`
       : judgment.question
         ? `Investigate: ${judgment.question}`
-        : `${request("Implement", requestSubject)}.`);
+        : `${request("Implement", requestSubject)}.`));
   const invariantsText =
     keepsEvidenceBlocks && judgment.invariants && judgment.invariants.length
-      ? `<invariants>\n${judgment.invariants.join("\n")}\n</invariants>`
+      ? holdUserRoot(`<invariants>\n${judgment.invariants.join("\n")}\n</invariants>`)
       : "";
   const exampleText =
     reinforced && !omit.has("example") && judgment.example
-      ? `<example>\n${judgment.example.before} → ${judgment.example.after}\n</example>`
+      ? holdUserRoot(`<example>\n${judgment.example.before} → ${judgment.example.after}\n</example>`)
       : "";
 
   // [Foreman: 500] A pasted prompt is plain text, and no shell it reaches
@@ -1488,7 +1501,7 @@ function assemble(root, input) {
     }
     if (includeEntry && entryParagraph) parts.push(entryParagraph);
     if (includeTone) {
-      parts.push(`<tone>\n${input.customTone || defaultTone}\n</tone>`);
+      parts.push(`<tone>\n${holdUserRoot(input.customTone) || defaultTone}\n</tone>`);
     }
     if (includeBackground) {
       const ctxBlock = keepsEvidenceBlocks && ctxText ? `<context>\n${ctxText}\n</context>\n` : "";
@@ -1525,7 +1538,7 @@ function assemble(root, input) {
     else if (includeOutputFormat) parts.push(`<output_format>\n${defaultOutputFormat}\n</output_format>`);
     const firstRoot = parts.findIndex((part) => part && part.includes(CLAUDE_ROOT));
     if (firstRoot !== -1) parts.splice(firstRoot, 0, rootResolver);
-    return pastedPaths(parts.filter(Boolean).join("\n\n") + "\n");
+    return pastedPaths(parts.filter(Boolean).join("\n\n") + "\n").split(USER_ROOT).join(CLAUDE_ROOT);
   }
 
   const basePrompt = buildParts(false);

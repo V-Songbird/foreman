@@ -466,6 +466,28 @@ describe('${CLAUDE_PLUGIN_ROOT} travels literal in a Claude Code task or agent h
     assert.ok(!codex.prompt.includes('installed_plugins.json'));
   });
 
+  // [Foreman: 553] A Claude Code plugin project's entries name the variable for
+  // their own hooks. Only Foreman's own paths are Foreman's root: the user's why
+  // and steps stay as written, and the resolver sentence sits where Foreman
+  // first names its own root.
+  test('user text naming ${CLAUDE_PLUGIN_ROOT} stays verbatim', () => {
+    const why = 'hooks.json runs ${CLAUDE_PLUGIN_ROOT}/hooks/x.js';
+    const step = 'Point hooks.json at ${CLAUDE_PLUGIN_ROOT}/hooks/x.js.';
+    writeRoadmap(project, [entryFields({ why })]);
+    const root = path.resolve(SCRIPTS_DIR, '..').replace(/\\/g, '/');
+    for (const destination of ['clipboard', 'task']) {
+      const { json } = run(project, { entry: '001', destination, host: 'claude', judgment: goodJudgment({ steps: [step] }) });
+      assert.equal(json.ok, true, JSON.stringify(json));
+      assert.ok(json.prompt.includes(`Why this task exists: ${why}`), destination);
+      assert.ok(json.prompt.includes(`- ${step}`), destination);
+      const resolver = json.prompt.search(/below is Foreman's plugin root|were resolved when this prompt was written/);
+      assert.ok(resolver > json.prompt.indexOf('</task_context>'), `${destination}: the resolver sentence moved above the user's text`);
+      assert.ok(json.prompt.includes(destination === 'clipboard' ? `${root}/scripts/roadmap.js` : '${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js'), destination);
+      if (destination === 'clipboard') assert.ok(!json.prompt.includes('${CLAUDE_PLUGIN_ROOT}/scripts/'), destination);
+      assert.ok(!json.prompt.includes('\u0000'), destination);
+    }
+  });
+
   test('a clipboard handoff quotes a root with a space', () => {
     writeRoadmap(project, [entryFields()]);
     const plugin = path.join(makeTmpProject(), 'Foreman plugin');
