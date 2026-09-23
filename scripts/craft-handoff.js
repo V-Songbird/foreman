@@ -630,8 +630,8 @@ const CHAIN_KEEP = 3;
 // The id alone is a pointer a pasted or background session cannot follow, so
 // the title names the work. The why was carried here once, and cut: it is a
 // plan written before that work started, never rechecked afterwards, and a
-// line inside <background> with no verify-against-the-code frame is obeyed
-// as fact on both models (docs/foreman/research/foreman-cut-channel-2026-09-05.md).
+// line inside <background> with no verify-against-the-code frame is taken as
+// fact by the session that reads it, whichever model runs it.
 // A wrong why in this channel would bind exactly as hard as a right one. The
 // title is cut short; the line cap does the rest.
 const CHAIN_TITLE = 40;
@@ -1692,9 +1692,9 @@ module.exports = {
   CHAIN_MAX_CHARS,
   ANCHOR_MAX_CHARS,
   notesOverlapExists,
-  // Read by benchmarks/foreman/lessons/gen.js, so a reworded header or closer
-  // fails the arm-invariant test instead of silently benchmarking prose the
-  // product no longer ships.
+  // An external benchmark generator parses this header and closer, so a
+  // reworded one fails its invariant check instead of silently measuring
+  // prose the product no longer ships.
   NOTES_HEADER,
   NOTES_CLOSER,
   taskContextText,
