@@ -490,7 +490,8 @@ describe('${CLAUDE_PLUGIN_ROOT} travels literal in a Claude Code task or agent h
     for (const destination of ['task', 'agent', 'clipboard']) {
       const { json } = run(project, { entry: '001', destination, host: 'claude', judgment: goodJudgment() });
       assert.equal(json.ok, true, JSON.stringify(json));
-      const lookup = 'use the `installPath` recorded for `foreman@<marketplace>` in `~/.claude/plugins/installed_plugins.json`, or, in a session started with `--plugin-dir`, that directory.';
+      // [Foreman: 540] The session-start line comes first, then the install record.
+      const lookup = "use the directory this session's `[Foreman] Plugin root:` line names, if its context has one; otherwise the `installPath` recorded for `foreman@<marketplace>` in `~/.claude/plugins/installed_plugins.json`, or, in a session started with `--plugin-dir`, that directory.";
       assert.equal(json.prompt.split(lookup).length, 2, destination);
       const at = json.prompt.indexOf(lookup);
       const firstCommand = json.prompt.indexOf('/scripts/roadmap.js');

@@ -9,6 +9,7 @@
 const { test, describe, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
 const { runScriptRaw, makeTmpProject, writeRoadmap } = require('./helpers');
@@ -16,10 +17,13 @@ const { archiveOfferStatePath } = require('../hooks/session-start');
 
 let project;
 let env;
+const INSTALLED_ROOT = path.join(os.tmpdir(), 'plugins', 'cache', 'foundry', 'foreman', '9.9.9');
 
 beforeEach(() => {
   project = makeTmpProject();
-  env = { CLAUDE_PROJECT_DIR: project };
+  // [Foreman: 540] An installed root, so the plugin-root line stays out of
+  // the tests that are about the roadmap lines.
+  env = { CLAUDE_PROJECT_DIR: project, CLAUDE_PLUGIN_ROOT: INSTALLED_ROOT };
 });
 
 function run(payload) {
@@ -176,5 +180,23 @@ describe('session-start archive offer', () => {
 
     const rewritten = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
     assert.equal(rewritten.date, localToday());
+  });
+});
+
+// [Foreman: 540] A session started with --plugin-dir has no install record, so
+// session-start names Foreman's root once; an installed session gets no line.
+describe('session-start plugin root line', () => {
+  test('a --plugin-dir session is told the root, with or without a roadmap', () => {
+    const checkout = path.join(os.tmpdir(), 'foreman-checkout');
+    const out = runScriptRaw('session-start.js', { source: 'startup' }, { CLAUDE_PROJECT_DIR: project, CLAUDE_PLUGIN_ROOT: checkout }).stdout;
+    assert.equal(out.split('\n').filter((line) => line.startsWith('[Foreman] Plugin root: ')).length, 1, out);
+    assert.ok(out.includes(checkout.replace(/\\/g, '/')), out);
+  });
+
+  test('an installed session and a Codex session get no root line', () => {
+    writeRoadmap(project, []);
+    assert.equal(run({ source: 'startup' }), '');
+    const codex = runScriptRaw('session-start.js', { source: 'startup' }, { CLAUDE_PROJECT_DIR: project, CLAUDE_PLUGIN_ROOT: path.join(os.tmpdir(), 'foreman-checkout'), FOREMAN_HOST: 'codex' }).stdout;
+    assert.doesNotMatch(codex, /Plugin root:/);
   });
 });

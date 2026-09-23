@@ -86,7 +86,8 @@ const DESTINATIONS = new Set(["task", "agent", "clipboard"]);
 // Claude Code's prompts carry this literal, never expanded — [Foreman: 107] —
 // except on the clipboard, where assemble writes PLUGIN_ROOT — [Foreman: 500].
 const CLAUDE_ROOT = "${CLAUDE_PLUGIN_ROOT}";
-const ROOT_LOOKUP = "the `installPath` recorded for `foreman@<marketplace>` in `~/.claude/plugins/installed_plugins.json`, or, in a session started with `--plugin-dir`, that directory";
+// [Foreman: 540] First the root a --plugin-dir session is told at start (hooks/session-start.js), then an install's recorded path.
+const ROOT_LOOKUP = "the directory this session's `[Foreman] Plugin root:` line names, if its context has one; otherwise the `installPath` recorded for `foreman@<marketplace>` in `~/.claude/plugins/installed_plugins.json`, or, in a session started with `--plugin-dir`, that directory";
 const ROOT_RESOLVER = `\`${CLAUDE_ROOT}\` below is Foreman's plugin root, the directory that holds \`scripts/roadmap.js\`. If your shell leaves it empty, use ${ROOT_LOOKUP}.`;
 const CLIPBOARD_ROOT_RESOLVER = `The Foreman script paths below were resolved when this prompt was written. If one no longer exists because Foreman was updated since, use ${ROOT_LOOKUP}.`;
 // [Foreman: 553] An entry's title, why, what and notes, and the judgment, may

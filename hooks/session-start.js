@@ -69,6 +69,18 @@ function buildMessage(open, todayStr, host = hostName()) {
   );
 }
 
+// [Foreman: 540] A handoff names Foreman's scripts under ${CLAUDE_PLUGIN_ROOT},
+// which a Claude Code tool shell leaves empty. An installed Foreman sits in the
+// plugins cache and its path is recorded in installed_plugins.json; a session
+// started with --plugin-dir has no such record, so this line names the root
+// once, and the handoff's resolver sentence points here first. Installed
+// sessions get no line.
+const INSTALLED_ROOT_RE = /[\\/]plugins[\\/]cache[\\/]/;
+function pluginRootLine(host = hostName(), root = PLUGIN_ROOT) {
+  if (host !== "claude" || INSTALLED_ROOT_RE.test(root)) return "";
+  return `[Foreman] Plugin root: ${root.replace(/\\/g, "/")}. This session loads Foreman from a directory, not an install, so a command's \${CLAUDE_PLUGIN_ROOT} means this path.`;
+}
+
 // [Foreman: 180] Terminal entries (done/dropped/rejected) never get archived
 // on their own — nothing else ever suggests it, so a mature roadmap just
 // keeps accumulating them. One offer line, gated on a fixed count, closes
@@ -123,9 +135,24 @@ function main(data = readInput()) {
   // broader matcher edit can't silently make this fire on every compaction.
   if (data.source && data.source !== "startup" && data.source !== "clear") return;
 
+  // The root line does not depend on the roadmap: a standalone handoff needs
+  // the root too.
+  const rootLine = pluginRootLine();
+  const parts = rootLine ? [rootLine] : [];
   const root = projectDir(data);
-  if (!fs.existsSync(path.join(root, "ROADMAP.jsonl"))) return;
+  if (fs.existsSync(path.join(root, "ROADMAP.jsonl"))) parts.push(...roadmapParts(root));
+  if (!parts.length) return;
 
+  // SessionStart accepts raw stdout as context — no JSON envelope needed.
+  try {
+    process.stdout.write(parts.join("\n"));
+  } catch {
+    // ignore
+  }
+}
+
+// The open-entries line and the archive offer, for a project with a roadmap.
+function roadmapParts(root) {
   // [Foreman: 208] Mint this session's trial token and record its start
   // BEFORE any of the silent returns below. This event is the denominator
   // for sessions_since_init, so it must not depend on whether there happened
@@ -137,7 +164,7 @@ function main(data = readInput()) {
   try {
     entries = readEntries(root);
   } catch {
-    return; // corrupt file — a session-start banner is the wrong place to deal with it
+    return []; // corrupt file — a session-start banner is the wrong place to deal with it
   }
   const open = entries.filter(
     (e) => e.status === "in_progress" || e.status === "awaiting_acceptance"
@@ -168,14 +195,7 @@ function main(data = readInput()) {
   if (terminalCount >= ARCHIVE_OFFER_THRESHOLD && shouldOfferArchive(root, todayStr)) {
     parts.push(buildArchiveOffer(terminalCount));
   }
-  if (!parts.length) return;
-
-  // SessionStart accepts raw stdout as context — no JSON envelope needed.
-  try {
-    process.stdout.write(parts.join("\n"));
-  } catch {
-    // ignore
-  }
+  return parts;
 }
 
 if (require.main === module) {
@@ -190,6 +210,7 @@ module.exports = {
   main,
   buildMessage,
   buildArchiveOffer,
+  pluginRootLine,
   daysBetween,
   STALE_DAYS,
   ARCHIVE_OFFER_THRESHOLD,
