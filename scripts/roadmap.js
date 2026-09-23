@@ -2011,11 +2011,18 @@ function cmdNextCandidates(root, filters) {
   return result;
 }
 
+// [Foreman: 342] Letters and digits of every script count, so "sesión" stays
+// one word instead of "sesi". Combining marks stay with their letter (Hindi
+// vowel signs are marks), and NFC first makes a decomposed "sesión" the same
+// word as a composed one. For ASCII text this is the old [a-z0-9] rule
+// exactly. A CJK run has no spaces and stays one token; matching it would
+// need word segmentation (tests/roadmap.test.js records that limit).
 function normalizeWords(text) {
   return new Set(
     String(text || "")
+      .normalize("NFC")
       .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/[^\p{L}\p{M}\p{N}\s]/gu, " ")
       .split(/\s+/)
       .filter((w) => w.length > 2)
   );

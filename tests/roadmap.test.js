@@ -898,6 +898,59 @@ describe('check-duplicate', () => {
     assert.equal(json.duplicate, false);
     assert.deepEqual(json.matches, []);
   });
+
+  // [Foreman: 342]
+  test('finds an accented near-duplicate', () => {
+    writeRoadmap(project, [
+      { id: '003', title: 'Renovar la sesión caducada', why: 'La sesión expira a mitad de la petición', status: 'planned', source: 'user' },
+    ]);
+    const { json } = run(['check-duplicate'], {
+      title: 'Renovar sesión caducada',
+      why: 'La sesión expira en mitad de una petición',
+    });
+    assert.equal(json.duplicate, true);
+    assert.equal(json.matches[0].id, '003');
+  });
+
+  // The ASCII-only rule stripped a Cyrillic entry to no words at all, so
+  // nothing could ever match it.
+  test('finds a near-duplicate written in another script', () => {
+    writeRoadmap(project, [
+      { id: '004', title: 'Обновить просроченную сессию', why: 'Сессия истекает посреди запроса', status: 'planned', source: 'user' },
+    ]);
+    const { json } = run(['check-duplicate'], {
+      title: 'Обновить просроченную сессию',
+      why: 'Сессия истекает во время запроса',
+    });
+    assert.equal(json.duplicate, true);
+    assert.equal(json.matches[0].id, '004');
+  });
+});
+
+// [Foreman: 342] Words are Unicode letters and digits, not ASCII only.
+describe('normalizeWords', () => {
+  const { normalizeWords } = require('../scripts/roadmap');
+  const words = (text) => [...normalizeWords(text)].sort();
+
+  test('ASCII text splits exactly as the old [a-z0-9] rule did', () => {
+    assert.deepEqual(words('Fix the JWT-refresh bug in auth_v2 (2x)!'), ['auth', 'bug', 'fix', 'jwt', 'refresh', 'the']);
+  });
+
+  test('accented, Cyrillic and Devanagari words stay whole', () => {
+    assert.deepEqual(words('Renovar la sesión'), ['renovar', 'sesión']);
+    // A decomposed accent reads as the same word as a composed one.
+    assert.deepEqual(words('sesión'), ['sesión']);
+    assert.deepEqual(words('Обновить токен'), ['обновить', 'токен']);
+    assert.deepEqual(words('हिन्दी पाठ'), ['पाठ', 'हिन्दी']);
+  });
+
+  // CJK text has no spaces, so a whole run stays one token and a two-character
+  // word falls under the length filter. Matching CJK needs word segmentation,
+  // which Foreman does not do; this pins the limit so changing it is deliberate.
+  test('a CJK run stays one token: CJK matching needs segmentation', () => {
+    assert.deepEqual(words('会话刷新失败'), ['会话刷新失败']);
+    assert.deepEqual(words('刷新'), []);
+  });
 });
 
 describe('next-candidates', () => {
