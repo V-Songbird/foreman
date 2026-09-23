@@ -76,6 +76,20 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
 - A direct parent's decision `doc` still reaches its dependent's
   `next-candidates` and `list --ids` rows after the parent is archived, so
   the handoff keeps pointing at the settled decision.
+- A project can keep `ROADMAP.jsonl` and `.foreman/` git-ignored. `init` then
+  writes both files, stages and commits neither, and says so; it no longer
+  fails on `git add`. A staged close, and `safe-commit.js finish` with a
+  declared roadmap close, name in `warnings` each ignored file they left
+  unstaged. In such a project a handoff closes by committing first and then
+  recording that commit's sha.
+- When every planned file of an entry sits inside one git submodule, its
+  handoff commits inside that submodule and records that commit.
+  `safe-commit.js finish` no longer stages a submodule's gitlink unless its
+  `expected` list names that exact path.
+- Duplicate checks, pick hints and the doctor's similar-title finding count
+  words in every script, not ASCII only, so an accented or Cyrillic title
+  keeps its words whole. Chinese and Japanese text without spaces still
+  counts as one word.
 
 ## 3.1.0 — 2026-09-15
 
