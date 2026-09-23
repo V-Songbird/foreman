@@ -22,9 +22,10 @@
 // `workflowStage: true` drops <tone>, replaces <output_format> with the
 // fixed enforcement sentence, and is passed through to check-prompt.js's
 // gate as --workflow-stage would be on the CLI (entry 204).
-// `host: "claude" | "codex"` names the host that will run the handoff; it is
-// detected when absent. It picks the host-tagged template variants, the
-// plugin-path form, and each host's lifecycle and delegation wording.
+// `host: "claude" | "codex" | "antigravity"` names the host that will run the
+// handoff; it is detected when absent, and antigravity takes the Codex form.
+// It picks the host-tagged template variants, the plugin-path form, and each
+// host's lifecycle and delegation wording.
 
 const fs = require("fs");
 const path = require("path");

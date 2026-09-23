@@ -507,13 +507,14 @@ Feed the failing JSON back to the crafting session verbatim; it is a repair
 instruction, not a complaint.
 
   node check-prompt.js <prompt-file> --destination task|agent|clipboard
-                       [--host claude|codex] [--profile standard|reinforced]
+                       [--host claude|codex|antigravity] [--profile standard|reinforced]
                        [--entry <id> [--resume]] [--research] [--workflow-stage]
 
   --host          the host that will run the prompt: it picks the template
                   variant of every host-tagged block and the host's
-                  plugin-path rule. Optional: without it the host this
-                  process runs in is detected. Echoed back as "host".
+                  plugin-path rule. antigravity takes the Codex form.
+                  Optional: without it the host this process runs in is
+                  detected. Echoed back as "host" ("codex" for antigravity).
   --profile       which handoff profile the prompt was assembled at
                   (prompt-template.md's "Handoff profiles" section says which
                   signals choose it). Optional: without it the profile is read
