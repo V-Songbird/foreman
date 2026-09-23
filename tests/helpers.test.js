@@ -1,0 +1,31 @@
+'use strict';
+
+// [Foreman: 499] runNodeScript's spawn limit is 30 s unless the suite runs
+// with FOREMAN_TEST_SPAWN_TIMEOUT_MS set higher; a lower value never applies.
+
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+
+const HELPERS = path.join(__dirname, 'helpers.js');
+
+// The limit is read when helpers.js loads, so each value needs its own process.
+function limit(value) {
+  const env = { ...process.env };
+  delete env.FOREMAN_TEST_SPAWN_TIMEOUT_MS;
+  if (value !== undefined) env.FOREMAN_TEST_SPAWN_TIMEOUT_MS = value;
+  const probe = spawnSync(process.execPath, ['-e', `process.stdout.write(String(require(${JSON.stringify(HELPERS)}).SPAWN_TIMEOUT_MS))`], {
+    encoding: 'utf-8',
+    env,
+  });
+  assert.equal(probe.status, 0, probe.stderr);
+  return Number(probe.stdout);
+}
+
+test('runNodeScript waits 30 s unless the environment raises it', () => {
+  assert.equal(limit(undefined), 30000);
+  assert.equal(limit('5000'), 30000);
+  assert.equal(limit('not a number'), 30000);
+  assert.equal(limit('120000'), 120000);
+});

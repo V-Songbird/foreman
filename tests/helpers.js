@@ -7,6 +7,11 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
+// [Foreman: 499] How long runNodeScript lets a child run. 30 s by default; a
+// loaded machine can raise it with FOREMAN_TEST_SPAWN_TIMEOUT_MS, which can
+// never lower it. Read before the loop below clears every FOREMAN_ variable.
+const SPAWN_TIMEOUT_MS = Math.max(30000, Number.parseInt(process.env.FOREMAN_TEST_SPAWN_TIMEOUT_MS, 10) || 0);
+
 // Host detection, project resolution and several switches read these
 // variables. A suite started from inside Claude Code, Codex or a git hook must
 // not inherit them: every test file that spawns or calls Foreman loads this
@@ -47,7 +52,7 @@ function runNodeScript(fullPath, argv, stdinData, env) {
   return spawnSync('node', [fullPath, ...(argv || [])], {
     input: buildStdin(stdinData),
     encoding: 'utf-8',
-    timeout: 30000,
+    timeout: SPAWN_TIMEOUT_MS,
     env: { ...process.env, ...(env || {}) },
   });
 }
@@ -150,4 +155,5 @@ module.exports = {
   commitFile,
   HOOKS_DIR,
   SCRIPTS_DIR,
+  SPAWN_TIMEOUT_MS,
 };
