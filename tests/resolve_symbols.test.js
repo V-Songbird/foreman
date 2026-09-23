@@ -300,9 +300,9 @@ describe('resolve-symbols preflight', () => {
     assert.equal(json.verification.via, null);
   });
 
-  // [Foreman] A command-shape denylist was built here on 2026-08-29 and cut the
-  // same day: `dev`/`serve`/`--update`/`--fix` is one ecosystem's vocabulary,
-  // it never ends, and termination cannot be read off a string. This pins the
+  // [Foreman] resolve-symbols keeps no command-shape denylist: words such as
+  // `dev`/`serve`/`--update`/`--fix` are one ecosystem's vocabulary, the list
+  // never ends, and termination cannot be read off a string. This pins the
   // absence, so the list is not quietly reintroduced — a dev server resolves,
   // and resolving is all this script claims to know.
   test('a dev server resolves like any other script — no shape judgment here', () => {
