@@ -38,6 +38,7 @@ const {
   CONCISE_TRUTH_SENTENCE,
   CLOSURE_EVIDENCE_SENTENCE,
   FIX_CEILING_SENTENCE,
+  KEEP_GOING_SENTENCE,
 } = require(path.join(SCRIPTS_DIR, 'check-prompt.js'));
 
 const HOSTS = ['claude', 'codex'];
@@ -84,7 +85,8 @@ const FIX_CEILING_LINE = `Do NOT claim success without running this. If it fails
 
 /**
  * The short profile for one host, built here so this file does not depend on
- * another test. A Codex handoff opens with its <codex_runtime> contract.
+ * another test. A Codex handoff opens with its <codex_runtime> contract; a
+ * Claude Code one carries the keep-going paragraph a clipboard prompt needs.
  */
 function standardPrompt(host, extra = '') {
   const { codexRuntime } = readCanonical(host);
@@ -96,6 +98,7 @@ function standardPrompt(host, extra = '') {
     `<task_rules>\n- Fix the bug.\n\nConstraints:\n- Do not modify the public API.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\n${FIX_CEILING_LINE}\n</task_rules>`,
     CLOSURE_EVIDENCE_SENTENCE,
     'Fix the token refresh bug in the auth middleware.',
+    codexRuntime === null ? `${KEEP_GOING_SENTENCE} do the reversible work it needs without asking.` : '',
     extra,
   ].filter(Boolean).join('\n\n') + '\n';
 }

@@ -44,6 +44,7 @@ const {
   CONCISE_TRUTH_SENTENCE,
   CLOSURE_EVIDENCE_SENTENCE,
   CLOSING_PREFIX,
+  KEEP_GOING_SENTENCE,
   WORKFLOW_STAGE_SENTENCES,
   NO_INVENTION_SENTENCE,
   FIX_CEILING_SENTENCE,
@@ -53,6 +54,7 @@ const {
 const HOSTS = ['claude', 'codex'];
 const CHECK = path.join(SCRIPTS_DIR, 'check-prompt.js');
 const AUTONOMY = 'You are operating autonomously. The user is not watching in real time and cannot answer questions mid-task. End your turn only when the task is complete or you are blocked on input only the user can provide.';
+const KEEP_GOING = `${KEEP_GOING_SENTENCE} do the reversible work it needs without asking. Pause only for a destructive action, a real scope change, or input only the user can provide.`;
 const PLUGIN_ROOT = '/plugins/foreman';
 const NO_INVENTION_LINE = `If a file, symbol, or fallback path this prompt names does not exist as described, ${NO_INVENTION_SENTENCE}`;
 const FIX_CEILING_LINE = `Do NOT claim success without running this. If it fails, fix and re-run — but ${FIX_CEILING_SENTENCE}`;
@@ -71,6 +73,9 @@ function fixtures(host) {
   const canonical = readCanonical(host);
   const runtime = canonical.codexRuntime === null ? '' : `<codex_runtime>${canonical.codexRuntime}</codex_runtime>`;
   const scopeText = canonical.scopeDiscipline.split('${CLAUDE_PLUGIN_ROOT}').join(PLUGIN_ROOT);
+  // [Foreman: 516] What a task or clipboard handoff carries after the request:
+  // Claude Code's keep-going paragraph, nothing on Codex.
+  const userPresent = host === 'claude' ? KEEP_GOING : '';
 
   function goodPrompt(overrides = {}) {
     const parts = {
@@ -85,7 +90,7 @@ function fixtures(host) {
       invariants: '',
       task_rules: `<task_rules>\n- Check the refresh path against the failing test.\n- Fix the bug.\n\nConstraints:\n- Do not modify the public API.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\n${FIX_CEILING_LINE}\n</task_rules>`,
       request: 'Fix the token refresh bug in the auth middleware.',
-      autonomy: '',
+      autonomy: userPresent,
       closing: canonical.closing,
       plan: `<plan>${canonical.plan}</plan>`,
       output_format: '<output_format>\nGive a concise, human-readable summary: what changed, and the verification result. No XML tags in the visible response.\n</output_format>',
@@ -106,13 +111,13 @@ function fixtures(host) {
       task_rules: `<task_rules>\n- Fix the bug.\n\nConstraints:\n- Do not modify the public API.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\n${FIX_CEILING_LINE}\n</task_rules>`,
       closure: CLOSURE_EVIDENCE_SENTENCE,
       request: 'Fix the token refresh bug in the auth middleware.',
-      autonomy: '',
+      autonomy: userPresent,
       ...overrides,
     };
     return Object.values(parts).filter(Boolean).join('\n\n') + '\n';
   }
 
-  return { canonical, goodPrompt, standardPrompt };
+  return { canonical, goodPrompt, standardPrompt, userPresent };
 }
 
 function runCheck(project, prompt, argv, env = {}) {
@@ -194,14 +199,14 @@ describe('host selection', () => {
 
 for (const host of HOSTS) {
   describe(`gate contract on host ${host}`, () => {
-    const { canonical, goodPrompt, standardPrompt } = fixtures(host);
+    const { canonical, goodPrompt, standardPrompt, userPresent } = fixtures(host);
     const check = (project, prompt, argv) => runCheck(project, prompt, [...argv, '--host', host]);
 
     describe('well-formed prompts', () => {
       test('passes for every destination', () => {
         const project = makeTmpProject();
         for (const dest of ['task', 'agent', 'clipboard']) {
-          const prompt = goodPrompt({ autonomy: dest === 'agent' ? AUTONOMY : '' });
+          const prompt = goodPrompt({ autonomy: dest === 'agent' ? AUTONOMY : userPresent });
           const { status, json } = check(project, prompt, ['--destination', dest]);
           assert.equal(status, 0, JSON.stringify(json));
           assert.equal(json.ok, true);
@@ -425,9 +430,32 @@ for (const host of HOSTS) {
         const project = makeTmpProject();
         const missing = check(project, goodPrompt(), ['--destination', 'agent']);
         assert.ok(missing.json.errors.some((e) => e.error.includes('operating autonomously')));
-        const misplaced = check(project, goodPrompt({ autonomy: AUTONOMY }), ['--destination', 'clipboard']);
+        const misplaced = check(project, goodPrompt({ autonomy: [AUTONOMY, userPresent].filter(Boolean).join('\n\n') }), ['--destination', 'clipboard']);
         assert.equal(misplaced.json.ok, true);
         assert.ok(misplaced.json.warnings.some((w) => w.includes('user present')));
+      });
+
+      // [Foreman: 516] The user-present counterpart is Claude Code's alone: a
+      // task or clipboard handoff without it fails; a Codex one never needs it,
+      // and neither does an agent or a Workflow stage.
+      test('task and clipboard require the keep-going paragraph on Claude Code only', () => {
+        const project = makeTmpProject();
+        for (const dest of ['task', 'clipboard']) {
+          for (const prompt of [goodPrompt({ autonomy: '' }), standardPrompt({ autonomy: '' })]) {
+            const { status, json } = check(project, prompt, ['--destination', dest]);
+            if (host === 'claude') {
+              assert.equal(status, 1, JSON.stringify(json));
+              const missing = json.errors.find((e) => e.error.includes('keep-going paragraph'));
+              assert.ok(missing, JSON.stringify(json.errors));
+              assert.equal(missing.example, KEEP_GOING_SENTENCE);
+            } else {
+              assert.equal(status, 0, JSON.stringify(json));
+            }
+          }
+        }
+        assert.equal(check(project, goodPrompt({ autonomy: AUTONOMY }), ['--destination', 'agent']).json.ok, true);
+        const stage = goodPrompt({ autonomy: '', tone: '', output_format: WORKFLOW_STAGE_SENTENCES[host] });
+        assert.equal(check(project, stage, ['--destination', 'task', '--workflow-stage']).json.ok, true);
       });
     });
 
@@ -632,7 +660,7 @@ for (const host of HOSTS) {
       test('a valid standard prompt passes for every destination', () => {
         const project = makeTmpProject();
         for (const dest of ['task', 'agent', 'clipboard']) {
-          const prompt = standardPrompt({ autonomy: dest === 'agent' ? AUTONOMY : '' });
+          const prompt = standardPrompt({ autonomy: dest === 'agent' ? AUTONOMY : userPresent });
           const { status, json } = check(project, prompt, ['--destination', dest, '--profile', 'standard']);
           assert.equal(status, 0, JSON.stringify(json));
           assert.equal(json.ok, true);

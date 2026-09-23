@@ -90,6 +90,11 @@ const WORKFLOW_STAGE_SENTENCES = {
 // must carry: Claude Code's official reminder (the agent harness doesn't
 // inject it), and Codex's delegated-subtask handback contract.
 const AUTONOMY_SENTENCE = "You are operating autonomously.";
+// [Foreman: 516] Its user-present counterpart, which every Claude Code task or
+// clipboard handoff carries: a session with a user present also stops mid-task
+// to report. Codex's scope_discipline names its pauses instead, and a Workflow
+// stage takes neither paragraph.
+const KEEP_GOING_SENTENCE = "Keep going until the goal above is met:";
 
 // How each host's closing paragraph starts; the gate names it in its error.
 const CLOSING_PREFIX = {
@@ -496,6 +501,9 @@ function checkPrompt(prompt, opts) {
   } else if (opts.destination !== "agent" && hasAutonomy) {
     warnings.push("carries the autonomous-operation paragraph but the destination has a user present — drop it for task/clipboard");
   }
+  if (!codex && opts.destination !== "agent" && !opts.workflowStage && !norm(prompt).includes(KEEP_GOING_SENTENCE)) {
+    errors.push(problem(`missing the keep-going paragraph ("${KEEP_GOING_SENTENCE}") — a session with a user present stops mid-task to report without it`, "Add prompt-template.md's user-present paragraph after the request sentence; it names the only three pauses.", KEEP_GOING_SENTENCE));
+  }
 
   // --- reasoning-echo instructions ---
   const echo = prompt.match(REASONING_ECHO_RE);
@@ -538,7 +546,8 @@ instruction, not a complaint.
                   in this session, in any of its execution modes,
                   agent = background agent or delegated subagent,
                   clipboard = copy).
-                  Decides whether an omitted tone must stay (agent) or go.
+                  Decides whether an omitted tone must stay (agent) or go,
+                  and which pause paragraph a Claude Code prompt carries.
   --entry <id>    the ROADMAP.jsonl entry this handoff opens/closes --
                   requires the embedded entry paragraph (roadmap picks).
   --resume        with --entry: expect the resume variant paragraph instead.
@@ -617,6 +626,7 @@ module.exports = {
   CONCISE_TRUTH_EMITTED,
   CLOSURE_EVIDENCE_SENTENCE,
   CLOSING_PREFIX,
+  KEEP_GOING_SENTENCE,
   WORKFLOW_STAGE_SENTENCES,
   NO_INVENTION_SENTENCE,
   FIX_CEILING_SENTENCE,
