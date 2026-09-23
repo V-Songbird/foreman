@@ -35,9 +35,20 @@ it in another mode. Do not switch modes just to display a picker.
 
 Fit the usable tool's option limit with grouped or paged selectable menus.
 For task pages, preserve CLI order and include a More tasks choice until every
-row is reachable. For the four destinations, use the grouping described in
-[destination-question.md](../roadmap/destination-question.md). A smaller option
-limit alone is not a reason to replace the picker with text.
+row is reachable. A smaller option limit alone is not a reason to replace the
+picker with text.
+
+For the four destinations of
+[destination-question.md](../roadmap/destination-question.md), prefer
+`request_user_input_async` with all four options in one selectable question,
+each description and any current caution inside its option string; move the
+recommendation first when the question tool requires it. If the permitted tool
+allows only three options, first offer Execute here, Background agent, and
+Clipboard; after Execute here, ask Whole task or Split by check, carrying the
+recommendation into the right group. Accept an explicit split choice without
+the follow-up. If background delegation is unavailable, disclose that
+limitation and offer the portable prompt; do not create a new sidebar task
+without an explicit user request.
 
 ## Collect the answer
 

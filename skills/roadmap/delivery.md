@@ -21,6 +21,15 @@ checks; one mixed row is one increment.
 A roadmap entry stays `planned` while its prompt is crafted, delivered, or
 copied; only the session that actually starts the work opens it.
 
+Each destination beyond `Execute here` has its own file. Read the one the user
+picked and follow it together with this file:
+
+- `Execute here, split by check` — [delivery-split.md](delivery-split.md)
+- `Execute with a background agent` — [delivery-agent.md](delivery-agent.md),
+  which also covers an explicitly requested new Codex task
+- `Copy prompt to clipboard`, or a prompt file only —
+  [delivery-clipboard.md](delivery-clipboard.md)
+
 ## Execute here
 
 - In Claude Code, one `TaskCreate` (`subject` a verb-first imperative ≤60
@@ -34,114 +43,8 @@ copied; only the session that actually starts the work opens it.
 - In Codex, work the prompt directly. A plan tool may track progress, but it
   does not replace the roadmap lifecycle: open a selected entry when work
   starts with `hooks/codex-task.js start` as
-  [the runtime](../foreman/runtime.md) describes, verify the result, and record
+  [the runtime](../foreman/runtime-codex.md) describes, verify the result, and record
   its outcome and evidence before reporting completion.
-
-### Execute here, split by check
-
-The craft call passed `"split":true`, so `tasks[]` holds the rows: the full
-prompt on row 1, the entry paragraph on the last row only — already baked,
-never re-split by hand. Work them in order; each row's check verifies that
-row's own work.
-
-- In Claude Code, one `TaskCreate` per row, in order (each row's own
-  `subject`/`description`, plus its own present-continuous `activeForm`), each
-  chained to the previous one with `TaskUpdate` `addBlockedBy: ["<previous
-  task's id>"]`; `TaskUpdate` per row as you go.
-- In Codex, keep that order with a supported plan tool or an explicit local
-  sequence; there is no assumed native task-dependency API. When
-  `reviewEachIncrement:true` is present, follow the
-  [increment review protocol](increment-review.md) after every result — the
-  same protocol is embedded in the generated prompt, including for one
-  reviewed row. Keep the current result pending until a real answer arrives; a
-  passing check or a submitted question does not permit the next row or the
-  parent close. When resuming, follow
-  [resume-increments.md](resume-increments.md) before dependent work.
-
-**Checkpoint protocol.** The one copy lives in
-[prompt-template.md](../../prompt-template.md)
-(`${CLAUDE_PLUGIN_ROOT}/prompt-template.md`), section "Checkpointing a
-task-split run". Read that section before an implementation split run, or a
-run producing explicitly authorized decision artifacts, and follow it exactly:
-it owns the config defaults, the `safe-commit.js begin` boundary, the branch
-rule, the per-task commit — including the `unexpected_files` refusal, which is
-shown to the user and re-run with `--allow-unexpected` only on their approval
-(an explicit earlier authorization of those files counts) — the rule that
-checkpoints stay local and are never pushed, the roadmap-entry close, and what
-happens to the branch at the end. A branch restriction the user gave overrides
-every configured finish policy. Two things that section does not say and this
-flow does: a roadmap handoff always carries an entry, so its entry close
-always applies — stage with `safe-commit.js finish --no-commit`, close with
-`staged:true`, then commit with `Foreman: <id>` as the message's final line;
-and skip checkpointing and just work the tasks if git is unavailable.
-
-An investigation (`judgment.question`) uses split rows to collect diagnostic
-evidence: skip checkpointing, branch creation, staging, and commits; a failed
-check remains evidence, never a reason to implement. For a decision,
-checkpoint only explicitly authorized decision artifacts.
-
-## Background agent
-
-When the user chose it, dispatch it. The agent shares this working tree: it
-never switches branches or commits checkpoints, and it inherits this session's
-model — never pass one.
-
-- In Claude Code, call `Agent` with `prompt` = the returned `prompt`,
-  `description` = a 3-5 word summary, and `run_in_background: true`. The tool
-  result trails with the dispatched agent's id (`agentId: a<16 hex>`). For a
-  roadmap entry, capture it immediately with one annotate call, so a later
-  session can resume this exact agent instead of re-crafting a prompt from its
-  notes:
-  `` echo '{"id":"<id>","notes":"dispatched to background agent `<agent-id>`"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js annotate ``
-  (the script date-stamps each appended note itself — don't write one in). The
-  phrase "background agent" followed by the backticked id is the exact marker
-  grammar the resume flow parses — the id's own charset (`a` + lowercase hex)
-  never needs escaping. The agent's own handoff opens and closes its entry.
-- In Codex, use the available collaboration tools for a bounded task, passing
-  the returned prompt and the shared-tree ownership restriction. If delegation
-  is unavailable, keep the handoff ready and explain that constraint; never
-  silently replace a requested background run with a new app task. For a
-  roadmap entry, append the returned agent id with `roadmap.js annotate` as
-  `dispatched to Codex subagent <id>`, plus a session identifier when the host
-  supplies one, so a later resume knows whether the handle can still be live.
-  Wait for the agent, inspect its verification, and perform the coordinator
-  bookkeeping; its completion notification is its actual return, not a
-  scheduled automation. Do not imply that a shared-tree subagent survives the
-  host session.
-- In Antigravity, the same steps run through `invoke_subagent`, followed with
-  `manage_subagents`; the annotate marker is `dispatched to Antigravity
-  subagent <id>`.
-
-## Clipboard or prompt file
-
-Write the returned `prompt` to a UTF-8 temp file first — never pass it as an
-inline shell string: a large prompt breaks shell quoting and the copy silently
-fails. When the user chose the clipboard, pipe the file's content into the
-clipboard command: `Get-Content -LiteralPath <file> -Raw -Encoding utf8 | Set-Clipboard`
-on Windows, `pbcopy < <file>` on macOS, `xclip -selection clipboard < <file>`
-(or `wl-copy < <file>`) on Linux. A prompt-file-only request skips the
-clipboard. Mention the file path too, and claim "copied" only after the copy
-succeeded. If no clipboard command works, deliver the file path; a fenced
-`xml` block in chat is the last fallback, only when no usable file can be
-delivered. Include the schema artifact too for a structured-output handoff.
-
-Any checkpoint protocol a multi-row prompt needs already rides inside
-`prompt`'s own `task_rules` — craft-handoff baked it in; nothing more to do
-here. A prompt carries its crafting host's plugin paths: to run it in the
-other host, craft it again there. In Codex, follow the builder's relocation
-line when the installed plugin has moved, and keep an explicitly reviewed run's embedded
-`increment_review` block intact even for one row; without a human or
-coordinator channel the pasted worker leaves the result pending and stops.
-
-## Explicit new Codex task
-
-In Codex, when the user explicitly chooses a new app task, use the available
-app task creation tools, their real project inventory, and their documented
-worktree default. Pass the complete checked prompt and preserve the user's
-branch restrictions. Report the created task through the app's returned
-reference. If those tools are absent, supply a prompt file for the user to
-paste. This is an explicitly requested extension, not a replacement for
-background agents.
 
 ## Close and acceptance
 

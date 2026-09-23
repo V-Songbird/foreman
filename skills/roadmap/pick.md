@@ -25,30 +25,10 @@ nothing here has read the code, and nothing here has run.
 <!-- [Foreman: 141] -->
 ### Reconcile and pick — the deeper mode, only when the user asks
 
-The second confidence mode, in this order:
-**investigate → propose → apply → recommend.**
-It is composition, not a second pick flow — a survey pass scoped to the
-near-term entries, then Fast pick unchanged on the repaired data:
-
-1. **Investigate** — run step 1's `next-candidates --menu` first and take the
-   **near-term set** from that one result: every `candidates[].id`, plus every
-   `in_progress[].id`, plus every `awaiting_acceptance[].id`. That is the
-   whole definition — no second call computes it, and nothing outside that
-   menu is near-term. Hand those ids to `foreman:survey`
-   ([survey](../survey/SKILL.md)) as its scope (its "Pick the scope" step
-   takes a given set verbatim) and let it run through to its own report.
-2. **Propose**, then **apply** — survey's own machinery, untouched: an
-   evidence-backed concrete proposal per finding, the user's authorization for
-   each repair, and `correct`/`update-deps`/`update-status` for only what the
-   user authorized, with an unconfirmed breadcrumb for what it could not
-   ground. Nothing here overrides any of it: let its evidence, review, and
-   authorized repairs finish. A pass that finds nothing is a clean result, not
-   a failure — say so and go on to 3.
-3. **Recommend** — re-run `next-candidates --menu`, because the approved
-   repairs may have changed statuses, dependencies, and planned surfaces, so
-   the menu from 1 is stale. Then continue through Fast pick's steps below
-   exactly as written. The pick is not a different pick; it just reads
-   repaired data.
+When the user asks for it, read [reconcile.md](reconcile.md)
+(`${CLAUDE_PLUGIN_ROOT}/skills/roadmap/reconcile.md`) and follow it: it scopes
+a survey pass to the near-term entries, then runs this flow's steps on the
+repaired data.
 
 **Offering it from Fast pick — one line, never a run.** Fast pick may mention
 this mode once, in a single line, when its own data already shows staleness.
@@ -64,8 +44,8 @@ signals, both already in hand:
 
 Menu candidate rows carry neither `updated_at` nor `notes`, so there is no
 staleness to read there — don't fetch any to find some. If the user says yes,
-start at 1 above; if they don't answer or say no, Fast pick continues
-unchanged.
+read [reconcile.md](reconcile.md) and start at its step 1; if they don't
+answer or say no, Fast pick continues unchanged.
 
 1. `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js next-candidates --menu` —
    already filtered (unblocked: `planned` with every `depends_on` done),
@@ -137,21 +117,9 @@ something new. Those entries take the top option slot(s) in Q1 — up to two
 finish-first recommendation never prevents choosing new work.
 - `awaiting_acceptance` rows lead, labeled `Accept: <title> (<id>)`.
   Description: `why` plus "finished, waiting on you since <updated_at>". On
-  that choice (**Accept**), read the entry back first —
-  `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --ids <id>` — and take
-  every `unverified:` line out of its `notes`. Those are the checks the
-  finishing session could not run itself; leave out any that a later
-  `verification resolved:` note settles for the same check. With one or
-  more still unverified, the first option is `Test it first (Recommended)`:
-  print those lines verbatim, say nothing about whether it works, and stop —
-  the entry stays `awaiting_acceptance` until they come back. With none, that option does not appear at all. Then
-  ask whether the work holds up; only the user's explicit answer accepts.
-  Accepting closes it —
-  `echo '{"id":"<id>","status":"done"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
-  — and declining sends it back with what they said:
-  `echo '{"id":"<id>","status":"in_progress","notes":"<what they said>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
-  (their words go through a heredoc, here-string, or payload file, as the
-  runtime describes). Either way, say what changed and stop; no prompt is crafted for an accept.
+  that choice (**Accept**), read [accept.md](accept.md)
+  (`${CLAUDE_PLUGIN_ROOT}/skills/roadmap/accept.md`) and follow it; no prompt
+  is crafted for an accept.
 - `in_progress` rows follow, labeled `Resume: <title> (<id>)`. Description:
   `why` plus "in progress since <updated_at>". The selected entry's full
   notes — including any dispatch marker — are fetched only after the choice.
@@ -161,7 +129,7 @@ gate — picking a planned candidate proceeds exactly as before.
 
 **Single-option skip**: when the menu would hold exactly one option —
 candidates, accept, and resume entries combined — skip Q1 and take that entry
-as the pick (a lone accept row still runs the accept flow above, not Q2). Q2
+as the pick (a lone accept row still runs [accept.md](accept.md), not Q2). Q2
 then opens with it instead: prefix Q2's question with the entry's `title`
 (`<id>`) and its `why` restated per Q1's description rule below, so the user
 can still veto or redirect through Q2's escape; when Q2 is skipped because
@@ -224,31 +192,10 @@ fetch the other menu rows. This is where `what`,
 return those dependency entries.
 
 **Resume via the live worker, before Q2**: if the picked option was a resume
-entry and the selected entry's full `notes` carry a dispatch marker this host
-can still reach, try continuing that exact worker before asking anything else,
-relaying the entry's full notes and any new context the user just gave — not a
-summary of them:
-- In Claude Code, the marker is the phrase "background agent" followed by the
-  backticked id (written by [delivery.md](delivery.md)). Pull the id out and
-  call `SendMessage` with `to: "<id>"` and a short re-brief (current status?,
-  plus that context).
-- In Codex, the marker is `dispatched to Codex subagent <id>`; use it only if
-  the current host still knows that session or agent, through its follow-up
-  capability, and inspect the result.
-- In Antigravity, the marker is `dispatched to Antigravity subagent <id>`,
-  reached through `manage_subagents` under the same condition.
-
-On success, that *is* the resume — relay what the worker reports and stop
-here; the worker's session closes its entry the same as any other handoff (in
-Codex, through the coordinator). On any failure, a marker the other host
-wrote, or no marker at all, fall back **silently** to the flow below exactly as
-if there were no marker — go on to Q2 and craft the re-crafted prompt (the
-resume case, step 3) from the entry's notes. Never surface the failure itself;
-the re-craft path isn't a degraded fallback, it's the original design. In
-Codex, a run whose explicit review instruction remains active keeps
-`reviewEachIncrement:true` and follows
-[resume-increments.md](resume-increments.md); never infer review mode or
-completed work from an `accepted:` prefix.
+entry, read [resume.md](resume.md)
+(`${CLAUDE_PLUGIN_ROOT}/skills/roadmap/resume.md`) now and follow it. It
+either continues the worker that already holds the task and stops, or sends
+the flow on to Q2 below unchanged.
 
 **Gather the checks before asking.** Q2's labels depend on how many
 verification rows this entry actually yields, so work out the
@@ -256,14 +203,14 @@ verification rows this entry actually yields, so work out the
 count never removes an option — all four are always offered — it decides
 which of them carries a caution.
 
-**Q2** — the destination question. Read
+**Q2** — the destination question. When the user already named a
+destination, use it and skip the question. Otherwise read
 [destination-question.md](destination-question.md)
 (`${CLAUDE_PLUGIN_ROOT}/skills/roadmap/destination-question.md`) now and do
 exactly what it says: it carries the question, its four always-offered
-options, the two labels that steer without locking, and when a destination
-the user already named replaces the question. Foreman never asks which
-model runs the work and never sets one: a background agent inherits this
-session's model, and a pasted prompt runs wherever the user pastes it.
+options, and the two labels that steer without locking. Foreman never asks
+which model runs the work and never sets one: a background agent inherits
+this session's model, and a pasted prompt runs wherever the user pastes it.
 
 3. **Gather the judgment fields, then call `craft-handoff.js` once.** Every
    field below comes from the selected entry's own fields and the user's
@@ -312,15 +259,9 @@ session's model, and a pasted prompt runs wherever the user pastes it.
        own fields say which). An entry with nothing runnable at all omits
        `verification` and carries `question` instead — the question under
        investigation, not a prescribed exploration sequence.
-     - In Codex, follow [prepare-increments.md](prepare-increments.md): one
-       row is a meaningful result with commands, human review, or both, and
-       human-only rows omit `run`/`expected`. Missing commands do not turn an
-       implementation into an investigation — ask for the one missing piece
-       instead. An explicit request for approval after each result adds
-       top-level `reviewEachIncrement:true` and `review:{action,expected}` on
-       every row, preserving `goal` and the known `files`; never infer review
-       mode from a split alone.
-     - In Antigravity, write the rows the Codex way, since the builder gives
+     - In Codex, write the rows as [prepare-increments.md](prepare-increments.md)
+       describes.
+     - In Antigravity, write them the same way, since the builder gives
        Antigravity the Codex form, but never add `reviewEachIncrement` or
        `review`: approval after each result is not available there.
 
@@ -368,29 +309,10 @@ session's model, and a pasted prompt runs wherever the user pastes it.
    Never invent symbols to satisfy the gate, and never claim its mechanical
    preflight established that the work is correct.
 
-   **`ledger_ask: true` — the first moment lesson lines could pay.**
-   It appears only when a finished entry already touched files this one
-   plans to and the setting has never been put to the user. Ask once, before
-   delivering:
-
-   > "**[Beta]** A finished task already touched these files. Should a close
-   > be able to record one durable sentence about a code area, quoted back to
-   > later tasks that plan to touch the same files? This one is new and may
-   > still have rough edges. Turning it off later changes nothing you have
-   > already recorded."
-   > Options: `Yes, record and quote lessons`, `No, keep handoffs as they are`
-
-   The `[Beta]` marker is part of the question, not decoration — it is the
-   user's only warning before a setting starts writing a file into their
-   repository. Keep it, and keep the sentence that says the answer is
-   reversible: the honest reason to say yes to a young feature is that saying
-   no later costs nothing.
-
-   Write the answer straight into `.foreman/config.json` as
-   `{"ledger":{"enabled":<true|false>}}`, preserving every other key —
-   a written `false` is what stops the question being asked again. Never
-   re-craft the prompt because of the answer: it takes effect on the next
-   pick, which is soon enough for a setting nobody has been using.
+   **`ledger_ask: true`** — the first moment lesson lines could pay. Ask the
+   question in [ledger-question.md](ledger-question.md)
+   (`${CLAUDE_PLUGIN_ROOT}/skills/roadmap/ledger-question.md`) once, before
+   delivering.
 
 4. **Foreman never marks the entry `in_progress` itself.** It stays
    `planned` — even after this prompt is assembled, delivered, or copied —

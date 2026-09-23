@@ -14,6 +14,7 @@ const path = require("path");
 const read = (...rel) => fs.readFileSync(path.join(__dirname, "..", ...rel), "utf-8");
 
 const roadmap = read("skills", "roadmap", "pick.md");
+const reconcile = read("skills", "roadmap", "reconcile.md");
 const survey = read("skills", "survey", "SKILL.md");
 const entrance = read("skills", "foreman", "SKILL.md");
 const destination = read("skills", "roadmap", "destination-question.md");
@@ -40,29 +41,32 @@ describe("two confidence modes", () => {
     assert.match(roadmap, /Do not read the full\s+backlog/);
   });
 
+  // [Foreman: 353] The deeper mode's steps load only when the user asks for it.
   test("the deeper mode keeps the investigate → propose → apply → recommend order", () => {
+    assert.match(roadmap, /When the user asks for it, read \[reconcile\.md\]\(reconcile\.md\)/);
     assert.match(
-      roadmap,
+      reconcile,
       /\*\*investigate → propose → apply → recommend\.\*\*/,
       "the reconcile sequence is not stated in order"
     );
     const steps = ["\\*\\*Investigate\\*\\*", "\\*\\*Propose\\*\\*", "\\*\\*apply\\*\\*", "\\*\\*Recommend\\*\\*"];
     let cursor = -1;
     for (const step of steps) {
-      const at = roadmap.slice(cursor + 1).search(new RegExp(step));
+      const at = reconcile.slice(cursor + 1).search(new RegExp(step));
       assert.ok(at >= 0, `reconcile step out of order or missing: ${step}`);
       cursor += 1 + at;
     }
-    assert.match(roadmap, /It is composition, not a second pick flow/);
-    assert.match(roadmap, /let its evidence, review, and\s+authorized repairs finish/);
+    assert.match(reconcile, /It is composition, not a second pick flow/);
+    assert.match(reconcile, /let its evidence, review, and\s+authorized repairs finish/);
+    assert.match(reconcile, /continue through pick\.md's Fast pick steps\s+exactly as written/);
   });
 
   test("the near-term set is defined mechanically from one menu call", () => {
     assert.match(
-      roadmap,
+      reconcile,
       /every `candidates\[\]\.id`, plus every\s+`in_progress\[\]\.id`, plus every `awaiting_acceptance\[\]\.id`/
     );
-    assert.match(roadmap, /no second call computes it/);
+    assert.match(reconcile, /no second call computes it/);
   });
 
   test("survey takes a handed-over set of ids as its scope", () => {
@@ -79,6 +83,7 @@ describe("two confidence modes", () => {
     assert.match(roadmap, /age alone never starts a survey/);
     assert.match(roadmap, /survey \(unconfirmed\):` breadcrumb/);
     assert.match(roadmap, /more\s+than \*\*30 days\*\* before today/);
+    assert.match(roadmap, /If the user says yes,\s+read \[reconcile\.md\]\(reconcile\.md\) and start at its step 1/);
     // The entrance holds the same rule from its side.
     assert.match(entrance, /the\s+user asks for that or it doesn't happen/);
   });
@@ -90,6 +95,17 @@ describe("two confidence modes", () => {
 });
 
 describe("the shared destination question", () => {
+  // [Foreman: 353] A pick reads the question only when it asks it, and each
+  // destination's steps only when that destination was picked.
+  test("a pick reads the question only when it asks it", () => {
+    assert.match(roadmap, /When the user already named a\s+destination, use it and skip the question\. Otherwise read\s+\[destination-question\.md\]/);
+    const delivery = read("skills", "roadmap", "delivery.md");
+    for (const file of ["delivery-split.md", "delivery-agent.md", "delivery-clipboard.md"]) {
+      assert.ok(delivery.includes(`](${file})`), `delivery.md does not send its destination to ${file}`);
+    }
+    assert.match(read("skills", "roadmap", "delivery-split.md"), /A fixed number of tasks the user asked for/);
+  });
+
   test("all four destination choices remain available, in order", () => {
     let cursor = -1;
     for (const option of [

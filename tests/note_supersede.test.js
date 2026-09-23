@@ -349,10 +349,16 @@ describe('a duplicate-id repair and the lessons anchored to it', () => {
 // The one place a user is ever asked to turn the ledger on. It writes a file
 // into their repository, so the question has to say what it is honestly.
 describe('the areaNotes question', () => {
+  // [Foreman: 353] pick.md loads the question only when the builder asks for it.
   const ask = fs.readFileSync(
-    path.join(__dirname, '..', 'skills', 'roadmap', 'pick.md'),
+    path.join(__dirname, '..', 'skills', 'roadmap', 'ledger-question.md'),
     'utf-8'
   );
+
+  test('the pick flow reads it when the builder returns ledger_ask', () => {
+    const pick = fs.readFileSync(path.join(__dirname, '..', 'skills', 'roadmap', 'pick.md'), 'utf-8');
+    assert.match(pick, /\*\*`ledger_ask: true`\*\*[\s\S]{0,120}\[ledger-question\.md\]\(ledger-question\.md\)/);
+  });
 
   test('marks the feature Beta, where the user actually decides', () => {
     assert.match(ask, /\*\*\[Beta\]\*\* A finished task already touched these files/);

@@ -367,16 +367,18 @@ describe('session-start surfaces awaiting work', () => {
 });
 
 describe('skill contracts', () => {
+  // [Foreman: 353] The accept steps load only when the user chose an Accept row.
   test('the roadmap skill offers acceptance and the send-back path', () => {
     const skill = readSkill('skills', 'roadmap', 'pick.md');
+    const accept = readSkill('skills', 'roadmap', 'accept.md');
 
     assert.match(skill, /`Accept: <title> \(<id>\)`/);
-    assert.ok(skill.includes('**Accept**'));
+    assert.match(skill, /that choice \(\*\*Accept\*\*\), read \[accept\.md\]\(accept\.md\)/);
     assert.match(skill, /`awaiting_acceptance` entries, then up to two `in_progress` entries/);
     assert.match(skill, /accept options lead/);
-    assert.ok(skill.includes(`echo '{"id":"<id>","status":"done"}'`));
-    assert.match(skill, /declining sends it back/);
-    assert.ok(skill.includes(`echo '{"id":"<id>","status":"in_progress","notes":"<what they said>"}'`));
+    assert.ok(accept.includes(`echo '{"id":"<id>","status":"done"}'`));
+    assert.match(accept, /declining sends it back/);
+    assert.ok(accept.includes(`echo '{"id":"<id>","status":"in_progress","notes":"<what they said>"}'`));
   });
 
   // [Foreman: 185] The primary close path honors requireVerification: the
@@ -449,7 +451,7 @@ describe('skill contracts', () => {
   // later, from the pick menu, must offer the same hand-test the finishing
   // session offered — and must read it back from the entry, never invent it.
   test('the pick menu offers the recorded hand-tests before accepting', () => {
-    const flat = readSkill('skills', 'roadmap', 'pick.md').replace(/\s+/g, ' ');
+    const flat = readSkill('skills', 'roadmap', 'accept.md').replace(/\s+/g, ' ');
 
     assert.match(flat, /take every `unverified:` line out of its `notes`/);
     // A later `verification resolved:` note settles its check, so the Test

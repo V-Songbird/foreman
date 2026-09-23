@@ -26,7 +26,7 @@ carry a caution" below.
   and it changes nothing about your branches.
 - `Execute here, split by check` — ordered rows, one per verification row,
   each finished row committed on a `foreman/<slug>` branch (the template's
-  checkpoint protocol, applied through [delivery.md](delivery.md)).
+  checkpoint protocol, applied through [delivery-split.md](delivery-split.md)).
 - `Execute with a background agent` — offload it, get notified on completion — best for orchestration, where this session owns the commits
 - `Copy prompt to clipboard` — just get the text, no execution
 
@@ -35,31 +35,15 @@ skill requires it:
 
 - In Claude Code, one `AskUserQuestion` with the four options.
   `AskUserQuestion` appends its own free-text option; never author one.
-- In Codex, use [the shared picker protocol](../foreman/questions.md),
-  preferring `request_user_input_async` with all four options in one
-  selectable question, each description and any current caution inside its
-  option string; move the recommendation first when the question tool requires
-  it. If the permitted tool allows only three options, first offer Execute
-  here, Background agent, and Clipboard; after Execute here, ask Whole task or
-  Split by check, carrying the recommendation into the right group. Accept an
-  explicit split choice without the follow-up. If background delegation is
-  unavailable, disclose that limitation and offer the portable prompt; do not
-  create a new sidebar task without an explicit user request.
+- In Codex, use [the shared picker protocol](../foreman/questions.md), which
+  also says how the four options fit the picker.
 - In Antigravity, one `ask_question` with the four options, each description
   and any current caution in its own option text; the tool supplies the
   free-text answer itself.
 
 A free-text answer naming the destination is honored, and so is a fixed number
-of tasks: the split then cuts into that many slices at whatever verification
-boundaries exist instead of one per row. Don't add a confirmation question —
-the created rows are the preview (in Claude Code, a wrong one is removed with
-`TaskUpdate` `status: "deleted"`).
-
-In Codex, gather rows through [prepare-increments.md](prepare-increments.md).
-An explicit request for review after each result travels as
-`reviewEachIncrement:true` with any selected destination, without a second
-opt-in question, and on a split the user's acceptance also precedes any
-eligible checkpoint.
+of tasks, which [delivery-split.md](delivery-split.md) cuts into that many
+slices.
 
 ## Probe the tree before asking
 
@@ -130,10 +114,6 @@ option's label — never to two:
    `Execute here, split by check`. Work that verifies in stages is work
    worth checkpointing in stages, and here it actually can.
 4. **Otherwise.** Recommend `Execute here`.
-
-In Codex, count each mixed Run/Look row once; human-only rows may justify a
-local split when they carry distinct work, but they never satisfy rule 2's
-runnable check.
 
 **Never recommend the background agent outside rule 2.** It cannot ask
 you a question, so an entry with nothing runnable has no way to tell

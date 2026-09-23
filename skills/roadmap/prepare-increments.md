@@ -4,8 +4,9 @@ Use this reference when gathering verification for a roadmap or standalone
 handoff. Carry `reviewEachIncrement:true` only when the user explicitly asked
 to try and approve each result before the next. Preserve that choice through
 assembly and delivery; it is not a project setting. Ordinary split requests do
-not enable it. A supplied destination remains the destination: do not ask again
-or replace it to accommodate review.
+not enable it: never infer review mode from a split alone. A supplied
+destination remains the destination: do not ask again or replace it to
+accommodate review.
 
 Start with outcomes the user can evaluate, not a list of commands or files to
 create. One increment may contain several implementation steps. For example,
@@ -26,10 +27,11 @@ For each distinct result, gather one `judgment.verification` row:
 
 Require at least one complete pair. Do not invent a command because an outcome
 needs human review. Missing commands do not turn an implementation request into
-an investigation. In an explicitly reviewed run, every row needs `review`, even
-when automation checks the same behavior. Ask only for facts that cannot be
-inferred from the user's stated outcome and available evidence; do not ask
-whether to enable review again after the user requested it.
+an investigation — ask for the one missing piece instead. In an explicitly
+reviewed run, every row needs `review`, even when automation checks the same
+behavior, and keeps its `goal` and known `files`. Ask only for facts that
+cannot be inferred from the user's stated outcome and available evidence; do
+not ask whether to enable review again after the user requested it.
 
 Keep checks for one outcome on the same row. When several required commands
 belong to that result, use the existing project aggregate command or a valid
@@ -59,7 +61,9 @@ human-only row omits `run` and its `expected`. The assembler accepts `review`,
 not a second `look` input format; Look is the rendered label.
 
 Before the destination question, count **rows with distinct work**, not Run
-plus Look checks. A mixed row counts once. A recommendation involving an
+plus Look checks. A mixed row counts once. Human-only rows may justify a local
+split when they carry distinct work, but they never satisfy the runnable check
+that rule 2 of `destination-question.md` needs. A recommendation involving an
 executable check needs an actual `run`, not merely a nonempty verification
 array. Follow the remaining clean-tree, collision, context and capability
 conditions in `destination-question.md`; count alone does not pick a destination.

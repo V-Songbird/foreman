@@ -5,15 +5,15 @@ rule here applies to every host unless a paragraph names one. A handoff adds the
 evidence, constraints, and completion criteria to the destination's own
 instructions; it does not replace them or select a fixed model.
 
+In Codex and Antigravity, read [the Codex and Antigravity runtime](runtime-codex.md)
+right after this file. Each section here gives the shared rule and what Claude
+Code does; that file adds what those two hosts do instead.
+
 ## Paths
 
 `${CLAUDE_PLUGIN_ROOT}` in a command means Foreman's plugin root, the directory
 that holds `scripts/`, `hooks/`, and `skills/`. In Claude Code the harness fills
-it in. In Codex and Antigravity, resolve it from the loaded skill's actual location: a skill at
-`<plugin-root>/skills/<name>/SKILL.md` belongs to `<plugin-root>`. Replace the
-variable with that absolute path and quote it for the active shell; do not
-assume the shell defines a plugin-root variable. Supporting references are
-relative to the file that links them.
+it in. Supporting references are relative to the file that links them.
 
 The project directory is separate: scripts resolve `FOREMAN_PROJECT_DIR`, then
 `CODEX_CWD`, then `CLAUDE_PROJECT_DIR`, then the shell working directory. Run
@@ -53,12 +53,6 @@ not treat an unanswered question as approval.
 - In Claude Code, ask with `AskUserQuestion`: at most four options per question,
   each a label plus a description. It appends its own free-text option, so never
   author one.
-- In Codex, use the picker and answer handling in [questions.md](questions.md).
-- In Antigravity, ask with `ask_question`: each option is the answer the user
-  would give, label first, then a short description. The tool adds its own
-  free-text option, so never author one, and allow several selections only
-  when the choices combine. Where a step names `AskUserQuestion` or the Codex
-  picker, this is the tool Antigravity uses in its place.
 - With no usable question tool, ask one self-contained plain-text question and
   never refer to options the user cannot see.
 
@@ -79,25 +73,6 @@ reasoning settings unless the user chose otherwise.
   `run_in_background: true` and no `model`, dispatched without `isolation`.
   Its own handoff opens and closes its roadmap entry. Never call `mcp__ccd_session__spawn_task`: tasks spawned through it don't get
   MCP tools.
-- In Codex, honor applicable `AGENTS.md` files, the current mode, available
-  tools, and existing authorization, and leave general planning and tool use to
-  Codex's native behavior. Inside the chosen destination, use available
-  collaboration subagents for concrete independent subtasks alongside useful
-  coordinator work, giving each a bounded scope, relevant evidence, expected
-  output, and verification; wait for them and integrate their results before
-  claiming the task done. If optional internal delegation is unavailable, handle
-  that subtask locally. If the user selected a background destination that is
-  unavailable, disclose it and offer a prompt artifact or another destination;
-  do not start local execution without the user's choice. Subagents and
-  user-owned Codex tasks are different destinations.
-  Create a new sidebar task only when the user explicitly requests one.
-  A subagent id can be resumed only
-  while the current host still knows it. A subagent stages and commits nothing;
-  the coordinator owns integration, roadmap transitions, and final acceptance.
-- In Antigravity, a background agent is an `invoke_subagent` worker given the
-  returned prompt and the shared-tree restriction; follow it with
-  `manage_subagents`, wait for its result and integrate it as the coordinator,
-  under the same ownership rules as Codex.
 
 ## Bookkeeping and commits
 
@@ -107,25 +82,6 @@ actually starts the work opens it.
 - In Claude Code, Foreman's hooks carry that lifecycle: creating a task whose
   description names an entry opens it, completing that task gates its close, and
   session start surfaces unfinished work.
-- In Codex, when execution of a selected entry begins, run
-  `node ${CLAUDE_PLUGIN_ROOT}/hooks/codex-task.js start --id <id>` and proceed
-  only after exit 0 and `dispatchReady:true`. Blocked, deferred, or terminal work
-  is not dispatchable; inspect the returned reason instead of bypassing the
-  check. Before reporting a completed entry, run the companion `check --id <id>`;
-  a failed check arms the optional Stop reminder for this session. At a flow's
-  entrance, surface unfinished or awaiting work from compact CLI reads when the
-  session-start hook has not already done so, and read lessons for the task's
-  paths with `roadmap.js notes --paths <comma-joined paths>` when useful. After a
-  commit the hook did not handle, use
-  `list --status in_progress,awaiting_acceptance --summary` to find the entries
-  it implements. Hooks add assistance, but these explicit calls remain part of
-  the flow, and a warning is not evidence of completion or acceptance.
-- In Antigravity, follow the Codex lifecycle above: `hooks/codex-task.js
-  start` when execution of a selected entry begins, `check` before reporting a
-  completed entry. No hook opens or closes an entry there and no stop reminder
-  exists, so those explicit calls are the whole lifecycle. The session notice
-  and a commit's reminders reach the model at its next call, not at the moment
-  of the command.
 
 Respect the user's branch restrictions before every mutation. Never switch,
 merge, or commit on a protected branch — one the user said not to modify, or
@@ -151,10 +107,7 @@ Codex and Antigravity — and omit unknown values.
 
 With `discoverySuggestions` on (the default), concrete findings outside the
 task's scope become roadmap suggestions. In Claude Code, the commit hook raises
-them after each commit; in Antigravity, a commit's reminder arrives at the next
-model call. In Codex and Antigravity, follow [discovery.md](discovery.md) before
-reporting completion, including investigations and work without a commit; the
-`start` and `check` results carry the same reminder.
+them after each commit.
 
 ## Trial events
 

@@ -190,8 +190,14 @@ describe("one package for Claude Code and Codex", () => {
     }
   });
 
-  test("the shared runtime states each host's capability, acceptance, and branch boundaries", () => {
-    const runtime = fs.readFileSync(path.join(SKILLS, "foreman", "runtime.md"), "utf-8");
+  // [Foreman: 353] The rules only Codex and Antigravity follow live in a file
+  // the shared runtime sends those hosts to, so Claude Code never reads them.
+  test("the runtime files state each host's capability, acceptance, and branch boundaries", () => {
+    const shared = fs.readFileSync(path.join(SKILLS, "foreman", "runtime.md"), "utf-8");
+    const codex = fs.readFileSync(path.join(SKILLS, "foreman", "runtime-codex.md"), "utf-8");
+    assert.match(shared, /In Codex and Antigravity, read \[the Codex and Antigravity runtime\]\(runtime-codex\.md\)/);
+    assert.doesNotMatch(shared, /^- In (Codex|Antigravity)\b/m, "a Codex or Antigravity rule is back in the file Claude Code reads");
+    const runtime = `${shared}\n${codex}`;
     assert.match(runtime, /`\$\{CLAUDE_PLUGIN_ROOT\}` in a command means Foreman's plugin root/);
     assert.match(runtime, /In Codex and Antigravity, resolve it from the loaded skill's actual location/);
     assert.match(runtime, /In Antigravity, ask with `ask_question`/);

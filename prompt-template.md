@@ -57,7 +57,8 @@ plain tag, never the `host` attribute, and never the `closing`, `autonomy` or
 Antigravity has no variant of its own: `craft-handoff.js` and
 `check-prompt.js --host antigravity` both give it the Codex variant of every
 tagged block, and the Codex path form below. Its delivery uses Antigravity's
-own tools, which [the shared runtime](skills/foreman/runtime.md) names.
+own tools, which
+[the Codex and Antigravity runtime](skills/foreman/runtime-codex.md) names.
 
 ---
 
