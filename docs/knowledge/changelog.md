@@ -65,6 +65,9 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   through an `if` rule on each of its two registrations, so other shell calls
   no longer start a Node process for it. The session-fullness hook still runs
   on every shell call.
+- The session-start hook, which mentions open entries, may take 10 seconds
+  instead of 5, so a slow first session after boot on Windows no longer cuts
+  it off.
 
 ### Every host
 
