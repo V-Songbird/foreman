@@ -151,6 +151,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   pending and not ignored. The next task's `safe-commit.js finish` no longer
   refuses a lesson left pending, an archive move reaches the commit, and
   `begin` no longer calls the tree dirty for a new archive file.
+- `update-status` refuses a `commit` whose `Foreman:` trailer names other
+  entries and not this one, and writes nothing. The error names the commit
+  and the ids its trailer carries. A commit with no trailer, or one git
+  cannot find, is recorded as before.
 - A requested number of split tasks is met by merging neighbouring rows,
   never by splitting one. A merged task keeps its first row's subject, and a
   count at or above the number of rows keeps one task per row.
