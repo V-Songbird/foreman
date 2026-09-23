@@ -25,7 +25,13 @@ const crypto = require("crypto");
 const { execFileSync } = require("child_process");
 // [Foreman: 125] One collision rule for planning and for picking — the same
 // touchesOverlap next-candidates uses.
-const { commitTrailerFor, isValidId, touchesOverlap } = require("./roadmap");
+const {
+  commitTrailerFor,
+  isValidId,
+  touchesOverlap,
+  ignoredPaths,
+  notStagedWarning,
+} = require("./roadmap");
 // [Foreman: 134] One reading of a commit's Foreman trailer.
 const { trailerLinesIn, hasExactTrailer } = require("./commit-evidence");
 const { record: recordTrial } = require("./trial-log");
@@ -340,6 +346,13 @@ function finishUnit(root, options) {
   );
   if (!changed.length) return { ok: false, reason: "no_task_changes", baseline };
 
+  // [Foreman: 335] A declared roadmap close in a private roadmap: git ignores
+  // ROADMAP.jsonl, so neither diff nor ls-files ever lists it, nothing here
+  // hands it to `git add`, and the commit carries the task's files alone.
+  // The result says so rather than leaving the caller to notice from `files`.
+  const ignored = roadmapClose ? ignoredPaths(root, [ROADMAP_FILE]) : [];
+  const notice = ignored.length ? { warnings: [notStagedWarning(id, ignored)] } : {};
+
   const allowed = roadmapClose ? [...expected, ROADMAP_FILE] : expected;
   const unexpected = changed.filter((file) => !isOwned(file, allowed));
   if (unexpected.length && !options.allowUnexpected) {
@@ -401,6 +414,7 @@ function finishUnit(root, options) {
       files: staged,
       ...(ledgerExcluded.length ? { ledger_excluded: ledgerExcluded } : {}),
       ...(id ? { trailer: commitTrailerFor(id) } : {}),
+      ...notice,
     };
   }
 
@@ -419,6 +433,7 @@ function finishUnit(root, options) {
     files: staged,
     ...(ledgerExcluded.length ? { ledger_excluded: ledgerExcluded } : {}),
     attested,
+    ...notice,
   };
 }
 
@@ -470,6 +485,8 @@ error; a refusal is a successful call reporting ok:false).
             message_title: commit subject. Required unless --no-commit.
             roadmap_close: true only for the close-in-commit flow, where
               update-status staged:true has already staged ROADMAP.jsonl.
+              When git ignores ROADMAP.jsonl (a private roadmap), the
+              commit carries the task's files alone and warnings says so.
             Refuses (ok:false, nothing staged) when HEAD moved since the
             baseline, when nothing changed, or when a changed file matches
             no expected entry -- unexpected_files names them. Re-run with

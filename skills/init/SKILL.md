@@ -12,7 +12,9 @@ Foreman runs in Claude Code, Codex and Antigravity. Every step applies to every 
 
 Creates `ROADMAP.jsonl` and `.foreman/config.json` at the project root. Both
 are committed to git — they're a shared project artifact, not personal
-state. All reads/writes go through
+state — unless the project git-ignores them to keep a private roadmap; then
+init writes both and commits neither (step 4 of the write phase). All
+reads/writes go through
 `${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js` (see "Write phase" below) — it
 enforces the write invariants (id computation, parse-before/after-write)
 mechanically, so you don't have to. Run it with `--help` for the command
@@ -174,7 +176,9 @@ descriptive branch first (`codex/<descriptive-name>` in Codex).
    established project, and a commit without the pathspec would sweep it
    into a commit titled "snapshot roadmap". A roadmap already committed
    with no changes counts as snapshotted once you verify its bytes match
-   `HEAD:ROADMAP.jsonl` and name that revision.
+   `HEAD:ROADMAP.jsonl` and name that revision. A private roadmap (step 4's
+   check prints `ROADMAP.jsonl`) has no copy in git to snapshot: take the
+   timestamped backup below instead, without asking.
 
    **If the snapshot fails, stop before clearing anything.** Whether the old
    roadmap stays recoverable is the user's call, not a line in the
@@ -251,7 +255,15 @@ descriptive branch first (`codex/<descriptive-name>` in Codex).
    must not throw away. If the file exists but won't parse, say so in the
    report-back and change nothing.
 4. Commit only the files this flow wrote, by pathspec, so unrelated staged
-   work stays out of the commit:
+   work stays out of the commit. First ask git which of them the project
+   ignores:
+   `git check-ignore -- ROADMAP.jsonl .foreman/config.json`
+   It prints each ignored path, and exits 1 with no output when none is.
+   A printed file belongs to a private roadmap (see
+   [the schema](../../roadmap-schema.md#private-roadmap--git-ignored-files)):
+   leave it written and unstaged, never force it with `git add -f`, and drop
+   it from both halves of the command below. When no file is left, skip the
+   command. Otherwise:
    `git add -- ROADMAP.jsonl .foreman/config.json && git commit -m "chore: init foreman roadmap" -- ROADMAP.jsonl .foreman/config.json`
    Drop `.foreman/config.json` from both halves when step 3 left an existing
    config in place: never stage or commit an existing config this flow did
@@ -260,15 +272,18 @@ descriptive branch first (`codex/<descriptive-name>` in Codex).
    or completed when it was not.
 
 <!-- [Foreman: 209] -->
-5. **Trial log** — after step 4's commit lands, one line:
+5. **Trial log** — after step 4's commit lands, or after the write when
+   step 4 left nothing to commit, one line:
    ```
    node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js init_completed '{"tasks":<how many add calls succeeded>}'
    ```
    `tasks` is how many `add` calls actually succeeded, never how many were
-   drafted. Record it only once the files this flow wrote are committed: an
-   init that never reached the commit did not complete.
+   drafted. Record it only once every file this flow wrote is committed, or
+   written and git-ignored: an init that never reached that point did not
+   complete.
 
-Report back: task count, one line that everything optional is off and gets
+Report back: task count, each file written but not committed because git
+ignores it (step 4), one line that everything optional is off and gets
 asked about when it first matters, and point the user at the first pick —
 `/foreman:roadmap` in Claude Code, the roadmap skill in Codex, `/roadmap` in
 Antigravity.

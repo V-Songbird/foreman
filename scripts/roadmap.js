@@ -928,21 +928,57 @@ function driftNote(drift) {
   return parts.length ? `scope drift — ${parts.join("; ")}` : null;
 }
 
+// [Foreman: 335] A private roadmap: the project git-ignores ROADMAP.jsonl and
+// .foreman/, so Foreman's files live on disk and never in a commit. `git
+// check-ignore` names which of `paths` that covers. A tracked file is never
+// named, since ignore rules do not apply to it, so a project that commits its
+// roadmap sees no difference. Exit 1 means none is ignored; no git or no
+// repository means the same here.
+function ignoredPaths(root, paths) {
+  try {
+    return execFileSync("git", ["check-ignore", "--", ...paths], {
+      cwd: root,
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .split(/\r?\n/)
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+// The one sentence a staged close or a declared roadmap close adds when git
+// ignores what it would have staged: the close is on disk, the commit will
+// not carry it, and only the trailer links the two.
+function notStagedWarning(id, ignored) {
+  const link = id && ignored.includes("ROADMAP.jsonl")
+    ? ` The close is saved on disk only; the commit links to this entry through its "${commitTrailerFor(id)}" trailer.`
+    : "";
+  return `git-ignored here, so not staged: ${ignored.join(", ")}.${link}`;
+}
+
 // Best-effort `git add` of the files a staged close writes, so it needs no
-// extra caller step to fold them into the pending commit. False (git absent /
-// not a repo) never fails the close — the caller just stages them itself.
-// The notes file is staged only when this close actually wrote to it; an
-// unrelated pending edit to it is not this close's business.
+// extra caller step to fold them into the pending commit. `staged` false (git
+// absent / not a repo) never fails the close — the caller just stages them
+// itself. The notes file is staged only when this close actually wrote to
+// it; an unrelated pending edit to it is not this close's business.
+// [Foreman: 335] An ignored file is left out rather than handed to `git add`,
+// which refuses it and fails the whole call even after staging the rest;
+// `ignored` names what was left out so the close can say so.
 function stageRoadmapFile(root, extraPaths = []) {
   const paths = ["ROADMAP.jsonl", ...extraPaths];
+  const ignored = ignoredPaths(root, paths);
+  const toStage = paths.filter((file) => !ignored.includes(file));
+  if (!toStage.length) return { staged: false, ignored };
   try {
-    execFileSync("git", ["add", "--", ...paths], {
+    execFileSync("git", ["add", "--", ...toStage], {
       cwd: root,
       stdio: ["ignore", "ignore", "ignore"],
     });
-    return true;
+    return { staged: !ignored.includes("ROADMAP.jsonl"), ignored };
   } catch {
-    return false;
+    return { staged: false, ignored };
   }
 }
 
@@ -1212,10 +1248,12 @@ function cmdUpdateStatusUnlocked(root, payload) {
   // must carry — the entry↔commit link the recorded sha used to be.
   if (staged) {
     result.trailer = commitTrailerFor(id);
-    result.roadmap_staged = stageRoadmapFile(
+    const staging = stageRoadmapFile(
       root,
       lessonOutcome && lessonOutcome.report.stored ? [ledger.NOTES_RELATIVE] : []
     );
+    result.roadmap_staged = staging.staged;
+    if (staging.ignored.length) warnings.push(notStagedWarning(id, staging.ignored));
   }
   return warnings.length ? { ...result, warnings } : result;
 }
@@ -2526,6 +2564,9 @@ is written, and the error names the field and the kind, never the text.
                     the close lands inside its own commit with no sha
                     recorded and no roadmap ride-along. Mutually exclusive
                     with commit (which records one that already landed).
+                    A file git ignores (a private roadmap) is never
+                    staged: warnings names each file left out, and
+                    roadmap_staged is false when ROADMAP.jsonl is one
                     add_touches: array of paths to fold into observed_touches
                     (dedup, never removes) -- for a file the commit's own
                     diff cannot show
@@ -2977,6 +3018,8 @@ module.exports = {
   touchesOverlap,
   scopeDrift,
   driftNote,
+  ignoredPaths,
+  notStagedWarning,
   stageRoadmapFile,
   reaches,
   normalizeWords,

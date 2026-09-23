@@ -4,7 +4,8 @@
 
 `ROADMAP.jsonl` lives at the **project root** (not inside this plugin) and is
 committed to git — it's a visible, shared record of the project's plan, not
-internal Foreman state. One JSON object per line (JSON Lines, not a JSON
+internal Foreman state. A project can keep it out of git instead: see
+[Private roadmap](#private-roadmap--git-ignored-files). One JSON object per line (JSON Lines, not a JSON
 array): one line = one task. Line-per-task is deliberate — changing one
 task's status touches exactly one line, so `git diff` on this file shows a
 clean one-line change per update instead of reformatting the whole file.
@@ -329,6 +330,33 @@ the fresh read through the validated write. Callers do not configure or
 manage it. Concurrent commands serialize automatically; a crashed owner's
 lock is recovered, and a live lock that outlasts the short wait returns one
 error instead of risking a lost update. Read-only commands take no lock.
+
+---
+
+## Private roadmap — git-ignored files
+
+A project can keep its plan out of its repository by git-ignoring
+`ROADMAP.jsonl` and `.foreman/`, which holds the archive, the lesson ledger,
+the config and the trial log. Foreman then works on the files on disk and
+never puts them in a commit. There is no setting: `git check-ignore` decides
+it for each file. Git never reports a tracked file as ignored, so a project
+that commits its roadmap behaves exactly as before.
+
+- `init` writes `ROADMAP.jsonl` and `.foreman/config.json`, stages and
+  commits neither, and names both in its report. Re-initializing takes a
+  timestamped backup instead of a git snapshot.
+- A staged close (`update-status` with `staged:true`) still writes the entry,
+  derives `observed_touches` from the index and returns the `Foreman: <id>`
+  trailer. It never stages an ignored file: `warnings` names each file it
+  left out, and `roadmap_staged` is `false` when `ROADMAP.jsonl` is one of
+  them. The trailer is then the only link between the commit and the entry.
+  Closing with `commit` after the commit lands records the sha as well.
+- `safe-commit.js finish` never stages an ignored file, because `git diff`
+  and `git ls-files --exclude-standard` never list one. With `roadmap_close`
+  declared, the commit carries the task's files alone and `warnings` says
+  the roadmap was not staged.
+- Everything else reads and writes the files on disk as before: the CLI,
+  the mutation lock, the edit guard and every view.
 
 ---
 
