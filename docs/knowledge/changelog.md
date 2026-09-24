@@ -202,6 +202,9 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   file with no definition patterns carries, such as the `reviewedAt` key in a
   README's evidence comment. Such a file's text is searched for the whole
   word; a name it lacks is still listed.
+- That search reads at most the first 1 MiB of a planned file, so a large
+  dataset is no longer read whole, and a file with a NUL byte in that part is
+  binary and not searched at all. The file's warning says when either applies.
 - A failure pasted into `craft-prompt` reaches the handoff as recorded
   evidence, not instructions: `judgment.observed` is quoted inside
   `<observed_failure>` and escaped, so it cannot close that block or open

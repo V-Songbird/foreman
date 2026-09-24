@@ -195,17 +195,35 @@ function unresolvedIdentifiers(what, files, plainText = "") {
     .filter((name) => outsidePath(name, String(what)));
 }
 
-function plainTextOf(root, files) {
-  return files
-    .filter((file) => file.unsupported)
-    .map((file) => {
-      try {
-        return fs.readFileSync(path.resolve(root, file.path), "utf-8");
-      } catch {
-        return "";
-      }
-    })
-    .join("\n");
+// [Foreman: 620] The plain-text read is bounded: a JSON dataset or a binary
+// in planned_touches was read whole at every craft. Past the limit only the
+// first PLAIN_TEXT_LIMIT bytes are searched, and a NUL byte in what was read
+// marks a binary, which is not searched at all. The file's warning says which.
+//
+// 1 MiB: many times any README, changelog or config a name search is for.
+const PLAIN_TEXT_LIMIT = 1024 * 1024;
+
+function plainTextOf(root, relPath) {
+  let fd;
+  try {
+    fd = fs.openSync(path.resolve(root, relPath), "r");
+    const size = fs.fstatSync(fd).size;
+    const buffer = Buffer.alloc(Math.min(size, PLAIN_TEXT_LIMIT));
+    const chunk = buffer.subarray(0, fs.readSync(fd, buffer, 0, buffer.length, 0));
+    if (chunk.includes(0)) return { text: "", binary: true };
+    return { text: chunk.toString("utf-8"), truncated: size > PLAIN_TEXT_LIMIT };
+  } catch {
+    return { text: "" };
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+}
+
+function plainTextWarning(relPath, plain) {
+  const prefix = `${relPath}: no definition patterns for this file type`;
+  if (plain.binary) return `${prefix} — binary (a NUL byte in its first ${PLAIN_TEXT_LIMIT} bytes), not searched as text`;
+  if (plain.truncated) return `${prefix} — over ${PLAIN_TEXT_LIMIT} bytes, names searched as plain text in its first ${PLAIN_TEXT_LIMIT} bytes only`;
+  return `${prefix} — names searched as plain text`;
 }
 
 // [Foreman: 109]
@@ -410,10 +428,15 @@ function resolve(root, touches, what, verify) {
   if (!list.length) warnings.push("no touches paths given — nothing to resolve");
 
   const files = list.map((relPath) => resolveFile(root, relPath.trim()));
+  const plainText = [];
   for (const file of files) {
     if (file.missing) warnings.push(`${file.path}: not on disk — expected if this task creates it, stale touches if not`);
     if (file.outside_project) warnings.push(`${file.path}: resolves outside the project — not read; fix or drop it`);
-    if (file.unsupported) warnings.push(`${file.path}: no definition patterns for this file type — names searched as plain text`);
+    if (file.unsupported) {
+      const plain = plainTextOf(root, file.path);
+      plainText.push(plain.text);
+      warnings.push(plainTextWarning(file.path, plain));
+    }
     if (file.unreadable) warnings.push(`${file.path}: could not be read — skipped`);
   }
 
@@ -453,7 +476,7 @@ function resolve(root, touches, what, verify) {
 
   return {
     files,
-    unresolved: unresolvedIdentifiers(what, files, plainTextOf(root, files)),
+    unresolved: unresolvedIdentifiers(what, files, plainText.join("\n")),
     references,
     ...(verification ? { verification } : {}),
     warnings,
@@ -508,4 +531,5 @@ module.exports = {
   resolve,
   LANGUAGES,
   WALK_LIMIT,
+  PLAIN_TEXT_LIMIT,
 };

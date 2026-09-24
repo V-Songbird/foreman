@@ -11,6 +11,8 @@
 //     unresolved; one that does match stays out of it
 //   - a file with no definition patterns is searched as plain text, so a
 //     name it carries resolves and a name it lacks stays unresolved
+//   - that search stops at PLAIN_TEXT_LIMIT bytes and skips a binary, and
+//     the file's warning says so
 //   - a directory and an unsupported extension each degrade cleanly, with a
 //     warning instead of a thrown error
 //   - touches arrive by --touches flag or by JSON on stdin
@@ -252,6 +254,32 @@ describe('resolve-symbols', () => {
 
     assert.deepEqual(json.unresolved, ['reviewedAtLegacy', 'sourceDigest']);
     assert.ok(json.warnings.some((w) => w.includes('pkg/README.md') && w.includes('plain text')));
+  });
+
+  test('a plain-text file past the limit is searched only up to it', () => {
+    const { PLAIN_TEXT_LIMIT } = require(SCRIPT);
+    const head = '{"keptKey": 1, "pad": "';
+    const tail = ' edgeKey';
+    const atLimit = head + 'x'.repeat(PLAIN_TEXT_LIMIT - head.length - tail.length) + tail;
+    writeFile('data/at-limit.json', atLimit);
+    writeFile('data/over-limit.json', `${atLimit} pastKey"}`);
+
+    const at = run({ stdin: JSON.stringify({ touches: ['data/at-limit.json'], what: 'Keep keptKey and edgeKey.' }) }).json;
+    assert.deepEqual(at.unresolved, []);
+    assert.ok(at.warnings.some((w) => w.includes('data/at-limit.json') && w.endsWith('names searched as plain text')));
+
+    const over = run({ stdin: JSON.stringify({ touches: ['data/over-limit.json'], what: 'Keep keptKey, edgeKey and pastKey.' }) }).json;
+    assert.deepEqual(over.unresolved, ['pastKey']);
+    assert.ok(over.warnings.some((w) => w.includes('data/over-limit.json') && w.includes(`first ${PLAIN_TEXT_LIMIT} bytes only`)));
+  });
+
+  test('a binary file is not searched as text', () => {
+    writeFile('assets/logo.png', 'PNG\0\0binaryKey\0');
+
+    const { json } = run({ stdin: JSON.stringify({ touches: ['assets/logo.png'], what: 'Embed binaryKey.' }) });
+
+    assert.deepEqual(json.unresolved, ['binaryKey']);
+    assert.ok(json.warnings.some((w) => w.includes('assets/logo.png') && w.includes('binary') && w.includes('not searched')));
   });
 
   test('a directory and an unsupported extension degrade cleanly', () => {
