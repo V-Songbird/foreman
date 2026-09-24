@@ -23,7 +23,14 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
-const { runRoadmap, makeTmpProject, writeRoadmap, writeConfig } = require('./helpers');
+const { runRoadmap, makeTmpProject, writeRoadmap, writeArchiveFile, writeConfig, SCRIPTS_DIR } = require('./helpers');
+const { recordKey } = require(path.join(SCRIPTS_DIR, 'ledger.js'));
+
+// Hidden characters are built from code points: tests/check_prompt.test.js
+// fails on a raw one anywhere in tests/.
+const ZWSP = String.fromCodePoint(0x200b);
+const RLO = String.fromCodePoint(0x202e);
+const FAMILY = [0x1f468, 0x200d, 0x1f469, 0x200d, 0x1f467].map((code) => String.fromCodePoint(code)).join('');
 
 let project;
 let env;
@@ -228,6 +235,32 @@ describe('doctor field and type findings', () => {
   test('invalid_doc: a doc that is neither "none" nor a relative .md path', () => {
     writeRoadmap(project, [base('001', { doc: '/etc/passwd' })]);
     assertFinding(doctor(), 'invalid_doc', 'error', ['001']);
+  });
+
+  test('hidden_characters: an error per handoff field, naming line or item and code point, never the text', () => {
+    writeRoadmap(project, [
+      base('001', { notes: `first\nsecret${ZWSP}word`, planned_touches: ['src/a.js', `src/${RLO}b.js`] }),
+      base('002', { title: `team ${FAMILY}` }),
+    ]);
+    const report = doctor();
+    const found = withCode(report, 'hidden_characters');
+    assert.deepEqual(found.map((f) => [f.severity, f.ids, f.field]), [
+      ['error', ['001'], 'notes'],
+      ['error', ['001'], 'planned_touches'],
+    ], 'a rendered emoji joiner is not a finding');
+    assert.match(found[0].message, /entry 001: notes carries .*\(line 2: U\+200B\)/);
+    assert.match(found[1].message, /\(item 2: U\+202E\)/);
+    assert.ok(found.every((f) => !/secret|b\.js/.test(f.message) && !f.message.includes(ZWSP)), 'the stored text is never shown');
+    assert.equal(report.ok, false);
+    // Doctor-only: the write gate still takes a mutation on the entry.
+    assert.equal(run(['annotate'], { id: '001', notes: 'breadcrumb' }).status, 0);
+  });
+
+  test('hidden_characters covers archived entries, which a handoff still recalls', () => {
+    writeRoadmap(project, [base('001')]);
+    writeArchiveFile(project, [base('002', { status: 'done', commits: ['abc1234'], why: `why${ZWSP}` })]);
+    const finding = assertFinding(doctor(), 'hidden_characters', 'error', ['002']);
+    assert.match(finding.message, /^\.foreman\/archive\.jsonl: entry 002: why carries/);
   });
 
   // The file's format version lives on its own first line, not on an entry
@@ -485,6 +518,23 @@ describe('doctor lesson-ledger findings', () => {
     assert.deepEqual(withCode(doctor(), 'unknown_config_key'), []);
     writeConfig(project, { ledger: { enabled: 'yes' } });
     assert.equal(assertFinding(doctor(), 'invalid_config_value', 'error').field, 'ledger.enabled');
+  });
+
+  test('notes_hidden_characters is one warning naming each record key, field, line and code point', () => {
+    writeRoadmap(project, [base('001')]);
+    const bad = { lesson: `use the ${ZWSP}cache`, entry: '001' };
+    const badPath = { paths: ['src/auth/session.js', `src/auth/${RLO}x.js`], entry: '002' };
+    writeNotes(['{"foreman_notes_format":1}', record(), record(bad), record(badPath)]);
+    const findings = withCode(doctor(), 'notes_hidden_characters');
+    assert.equal(findings.length, 1, 'hidden-character records aggregate into one finding');
+    assert.equal(findings[0].severity, 'warning');
+    const message = findings[0].message;
+    assert.match(message, /2 records carry/);
+    assert.ok(message.includes(`${recordKey(JSON.parse(record(bad)))} (lesson line 1: U+200B)`), message);
+    assert.ok(message.includes(`${recordKey(JSON.parse(record(badPath)))} (paths item 2: U+202E)`), message);
+    assert.ok(!message.includes(recordKey(JSON.parse(record()))), 'a clean record is not named');
+    assert.ok(!/cache|x\.js/.test(message), 'the stored text is never shown');
+    assert.match(message, /note-supersede/);
   });
 });
 

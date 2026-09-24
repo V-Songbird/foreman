@@ -36,6 +36,7 @@ const { configPath, OMITTABLE_TAGS } = require("./render-sections");
 // ledger.js requires nothing from this module, so there is no cycle to
 // defer around -- unlike roadmap.js below.
 const ledger = require("./ledger");
+const { hiddenCharacters } = require("./check-prompt");
 
 // roadmap.js requires this module at load time, so requiring it back up here
 // would capture a half-built exports object. Node's module cache makes the
@@ -322,6 +323,50 @@ function validateEntries(entries, options = {}) {
   return out;
 }
 
+// [Foreman: 700] check-prompt.js hiddenCharacters on one stored value, the way
+// roadmap.js refuseHiddenCharacters checks a new one: behind a space, since a
+// handoff quotes it mid-prompt. An array is checked one item per line, so its
+// hits name the item. Each hit names a line and code points, never the text.
+function hiddenIn(value) {
+  const found = hiddenCharacters(` ${Array.isArray(value) ? value.join("\n") : (value ?? "")}`);
+  return Array.isArray(value) ? found.map((hit) => hit.replace(/^line/, "item")) : found;
+}
+
+// The stored strings a handoff prints: an entry's own title, why, what, notes
+// and planned_touches, another entry's title and notes when a handoff recalls
+// it, and doc through a dependent's depends_on_docs.
+const HANDOFF_FIELDS = ["title", "why", "what", "notes", "doc", "planned_touches"];
+
+/**
+ * [Foreman: 700] Every handoff field that already carries a character the
+ * prompt gate refuses. An error: the gate refuses every prompt that quotes
+ * the field, so the entry's own handoff breaks, and notes cannot be corrected.
+ * Doctor-only, outside validateEntries: roadmap.js refuseHiddenCharacters
+ * refuses these characters at input, and in the whole-file write gate a hit
+ * would refuse a close whose generated scope-drift note quotes a path git
+ * reported.
+ */
+function validateHiddenCharacters(entries) {
+  const { isValidId } = roadmap();
+  const out = [];
+  entries.forEach((entry, index) => {
+    if (!isObject(entry)) return;
+    const valid = typeof entry.id === "string" && isValidId(entry.id);
+    for (const field of HANDOFF_FIELDS) {
+      const found = hiddenIn(entry[field]);
+      if (!found.length) continue;
+      out.push(finding(
+        "hidden_characters",
+        "error",
+        valid ? [entry.id] : [],
+        `${valid ? `entry ${entry.id}` : `line ${index + 1}`}: ${field} carries characters a reader cannot see (${found.join("; ")}) — the prompt gate refuses every handoff that quotes it`,
+        { field }
+      ));
+    }
+  });
+  return out;
+}
+
 // [Foreman: 132] The crash window of an archive/restore move: the entry was
 // appended to the destination but the source rewrite never landed, so one id
 // sits in both files. The message names the repair because the repair is not
@@ -573,6 +618,27 @@ function validateAreaNotes(root) {
     ));
   }
 
+  // [Foreman: 700] note-staleness.js servedBody serves a record nowhere once
+  // its lesson, entry, date or paths carry a character a reader cannot see,
+  // and nothing else says so. A warning, like an unreadable line: every reader
+  // skips it and nothing breaks. One finding, naming each record's key for
+  // note-supersede.
+  const hidden = records.flatMap((record) => {
+    const hits = ["lesson", "entry", "date", "paths"].flatMap((field) => hiddenIn(record[field]).map((hit) => `${field} ${hit}`));
+    return hits.length ? [`${ledger.recordKey(record)} (${hits.join("; ")})`] : [];
+  });
+  if (hidden.length) {
+    const more = hidden.length > NOTES_ID_SAMPLE ? `, +${hidden.length - NOTES_ID_SAMPLE} more` : "";
+    out.push(finding(
+      "notes_hidden_characters",
+      "warning",
+      [],
+      `${ledger.NOTES_RELATIVE}: ${hidden.length} record${hidden.length === 1 ? " carries" : "s carry"} characters a reader cannot see, `
+        + `so no handoff or file read serves ${hidden.length === 1 ? "it" : "them"}: ${hidden.slice(0, NOTES_ID_SAMPLE).join(", ")}${more}`
+        + " — retire each by its key with `roadmap.js note-supersede`"
+    ));
+  }
+
   return out;
 }
 
@@ -691,6 +757,7 @@ function summarize(findings) {
 module.exports = {
   hookDependencies,
   validateEntries,
+  validateHiddenCharacters,
   validateAcrossFiles,
   enrichDuplicates,
   validateConfig,

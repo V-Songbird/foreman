@@ -177,6 +177,13 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   cannot see, such as a zero-width space, a bidi override or a Unicode tag, is
   no longer served by the handoff or by the hook that runs when a file is
   read. `roadmap.js notes` still lists it, so `note-supersede` can retire it.
+- `roadmap.js doctor` reports text already stored with a character a reader
+  cannot see. An entry's title, why, what, notes, doc or planned files, in the
+  roadmap or the archive, is an error (`hidden_characters`), since every
+  handoff that quotes it is refused. A lesson in `.foreman/notes.jsonl` is a
+  warning (`notes_hidden_characters`) naming the record's key for
+  `note-supersede`. Each finding names the field, line or item and code point,
+  never the text.
 - `roadmap.js` fails on a flag its subcommand does not take instead of
   ignoring it, and writes nothing. `list --id 613` used to print the whole
   roadmap; it now exits 1 and the error names `list`'s flags. A subcommand

@@ -21,6 +21,7 @@ const { readLedger } = require("./ledger-config");
 const noteStaleness = require("./note-staleness");
 const {
   validateEntries,
+  validateHiddenCharacters,
   validateAcrossFiles,
   enrichDuplicates,
   validateConfig,
@@ -2449,7 +2450,11 @@ function allFindings(root) {
   const archived = readArchive(root);
   return enrichDuplicates(root, [
     ...validateEntries(active, { resolve: otherFileResolver(() => archived) }),
-    ...validateEntries(archived, { resolve: otherFileResolver(() => active) }).map((item) => ({
+    ...validateHiddenCharacters(active),
+    ...[
+      ...validateEntries(archived, { resolve: otherFileResolver(() => active) }),
+      ...validateHiddenCharacters(archived),
+    ].map((item) => ({
       ...item,
       repairable: false,
       message: `${ARCHIVE_LABEL}: ${item.message}`,
