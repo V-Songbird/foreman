@@ -48,6 +48,7 @@ const {
   CONCISE_TRUTH_SENTENCE,
   CLOSURE_EVIDENCE_SENTENCE,
   APPROVAL_SOURCE_SENTENCE,
+  IMPLEMENTATION_AUTHORIZATION_SENTENCE,
   norm,
   CLOSING_PREFIX,
   KEEP_GOING_SENTENCE,
@@ -113,7 +114,7 @@ function fixtures(host) {
       codex_runtime: runtime,
       task_context: '<task_context>\nYou are a senior engineer.\nYour goal is to fix the retry bug so all tests pass.\n</task_context>',
       truth_line: CONCISE_TRUTH_SENTENCE,
-      approval: host === 'claude' ? APPROVAL_SOURCE_SENTENCE : '',
+      approval: host === 'claude' ? APPROVAL_SOURCE_SENTENCE : IMPLEMENTATION_AUTHORIZATION_SENTENCE,
       background: '<background>\n<relevant_files>\nsrc/auth/middleware.ts — refreshToken (42), verifySession (77)\n</relevant_files>\n</background>',
       task_rules: `<task_rules>\n- Fix the bug.\n\nConstraints:\n- Do not modify the public API.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\n${FIX_CEILING_LINE}\n</task_rules>`,
       closure: CLOSURE_EVIDENCE_SENTENCE,
@@ -721,23 +722,26 @@ for (const host of HOSTS) {
         assert.ok(longNoClosure.json.errors.some((e) => e.error.includes('closure-evidence rule')), JSON.stringify(longNoClosure.json.errors));
       });
 
-      // [Foreman: 630] A background or pasted session sees only the prompt,
-      // so a Claude Code handoff says where an approval can come from.
-      test(host === 'claude' ? 'the approval-source rule is required in BOTH profiles' : 'the approval-source rule is Claude Code only', () => {
+      // [Foreman: 630, 674] A background or pasted session sees only the
+      // prompt, so every handoff says where its authority comes from: the
+      // approval-source rule on Claude Code, the implementation-authorization
+      // rule on Codex, each in both profiles and neither on the other host.
+      const rule = host === 'claude' ? 'approval-source rule' : 'implementation-authorization rule';
+      const otherRule = host === 'claude' ? 'implementation-authorization rule' : 'approval-source rule';
+      test(`the ${rule} is required in BOTH profiles, and only on this host`, () => {
         const project = makeTmpProject();
-        const approvalError = (json) => (json.errors || []).some((e) => e.error.includes('approval-source rule'));
+        const hasError = (json, name) => (json.errors || []).some((e) => e.error.includes(name));
         const short = check(project, standardPrompt({ approval: '' }), ['--destination', 'task', '--profile', 'standard']);
-        const scopeWithout = canonical.scopeDiscipline.split('${CLAUDE_PLUGIN_ROOT}').join(PLUGIN_ROOT).replace(/Approval for anything[\s\S]*$/, '');
-        const long = check(project, goodPrompt({ scope_discipline: `<scope_discipline>${scopeWithout}</scope_discipline>` }), ['--destination', 'task', '--profile', 'reinforced']);
-        if (host === 'claude') {
-          assert.equal(short.status, 1);
-          assert.ok(approvalError(short.json), JSON.stringify(short.json.errors));
-          assert.equal(long.status, 1);
-          assert.ok(approvalError(long.json), JSON.stringify(long.json.errors));
-        } else {
-          assert.equal(short.status, 0, JSON.stringify(short.json.errors));
-          assert.ok(!approvalError(long.json), JSON.stringify(long.json.errors));
-        }
+        const long = host === 'claude'
+          ? check(project, goodPrompt({ scope_discipline: `<scope_discipline>${canonical.scopeDiscipline.split('${CLAUDE_PLUGIN_ROOT}').join(PLUGIN_ROOT).replace(/Approval for anything[\s\S]*$/, '')}</scope_discipline>` }), ['--destination', 'task', '--profile', 'reinforced'])
+          : check(project, goodPrompt({ plan: `<plan>${canonical.plan.replace(IMPLEMENTATION_AUTHORIZATION_SENTENCE, '')}</plan>` }), ['--destination', 'task', '--profile', 'reinforced']);
+        assert.equal(short.status, 1);
+        assert.ok(hasError(short.json, rule), JSON.stringify(short.json.errors));
+        assert.equal(long.status, 1);
+        assert.ok(hasError(long.json, rule), JSON.stringify(long.json.errors));
+        const good = check(project, standardPrompt(), ['--destination', 'task', '--profile', 'standard']);
+        assert.equal(good.status, 0, JSON.stringify(good.json.errors));
+        assert.ok(!hasError(short.json, otherRule) && !hasError(long.json, otherRule));
       });
 
       // [Foreman: 231]
@@ -1145,6 +1149,10 @@ describe('handoff profiles', () => {
     // scope_discipline; standard carries the same sentence on its own line.
     assert.ok(norm(readCanonical('claude').scopeDiscipline).endsWith(norm(APPROVAL_SOURCE_SENTENCE)), 'Claude Code scope_discipline and the standalone approval rule have drifted apart');
     assert.ok(!norm(readCanonical('codex').scopeDiscipline).includes('Approval for anything'), 'the approval rule leaked into the Codex scope_discipline');
+    // [Foreman: 674] Codex's reinforced handoff carries its authorization rule
+    // inside <plan>; standard carries the same sentence on its own line.
+    assert.ok(norm(readCanonical('codex').plan).includes(norm(IMPLEMENTATION_AUTHORIZATION_SENTENCE)), 'the Codex plan and the standalone authorization rule have drifted apart');
+    assert.ok(raw.includes(`> ${IMPLEMENTATION_AUTHORIZATION_SENTENCE}`), 'the template lost the standard-profile authorization line');
   });
 
   // The profile is craft-handoff.js's to compute and nobody's to say out

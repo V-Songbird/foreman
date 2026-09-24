@@ -202,6 +202,20 @@ describe("attention cost — prompt overhead", () => {
     assert.ok(first.reinforced.blocks.includes("scope_discipline"));
   });
 
+  // [Foreman: 674] Each host's standard floor counts its own authority line.
+  test("each host's standard floor counts its own authority line", () => {
+    const saved = process.env.FOREMAN_HOST;
+    try {
+      for (const [host, line] of [["claude", "approval_source_line"], ["codex", "implementation_authorization_line"]]) {
+        process.env.FOREMAN_HOST = host;
+        assert.deepEqual(promptOverhead().standard.blocks, ["concise_truth_line", "closure_evidence_line", line]);
+      }
+    } finally {
+      if (saved === undefined) delete process.env.FOREMAN_HOST;
+      else process.env.FOREMAN_HOST = saved;
+    }
+  });
+
   test("the short profile is the cheaper one, reported as a ratio", () => {
     const overhead = promptOverhead();
 

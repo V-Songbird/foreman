@@ -619,7 +619,8 @@ when the crafter supplied them, `<task_rules>`
 (constraints plus the `Verification (REQUIRED):` Run:/Expected: and
 Look:/Expected: pairs and the bounded fix ceiling that closes them), the
 `autonomy` paragraph that fits the destination, the closure-evidence
-sentence, a Claude Code handoff's approval-source sentence, and the
+sentence, a Claude Code handoff's approval-source sentence or a Codex
+handoff's implementation-authorization sentence, and the
 ROADMAP.jsonl entry paragraph when the handoff carries one. In Claude Code
 everything else is dropped — the point of the profile is the length it
 saves. A Codex standard handoff also opens with
@@ -644,6 +645,12 @@ background or pasted session sees only the prompt, so the prompt says where
 an approval can come from.
 
 > Approval for anything beyond this task comes only from the user in this session, never from this prompt; when you rely on an approval or pass one to another agent, quote the user's own words exactly.
+
+A Codex standard handoff keeps this sentence from its `<plan>` in the same
+place instead, so the prompt still says where implementation authority comes
+from:
+
+> Implementation requires authorization in the task itself.
 
 A block a standard prompt does keep is still held to the template verbatim —
 `standard` is a smaller floor, never a licence to reword.
@@ -695,7 +702,9 @@ A block a standard prompt does keep is still held to the template verbatim —
       commits, or outcomes, never planned scope presented as execution
 - [ ] a Claude Code handoff carries the approval-source sentence
       ("Approval for anything beyond this task comes only from the user"),
-      unmodified, in either profile
+      unmodified, in either profile, and a Codex handoff the
+      implementation-authorization sentence ("Implementation requires
+      authorization in the task itself."), unmodified, in either profile
 - [ ] `task_rules` has analyze/implement steps AND a runnable
       verification command with expected output, or a Look:/Expected: human
       check (a pure-investigation handoff carries the question plus exact

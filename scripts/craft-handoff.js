@@ -78,6 +78,7 @@ const {
   CONCISE_TRUTH_EMITTED,
   CLOSURE_EVIDENCE_SENTENCE,
   APPROVAL_SOURCE_SENTENCE,
+  IMPLEMENTATION_AUTHORIZATION_SENTENCE,
   NO_INVENTION_SENTENCE,
   FIX_CEILING_SENTENCE,
   WORKFLOW_STAGE_SENTENCES,
@@ -1522,7 +1523,7 @@ function assemble(root, input) {
       if (host === "codex") parts.push(`Foreman bookkeeping command: \`${pluginCommand("roadmap.js")}\`. Send each JSON payload from a UTF-8 file using the active shell. Commands are quoted for the crafting host; re-quote for a different shell, and refresh installed paths from the currently loaded Foreman skill if they moved.`);
     } else {
       parts.push(CONCISE_TRUTH_EMITTED);
-      if (host === "claude") parts.push(APPROVAL_SOURCE_SENTENCE);
+      parts.push(host === "claude" ? APPROVAL_SOURCE_SENTENCE : IMPLEMENTATION_AUTHORIZATION_SENTENCE);
     }
     if (includeEntry && entryParagraph) parts.push(entryParagraph);
     if (includeTone) {

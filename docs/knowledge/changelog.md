@@ -152,6 +152,12 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   anywhere. Antigravity handoffs, which take the Codex form, behave the same.
 - Review between increments offers Accept, Request changes and Pause in
   English only. The Spanish labels that followed them are gone.
+- A standard handoff says "Implementation requires authorization in the task
+  itself." on its own line after the concise truth line. Only a reinforced
+  handoff carried it, inside `<plan>`. `check-prompt.js` fails a prompt
+  without it in either profile, so a hand-assembled standard prompt that
+  passed before fails until it carries the sentence. Antigravity handoffs,
+  which take the Codex form, carry it too.
 
 ### Every host
 

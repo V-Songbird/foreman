@@ -38,6 +38,7 @@ const {
   CONCISE_TRUTH_SENTENCE,
   CLOSURE_EVIDENCE_SENTENCE,
   APPROVAL_SOURCE_SENTENCE,
+  IMPLEMENTATION_AUTHORIZATION_SENTENCE,
   FIX_CEILING_SENTENCE,
   KEEP_GOING_SENTENCE,
 } = require(path.join(SCRIPTS_DIR, 'check-prompt.js'));
@@ -95,7 +96,7 @@ function standardPrompt(host, extra = '') {
     codexRuntime === null ? '' : `<codex_runtime>${codexRuntime}</codex_runtime>`,
     '<task_context>\nYou are a senior engineer.\nYour goal is to fix the retry bug so all tests pass.\n</task_context>',
     CONCISE_TRUTH_SENTENCE,
-    codexRuntime === null ? APPROVAL_SOURCE_SENTENCE : '',
+    codexRuntime === null ? APPROVAL_SOURCE_SENTENCE : IMPLEMENTATION_AUTHORIZATION_SENTENCE,
     '<background>\n<relevant_files>\nsrc/auth/middleware.ts — refreshToken (42), verifySession (77)\n</relevant_files>\n</background>',
     `<task_rules>\n- Fix the bug.\n\nConstraints:\n- Do not modify the public API.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\n${FIX_CEILING_LINE}\n</task_rules>`,
     CLOSURE_EVIDENCE_SENTENCE,

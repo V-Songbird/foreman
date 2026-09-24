@@ -40,6 +40,7 @@ const {
   CONCISE_TRUTH_SENTENCE,
   CLOSURE_EVIDENCE_SENTENCE,
   APPROVAL_SOURCE_SENTENCE,
+  IMPLEMENTATION_AUTHORIZATION_SENTENCE,
   NO_INVENTION_SENTENCE,
   FIX_CEILING_SENTENCE,
 } = require("../check-prompt");
@@ -223,12 +224,15 @@ function promptOverhead() {
   // CLOSURE_EVIDENCE_SENTENCE is deliberately absent from `reinforced`: it
   // rides inside the fixed closing paragraph there, and counting it again
   // would charge the long profile twice for one rule. APPROVAL_SOURCE_SENTENCE
-  // is the same case: reinforced carries it inside scope_discipline.
+  // is the same case: reinforced carries it inside scope_discipline, and
+  // IMPLEMENTATION_AUTHORIZATION_SENTENCE inside Codex's plan.
   const floors = {
     standard: [
       ["concise_truth_line", CONCISE_TRUTH_SENTENCE],
       ["closure_evidence_line", CLOSURE_EVIDENCE_SENTENCE],
-      ...(canonical.host === "claude" ? [["approval_source_line", APPROVAL_SOURCE_SENTENCE]] : []),
+      canonical.host === "claude"
+        ? ["approval_source_line", APPROVAL_SOURCE_SENTENCE]
+        : ["implementation_authorization_line", IMPLEMENTATION_AUTHORIZATION_SENTENCE],
     ],
     reinforced: [
       ["truth_grounding", canonical.truthGrounding],
