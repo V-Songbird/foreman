@@ -2309,7 +2309,7 @@ describe('a pasted observed failure', () => {
   test('carrying an invisible character fails the gate', () => {
     const { json } = run(project, {
       title: 'Fix token refresh', what: 'Refresh before expiry.', host: 'claude',
-      touches: ['src/auth/middleware.js'], destination: 'clipboard', judgment: goodJudgment({ observed: 'Error: boom​' }),
+      touches: ['src/auth/middleware.js'], destination: 'clipboard', judgment: goodJudgment({ observed: 'Error: boom\u200B' }),
     });
     assert.equal(json.gate.ok, false, JSON.stringify(json.gate));
     assert.ok(json.gate.errors.some((e) => /invisible characters in the prompt \(line \d+: U\+200B\)/.test(e.error)), JSON.stringify(json.gate.errors));

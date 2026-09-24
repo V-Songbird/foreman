@@ -171,9 +171,9 @@ const PLUGIN_CACHE_PATH_RE =
 // flag's tag run, 3 to 7 lowercase letters or digits after U+1F3F4 closed by
 // U+E007F. Anneal passes any tag run after that flag; this one does not, so
 // ASCII hidden as tags behind a flag is still caught.
-const HIDDEN_CHARACTERS = /[​-‍⁠﻿‪-‮⁦-⁩\u{E0000}-\u{E007F}]/gu;
+const HIDDEN_CHARACTERS = /[\u200B-\u200D\u2060\uFEFF\u202A-\u202E\u2066-\u2069\u{E0000}-\u{E007F}]/gu;
 const RENDERED_CHARACTERS =
-  /^﻿|(?<=\p{Extended_Pictographic}️?|[\u{1F3FB}-\u{1F3FF}])‍|\u{1F3F4}[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A}]{3,7}\u{E007F}/gu;
+  /^\uFEFF|(?<=\p{Extended_Pictographic}\uFE0F?|[\u{1F3FB}-\u{1F3FF}])\u200D|\u{1F3F4}[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A}]{3,7}\u{E007F}/gu;
 
 // One "line N: U+200B, 4 Unicode tag characters" string per line that carries
 // a hidden character; empty when there is none. Tags are counted, never
@@ -294,7 +294,7 @@ function checkPrompt(prompt, opts) {
     const shown = hidden.length > 5 ? [...hidden.slice(0, 5), `${hidden.length - 5} more lines`] : hidden;
     errors.push(problem(
       `invisible characters in the prompt (${shown.join("; ")}) — a model reads them and a person reviewing the prompt does not, so they can carry instructions nobody approved`,
-      "Delete them from the text they came from (pasted output, the entry's fields or notes, a recorded lesson), then craft the prompt again. A byte order mark may open the file, and emoji joiners and subdivision-flag tags may stay.",
+      "Delete them, or write each as its code point (for example U+200B), in the text they came from (pasted output, the entry's fields or notes, a recorded lesson), then craft the prompt again. A byte order mark may open the file, and emoji joiners and subdivision-flag tags may stay.",
       null
     ));
   }
@@ -660,6 +660,7 @@ module.exports = {
   detectProfile,
   norm,
   hiddenCharacters,
+  HIDDEN_CHARACTERS,
   PLACEHOLDER_FRAGMENTS,
   PROFILES,
   CONCISE_TRUTH_SENTENCE,

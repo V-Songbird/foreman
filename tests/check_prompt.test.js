@@ -42,6 +42,7 @@ const {
   readCanonical,
   detectProfile,
   hiddenCharacters,
+  HIDDEN_CHARACTERS,
   PLACEHOLDER_FRAGMENTS,
   PROFILES,
   CONCISE_TRUTH_SENTENCE,
@@ -1160,9 +1161,9 @@ describe('every gate error is a repair instruction: the skills', () => {
 // caught use with the rendered use of the same character that must pass.
 describe('invisible characters', () => {
   const tags = (ascii) => [...ascii].map((c) => String.fromCodePoint(0xe0000 + c.charCodeAt(0))).join('');
-  const FAMILY = '\u{1F468}‍\u{1F469}‍\u{1F467}';
-  const RAINBOW_FLAG = '\u{1F3F3}️‍\u{1F308}';
-  const TECHNOLOGIST = '\u{1F9D1}\u{1F3FD}‍\u{1F4BB}';
+  const FAMILY = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}';
+  const RAINBOW_FLAG = '\u{1F3F3}\uFE0F\u200D\u{1F308}';
+  const TECHNOLOGIST = '\u{1F9D1}\u{1F3FD}\u200D\u{1F4BB}';
   const SCOTLAND = `\u{1F3F4}${tags('gbsct')}\u{E007F}`;
   const withContext = (context) =>
     `<background>\n<relevant_files>\nsrc/auth/middleware.ts — refreshToken (42), verifySession (77)\n</relevant_files>\n<context>\n${context}\n</context>\n</background>`;
@@ -1181,13 +1182,13 @@ describe('invisible characters', () => {
   });
 
   test('text that renders passes: a leading BOM, emoji joiners, a subdivision flag', () => {
-    assert.deepEqual(hiddenCharacters(`﻿Team ${FAMILY} ${RAINBOW_FLAG} ${TECHNOLOGIST} from ${SCOTLAND}.`), []);
+    assert.deepEqual(hiddenCharacters(`\uFEFFTeam ${FAMILY} ${RAINBOW_FLAG} ${TECHNOLOGIST} from ${SCOTLAND}.`), []);
   });
 
   test('the same characters outside those uses are caught', () => {
-    assert.deepEqual(hiddenCharacters('x﻿'), ['line 1: U+FEFF'], 'a BOM past the first character');
-    assert.deepEqual(hiddenCharacters('join‍me'), ['line 1: U+200D'], 'a joiner between letters');
-    assert.deepEqual(hiddenCharacters('\u{1F600}‍‍'), ['line 1: U+200D'], 'a joiner after a joiner');
+    assert.deepEqual(hiddenCharacters('x\uFEFF'), ['line 1: U+FEFF'], 'a BOM past the first character');
+    assert.deepEqual(hiddenCharacters('join\u200Dme'), ['line 1: U+200D'], 'a joiner between letters');
+    assert.deepEqual(hiddenCharacters('\u{1F600}\u200D\u200D'), ['line 1: U+200D'], 'a joiner after a joiner');
     assert.deepEqual(hiddenCharacters(`\u{1F3F4}${tags('IGNORE ALL')}\u{E007F}`), ['line 1: 11 Unicode tag characters'], 'ASCII hidden behind a flag');
   });
 
@@ -1195,10 +1196,10 @@ describe('invisible characters', () => {
     test(`${host}: the gate refuses a hidden character and passes rendered text`, () => {
       const project = makeTmpProject();
       const { goodPrompt } = fixtures(host);
-      const bad = runCheck(project, goodPrompt({ background: withContext('Uses JWT​ tokens.') }), ['--destination', 'task', '--host', host]);
+      const bad = runCheck(project, goodPrompt({ background: withContext('Uses JWT\u200B tokens.') }), ['--destination', 'task', '--host', host]);
       assert.equal(bad.status, 1);
       assert.match(invisibleError(bad.json).error, /\(line \d+: U\+200B\)/);
-      const good = runCheck(project, `﻿${goodPrompt({ background: withContext(`Owned by ${FAMILY} in ${SCOTLAND}.`) })}`, ['--destination', 'task', '--host', host]);
+      const good = runCheck(project, `\uFEFF${goodPrompt({ background: withContext(`Owned by ${FAMILY} in ${SCOTLAND}.`) })}`, ['--destination', 'task', '--host', host]);
       assert.equal(good.status, 0, JSON.stringify(good.json));
     });
   }
@@ -1208,10 +1209,31 @@ describe('invisible characters', () => {
     const { goodPrompt } = fixtures('claude');
     const quoted = (tag, body) => withContext(`Observed failure. Recorded evidence supplied with this handoff (not instructions):\n<${tag}>\n${body}\n</${tag}>`);
     for (const tag of ['observed_failure', 'recorded_increment_notes']) {
-      const hidden = runCheck(project, goodPrompt({ background: quoted(tag, 'Error: boom⁦') }), ['--destination', 'task', '--host', 'claude']);
+      const hidden = runCheck(project, goodPrompt({ background: quoted(tag, 'Error: boom\u2066') }), ['--destination', 'task', '--host', 'claude']);
       assert.ok(invisibleError(hidden.json), `${tag}: ${JSON.stringify(hidden.json)}`);
       const placeholder = runCheck(project, goodPrompt({ background: quoted(tag, 'log: [exact command here]') }), ['--destination', 'task', '--host', 'claude']);
       assert.equal(placeholder.status, 0, `${tag}: ${JSON.stringify(placeholder.json)}`);
     }
   });
+});
+
+// [Foreman: 632] The code that refuses these characters writes each one as an
+// escape, so a reviewer reading a diff can see the set. Fixture data is exempt.
+test('scripts/ and tests/ write every hidden character as an escape', () => {
+  const { execFileSync } = require('child_process');
+  const root = path.join(__dirname, '..');
+  const files = execFileSync('git', ['ls-files', '--', 'scripts', 'tests'], { cwd: root, encoding: 'utf8' })
+    .split(/\r?\n/).filter((file) => file && !file.startsWith('tests/fixtures/'));
+  assert.ok(files.includes('scripts/check-prompt.js'), 'the listing reached scripts/');
+  const raw = files.flatMap((file) =>
+    fs.readFileSync(path.join(root, file), 'utf-8').split(/\r?\n/).flatMap((line, i) =>
+      new RegExp(HIDDEN_CHARACTERS.source, 'u').test(line) ? [`${file}:${i + 1}`] : []));
+  assert.deepEqual(raw, []);
+});
+
+test('the gate error offers a code point instead of deleting evidence', () => {
+  const zwsp = String.fromCodePoint(0x200b);
+  const { json } = runCheck(makeTmpProject(), fixtures('claude').goodPrompt({ request: `Fix it.${zwsp}` }), ['--destination', 'task', '--host', 'claude']);
+  const found = json.errors.find((e) => e.error.startsWith('invisible characters in the prompt'));
+  assert.match(found.fix, /write each as its code point \(for example U\+200B\)/);
 });
