@@ -172,8 +172,11 @@ function candidateIdentifiers(what) {
 // full stop ending the sentence read as a file extension. A name now survives
 // when any one occurrence is neither after a `/` nor before a `.` that a word
 // character follows (`name.js`, `name.load`), nor joined to a hyphen.
+//
+// [Foreman: 611] A backslash separates path parts too: `scripts\fooBar` in a
+// Windows path is a path fragment, the same as `scripts/fooBar`.
 function outsidePath(name, what) {
-  return new RegExp(`(?<![\\w/-])${name.replace(/\$/g, "\\$")}(?![\\w-]|\\.\\w)`).test(what);
+  return new RegExp(`(?<![\\w/\\\\-])${name.replace(/\$/g, "\\$")}(?![\\w-]|\\.\\w)`).test(what);
 }
 
 function unresolvedIdentifiers(what, files, plainText = "") {

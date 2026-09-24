@@ -222,6 +222,19 @@ describe('resolve-symbols', () => {
     assert.deepEqual(json.unresolved, ['renameTheThing', 'newThing']);
   });
 
+  // [Foreman: 611] A Windows path separates its parts with a backslash.
+  test('a name after a backslash is a path fragment, like one after a slash', () => {
+    writeFile('src/sample.js', SAMPLE_JS);
+    const { json } = run({
+      stdin: JSON.stringify({
+        touches: ['src/sample.js'],
+        what: 'Rename scripts\\fooBar and scripts/barBaz, leave lib\\oldModule.js alone, then call renameTheThing() and fold lib\\keepThing into keepThing().',
+      }),
+    });
+
+    assert.deepEqual(json.unresolved, ['renameTheThing', 'keepThing']);
+  });
+
   test('a file with no definition patterns is searched as plain text for names', () => {
     writeFile('pkg/README.md', [
       '# pkg',
