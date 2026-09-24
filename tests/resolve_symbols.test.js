@@ -9,6 +9,8 @@
 //   - a path that no longer exists is flagged missing, not an error
 //   - an identifier in the entry's `what` that matches no symbol lands in
 //     unresolved; one that does match stays out of it
+//   - a file with no definition patterns is searched as plain text, so a
+//     name it carries resolves and a name it lacks stays unresolved
 //   - a directory and an unsupported extension each degrade cleanly, with a
 //     warning instead of a thrown error
 //   - touches arrive by --touches flag or by JSON on stdin
@@ -218,6 +220,25 @@ describe('resolve-symbols', () => {
     });
 
     assert.deepEqual(json.unresolved, ['renameTheThing', 'newThing']);
+  });
+
+  test('a file with no definition patterns is searched as plain text for names', () => {
+    writeFile('pkg/README.md', [
+      '# pkg',
+      '',
+      '<!-- foundry:evidence {"platform":"Claude","source":"docs/results.md","date":"2026-09-01","reviewedAt":"2026-09-10"} -->',
+      '',
+    ].join('\n'));
+
+    const { json } = run({
+      stdin: JSON.stringify({
+        touches: ['pkg/README.md'],
+        what: 'Point the evidence source at docs/results.md and keep the date and reviewedAt. Drop reviewedAtLegacy and sourceDigest.',
+      }),
+    });
+
+    assert.deepEqual(json.unresolved, ['reviewedAtLegacy', 'sourceDigest']);
+    assert.ok(json.warnings.some((w) => w.includes('pkg/README.md') && w.includes('plain text')));
   });
 
   test('a directory and an unsupported extension degrade cleanly', () => {

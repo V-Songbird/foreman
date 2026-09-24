@@ -146,8 +146,10 @@ and `scripts/`.
      is never followed. `check-prompt.js` refuses a prompt that still
      carries this marker, so this one is a gate, not a reminder.
    - `unresolved` — identifier-shaped names in the task's own description
-     that match no symbol in any touched file. Treat each as either an
-     invented API or an un-caught rename, and resolve it before assembly.
+     that match no symbol in any touched file, nor any whole word in a
+     touched file with no definition patterns (Markdown, JSON). Treat each
+     as either an invented API or an un-caught rename, and resolve it
+     before assembly.
    <!-- [Foreman: 109] -->
    - `verification` — present only when a `verify` command was passed;
      pass the command gathered for the verification block, once it is

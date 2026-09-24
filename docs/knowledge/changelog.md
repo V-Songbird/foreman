@@ -184,6 +184,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   "document renameTheThing." read as a file name and hid the call
   `renameTheThing()` elsewhere in the same description. Only an occurrence
   after a `/` or before an extension still counts as a path.
+- That line no longer lists a name that a planned Markdown, JSON or other
+  file with no definition patterns carries, such as the `reviewedAt` key in a
+  README's evidence comment. Such a file's text is searched for the whole
+  word; a name it lacks is still listed.
 
 ## 3.1.0 — 2026-09-15
 

@@ -161,6 +161,12 @@ function candidateIdentifiers(what) {
 // caught up with. Anything that reads as a path fragment is dropped — those
 // are `touches` restated, not claims about code.
 //
+// [Foreman: 603] A touched file with no definition patterns (Markdown, JSON,
+// YAML) can never yield a symbol, so every name it holds read as invented —
+// `reviewedAt`, a key inside a README's evidence comment, among them. Such a
+// file's text is searched for the whole word instead: a name it carries
+// resolves, a name it lacks is still reported.
+//
 // [Foreman: 601] The path test runs per occurrence. It ran once per name, so
 // "Call renameTheThing() and then document renameTheThing." hid the name: the
 // full stop ending the sentence read as a file extension. A name now survives
@@ -170,7 +176,7 @@ function outsidePath(name, what) {
   return new RegExp(`(?<![\\w/-])${name.replace(/\$/g, "\\$")}(?![\\w-]|\\.\\w)`).test(what);
 }
 
-function unresolvedIdentifiers(what, files) {
+function unresolvedIdentifiers(what, files, plainText = "") {
   if (!what) return [];
   const known = new Set();
   for (const file of files) {
@@ -182,7 +188,21 @@ function unresolvedIdentifiers(what, files) {
   }
   return candidateIdentifiers(what)
     .filter((name) => !known.has(name))
+    .filter((name) => !new RegExp(`(?<![\\w$])${name.replace(/\$/g, "\\$")}(?![\\w$])`).test(plainText))
     .filter((name) => outsidePath(name, String(what)));
+}
+
+function plainTextOf(root, files) {
+  return files
+    .filter((file) => file.unsupported)
+    .map((file) => {
+      try {
+        return fs.readFileSync(path.resolve(root, file.path), "utf-8");
+      } catch {
+        return "";
+      }
+    })
+    .join("\n");
 }
 
 // [Foreman: 109]
@@ -390,7 +410,7 @@ function resolve(root, touches, what, verify) {
   for (const file of files) {
     if (file.missing) warnings.push(`${file.path}: not on disk — expected if this task creates it, stale touches if not`);
     if (file.outside_project) warnings.push(`${file.path}: resolves outside the project — not read; fix or drop it`);
-    if (file.unsupported) warnings.push(`${file.path}: no definition patterns for this file type — skipped`);
+    if (file.unsupported) warnings.push(`${file.path}: no definition patterns for this file type — names searched as plain text`);
     if (file.unreadable) warnings.push(`${file.path}: could not be read — skipped`);
   }
 
@@ -430,7 +450,7 @@ function resolve(root, touches, what, verify) {
 
   return {
     files,
-    unresolved: unresolvedIdentifiers(what, files),
+    unresolved: unresolvedIdentifiers(what, files, plainTextOf(root, files)),
     references,
     ...(verification ? { verification } : {}),
     warnings,
