@@ -1220,10 +1220,13 @@ describe('invisible characters', () => {
 // [Foreman: 632] The code that refuses these characters writes each one as an
 // escape, so a reviewer reading a diff can see the set. Fixture data is exempt.
 test('scripts/ and tests/ write every hidden character as an escape', () => {
-  const { execFileSync } = require('child_process');
   const root = path.join(__dirname, '..');
-  const files = execFileSync('git', ['ls-files', '--', 'scripts', 'tests'], { cwd: root, encoding: 'utf8' })
-    .split(/\r?\n/).filter((file) => file && !file.startsWith('tests/fixtures/'));
+  // A plain directory walk, so the guard also runs from a copy that is not a git checkout.
+  const files = ['scripts', 'tests'].flatMap((dir) =>
+    fs.readdirSync(path.join(root, dir), { recursive: true, withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .map((entry) => path.relative(root, path.join(entry.parentPath, entry.name)).split(path.sep).join('/')))
+    .filter((file) => !file.startsWith('tests/fixtures/') && !file.split('/').includes('node_modules'));
   assert.ok(files.includes('scripts/check-prompt.js'), 'the listing reached scripts/');
   const raw = files.flatMap((file) =>
     fs.readFileSync(path.join(root, file), 'utf-8').split(/\r?\n/).flatMap((line, i) =>
