@@ -108,6 +108,9 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   `TaskCreate` and `TaskUpdate`, such as the desktop app, to say once that the
   tasks could not be tracked. It still works the checks in order with every
   checkpoint.
+- A standard handoff keeps its `<context>` block, as a Codex handoff already
+  did, so an entry's recorded notes and its dependencies' decision documents
+  reach the session. The warning that the block had been dropped is gone.
 
 ### Codex
 

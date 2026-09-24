@@ -1454,8 +1454,10 @@ function assemble(root, input) {
   const rulesBlock = taskRulesText(holdUserRoot(record), holdUserRoot(judgment), hasVerification, fixCeilingLine, checkpointEmbed, reviewEachIncrement, host);
   const recoveryBlock = reviewEachIncrement && input.resume ? incrementResumeText(holdUserRoot(record), host) : "";
   // [Foreman: 231] Claude Code's standard profile is the length it saves, so
-  // <context> and <invariants> ride on reinforced only there. A Codex handoff
-  // treats both as task evidence and keeps them on either profile.
+  // <invariants> rides on reinforced only there. A Codex handoff treats it as
+  // task evidence and keeps it on either profile. [Foreman: 597] <context> is
+  // task evidence on every host and profile: it carries the entry's notes and
+  // its depends_on_docs, which nothing else in a standard handoff repeats.
   const keepsEvidenceBlocks = host === "codex" || reinforced;
   // A decision entry's task_rules already say "do not write implementation
   // code" — synthesizing `Implement: <title>.` as the request sentence puts
@@ -1515,10 +1517,9 @@ function assemble(root, input) {
       parts.push(`<tone>\n${holdUserRoot(input.customTone) || defaultTone}\n</tone>`);
     }
     if (includeBackground) {
-      const ctxBlock = keepsEvidenceBlocks && ctxText ? `<context>\n${ctxText}\n</context>\n` : "";
+      const ctxBlock = ctxText ? `<context>\n${ctxText}\n</context>\n` : "";
       // Prior work rides in the background block itself, never in <context>:
-      // that block is emitted only on a reinforced profile, so anything put
-      // there is dropped from every standard handoff.
+      // it is recalled from other entries, not this entry's own evidence.
       const recallBlock = priorWork ? `${priorWork}\n` : "";
       // Untagged, unlike <prior_work>: these are one-sentence claims, not a
       // block of past-entry prose that needs a frame to stop it reading as
@@ -1618,22 +1619,9 @@ function assemble(root, input) {
     }
   }
 
-  // [Foreman] In Claude Code `<context>` renders on the reinforced profile
-  // only, so a fact the crafting session put in `judgment.context` is absent
-  // from every standard handoff. That is deliberate — but it was silent, and a
-  // session that supplied one had no way to learn the fact never shipped, so
-  // the dropped block is announced. A Codex handoff
-  // keeps task-specific context and invariants on both profiles, so it drops
-  // nothing here.
-  if (host === "claude" && judgment.context && gateResult.profile !== "reinforced") {
-    warnings.push(
-      "judgment.context was dropped: <context> renders on the reinforced profile only, and this handoff assembled at standard. "
-        + "Put anything the session must actually receive in judgment.constraints, task_rules or the description instead."
-    );
-  }
-  // [Foreman: 291] Same courtesy for the purpose line: an entry's own why fills
-  // it, so a purpose the crafter gathered anyway never ships. Silent drops are
-  // how a crafter learns nothing; say it once.
+  // [Foreman: 291] An entry's own why fills the purpose line, so a purpose the
+  // crafter gathered anyway never ships. Silent drops are how a crafter learns
+  // nothing; say it once.
   if (judgment.purpose && typeof record.why === "string" && record.why.trim()) {
     warnings.push(
       "judgment.purpose was dropped: the entry's own why fills the purpose line word for word. "

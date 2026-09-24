@@ -1969,22 +1969,28 @@ describe('relevant_files symbol cap', () => {
   });
 });
 
-// [Foreman] In Claude Code `<context>` renders on the reinforced profile only.
-// That is deliberate, but it used to be silent: a crafting session could put a
-// load-bearing fact in `judgment.context` and never learn the standard
-// handoff shipped without it. Found by rendering a benchmark arm and diffing
-// it against the facts it was built from — the `fix location:` line was gone.
-// A Codex handoff treats context and invariants as task evidence and keeps
-// both on either profile.
+// [Foreman: 597] `<context>` renders on both profiles in every host: a pick
+// puts the entry's notes there, and its depends_on_docs fold in on their own,
+// so dropping it at standard lost prior findings nothing else repeats. The
+// drop warning went with the drop.
 describe('judgment.context and the standard profile', () => {
   const dropped = (json) => (json.warnings || []).some((w) => w.includes('judgment.context was dropped'));
 
-  test('standard drops it and says so (claude)', () => {
-    writeRoadmap(project, [entryFields()]);
+  test('standard keeps it, with the depends_on_docs line, and stays quiet (claude)', () => {
+    fs.mkdirSync(path.join(project, 'docs'), { recursive: true });
+    fs.writeFileSync(path.join(project, 'docs', 'auth-decision.md'), '# Auth\n');
+    writeRoadmap(project, [
+      entryFields({ id: '002', title: 'Decide the refresh window', status: 'done', doc: 'docs/auth-decision.md' }),
+      entryFields({ depends_on: ['002'] }),
+    ]);
     const { json } = run(project, { entry: '001', destination: 'clipboard', host: 'claude', judgment: goodJudgment() });
     assert.equal(json.profile, 'standard');
-    assert.ok(!json.prompt.includes('<context>'), 'standard rendered <context> after all');
-    assert.ok(dropped(json), `no drop warning: ${JSON.stringify(json.warnings)}`);
+    assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+    const context = json.prompt.match(/<context>\n([\s\S]*?)\n<\/context>/);
+    assert.ok(context, 'standard dropped <context>');
+    assert.ok(context[1].includes(goodJudgment().context));
+    assert.ok(context[1].includes('docs/auth-decision.md'), 'depends_on_docs never reached the prompt');
+    assert.ok(!dropped(json), `warned about a block it kept: ${JSON.stringify(json.warnings)}`);
   });
 
   test('standard preserves observable invariants even if the project omits background (codex)', () => {

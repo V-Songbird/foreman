@@ -599,15 +599,16 @@ fields, each in its host's variant. Nothing about it changes.
 <!-- [Foreman: 231] -->
 **Standard** carries only: `<task_context>` (the entry's identity and the
 one-sentence goal), the concise truth line below, `<relevant_files>` with its
-symbols, `<prior_work>` when anything was recalled, `<task_rules>`
+symbols, `<prior_work>` when anything was recalled, `<context>` when
+the crafter supplied one or the entry names `depends_on_docs`, `<task_rules>`
 (constraints plus the `Verification (REQUIRED):` Run:/Expected: and
 Look:/Expected: pairs and the bounded fix ceiling that closes them), the
 `autonomy` paragraph that fits the destination, the closure-evidence
 sentence, and the ROADMAP.jsonl entry paragraph when the handoff carries
 one. In Claude Code everything else is dropped — the point of the profile
 is the length it saves. A Codex standard handoff also opens with
-`<codex_runtime>` and keeps task-specific `<context>` and `<invariants>` when
-they are supplied, since that host's handoffs treat them as evidence. The fix
+`<codex_runtime>` and keeps task-specific `<invariants>` when they are
+supplied, since that host's handoffs treat them as evidence. The fix
 ceiling is not an exception to the cut: it belongs to the verification block
 rather than to a profile, so it rides wherever `Run:`/`Expected:` pairs do.
 An investigation reports diagnostic failures as evidence instead, and a
