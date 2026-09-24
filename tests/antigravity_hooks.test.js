@@ -67,13 +67,16 @@ describe("the Antigravity manifest and registration", () => {
     const hooks = read("hooks.json");
     assert.deepEqual(Object.keys(hooks), ["foreman"]);
     assert.deepEqual(Object.keys(hooks.foreman).sort(), ["PostToolUse", "PreInvocation", "PreToolUse"]);
-    for (const [event, groups] of Object.entries(hooks.foreman)) {
-      for (const group of groups) {
-        for (const hook of group.hooks) {
-          assert.equal(hook.type, "command");
-          assert.equal(hook.command, `node ./hooks/antigravity-hook.js ${event}`);
-          assert.ok(Number.isInteger(hook.timeout) && hook.timeout > 0, "timeouts are whole seconds");
-        }
+    // Antigravity's parser takes PreToolUse and PostToolUse as matcher groups
+    // and every other event as a flat list of handlers; one wrapped handler
+    // there fails the whole file, and no Foreman hook runs.
+    for (const [event, entries] of Object.entries(hooks.foreman)) {
+      const grouped = event === "PreToolUse" || event === "PostToolUse";
+      const handlers = grouped ? entries.flatMap((group) => (assert.equal(typeof group.matcher, "string", event), group.hooks)) : entries;
+      for (const hook of handlers) {
+        assert.equal(hook.type, "command", `${event} handlers carry type and command directly`);
+        assert.equal(hook.command, `node ./hooks/antigravity-hook.js ${event}`);
+        assert.ok(Number.isInteger(hook.timeout) && hook.timeout > 0, "timeouts are whole seconds");
       }
     }
     const matches = (event, tool) => new RegExp(hooks.foreman[event][0].matcher).test(tool);
