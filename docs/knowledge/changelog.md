@@ -180,6 +180,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
 - A handoff's "Unresolved in the entry's own description" line no longer
   lists a word joined to a hyphen, such as `rivalA` from the batch id
   `rivalA-762f888b`, as an invented API.
+- That line no longer loses a name because one sentence ends with it:
+  "document renameTheThing." read as a file name and hid the call
+  `renameTheThing()` elsewhere in the same description. Only an occurrence
+  after a `/` or before an extension still counts as a path.
 
 ## 3.1.0 — 2026-09-15
 

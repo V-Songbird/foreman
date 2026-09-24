@@ -206,6 +206,20 @@ describe('resolve-symbols', () => {
     assert.deepEqual(json.unresolved, ['renameTheThing']);
   });
 
+  // [Foreman: 601] The full stop ending a sentence read as a file extension,
+  // and one such occurrence hid every other use of the name.
+  test('a name ending a sentence is still unresolved; a path fragment is not', () => {
+    writeFile('src/sample.js', SAMPLE_JS);
+    const { json } = run({
+      stdin: JSON.stringify({
+        touches: ['src/sample.js'],
+        what: 'Call renameTheThing() and then document renameTheThing. Rename it to newThing. Leave src/oldHelper, oldModule.js and oldState.load() alone.',
+      }),
+    });
+
+    assert.deepEqual(json.unresolved, ['renameTheThing', 'newThing']);
+  });
+
   test('a directory and an unsupported extension degrade cleanly', () => {
     writeFile('src/sample.js', SAMPLE_JS);
     writeFile('docs/notes.md', '# notes\n');

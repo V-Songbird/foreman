@@ -160,6 +160,16 @@ function candidateIdentifiers(what) {
 // usually one of two things: an invented API, or a rename the entry never
 // caught up with. Anything that reads as a path fragment is dropped — those
 // are `touches` restated, not claims about code.
+//
+// [Foreman: 601] The path test runs per occurrence. It ran once per name, so
+// "Call renameTheThing() and then document renameTheThing." hid the name: the
+// full stop ending the sentence read as a file extension. A name now survives
+// when any one occurrence is neither after a `/` nor before a `.` that a word
+// character follows (`name.js`, `name.load`), nor joined to a hyphen.
+function outsidePath(name, what) {
+  return new RegExp(`(?<![\\w/-])${name.replace(/\$/g, "\\$")}(?![\\w-]|\\.\\w)`).test(what);
+}
+
 function unresolvedIdentifiers(what, files) {
   if (!what) return [];
   const known = new Set();
@@ -172,7 +182,7 @@ function unresolvedIdentifiers(what, files) {
   }
   return candidateIdentifiers(what)
     .filter((name) => !known.has(name))
-    .filter((name) => !String(what).includes(`${name}.`) && !String(what).includes(`/${name}`));
+    .filter((name) => outsidePath(name, String(what)));
 }
 
 // [Foreman: 109]
