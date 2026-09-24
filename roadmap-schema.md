@@ -523,7 +523,10 @@ files intersect that record's files is served it back.
   longer lesson still lets the close through and lands on the entry's notes
   instead. A lesson that looks like a credential refuses the whole
   `update-status` call, status included, and nothing is written (see
-  [Using roadmap.js](#using-roadmapjs)).
+  [Using roadmap.js](#using-roadmapjs)). So does one carrying a character
+  the prompt gate refuses, whether or not the ledger is on: a zero-width
+  character, the word joiner, a byte order mark past the first character, a
+  bidi control or a Unicode tag. The error names each line and code point.
 - `area` — derived, cosmetic, for readable grouping only. Selection is always
   path-level.
 

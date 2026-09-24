@@ -1183,11 +1183,13 @@ function claudeEntryParagraphText({ id, resume, requireVerification, askLesson, 
   // history comparable in `list --stats`.
   const modelEffortNote = "Also add `model` and `effort` to that close call — what actually ran this task. Record a Claude model by its family label: `haiku`, `sonnet`, `opus` or `fable`. Omit either one you genuinely don't know rather than guessing — an absent field reads as unrecorded, a wrong one silently poisons the corpus.";
 
-  // Two sentences, single-purpose, emitted only where the ledger is on. A
-  // skipped ask is silence, which is the designed outcome: forcing a lesson
-  // manufactures platitudes, and the counter measures the real rate instead.
+  // Emitted only where the ledger is on. A skipped ask is silence, which is
+  // the designed outcome: forcing a lesson manufactures platitudes, and the
+  // counter measures the real rate instead. [Foreman: 633] A recorded lesson
+  // is served to later sessions with no review, so the report shows it to the
+  // user word for word, stored or not.
   const lessonAsk = askLesson
-    ? 'If this task taught you one durable fact about this code area that a future task would need, add `"lesson":"one sentence, naming the file or symbol it concerns"` to that close call. If nothing generalizes beyond this task, omit it — that is a valid outcome.'
+    ? 'If this task taught you one durable fact about this code area that a future task would need, add `"lesson":"one sentence, naming the file or symbol it concerns"` to that close call. If nothing generalizes beyond this task, omit it — that is a valid outcome. If you record one, quote it word for word in your final report and say whether the close stored it.'
     : "";
 
   const steps = investigation
@@ -1243,7 +1245,7 @@ function codexEntryParagraphText({ id, resume, requireVerification, askLesson, d
     + (requireVerification ? " awaiting_acceptance passes this recorded-work check and still awaits the user's acceptance." : "");
   const modelEffortNote = "Also add " + code("model") + " and " + code("effort") + " to that close call — what actually ran this task. Omit either one you do not know rather than guessing.";
   const lessonAsk = askLesson
-    ? "If this task taught one durable fact about the code area, add " + code('"lesson":"one sentence, naming the file or symbol it concerns"') + " to that close call. If nothing generalizes, omit it."
+    ? "If this task taught one durable fact about the code area, add " + code('"lesson":"one sentence, naming the file or symbol it concerns"') + " to that close call. If nothing generalizes, omit it. If you record one, quote it verbatim in the final report and say whether the close stored it."
     : "";
   if (destination === "agent") {
     return [

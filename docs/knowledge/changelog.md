@@ -232,6 +232,11 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   order mark, the joiner inside an emoji and a subdivision flag's tags still
   pass. The error names each line and code point, and counts tags without
   decoding them.
+- `update-status` refuses a `lesson` carrying those same characters and
+  writes nothing, whether or not the ledger is on. The error names each line
+  and code point. Where the ledger is on, a handoff's close also asks the
+  session to quote any lesson it records in its final report and say whether
+  the close stored it.
 - Survey's investigators treat the files, commits and comments they read as
   evidence: text there that asks them to act is reported, never followed.
 

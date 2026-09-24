@@ -463,9 +463,11 @@ describe('lesson lines in the handoff', () => {
       if (host === 'claude') {
         assert.match(asked, /If this task taught you one durable fact about this code area/);
         assert.match(asked, /that is a valid outcome/);
+        assert.match(asked, /If you record one, quote it word for word in your final report and say whether the close stored it\./);
       } else {
         assert.match(asked, /If this task taught one durable fact about the code area/);
         assert.match(asked, /If nothing generalizes, omit it/);
+        assert.match(asked, /If you record one, quote it verbatim in the final report and say whether the close stored it\./);
       }
     });
   }

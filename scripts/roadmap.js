@@ -40,6 +40,7 @@ const {
 } = require("./commit-evidence");
 
 const { projectDir } = require("./runtime");
+const { hiddenCharacters } = require("./check-prompt");
 
 function roadmapPath(root) {
   return path.join(root, "ROADMAP.jsonl");
@@ -731,6 +732,24 @@ function refuseCredentials(command, payload, fields) {
   }
 }
 
+// [Foreman: 633] A lesson is served into later sessions with no review, by
+// the handoff and by the hook that runs on every Read of its files, and only
+// the handoff passes the prompt gate. So a lesson carrying a character the
+// gate refuses (check-prompt.js hiddenCharacters, the one set) is refused
+// here, before the lock, with nothing written. The error names each line and
+// code point, never the text.
+function refuseHiddenCharacters(command, payload, fields) {
+  for (const field of fields) {
+    const value = (payload || {})[field];
+    const found = typeof value === "string" ? hiddenCharacters(value) : [];
+    if (found.length) {
+      throw new Error(
+        `${command} refused: ${field} carries characters a reader cannot see (${found.join("; ")}). Nothing was written; remove them and send the call again`
+      );
+    }
+  }
+}
+
 function cmdAdd(root, payload) {
   refuseCredentials("add", payload, ["title", "why", "what", "notes", "planned_touches", "touches", "doc"]);
   return withRoadmapLock(root, () => cmdAddUnlocked(root, payload));
@@ -1094,6 +1113,7 @@ function missingEntryError(resolve, id) {
 
 function cmdUpdateStatus(root, payload) {
   refuseCredentials("update-status", payload, ["notes", "lesson", "add_touches", "doc", "model"]);
+  refuseHiddenCharacters("update-status", payload, ["lesson"]);
   return withRoadmapLock(root, () => cmdUpdateStatusUnlocked(root, payload));
 }
 
@@ -2642,7 +2662,9 @@ is written, and the error names the field and the kind, never the text.
                     intersect this close's observed ones. Only on a close
                     (done/dropped/rejected/awaiting_acceptance), only when
                     ledger.enabled, at most 500 chars -- longer is
-                    refused, never truncated. The result reports
+                    refused, never truncated. A lesson carrying a
+                    character check-prompt.js refuses (zero-width, bidi,
+                    Unicode tags) refuses the whole call. The result reports
                     lesson:{stored:true, area, paths_count} or
                     {stored:false, reason}; prose that could not be stored
                     lands on the entry's own notes instead of being dropped.
