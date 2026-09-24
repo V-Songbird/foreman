@@ -48,9 +48,11 @@ const { projectDir } = require("./runtime");
 // so a typed parameter (`, name: string`) and a name read in a block
 // (`if (ok) { name }`) stay reported. The regex limits: an indented `name:`
 // line still counts, so a typed parameter on its own line reads as a key,
-// and a name more than 400 characters past its `{` is not seen.
+// and a name more than about 160 characters past its `{` is not seen. That
+// bound, with the whitespace collapse in extractMembers, keeps a 1 MiB line
+// linear: every position behind a comma re-scans at most that far.
 const MEMBER_ASSIGNMENT = /\.([A-Za-z_$][\w$]*)\s*=(?![=>])/g;
-const IN_OBJECT = String.raw`(?<=(?:^|[=(,:[?]|&&|\|\||\?\?|\b(?:return|const|let|var|import|export))\s*\{(?:(?:[^{}()[\]]|\([^()]*\)|\[[^[\]]*\]){0,400},)?\s*)`;
+const IN_OBJECT = String.raw`(?<=(?:^|[=(,:[?]|&&|\|\||\?\?|\b(?:return|const|let|var|import|export))\s*\{(?:(?:[^{}()[\]]|\([^()]{0,60}\)|\[[^[\]]{0,60}\]){0,160},)?\s*)`;
 
 const LANGUAGES = [
   {
@@ -120,7 +122,9 @@ const STRING = /(["'`])(?:\\.|(?!\1).)*\1/g;
 function extractMembers(source, language) {
   const names = new Set();
   for (const line of source.split(/\r?\n/)) {
-    const code = line.replace(STRING, '""').replace(language.comment, "");
+    // Whitespace runs collapse first: a lookbehind re-scans the run behind
+    // every position, so a long run of spaces cost quadratic time.
+    const code = line.replace(STRING, '""').replace(language.comment, "").replace(/\s+/g, " ");
     for (const pattern of language.members) {
       for (const match of code.matchAll(pattern)) names.add(match[1]);
     }

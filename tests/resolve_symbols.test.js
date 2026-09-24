@@ -389,6 +389,19 @@ describe('resolve-symbols', () => {
     assert.ok(json.files.every((f) => !('members' in f)), 'members stay out of the payload');
   });
 
+  // [Foreman: 665] The member lookbehinds re-scanned the whitespace behind
+  // every position, so one 1 MiB run of spaces took minutes.
+  test('member extraction on a 1 MiB whitespace line stays fast', () => {
+    const { extractMembers, languageFor, PLAIN_TEXT_LIMIT } = require(SCRIPT);
+    const spaces = ' '.repeat(PLAIN_TEXT_LIMIT);
+    const started = Date.now();
+    for (const line of [spaces, `={${spaces}`, `x = {${spaces}lastKey: 1 }`, ` \t`.repeat(PLAIN_TEXT_LIMIT / 2)]) {
+      extractMembers(line, languageFor('x.js'));
+    }
+    assert.ok(Date.now() - started < 1000, `took ${Date.now() - started} ms`);
+    assert.deepEqual(extractMembers(`x = {${spaces}lastKey: 1 }`, languageFor('x.js')), ['lastKey']);
+  });
+
   test('a name a code file holds only in a comment, a string, a read or a local stays unresolved', () => {
     writeFile('src/decoys.js', [
       '// See commentKey: and commentMethod() {} here.',
