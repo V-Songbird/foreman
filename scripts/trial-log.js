@@ -35,7 +35,7 @@ const FOREMAN_DIR = ".foreman";
 const LOG_FILE = "trial-log.jsonl";
 // The per-session token lives beside the log rather than in it: every writer
 // is its own short-lived process, so the token has to outlive the process
-// that minted it. See mintedSession() for what this deliberately does NOT
+// that minted it. See sessionToken() for what this deliberately does NOT
 // do.
 const SESSION_FILE = "trial-session";
 
