@@ -737,11 +737,15 @@ function refuseCredentials(command, payload, fields) {
 // the handoff passes the prompt gate. So a lesson carrying a character the
 // gate refuses (check-prompt.js hiddenCharacters, the one set) is refused
 // here, before the lock, with nothing written. The error names each line and
-// code point, never the text.
+// code point, never the text. [Foreman: 648] The same holds for the title,
+// why, what and notes a handoff quotes: notes cannot be corrected, so one bad
+// note would fail every later handoff for its entry. A handoff quotes a field
+// mid-prompt, never at its start, so the field is checked behind a space and
+// a leading byte order mark is refused as the gate would refuse it there.
 function refuseHiddenCharacters(command, payload, fields) {
   for (const field of fields) {
     const value = (payload || {})[field];
-    const found = typeof value === "string" ? hiddenCharacters(value) : [];
+    const found = typeof value === "string" ? hiddenCharacters(` ${value}`) : [];
     if (found.length) {
       throw new Error(
         `${command} refused: ${field} carries characters a reader cannot see (${found.join("; ")}). Nothing was written; remove them and send the call again`
@@ -752,6 +756,7 @@ function refuseHiddenCharacters(command, payload, fields) {
 
 function cmdAdd(root, payload) {
   refuseCredentials("add", payload, ["title", "why", "what", "notes", "planned_touches", "touches", "doc"]);
+  refuseHiddenCharacters("add", payload, ["title", "why", "what", "notes"]);
   return withRoadmapLock(root, () => cmdAddUnlocked(root, payload));
 }
 
@@ -1113,7 +1118,7 @@ function missingEntryError(resolve, id) {
 
 function cmdUpdateStatus(root, payload) {
   refuseCredentials("update-status", payload, ["notes", "lesson", "add_touches", "doc", "model"]);
-  refuseHiddenCharacters("update-status", payload, ["lesson"]);
+  refuseHiddenCharacters("update-status", payload, ["notes", "lesson"]);
   return withRoadmapLock(root, () => cmdUpdateStatusUnlocked(root, payload));
 }
 
@@ -1377,6 +1382,7 @@ function recordLesson(root, entry, { lesson, commit }) {
 // an entry another session has since moved (e.g. planned -> in_progress).
 function cmdAnnotate(root, payload) {
   refuseCredentials("annotate", payload, ["notes"]);
+  refuseHiddenCharacters("annotate", payload, ["notes"]);
   return withRoadmapLock(root, () => cmdAnnotateUnlocked(root, payload));
 }
 
@@ -1508,8 +1514,10 @@ function touchesSetEqual(expectedValue, current) {
 
 function cmdCorrect(root, payload) {
   // expected.* repeats what the entry already holds, so only the new values
-  // are checked: a correction that removes a credential must still go through.
+  // are checked: a correction that removes a credential or a hidden character
+  // must still go through.
   refuseCredentials("correct", payload, [...CORRECTABLE_TEXT, "planned_touches", "touches"]);
+  refuseHiddenCharacters("correct", payload, CORRECTABLE_TEXT);
   return withRoadmapLock(root, () => cmdCorrectUnlocked(root, payload));
 }
 
@@ -2600,7 +2608,10 @@ below) and adds a "migrated" field ({from, to, backup}) to its own result --
 absent when the file was already current. add, update-status, annotate and
 correct refuse text that looks like a credential (an API key, a token, a
 private key block, an Authorization value or a password inside a URL): nothing
-is written, and the error names the field and the kind, never the text.
+is written, and the error names the field and the kind, never the text. They
+likewise refuse a title, why, what, notes or lesson carrying a character
+check-prompt.js refuses (zero-width, a byte order mark, bidi, Unicode tags),
+naming the field, each line and code point.
 
   add               stdin JSON: {title, why, what, source, depends_on?, planned_touches?, notes?, status?, doc?, kind?}
                     source: "user" | "claude-suggested" | "codex-suggested" | "antigravity-suggested"

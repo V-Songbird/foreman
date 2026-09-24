@@ -353,6 +353,17 @@ values, never `expected`, so a correction that removes a credential goes
 through. Text already in the files is never checked, so an older entry stays
 readable.
 
+**Hidden characters are refused.** A handoff quotes an entry's `title`,
+`why`, `what` and `notes`, and a lesson reaches later sessions, so the same
+four commands refuse those fields when they carry a character the prompt gate
+refuses: a zero-width character, the word joiner, a byte order mark, a bidi
+control or a Unicode tag. A byte order mark is refused even at a field's
+start, because a handoff never quotes a field at its own start. The joiner
+inside an emoji and a subdivision flag's tags still pass. `correct` checks
+only the new values, and the rest works as for credentials: nothing is
+written, and the error names the field, each line and code point, counting
+tags without decoding them.
+
 ---
 
 ## Private roadmap — git-ignored files
@@ -523,10 +534,8 @@ files intersect that record's files is served it back.
   longer lesson still lets the close through and lands on the entry's notes
   instead. A lesson that looks like a credential refuses the whole
   `update-status` call, status included, and nothing is written (see
-  [Using roadmap.js](#using-roadmapjs)). So does one carrying a character
-  the prompt gate refuses, whether or not the ledger is on: a zero-width
-  character, the word joiner, a byte order mark past the first character, a
-  bidi control or a Unicode tag. The error names each line and code point.
+  [Using roadmap.js](#using-roadmapjs)). So does one carrying a hidden
+  character, whether or not the ledger is on (same section).
 - `area` — derived, cosmetic, for readable grouping only. Selection is always
   path-level.
 

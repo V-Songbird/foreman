@@ -241,9 +241,12 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   order mark, the joiner inside an emoji and a subdivision flag's tags still
   pass. The error names each line and code point, and counts tags without
   decoding them.
-- `update-status` refuses a `lesson` carrying those same characters and
-  writes nothing, whether or not the ledger is on. The error names each line
-  and code point. Where the ledger is on, a handoff's close also asks the
+- `roadmap.js` `add`, `annotate`, `correct` and `update-status` refuse a
+  `title`, `why`, `what`, `notes` or `lesson` carrying those same characters
+  and write nothing, whether or not the ledger is on, so no stored note can
+  fail a later handoff. A byte order mark is refused even at a field's start,
+  since a handoff quotes the field mid-prompt. The error names the field, each
+  line and code point. Where the ledger is on, a handoff's close also asks the
   session to quote any lesson it records in its final report and say whether
   the close stored it.
 - Survey's investigators treat the files, commits and comments they read as

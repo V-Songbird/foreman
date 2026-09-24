@@ -1621,6 +1621,56 @@ describe('a lesson carrying hidden characters is refused before anything is writ
   });
 });
 
+// [Foreman: 648] Built from code points, so no raw hidden character sits in this file.
+describe('hidden characters in a title, why, what or notes are refused before anything is written', () => {
+  const [BOM, ZWSP, ZWJ, LRI] = [0xfeff, 0x200b, 0x200d, 0x2066].map((code) => String.fromCodePoint(code));
+  const file = () => path.join(project, 'ROADMAP.jsonl');
+  const ENTRY = { id: '001', title: 'a', why: 'a', what: 'a', status: 'in_progress', source: 'user', depends_on: [], touches: [], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '' };
+
+  beforeEach(() => writeRoadmap(project, [ENTRY]));
+
+  function assertRefused(command, payload, field, found) {
+    const before = fs.readFileSync(file(), 'utf-8');
+    const { status, json } = run([command], payload);
+    assert.equal(status, 1);
+    assert.equal(json.error, `${command} refused: ${field} carries characters a reader cannot see (${found}). Nothing was written; remove them and send the call again`);
+    assert.equal(fs.readFileSync(file(), 'utf-8'), before, `${command} wrote despite the refusal`);
+  }
+
+  test('each write command refuses a hidden character in the text it stores', () => {
+    const text = `parse${ZWSP}s lazily`;
+    for (const field of ['title', 'why', 'what', 'notes']) {
+      assertRefused('add', { title: 'b', why: 'b', what: 'b', source: 'user', [field]: text }, field, 'line 1: U+200B');
+    }
+    assertRefused('annotate', { id: '001', notes: `first line\nsecond${LRI} line` }, 'notes', 'line 2: U+2066');
+    assertRefused('update-status', { id: '001', status: 'in_progress', notes: text }, 'notes', 'line 1: U+200B');
+    for (const field of ['title', 'why', 'what']) {
+      assertRefused('correct', { id: '001', expected_updated_at: '2026-07-01', [field]: text, expected: { [field]: 'a' } }, field, 'line 1: U+200B');
+    }
+  });
+
+  test('a byte order mark is refused even at the start of a field, lesson included', () => {
+    assertRefused('add', { title: `${BOM}Fix the parser`, why: 'b', what: 'b', source: 'user' }, 'title', 'line 1: U+FEFF');
+    assertRefused('update-status', { id: '001', status: 'in_progress', lesson: `${BOM}scripts/a.js parses lazily` }, 'lesson', 'line 1: U+FEFF');
+  });
+
+  test('the joiner inside an emoji still passes every command', () => {
+    const family = `the ${[0x1f468, 0x1f469, 0x1f467].map((code) => String.fromCodePoint(code)).join(ZWJ)} emoji`;
+    assert.equal(run(['add'], { title: `b ${family}`, why: family, what: family, source: 'user', notes: family }).status, 0);
+    assert.equal(run(['annotate'], { id: '001', notes: family }).status, 0);
+    assert.equal(run(['update-status'], { id: '001', status: 'in_progress', notes: family }).status, 0);
+    const { updated_at } = run(['list', '--ids', '001']).json.entries[0];
+    assert.equal(run(['correct'], { id: '001', expected_updated_at: updated_at, what: family, expected: { what: 'a' } }).status, 0);
+  });
+
+  test('text already in the file stays readable, and a correction that removes it goes through', () => {
+    writeRoadmap(project, [{ ...ENTRY, what: `old${ZWSP} text` }]);
+    assert.equal(run(['list', '--ids', '001']).status, 0);
+    const fixed = run(['correct'], { id: '001', expected_updated_at: '2026-07-01', what: 'old text', expected: { what: `old${ZWSP} text` } });
+    assert.equal(fixed.status, 0, JSON.stringify(fixed.json));
+  });
+});
+
 describe('field length warnings', () => {
   test('add returns a warning for an overlong why, but still writes', () => {
     const { status, json } = run(['add'], {
