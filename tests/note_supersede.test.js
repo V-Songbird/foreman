@@ -75,6 +75,13 @@ describe('the record key', () => {
     assert.equal(typeof ledger.recordKey({ lesson: 'only a lesson' }), 'string');
     assert.equal(ledger.recordKey({ lesson: 'only a lesson' }).length, 12);
   });
+
+  // [Foreman: 680] Supersede markers store these keys, so a change to how the
+  // fields are joined would orphan every marker already written.
+  test('keeps the exact values already stored in supersede markers', () => {
+    assert.equal(ledger.recordKey({ entry: '001', date: '2026-08-01', lesson: 'the parser lives in src/a.js' }), '2196ff9cb2ba');
+    assert.equal(ledger.recordKey({ lesson: 'only a lesson' }), '498a06f7eb55');
+  });
 });
 
 describe('superseding a record', () => {
