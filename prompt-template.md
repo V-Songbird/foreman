@@ -755,8 +755,11 @@ Shared by every skill that assembles this template. The skill decides
 says what each one does once picked. Where the hosts differ, each bullet
 names its host.
 
-**Never call `mcp__ccd_session__spawn_task`** (Claude Code) — it has a known
-bug where tasks spawned through it don't get MCP tools. In Codex, never
+**Never call `mcp__ccd_session__spawn_task`** (Claude Code) — it only offers
+the user a chip and runs nothing until they click it, so it is no destination.
+The session a clicked chip opens does have MCP tools and `SendMessage`
+(verified 2026-09-24 on desktop app 2.7032.0 with Claude Code 2.1.280; other
+builds and hosts unverified). In Codex, never
 substitute an app task-creation tool for a background agent: create a
 user-owned Codex task only when the user explicitly asks for one. Use one of
 the destinations named in `skills/roadmap/destination-question.md` instead.

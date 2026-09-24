@@ -375,8 +375,8 @@ function claudeDiscoveryBlock(requireVerification = true) {
     "). Ask first (AskUserQuestion: " +
     "Log it / Skip). " +
     "Never call " +
-    "mcp__ccd_session__spawn_task — it has a known bug where tasks spawned " +
-    "through it don't get MCP tools. Never act without asking. If this " +
+    "mcp__ccd_session__spawn_task for these — it only offers the user a " +
+    "chip that runs nothing until they click it. Never act without asking. If this " +
     "session has no user to ask (a background agent), skip the suggestions " +
     "entirely. Say nothing if nothing is confirmed."
   );

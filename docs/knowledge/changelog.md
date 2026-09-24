@@ -112,6 +112,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   desktop session started from a task chip, says once that the task could not
   be tracked and opens the roadmap entry itself with the `update-status` call
   the handoff embeds, since no task hook fires there.
+- The rule against `mcp__ccd_session__spawn_task` now gives the reason that
+  holds: it only offers the user a chip, which runs nothing until clicked. The
+  claim that its sessions get no MCP tools is gone; a clicked chip's session
+  had them on desktop app 2.7032.0 on 2026-09-24.
 - A standard handoff keeps its `<context>` block, as a Codex handoff already
   did, so an entry's recorded notes and its dependencies' decision documents
   reach the session. The warning that the block had been dropped is gone.

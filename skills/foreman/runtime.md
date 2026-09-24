@@ -71,8 +71,9 @@ reasoning settings unless the user chose otherwise.
 
 - In Claude Code, a background agent is an `Agent` call with
   `run_in_background: true` and no `model`, dispatched without `isolation`.
-  Its own handoff opens and closes its roadmap entry. Never call `mcp__ccd_session__spawn_task`: tasks spawned through it don't get
-  MCP tools.
+  Its own handoff opens and closes its roadmap entry. Never call `mcp__ccd_session__spawn_task`: it only offers the user a chip and
+  runs nothing until they click it. The session a clicked chip opens does have
+  MCP tools (verified 2026-09-24, desktop app 2.7032.0).
 
 ## Bookkeeping and commits
 

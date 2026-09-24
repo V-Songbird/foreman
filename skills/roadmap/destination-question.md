@@ -169,8 +169,10 @@ asked, with no second question and no talking them out of it. The execution
 capability must still exist; be candid when it does not.
 
 Never substitute an app-level task for any of these destinations. In Claude
-Code, never call `mcp__ccd_session__spawn_task` — it has a known bug where
-tasks spawned through it don't get MCP tools; `TaskCreate`, `Agent`, and the
+Code, never call `mcp__ccd_session__spawn_task` — it only offers the user a
+chip and runs nothing until they click it. The session a clicked chip opens
+does have MCP tools (verified 2026-09-24 on desktop app 2.7032.0 with Claude
+Code 2.1.280; other builds and hosts unverified). `TaskCreate`, `Agent`, and the
 clipboard mechanics are the only three delivery paths, regardless of Desktop
 or CLI. In Codex, a new sidebar task is created only when the user explicitly
 asks for one. Delivery, clipboard handling, and checkpoint commits are

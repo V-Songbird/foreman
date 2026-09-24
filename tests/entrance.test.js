@@ -211,4 +211,15 @@ describe("one package for Claude Code and Codex", () => {
     assert.match(runtime, /model and\s+reasoning settings unless the user chose/);
     assert.match(runtime, /Never call `mcp__ccd_session__spawn_task`/);
   });
+
+  // [Foreman: 614] The rule rests on the chip, which runs nothing until the
+  // user clicks it; a clicked chip's session did have MCP tools (2026-09-24).
+  test("every spawn_task warning gives the chip reason, not missing MCP tools", () => {
+    for (const rel of ["prompt-template.md", "skills/foreman/runtime.md", "skills/roadmap/destination-question.md"]) {
+      const text = fs.readFileSync(path.join(root, rel), "utf-8");
+      assert.match(text, /never call `mcp__ccd_session__spawn_task`[^.]*only offers\s+the user a\s+chip and\s+runs nothing until they click it/i, rel);
+      assert.match(text, /does\s+have\s+MCP\s+tools[^.]*verified\s+2026-09-24[^.]*desktop\s+app\s+2\.7032\.0/, rel);
+      assert.doesNotMatch(text, /don't get\s+MCP tools/, rel);
+    }
+  });
 });

@@ -413,6 +413,16 @@ describe('discovery block', () => {
     assert.match(direct, /"id":"<new-id>","status":"done","commit":"<sha>"/);
   });
 
+  // [Foreman: 614] spawn_task stays out of discovery because its chip runs
+  // nothing until clicked; a clicked chip's session did have MCP tools.
+  test('the Claude Code block keeps spawn_task out for the chip reason', () => {
+    writeRoadmap(project, [{ id: '001', status: 'planned' }]);
+    writeConfig(project, { discoverySuggestions: true });
+    const out = context(bashPayload('git commit -m "add feature"'), 'claude');
+    assert.match(out, /Never call mcp__ccd_session__spawn_task for these — it only offers the user a chip that runs nothing until they click it\./);
+    assert.doesNotMatch(out, /MCP tools/);
+  });
+
   // [Foreman: 127] The planned titles used to be inlined as a negative list,
   // so the block grew with the backlog. Dedup now rides entirely on the
   // compact check-duplicate CLI — no roadmap content in the context at all.
