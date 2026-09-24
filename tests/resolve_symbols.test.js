@@ -192,6 +192,20 @@ describe('resolve-symbols', () => {
     }
   });
 
+  // [Foreman: 596] Entry 580's `what` named the batch rivalA-762f888b, and
+  // `rivalA` shipped as "an invented API or an un-caught rename".
+  test('a word joined to a hyphen is part of a kebab-case name, not a symbol', () => {
+    writeFile('docs/knowledge/benchmarks.md', 'Batch rivalA-762f888b.\n');
+    const { json } = run({
+      stdin: JSON.stringify({
+        touches: ['docs/knowledge/benchmarks.md'],
+        what: 'Add the rivalA-762f888b results, rerun run-fooBar and pre-renameIt(), then call renameTheThing().',
+      }),
+    });
+
+    assert.deepEqual(json.unresolved, ['renameTheThing']);
+  });
+
   test('a directory and an unsupported extension degrade cleanly', () => {
     writeFile('src/sample.js', SAMPLE_JS);
     writeFile('docs/notes.md', '# notes\n');

@@ -174,6 +174,9 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   words in every script, not ASCII only, so an accented or Cyrillic title
   keeps its words whole. Chinese and Japanese text without spaces still
   counts as one word.
+- A handoff's "Unresolved in the entry's own description" line no longer
+  lists a word joined to a hyphen, such as `rivalA` from the batch id
+  `rivalA-762f888b`, as an invented API.
 
 ## 3.1.0 — 2026-09-15
 

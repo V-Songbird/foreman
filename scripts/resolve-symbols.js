@@ -121,8 +121,12 @@ function resolveFile(root, relPath) {
 // camelCase/snake_case token. Plain English words are deliberately not
 // candidates — a lowercase word with no shape to it is prose, and treating it
 // as a symbol would bury the real misses in noise.
-const CALL_SHAPED = /\b([A-Za-z_$][\w$]*)\s*\(/g;
-const COMPOUND_SHAPED = /\b([a-z$][\w$]*(?:[A-Z][\w$]*|_[\w$]+)[\w$]*)\b/g;
+//
+// [Foreman: 596] A word joined to a hyphen is a piece of a kebab-case name —
+// the batch id `rivalA-762f888b`, a command, a flag — which no language below
+// can declare, so neither pattern takes one: `rivalA` is not a claimed symbol.
+const CALL_SHAPED = /(?<!-)\b([A-Za-z_$][\w$]*)\s*\(/g;
+const COMPOUND_SHAPED = /(?<!-)\b([a-z$][\w$]*(?:[A-Z][\w$]*|_[\w$]+)[\w$]*)\b(?!-)/g;
 
 // [Foreman: 279] CALL_SHAPED alone read any word before an open parenthesis as
 // a call site, and entry prose puts parentheses after ordinary words all the
