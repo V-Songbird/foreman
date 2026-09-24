@@ -34,6 +34,15 @@ const { projectDir } = require("./runtime");
 // Column-0 anchoring is what keeps local variables out: an indented `const`
 // inside a function body never matches. Each entry maps an extension family
 // to the definition forms that language declares at top level.
+//
+// [Foreman: 665] `members` are the definition forms found inside a body: an
+// object key, a method or accessor, a member assignment (`.name =`), a
+// shorthand or destructured name, a Python indented `def`, a Kotlin indented
+// `fun`, `val` or `var`. They never become symbols, which stay top-level, but
+// a name an entry cites that way is real code, so it is not reported as
+// unresolved. `comment` is what extractMembers blanks along with strings.
+const MEMBER_ASSIGNMENT = /\.([A-Za-z_$][\w$]*)\s*=(?![=>])/g;
+
 const LANGUAGES = [
   {
     extensions: [".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".mts", ".cts"],
@@ -43,6 +52,13 @@ const LANGUAGES = [
       /^(?:export\s+)?(?:declare\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)/,
       /^(?:export\s+)?(?:declare\s+)?(?:interface|type|enum)\s+([A-Za-z_$][\w$]*)/,
     ],
+    members: [
+      /(?:^\s+|[{,]\s*)([A-Za-z_$][\w$]*)\??\s*:(?!:)/g,
+      /^\s+(?:(?:static|async|get|set)\s+|\*\s*)*(?!(?:if|for|while|switch|catch|with|function|return)\b)([A-Za-z_$][\w$]*)\s*\([^()]*\)\s*(?::[^{=;]+)?\{/g,
+      MEMBER_ASSIGNMENT,
+      /(?<=\{(?:[^{}()[\]]*,)?\s*)(?:\.\.\.)?([A-Za-z_$][\w$]*)(?=\s*(?:[,}]|=(?![=>])))/g,
+    ],
+    comment: /^\s*\*.*|\/\/.*|\/\*.*?(?:\*\/|$)/g,
   },
   {
     extensions: [".py"],
@@ -51,6 +67,8 @@ const LANGUAGES = [
       /^class\s+([A-Za-z_]\w*)/,
       /^([A-Za-z_]\w*)\s*(?::[^=]+)?=(?!=)/,
     ],
+    members: [/^\s+(?:async\s+)?def\s+([A-Za-z_]\w*)/g, MEMBER_ASSIGNMENT],
+    comment: /#.*/g,
   },
   {
     extensions: [".kt", ".kts"],
@@ -59,6 +77,8 @@ const LANGUAGES = [
       /^(?:[a-z]+\s+)*(?:class|object|interface)\s+([A-Za-z_]\w*)/,
       /^(?:[a-z]+\s+)*(?:val|var)\s+([A-Za-z_]\w*)/,
     ],
+    members: [/^\s+(?:[a-z]+\s+)*(?:fun\s+(?:<[^>]*>\s*)?|val\s+|var\s+)([A-Za-z_]\w*)/g, MEMBER_ASSIGNMENT],
+    comment: /^\s*\*.*|\/\/.*|\/\*.*?(?:\*\/|$)/g,
   },
 ];
 
@@ -83,6 +103,20 @@ function extractSymbols(source, language) {
     }
   });
   return symbols;
+}
+
+const STRING = /(["'`])(?:\\.|(?!\1).)*\1/g;
+
+/** Names `language.members` finds in `source`, strings and comments blanked first. */
+function extractMembers(source, language) {
+  const names = new Set();
+  for (const line of source.split(/\r?\n/)) {
+    const code = line.replace(STRING, '""').replace(language.comment, "");
+    for (const pattern of language.members) {
+      for (const match of code.matchAll(pattern)) names.add(match[1]);
+    }
+  }
+  return [...names];
 }
 
 // Resolves one `touches` entry against the tree. A path that no longer
@@ -116,8 +150,9 @@ function resolveFile(root, relPath) {
   try {
     const { chunk, truncated } = readHead(full);
     const text = chunk.toString("utf-8");
-    const symbols = extractSymbols(truncated ? text.slice(0, text.lastIndexOf("\n") + 1) : text, language);
-    return { path: relPath, ...(truncated ? { truncated: true } : {}), symbols };
+    const source = truncated ? text.slice(0, text.lastIndexOf("\n") + 1) : text;
+    const symbols = extractSymbols(source, language);
+    return { path: relPath, ...(truncated ? { truncated: true } : {}), symbols, members: extractMembers(source, language) };
   } catch {
     return { path: relPath, unreadable: true, symbols: [] };
   }
@@ -185,9 +220,11 @@ function outsidePath(name, what) {
   return new RegExp(`(?<![\\w/\\\\-])${name.replace(/\$/g, "\\$")}(?![\\w-]|\\.\\w)`).test(what);
 }
 
-function unresolvedIdentifiers(what, files, plainText = "") {
+// [Foreman: 665] `members` are the names a touched code file defines inside a
+// body (see LANGUAGES), known the same way.
+function unresolvedIdentifiers(what, files, plainText = "", members = []) {
   if (!what) return [];
-  const known = new Set();
+  const known = new Set(members);
   for (const file of files) {
     for (const symbol of file.symbols) known.add(symbol.name);
     path
@@ -443,7 +480,13 @@ function resolve(root, touches, what, verify) {
   const list = Array.isArray(touches) ? touches.filter((p) => typeof p === "string" && p.trim()) : [];
   if (!list.length) warnings.push("no touches paths given — nothing to resolve");
 
-  const files = list.map((relPath) => resolveFile(root, relPath.trim()));
+  // Members only feed `unresolved`; the payload's files keep their documented shape.
+  const members = [];
+  const files = list.map((relPath) => {
+    const { members: names = [], ...file } = resolveFile(root, relPath.trim());
+    members.push(...names);
+    return file;
+  });
   const plainText = [];
   for (const file of files) {
     if (file.missing) warnings.push(`${file.path}: not on disk — expected if this task creates it, stale touches if not`);
@@ -495,7 +538,7 @@ function resolve(root, touches, what, verify) {
 
   return {
     files,
-    unresolved: unresolvedIdentifiers(what, files, plainText.join("\n")),
+    unresolved: unresolvedIdentifiers(what, files, plainText.join("\n"), members),
     references,
     ...(verification ? { verification } : {}),
     warnings,
@@ -538,6 +581,7 @@ module.exports = {
   projectDir,
   languageFor,
   extractSymbols,
+  extractMembers,
   resolveFile,
   candidateIdentifiers,
   unresolvedIdentifiers,

@@ -235,6 +235,13 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   every file the reference search walks, so a huge generated `.js` is no
   longer read whole. A planned code file past it lists only the symbols and
   imports in its first 1 MiB, and its warning says so.
+- That line no longer lists a name that a planned code file defines inside a
+  body: an object key such as `run_command`, a method, a member assignment
+  (`.name =`), a shorthand or destructured name such as `sessionDir`, a Python
+  indented `def` or a Kotlin indented `fun`, `val` or `var`. A name the file
+  holds only in a comment, a string, a plain read or an indented local
+  `const`, `let`, `var` or `function` is still listed, and these names never
+  join the file's symbols.
 - A failure pasted into `craft-prompt` reaches the handoff as recorded
   evidence, not instructions: `judgment.observed` is quoted inside
   `<observed_failure>` and escaped, so it cannot close that block or open

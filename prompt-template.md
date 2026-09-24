@@ -148,9 +148,11 @@ and `scripts/`.
      is never followed. `check-prompt.js` refuses a prompt that still
      carries this marker, so this one is a gate, not a reminder.
    - `unresolved` — identifier-shaped names in the task's own description
-     that match no symbol in any touched file, nor any whole word in a
-     touched file with no definition patterns (Markdown, JSON). Each file
-     is read up to its first 1 MiB only, and a file with no definition
+     that match no symbol in any touched file, no name a touched code
+     file defines inside a body (an object key, a method, a member
+     assignment, a shorthand or destructured name), nor any whole word
+     in a touched file with no definition patterns (Markdown, JSON). Each
+     file is read up to its first 1 MiB only, and a file with no definition
      patterns that has a NUL byte in that part is binary and not searched
      at all, so a name that appears only past the cut or only in a binary
      stays listed; the file's warning says when either applies. Treat each

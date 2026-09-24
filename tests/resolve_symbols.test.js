@@ -9,6 +9,10 @@
 //   - a path that no longer exists is flagged missing, not an error
 //   - an identifier in the entry's `what` that matches no symbol lands in
 //     unresolved; one that does match stays out of it
+//   - a name a code file defines inside a body (object key, method, member
+//     assignment, shorthand or destructure, Python and Kotlin members)
+//     resolves without becoming a symbol; one it holds only in a comment, a
+//     string, a plain read or an indented local declaration stays unresolved
 //   - a file with no definition patterns is searched as plain text, so a
 //     name it carries resolves and a name it lacks stays unresolved
 //   - that search stops at PLAIN_TEXT_LIMIT bytes and skips a binary, and
@@ -332,6 +336,75 @@ describe('resolve-symbols', () => {
 
     const kt = json.files.find((f) => f.path === 'src/Thing.kt').symbols.map((s) => s.name);
     assert.deepEqual(kt, ['Thing', 'topFun', 'topVal']);
+  });
+
+  // [Foreman: 665] Entries cite keys and methods (`run_command`, `old_string`,
+  // `sessionDir`) that a touched file defines inside a body, and each shipped
+  // as "an invented API or an un-caught rename".
+  test('a name a code file defines inside a body resolves without becoming a symbol', () => {
+    writeFile('src/shapes.js', [
+      'const { destructuredName, ...restName } = require("./lib");',
+      'const { defaultedName = 1 } = options;',
+      'const handlers = {',
+      '  indentedKey: (args) => args,',
+      '  plainMethod(a, b) {},',
+      '  async asyncMethod() {},',
+      '  get getterName() {},',
+      '};',
+      'const inline = { firstKey: 1, secondKey: { nestedKey: 2 } };',
+      'const short = { shorthandName, otherShorthand };',
+      'class Box {',
+      '  static staticMethod() {}',
+      '  typedMethod(x: string): number {}',
+      '}',
+      'module.exports.exportedName = inline;',
+      'this.memberName = 2;',
+      '',
+    ].join('\n'));
+    writeFile('src/shapes.py', ['class Shape:', '    def indented_def(self):', '        self.self_attr = 1', ''].join('\n'));
+    writeFile('src/Shape.kt', ['class Shape {', '    fun memberFun() {}', '    private val memberVal = 1', '    var memberVar = 2', '}', ''].join('\n'));
+    const names = [
+      'destructuredName', 'restName', 'defaultedName', 'indentedKey', 'plainMethod', 'asyncMethod', 'getterName',
+      'firstKey', 'secondKey', 'nestedKey', 'shorthandName', 'otherShorthand', 'staticMethod', 'typedMethod',
+      'exportedName', 'memberName', 'indented_def', 'self_attr', 'memberFun', 'memberVal', 'memberVar',
+    ];
+
+    const { json } = run({
+      stdin: JSON.stringify({
+        touches: ['src/shapes.js', 'src/shapes.py', 'src/Shape.kt'],
+        what: `Use ${names.join(', ')} and renameTheThing.`,
+      }),
+    });
+
+    assert.deepEqual(json.unresolved, ['renameTheThing']);
+    assert.deepEqual(json.files.find((f) => f.path === 'src/shapes.js').symbols.map((s) => s.name), ['handlers', 'inline', 'short', 'Box']);
+    assert.ok(json.files.every((f) => !('members' in f)), 'members stay out of the payload');
+  });
+
+  test('a name a code file holds only in a comment, a string, a read or a local stays unresolved', () => {
+    writeFile('src/decoys.js', [
+      '// See commentKey: and commentMethod() {} here.',
+      '/* blockKey: 1 */',
+      ' * docKey: described, { docShorthand }',
+      'const text = "stringKey: 1, { stringShorthand }";',
+      "const other = 'quotedMethod() {' + `{ templateShorthand }`;",
+      'call(first, plainRead, last); // trailingKey: 1',
+      'const value = source.memberRead === 2;',
+      'function outer() {',
+      '  const localConst = 1;',
+      '  function localFunction() {}',
+      '  if (value) {}',
+      '}',
+      '',
+    ].join('\n'));
+    const names = [
+      'commentKey', 'commentMethod', 'blockKey', 'docKey', 'docShorthand', 'stringKey', 'stringShorthand',
+      'quotedMethod', 'templateShorthand', 'plainRead', 'trailingKey', 'memberRead', 'localConst', 'localFunction',
+    ];
+
+    const { json } = run({ stdin: JSON.stringify({ touches: ['src/decoys.js'], what: `Use ${names.join(', ')}.` }) });
+
+    assert.deepEqual(json.unresolved, names);
   });
 
   test('no touches at all warns instead of failing', () => {
