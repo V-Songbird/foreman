@@ -129,7 +129,8 @@ Shell commands are outside the edit and lesson hooks on every host. A prompt
 carries its own host's script paths, so a prompt copied out of one host should
 be crafted again in the other. Antigravity lets a hook answer a tool call only
 with a decision, so what Foreman has to say after a commit or a file touch
-waits for the model's next call instead of arriving with the command.
+waits for the model's next call instead of arriving with the command. In a
+live session only that one call saw it; the next request no longer did.
 
 ## Review between increments
 
@@ -293,9 +294,11 @@ packages and no server.
   The Codex versions Foreman was checked against are listed in
   [Foreman in Codex](CODEX.md).
 - **Antigravity.** The Antigravity CLI, which installs the plugin from a clone
-  of this repository. Its hook contract was read from the host's documentation
-  and driven by the test suite; a live session on that host has not been
-  recorded yet.
+  of this repository. Its hook contract was read from the host's documentation,
+  driven by the test suite and checked in live `agy` 1.2.9 sessions on
+  Windows: `/init`, a `/roadmap` pick copied to the clipboard, a commit, a view
+  of a file with a recorded lesson, and a direct write to `ROADMAP.jsonl`,
+  which the host refused.
 
 Run the scripts from the project they should work on, or name that project
 with `FOREMAN_PROJECT_DIR` — see
