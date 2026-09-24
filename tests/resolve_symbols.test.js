@@ -9,6 +9,7 @@
 //   - a path that no longer exists is flagged missing, not an error
 //   - an identifier in the entry's `what` that matches no symbol lands in
 //     unresolved; one that does match stays out of it
+//   - a touched file's name stem is known whole as well as split on . - _
 //   - a name a code file defines inside a body (object key, method, member
 //     assignment, shorthand or destructure, Python and Kotlin members)
 //     resolves without becoming a symbol; one it holds only in a comment, a
@@ -241,6 +242,20 @@ describe('resolve-symbols', () => {
     });
 
     assert.deepEqual(json.unresolved, ['renameTheThing', 'keepThing']);
+  });
+
+  // [Foreman: 669] Entry 339 named the test file unused_deps.test.js by its
+  // stem, and the split on `_` only knew `unused` and `deps`.
+  test('a touched file name stem is a known name, whole as well as in parts', () => {
+    writeFile('tests/unused_deps.test.js', "'use strict';\n");
+    const { json } = run({
+      stdin: JSON.stringify({
+        touches: ['tests/unused_deps.test.js'],
+        what: 'Extend unused_deps with a case, then call dead_deps() from it.',
+      }),
+    });
+
+    assert.deepEqual(json.unresolved, ['dead_deps']);
   });
 
   test('a file with no definition patterns is searched as plain text for names', () => {

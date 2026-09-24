@@ -244,6 +244,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   string, a read, a parameter or an indented local `const`, `let`, `var` or
   `function` is still listed, except a typed parameter on a line of its own,
   which reads as a key. These names never join the file's symbols.
+- That line no longer lists a planned file's whole name stem, such as
+  `unused_deps` for `unused_deps.test.js`. Only the parts split on `.`, `-`
+  and `_` counted before, so `unused` and `deps` were known and the stem was
+  not.
 - A failure pasted into `craft-prompt` reaches the handoff as recorded
   evidence, not instructions: `judgment.observed` is quoted inside
   `<observed_failure>` and escaped, so it cannot close that block or open

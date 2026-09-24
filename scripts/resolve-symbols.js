@@ -235,15 +235,17 @@ function outsidePath(name, what) {
 
 // [Foreman: 665] `members` are the names a touched code file defines inside a
 // body (see LANGUAGES), known the same way.
+//
+// [Foreman: 669] A file name's stem before its first `.` is known whole as
+// well as in parts: `unused_deps` names unused_deps.test.js, and the split
+// on `_` alone knew only `unused` and `deps`.
 function unresolvedIdentifiers(what, files, plainText = "", members = []) {
   if (!what) return [];
   const known = new Set(members);
   for (const file of files) {
     for (const symbol of file.symbols) known.add(symbol.name);
-    path
-      .basename(file.path)
-      .split(/[.\-_]/)
-      .forEach((part) => part && known.add(part));
+    const base = path.basename(file.path);
+    [base.split(".")[0], ...base.split(/[.\-_]/)].forEach((part) => part && known.add(part));
   }
   return candidateIdentifiers(what)
     .filter((name) => !known.has(name))
