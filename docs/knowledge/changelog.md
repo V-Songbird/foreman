@@ -143,6 +143,9 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   The Claude Opus 5.5 System Card reports the model overstating the scope of
   its work in internal agent use, with a partial check described as a full
   one among its examples (section 2.3.3).
+- A background agent resumed from the pick menu is checked the same way:
+  when it reports it finished, the session reads its `Run:`/`Expected:`
+  results and the entry's status and `unverified:` lines before relaying it.
 
 ### Codex
 

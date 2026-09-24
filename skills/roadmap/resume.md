@@ -17,9 +17,14 @@ summary of them:
 - In Antigravity, the marker is `dispatched to Antigravity subagent <id>`,
   reached through `manage_subagents` under the same condition.
 
-On success, that *is* the resume — relay what the worker reports and stop
-here; the worker's session closes its entry the same as any other handoff (in
-Codex, through the coordinator). On any failure, a marker the other host
+On success, that *is* the resume. When the worker reports it finished, read
+what it verified before relaying that, as
+[delivery-agent.md](delivery-agent.md) says for a completion notification:
+each `Run:`/`Expected:` result it reports, and the entry's status and its
+`unverified:` lines (`roadmap.js list --ids <id>`). Call a check it skipped
+or could not run unverified, never passed; acceptance still comes only from
+the user in this session. Then stop here; the worker's session closes its
+entry the same as any other handoff (in Codex, through the coordinator). On any failure, a marker the other host
 wrote, or no marker at all, fall back **silently** to pick.md's flow exactly as
 if there were no marker — go on to its Q2 and craft the re-crafted prompt (the
 resume case, its step 3) from the entry's notes. Never surface the failure itself;

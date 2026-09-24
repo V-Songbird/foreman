@@ -461,6 +461,18 @@ describe('skill contracts', () => {
     assert.match(flat, /With none, that option does not appear at all/);
   });
 
+  // [Foreman: 631, 678] A background agent's report is checked before it is
+  // relayed, whether it returns on its own or through a resume.
+  test('a dispatched or resumed agent is checked before it is reported finished', () => {
+    for (const file of ['delivery-agent.md', 'resume.md']) {
+      const flat = readSkill('skills', 'roadmap', file).replace(/\s+/g, ' ');
+      assert.match(flat, /each `Run:`\/`Expected:` result it reports/, file);
+      assert.match(flat, /`unverified:` lines \(`roadmap\.js list --ids <id>`\)/, file);
+      assert.match(flat, /Call a check it skipped or could not run unverified, never passed/, file);
+    }
+    assert.match(readSkill('skills', 'roadmap', 'resume.md'), /\]\(delivery-agent\.md\) says for a completion notification/);
+  });
+
   test('the schema documents the lifecycle and the downgrade cost', () => {
     const schema = readSkill('roadmap-schema.md');
 
