@@ -122,7 +122,7 @@ Run this once after cloning:
 git config core.hooksPath scripts/git-hooks
 ```
 
-This enables a `pre-commit` hook that runs `node --test tests/*.test.js` and blocks the commit on failure, then checks the README's navigation links when `README.md` is staged. The test step no-ops if this plugin has no `tests/` directory.
+This enables a `pre-commit` hook that runs `node --test tests/*.test.js` and blocks the commit on failure. When any Markdown file is staged, it also blocks the commit while the root `README.md` lacks its navigation line, or while a link to a heading anchor in any tracked Markdown file no longer resolves. The test step no-ops if this plugin has no `tests/` directory.
 
 Foreman, Hush and Razor keep byte-identical copies of `pre-commit`; change them together.
 

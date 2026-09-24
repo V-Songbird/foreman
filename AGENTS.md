@@ -23,7 +23,7 @@ Foundry's Foreman submodule and ships from `main`.
 | Command | Purpose | Cost |
 | --- | --- | --- |
 | `node --test tests/*.test.js` | The suite, three hosts | Local temporary repositories; exercise changed hooks on Windows as well as Unix |
-| `node scripts/git-hooks/check-readme-nav.js README.md` | Every README nav anchor resolves | Local |
+| `node scripts/git-hooks/check-readme-nav.js` | The root README has its nav, and every heading anchor linked from a tracked Markdown file resolves | Local |
 | `claude plugin validate .` | Claude Code package shape | Local |
 | `agy plugin validate .` | Antigravity package shape | Local; needs the Antigravity CLI |
 | `node scripts/build-windows-launchers.js` | Codex Windows hook commands are current; `--write` regenerates them | Local |
