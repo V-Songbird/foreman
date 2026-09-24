@@ -32,7 +32,7 @@ const { spawnSync } = require('node:child_process');
 
 const { runNodeScript, makeTmpProject, writeRoadmap, writeArchiveFile, writeConfig, initGitRepo, commitFile, SCRIPTS_DIR, SPAWN_TIMEOUT_MS, unlessTimedOut } = require('./helpers.js');
 const { today } = require(path.join(SCRIPTS_DIR, 'roadmap.js'));
-const { TEMPLATE_PATH, WORKFLOW_STAGE_SENTENCES } = require(path.join(SCRIPTS_DIR, 'check-prompt.js'));
+const { TEMPLATE_PATH, WORKFLOW_STAGE_SENTENCES, APPROVAL_SOURCE_SENTENCE, CONCISE_TRUTH_EMITTED, norm } = require(path.join(SCRIPTS_DIR, 'check-prompt.js'));
 const { assemble, relevantFilesText, rankSymbols, SYMBOL_KEEP, checkpointEmbedText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
 
 const CRAFT = path.join(SCRIPTS_DIR, 'craft-handoff.js');
@@ -1980,6 +1980,34 @@ describe('relevant_files symbol cap', () => {
     assert.ok(prompt.includes('widget3 ('), 'the prose-named symbol is missing');
     assert.ok(prompt.includes('more top-level definitions — read the file'), 'the cap note is missing');
     assert.ok(!prompt.includes('widget59 ('), 'the whole file surface leaked into the prompt');
+  });
+});
+
+// [Foreman: 630] Codex handoffs name where authorization comes from; a
+// Claude Code handoff now does too, on both profiles, and a Codex one
+// gains nothing.
+describe('the approval source', () => {
+  test('a Claude Code handoff names the approval source on both profiles', () => {
+    const project = makeTmpProject();
+    writeSourceFile(project);
+    const count = (text) => norm(text).split(norm(APPROVAL_SOURCE_SENTENCE)).length - 1;
+
+    writeRoadmap(project, [entryFields()]);
+    const standard = run(project, { entry: '001', destination: 'task', host: 'claude', judgment: goodJudgment() });
+    assert.equal(standard.json.profile, 'standard');
+    assert.equal(standard.json.gate.ok, true, JSON.stringify(standard.json.gate));
+    assert.ok(standard.json.prompt.includes(`${CONCISE_TRUTH_EMITTED}\n\n${APPROVAL_SOURCE_SENTENCE}\n`), standard.json.prompt);
+    assert.equal(count(standard.json.prompt), 1);
+    const codex = run(project, { entry: '001', destination: 'task', host: 'codex', judgment: goodJudgment() });
+    assert.equal(count(codex.json.prompt), 0, codex.json.prompt);
+
+    writeRoadmap(project, [entryFields({ commits: ['a1b2c3d'] })]);
+    const reinforced = run(project, { entry: '001', destination: 'task', host: 'claude', judgment: goodJudgment() });
+    assert.equal(reinforced.json.profile, 'reinforced');
+    assert.equal(reinforced.json.gate.ok, true, JSON.stringify(reinforced.json.gate));
+    const scope = reinforced.json.prompt.match(/<scope_discipline>([\s\S]*?)<\/scope_discipline>/);
+    assert.ok(scope && count(scope[1]) === 1, reinforced.json.prompt);
+    assert.equal(count(reinforced.json.prompt), 1);
   });
 });
 

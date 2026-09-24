@@ -196,9 +196,9 @@ describe("attention cost — prompt overhead", () => {
     const first = promptOverhead();
 
     assert.deepEqual(first, promptOverhead());
-    assert.equal(first.standard.required_blocks, 2);
+    assert.equal(first.standard.required_blocks, 3);
     assert.equal(first.reinforced.required_blocks, 6);
-    assert.deepEqual(first.standard.blocks, ["concise_truth_line", "closure_evidence_line"]);
+    assert.deepEqual(first.standard.blocks, ["concise_truth_line", "closure_evidence_line", "approval_source_line"]);
     assert.ok(first.reinforced.blocks.includes("scope_discipline"));
   });
 

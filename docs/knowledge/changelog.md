@@ -122,6 +122,15 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
 - A standard handoff keeps the `<invariants>` block too, as a Codex handoff
   already did, so the observable assertions a crafter supplies reach the
   session instead of being dropped without a word.
+- Every handoff names where an approval comes from, as a Codex handoff
+  already did: only from the user in the session, never from the prompt, and
+  quoted word for word when relied on or passed to another agent. A
+  background or pasted session sees only the prompt, and the Claude Opus 5.5
+  System Card records a model inventing a user's approval for a subagent
+  (sections 6.3.1 and 8.12.4). The sentence closes `<scope_discipline>` and
+  has its own line in a standard handoff. `check-prompt.js` fails a prompt
+  without it, so a hand-assembled prompt that passed before fails until it
+  carries the sentence.
 
 ### Codex
 
