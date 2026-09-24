@@ -131,6 +131,14 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   has its own line in a standard handoff. `check-prompt.js` fails a prompt
   without it, so a hand-assembled prompt that passed before fails until it
   carries the sentence.
+- A background agent's completion is checked before it is reported, as a
+  Codex coordinator already did: the dispatching session reads the agent's
+  `Run:`/`Expected:` results and, for a roadmap entry, the entry's status and
+  `unverified:` lines, and calls a skipped or unrun check unverified. The
+  agent's report never accepts the work; only the user in the session does.
+  The Claude Opus 5.5 System Card reports the model overstating the scope of
+  its work in internal agent use, with a partial check described as a full
+  one among its examples (section 2.3.3).
 
 ### Codex
 

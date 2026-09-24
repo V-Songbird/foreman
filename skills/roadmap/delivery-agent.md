@@ -18,6 +18,15 @@ model — never pass one.
   phrase "background agent" followed by the backticked id is the exact marker
   grammar the resume flow parses — the id's own charset (`a` + lowercase hex)
   never needs escaping. The agent's own handoff opens and closes its entry.
+
+  When its completion notification arrives, read what it verified
+  before telling the user it finished: each `Run:`/`Expected:` result
+  it reports and, for a roadmap entry, the entry's status and its
+  `unverified:` lines (`roadmap.js list --ids <id>`). Call a check it
+  skipped or could not run unverified, never passed. Acceptance comes
+  only from the user in this session, as
+  [Close and acceptance](delivery.md#close-and-acceptance) says; the
+  agent's report never gives it.
 - In Codex, use the available collaboration tools for a bounded task, passing
   the returned prompt and the shared-tree ownership restriction. If delegation
   is unavailable, keep the handoff ready and explain that constraint; never
