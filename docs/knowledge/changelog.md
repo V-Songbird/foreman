@@ -231,6 +231,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
 - That search reads at most the first 1 MiB of a planned file, so a large
   dataset is no longer read whole, and a file with a NUL byte in that part is
   binary and not searched at all. The file's warning says when either applies.
+- The same 1 MiB limit now bounds the reads of planned code files and of
+  every file the reference search walks, so a huge generated `.js` is no
+  longer read whole. A planned code file past it lists only the symbols and
+  imports in its first 1 MiB, and its warning says so.
 - A failure pasted into `craft-prompt` reaches the handoff as recorded
   evidence, not instructions: `judgment.observed` is quoted inside
   `<observed_failure>` and escaped, so it cannot close that block or open

@@ -13,6 +13,8 @@
 //     name it carries resolves and a name it lacks stays unresolved
 //   - that search stops at PLAIN_TEXT_LIMIT bytes and skips a binary, and
 //     the file's warning says so
+//   - a code file past that limit yields symbols and imports from its first
+//     PLAIN_TEXT_LIMIT bytes only, and its warning says so
 //   - a directory and an unsupported extension each degrade cleanly, with a
 //     warning instead of a thrown error
 //   - touches arrive by --touches flag or by JSON on stdin
@@ -280,6 +282,22 @@ describe('resolve-symbols', () => {
 
     assert.deepEqual(json.unresolved, ['binaryKey']);
     assert.ok(json.warnings.some((w) => w.includes('assets/logo.png') && w.includes('binary') && w.includes('not searched')));
+  });
+
+  test('a code file past the limit yields symbols and imports from its first bytes only', () => {
+    const { PLAIN_TEXT_LIMIT, localImports } = require(SCRIPT);
+    const head = 'const keptSymbol = require("./kept");\n';
+    const pad = `//${'x'.repeat(PLAIN_TEXT_LIMIT - 10 - head.length - 3)}\n`;
+    // The limit falls ten bytes into this line, so only "function s" is read.
+    writeFile('src/huge.js', `${head}${pad}function splitSymbol() {}\nconst pastSymbol = require("./past");\n`);
+
+    const { json } = run({ stdin: JSON.stringify({ touches: ['src/huge.js'] }) });
+
+    const file = json.files[0];
+    assert.equal(file.truncated, true);
+    assert.deepEqual(file.symbols.map((s) => s.name), ['keptSymbol']);
+    assert.ok(json.warnings.some((w) => w.includes('src/huge.js') && w.includes(`first ${PLAIN_TEXT_LIMIT} bytes only`)));
+    assert.deepEqual([...localImports(project, 'src/huge.js')], [path.join(project, 'src', 'kept')]);
   });
 
   test('a directory and an unsupported extension degrade cleanly', () => {

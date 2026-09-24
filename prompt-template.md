@@ -117,7 +117,7 @@ and `scripts/`.
    "verify":"..."}` on stdin, which also fills `unresolved` and
    `verification`). One JSON object: `{"ok": true, "files": [{"path",
    "missing"?, "directory"?, "unsupported"?, "outside_project"?,
-   "lastChanged"?, "symbols":
+   "truncated"?, "lastChanged"?, "symbols":
    [{"name", "line"}]}], "unresolved": [...], "references": [{"helper",
    "files": [...]}], "verification"?: {"command", "resolves", "via"},
    "warnings": [...]}`. Skip the call only when no file paths are known yet.
@@ -132,7 +132,9 @@ and `scripts/`.
      this itself: names the entry's own prose already uses lead, the list
      is capped, and the cut tail is stated with its count rather than
      silently dropped. Extraction is a column-0 regex, not a parser, so it
-     narrows the search and never replaces `truth_grounding`.
+     narrows the search and never replaces `truth_grounding`. A file over
+     1 MiB carries `truncated`: its symbols and imports come from its first
+     1 MiB only, and its warning says so.
    - `missing` — nothing is at that path. Two readings, and the payload
      cannot tell them apart: this task is the one that creates the file,
      or the entry's `planned_touches` went stale. Leave it when the task
@@ -147,7 +149,11 @@ and `scripts/`.
      carries this marker, so this one is a gate, not a reminder.
    - `unresolved` — identifier-shaped names in the task's own description
      that match no symbol in any touched file, nor any whole word in a
-     touched file with no definition patterns (Markdown, JSON). Treat each
+     touched file with no definition patterns (Markdown, JSON). Each file
+     is read up to its first 1 MiB only, and a file with no definition
+     patterns that has a NUL byte in that part is binary and not searched
+     at all, so a name that appears only past the cut or only in a binary
+     stays listed; the file's warning says when either applies. Treat each
      as either an invented API or an un-caught rename, and resolve it
      before assembly.
    <!-- [Foreman: 109] -->

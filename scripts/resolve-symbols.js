@@ -110,8 +110,14 @@ function resolveFile(root, relPath) {
   const language = languageFor(relPath);
   if (!language) return { path: relPath, unsupported: true, symbols: [] };
 
+  // [Foreman: 664] Past PLAIN_TEXT_LIMIT the symbols come from the first
+  // bytes only, cut back to the last whole line: a definition split at the cut
+  // would otherwise be listed under a shortened name.
   try {
-    return { path: relPath, symbols: extractSymbols(fs.readFileSync(full, "utf-8"), language) };
+    const { chunk, truncated } = readHead(full);
+    const text = chunk.toString("utf-8");
+    const symbols = extractSymbols(truncated ? text.slice(0, text.lastIndexOf("\n") + 1) : text, language);
+    return { path: relPath, ...(truncated ? { truncated: true } : {}), symbols };
   } catch {
     return { path: relPath, unreadable: true, symbols: [] };
   }
@@ -201,21 +207,31 @@ function unresolvedIdentifiers(what, files, plainText = "") {
 // marks a binary, which is not searched at all. The file's warning says which.
 //
 // 1 MiB: many times any README, changelog or config a name search is for.
+//
+// [Foreman: 664] The same limit bounds every other read here: a planned code
+// file's symbols and each file's imports, including every file the reference
+// walk visits, so a huge generated .js is never read whole either.
 const PLAIN_TEXT_LIMIT = 1024 * 1024;
 
-function plainTextOf(root, relPath) {
-  let fd;
+/** The first PLAIN_TEXT_LIMIT bytes of `full`, and whether more followed. Throws if unreadable. */
+function readHead(full) {
+  const fd = fs.openSync(full, "r");
   try {
-    fd = fs.openSync(path.resolve(root, relPath), "r");
     const size = fs.fstatSync(fd).size;
     const buffer = Buffer.alloc(Math.min(size, PLAIN_TEXT_LIMIT));
-    const chunk = buffer.subarray(0, fs.readSync(fd, buffer, 0, buffer.length, 0));
+    return { chunk: buffer.subarray(0, fs.readSync(fd, buffer, 0, buffer.length, 0)), truncated: size > PLAIN_TEXT_LIMIT };
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function plainTextOf(root, relPath) {
+  try {
+    const { chunk, truncated } = readHead(path.resolve(root, relPath));
     if (chunk.includes(0)) return { text: "", binary: true };
-    return { text: chunk.toString("utf-8"), truncated: size > PLAIN_TEXT_LIMIT };
+    return { text: chunk.toString("utf-8"), truncated };
   } catch {
     return { text: "" };
-  } finally {
-    if (fd !== undefined) fs.closeSync(fd);
   }
 }
 
@@ -319,7 +335,7 @@ function localImports(root, relPath) {
   const targets = new Set();
   let source;
   try {
-    source = fs.readFileSync(full, "utf-8");
+    source = readHead(full).chunk.toString("utf-8");
   } catch {
     return targets;
   }
@@ -438,6 +454,9 @@ function resolve(root, touches, what, verify) {
       warnings.push(plainTextWarning(file.path, plain));
     }
     if (file.unreadable) warnings.push(`${file.path}: could not be read — skipped`);
+    if (file.truncated) {
+      warnings.push(`${file.path}: over ${PLAIN_TEXT_LIMIT} bytes — symbols and imports read from its first ${PLAIN_TEXT_LIMIT} bytes only`);
+    }
   }
 
   if (gitAvailable(root)) {
