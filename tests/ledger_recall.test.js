@@ -241,6 +241,19 @@ describe('ledger-recall hook, the lesson channel', () => {
     assert.doesNotMatch(out, /keeps the word split/);
   });
 
+  // [Foreman: 681] A hand-edited lesson carrying a hidden character is dropped;
+  // the clean one beside it still serves.
+  test('a lesson carrying a character a reader cannot see is not served', () => {
+    writeConfig(project, { areaNotes: { enabled: true } });
+    const target = writeFile('src/parser.js', 'module.exports = {};\n');
+    recordLesson('src/parser.js', 'the clean claim', { entry: '043', date: '2026-08-02' });
+    recordLesson('src/parser.js', 'hidden', { entry: `044${String.fromCodePoint(0x200b)}`, date: '2026-08-03' });
+
+    const out = run(payload(target, { session_id: 's-hidden' }));
+    assert.match(out, /- src\/parser\.js \[entry 043, 2026-08-02/);
+    assert.doesNotMatch(out, /entry 044/);
+  });
+
   test('the same file in the same session says it once', () => {
     writeConfig(project, { areaNotes: { enabled: true } });
     const target = writeFile('src/parser.js', 'module.exports = {};\n');

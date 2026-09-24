@@ -369,6 +369,13 @@ describe('lesson lines in the handoff', () => {
     assert.ok(!text.includes('an unverifiable claim'));
   });
 
+  // [Foreman: 681] The handoff drops the record too; the prompt gate would
+  // otherwise refuse every handoff that matched it.
+  test('a record carrying a character a reader cannot see is never served', () => {
+    const { project } = seeded({ lesson: `the token clock${String.fromCodePoint(0x200b)} lives in refresh()` });
+    assert.equal(ledgerText(project, { id: '001', planned_touches: ['src/Auth/session.js'] }), '');
+  });
+
   test('disabled serves nothing at all', () => {
     const { project } = seeded();
     fs.writeFileSync(path.join(project, '.foreman', 'config.json'), '{}', 'utf-8');

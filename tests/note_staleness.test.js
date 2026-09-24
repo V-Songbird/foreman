@@ -107,6 +107,20 @@ describe('note staleness', () => {
     assert.equal(rows[1].state, 'unknown');
     assert.equal(budget.spent, 1);
   });
+
+  // [Foreman: 681] A record stored before update-status refused hidden
+  // characters, or edited by hand, is served nowhere.
+  test('a record carrying a character a reader cannot see is never served', () => {
+    const zwsp = String.fromCodePoint(0x200b);
+    const fresh = { state: 'fresh', changed: [] };
+    const unknown = { state: 'unknown', changed: [] };
+    assert.equal(staleness.servedBody(record(), fresh), 'refresh() owns the token clock');
+    assert.equal(staleness.servedBody(record({ lesson: `refresh()${zwsp} owns the token clock` }), fresh), null);
+    assert.equal(staleness.servedBody(record({ lesson: `refresh()${zwsp} owns the token clock` }), unknown), null);
+    assert.equal(staleness.servedBody(record({ paths: [`src/auth/session${zwsp}.js`] }), fresh), null);
+    assert.equal(staleness.servedBody(record({ entry: `001${zwsp}` }), fresh), null);
+    assert.equal(staleness.servedBody(record({ date: `2026-08-01${zwsp}` }), fresh), null);
+  });
 });
 
 describe('the notes pull command', () => {

@@ -173,6 +173,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   that looks like a credential: a provider API key, a private key block, an
   `Authorization` value or a password inside a URL. Nothing is written, and
   the error names the field and the kind of credential, never the text.
+- A stored lesson whose text, files, entry or date carry a character a reader
+  cannot see, such as a zero-width space, a bidi override or a Unicode tag, is
+  no longer served by the handoff or by the hook that runs when a file is
+  read. `roadmap.js notes` still lists it, so `note-supersede` can retire it.
 - `roadmap.js` fails on a flag its subcommand does not take instead of
   ignoring it, and writes nothing. `list --id 613` used to print the whole
   roadmap; it now exits 1 and the error names `list`'s flags. A subcommand

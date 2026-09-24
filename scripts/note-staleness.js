@@ -19,6 +19,7 @@
 const fs = require('fs');
 const path = require('path');
 const { changedSince, trailerShasFor } = require('./commit-evidence');
+const { hiddenCharacters } = require('./check-prompt');
 
 // Each resolution costs up to three git invocations (rev-parse per scope,
 // merge-base, diff). Ten of them is the ~30-call ceiling the economics review
@@ -128,6 +129,11 @@ function servedBody(record, verdict) {
   // Dead: every file it names is gone, so there is nothing left to check it
   // against. Serving it could only mislead.
   if (verdict.state === 'dead') return null;
+  // [Foreman: 681] A record carrying a character a reader cannot see is served
+  // nowhere. update-status refuses such a lesson since 633, but a record stored
+  // before that or edited by hand is not checked. Its entry, date and paths are
+  // checked too, since every serving path prints them.
+  if (hiddenCharacters(` ${[record.lesson, record.entry, record.date, ...(record.paths || [])].join(' ')}`).length) return null;
   // The graded rule: a possibly-stale record whose own prose names one of the
   // files that moved under it is the decoy case, not a hedge case.
   if (verdict.state === 'stale' && (verdict.changed || []).some((file) => record.lesson.includes(file))) return null;
