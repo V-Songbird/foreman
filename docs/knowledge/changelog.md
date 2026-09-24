@@ -160,6 +160,11 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   that looks like a credential: a provider API key, a private key block, an
   `Authorization` value or a password inside a URL. Nothing is written, and
   the error names the field and the kind of credential, never the text.
+- `roadmap.js` fails on a flag its subcommand does not take instead of
+  ignoring it, and writes nothing. `list --id 613` used to print the whole
+  roadmap; it now exits 1 and the error names `list`'s flags. A subcommand
+  without flags, such as `update-status` or `migrate`, says it takes none.
+  `note-prune` accepts only `--dry-run`, no longer `--dryRun`.
 - A direct parent's decision `doc` still reaches its dependent's
   `next-candidates` and `list --ids` rows after the parent is archived, so
   the handoff keeps pointing at the settled decision.

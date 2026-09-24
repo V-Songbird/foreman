@@ -395,9 +395,14 @@ describe('migrate', () => {
     assert.equal(run(['doctor']).json.findings[0].code, 'missing_dependency');
   });
 
-  test('rejects flags and stdin it does not take', () => {
+  test('refuses a flag and ignores stdin', () => {
     writeV1([v1Entry('001')]);
-    const { status, json } = run(['migrate', '--fix'], { id: '001' });
+    const before = readLines();
+    const flagged = run(['migrate', '--fix']);
+    assert.equal(flagged.status, 1);
+    assert.equal(flagged.json.error, 'unknown flag for migrate: --fix. migrate takes no flags');
+    assert.deepEqual(readLines(), before);
+    const { status, json } = run(['migrate'], { id: '001' });
     assert.equal(status, 0);
     assert.equal(json.changed, true);
   });

@@ -2553,7 +2553,7 @@ function cmdNoteSupersede(root, payload) {
  * records a correction already retired.
  */
 function cmdNotePrune(root, flags) {
-  const dryRun = Boolean(flags && (flags["dry-run"] || flags.dryRun));
+  const dryRun = Boolean(flags && flags["dry-run"]);
   if (dryRun) return ledger.prune(root, { dryRun: true });
   return withRoadmapLock(root, () => ledger.prune(root));
 }
@@ -2592,7 +2592,9 @@ function readStdinJSON() {
 
 const USAGE = `roadmap.js -- mechanical CRUD for ROADMAP.jsonl. Every call
 prints one JSON line to stdout: {"ok":true, ...} on success,
-{"ok":false,"error":"..."} (exit 1) on failure. Any mutating subcommand run
+{"ok":false,"error":"..."} (exit 1) on failure. A flag a subcommand does not
+list below fails the call, and the error names the flags it takes (or says
+it takes none) -- nothing is read or written. Any mutating subcommand run
 against a file below the current format migrates it first (see "migrate"
 below) and adds a "migrated" field ({from, to, backup}) to its own result --
 absent when the file was already current. add, update-status, annotate and
@@ -2969,12 +2971,41 @@ Examples:
   node roadmap.js migrate
 `;
 
-function parseFlags(argv) {
+// [Foreman: 640] The flags each subcommand reads; an empty list means it takes
+// none. Any other flag fails the call instead of being ignored: `list --id 613`
+// used to drop the filter and print the whole roadmap.
+const SUBCOMMAND_FLAGS = {
+  add: [],
+  "update-status": [],
+  annotate: [],
+  "update-deps": [],
+  correct: [],
+  "reassign-id": [],
+  archive: [],
+  restore: [],
+  list: ["status", "ids", "summary", "stats", "archived"],
+  "next-candidates": ["limit", "menu", "hint"],
+  notes: ["paths", "area"],
+  "note-supersede": [],
+  "note-prune": ["dry-run"],
+  "check-duplicate": [],
+  doctor: ["fix"],
+  migrate: [],
+};
+
+function parseFlags(sub, argv) {
+  const valid = SUBCOMMAND_FLAGS[sub];
   const flags = {};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a.startsWith("--")) {
       const key = a.slice(2);
+      if (!valid.includes(key)) {
+        throw new Error(
+          `unknown flag for ${sub}: ${a}. ` +
+            (valid.length ? `Valid flags: ${valid.map((f) => `--${f}`).join(", ")}` : `${sub} takes no flags`)
+        );
+      }
       const next = argv[i + 1];
       if (next !== undefined && !next.startsWith("--")) {
         flags[key] = next;
@@ -2993,6 +3024,8 @@ function main() {
     process.stdout.write(USAGE);
     return;
   }
+  // An unknown subcommand falls through to the switch's own error.
+  const flags = Object.hasOwn(SUBCOMMAND_FLAGS, sub) ? parseFlags(sub, rest) : {};
   const root = projectDir();
   let result;
   switch (sub) {
@@ -3021,25 +3054,25 @@ function main() {
       result = cmdRestore(root, readStdinJSON());
       break;
     case "list":
-      result = cmdList(root, parseFlags(rest));
+      result = cmdList(root, flags);
       break;
     case "next-candidates":
-      result = cmdNextCandidates(root, parseFlags(rest));
+      result = cmdNextCandidates(root, flags);
       break;
     case "notes":
-      result = cmdNotes(root, parseFlags(rest));
+      result = cmdNotes(root, flags);
       break;
     case "note-supersede":
       result = cmdNoteSupersede(root, readStdinJSON());
       break;
     case "note-prune":
-      result = cmdNotePrune(root, parseFlags(rest));
+      result = cmdNotePrune(root, flags);
       break;
     case "check-duplicate":
       result = cmdCheckDuplicate(root, readStdinJSON());
       break;
     case "doctor":
-      result = cmdDoctor(root, parseFlags(rest));
+      result = cmdDoctor(root, flags);
       break;
     case "migrate":
       result = cmdMigrate(root);

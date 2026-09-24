@@ -11,6 +11,8 @@
 //     rejecting unknown ids and self-dependencies
 //   - list filters by status and/or ids (combinable), returns everything
 //     with no filter
+//   - a flag a subcommand does not take fails the call and names the flags
+//     it does take, or says it takes none, before anything is written
 //   - next-candidates filters unblocked planned tasks, ranks by open
 //     transitive unblocks, then direct unblocks, then no-collision, then
 //     oldest created_at; counts only open dependents; supports --hint
@@ -1683,6 +1685,35 @@ describe('unknown subcommand', () => {
   });
 });
 
+// [Foreman: 640] An ignored flag once turned `list --id 613` into a dump of
+// the whole roadmap; a flag the subcommand does not take now fails the call.
+describe('unknown flags', () => {
+  beforeEach(() => {
+    writeRoadmap(project, [{ id: '001', title: 'a', status: 'planned' }]);
+  });
+
+  test('list --id fails, naming the flags list takes', () => {
+    const { status, json } = run(['list', '--id', '001']);
+    assert.equal(status, 1);
+    assert.equal(json.ok, false);
+    assert.equal(json.error, 'unknown flag for list: --id. Valid flags: --status, --ids, --summary, --stats, --archived');
+    assert.equal(json.entries, undefined);
+  });
+
+  test('next-candidates names its own flags', () => {
+    const { status, json } = run(['next-candidates', '--limit', '1', '--menus']);
+    assert.equal(status, 1);
+    assert.equal(json.error, 'unknown flag for next-candidates: --menus. Valid flags: --limit, --menu, --hint');
+  });
+
+  test('a subcommand that takes no flags refuses one and writes nothing', () => {
+    const { status, json } = run(['update-status', '--id', '001'], { id: '001', status: 'in_progress' });
+    assert.equal(status, 1);
+    assert.equal(json.error, 'unknown flag for update-status: --id. update-status takes no flags');
+    assert.equal(run(['list', '--ids', '001']).json.entries[0].status, 'planned');
+  });
+});
+
 describe('doc field', () => {
   test('add accepts "none"', () => {
     const { status, json } = run(['add'], { title: 'a', why: 'a', what: 'a', source: 'user', doc: 'none' });
@@ -1918,7 +1949,7 @@ describe('model and effort fields', () => {
       assert.equal(status, 1, `accepted ${JSON.stringify(model)}`);
       assert.match(json.error, /model must be a model identifier/);
     }
-    const after = run(['list', '--ids=001']);
+    const after = run(['list', '--ids', '001']);
     assert.equal(after.json.entries[0].status, 'in_progress');
     assert.equal('model' in after.json.entries[0], false);
   });
