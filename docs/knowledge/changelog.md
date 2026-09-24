@@ -238,10 +238,12 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
 - That line no longer lists a name that a planned code file defines inside a
   body: an object key such as `run_command`, a method, a member assignment
   (`.name =`), a shorthand or destructured name such as `sessionDir`, a Python
-  indented `def` or a Kotlin indented `fun`, `val` or `var`. A name the file
-  holds only in a comment, a string, a plain read or an indented local
-  `const`, `let`, `var` or `function` is still listed, and these names never
-  join the file's symbols.
+  indented `def` or a Kotlin indented `fun`, `val` or `var`. A key or
+  shorthand name on a line with other code counts only inside the braces of
+  an object or a destructure. A name the file holds only in a comment, a
+  string, a read, a parameter or an indented local `const`, `let`, `var` or
+  `function` is still listed, except a typed parameter on a line of its own,
+  which reads as a key. These names never join the file's symbols.
 - A failure pasted into `craft-prompt` reaches the handoff as recorded
   evidence, not instructions: `judgment.observed` is quoted inside
   `<observed_failure>` and escaped, so it cannot close that block or open

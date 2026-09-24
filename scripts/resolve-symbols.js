@@ -41,7 +41,16 @@ const { projectDir } = require("./runtime");
 // `fun`, `val` or `var`. They never become symbols, which stay top-level, but
 // a name an entry cites that way is real code, so it is not reported as
 // unresolved. `comment` is what extractMembers blanks along with strings.
+//
+// An inline key or shorthand name counts only inside a `{` that opens an
+// object or a destructure (after `=`, `(`, `,`, `:`, `[`, `?`, a logical
+// operator, `return`, a declaration, `import`, `export` or at line start),
+// so a typed parameter (`, name: string`) and a name read in a block
+// (`if (ok) { name }`) stay reported. The regex limits: an indented `name:`
+// line still counts, so a typed parameter on its own line reads as a key,
+// and a name more than 400 characters past its `{` is not seen.
 const MEMBER_ASSIGNMENT = /\.([A-Za-z_$][\w$]*)\s*=(?![=>])/g;
+const IN_OBJECT = String.raw`(?<=(?:^|[=(,:[?]|&&|\|\||\?\?|\b(?:return|const|let|var|import|export))\s*\{(?:(?:[^{}()[\]]|\([^()]*\)|\[[^[\]]*\]){0,400},)?\s*)`;
 
 const LANGUAGES = [
   {
@@ -53,10 +62,10 @@ const LANGUAGES = [
       /^(?:export\s+)?(?:declare\s+)?(?:interface|type|enum)\s+([A-Za-z_$][\w$]*)/,
     ],
     members: [
-      /(?:^\s+|[{,]\s*)([A-Za-z_$][\w$]*)\??\s*:(?!:)/g,
+      new RegExp(String.raw`(?:^\s+|${IN_OBJECT})([A-Za-z_$][\w$]*)\??\s*:(?!:)`, "g"),
       /^\s+(?:(?:static|async|get|set)\s+|\*\s*)*(?!(?:if|for|while|switch|catch|with|function|return)\b)([A-Za-z_$][\w$]*)\s*\([^()]*\)\s*(?::[^{=;]+)?\{/g,
       MEMBER_ASSIGNMENT,
-      /(?<=\{(?:[^{}()[\]]*,)?\s*)(?:\.\.\.)?([A-Za-z_$][\w$]*)(?=\s*(?:[,}]|=(?![=>])))/g,
+      new RegExp(String.raw`${IN_OBJECT}(?:\.\.\.)?([A-Za-z_$][\w$]*)(?=\s*(?:[,}]|=(?![=>])))`, "g"),
     ],
     comment: /^\s*\*.*|\/\/.*|\/\*.*?(?:\*\/|$)/g,
   },

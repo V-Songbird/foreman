@@ -359,6 +359,13 @@ describe('resolve-symbols', () => {
       '}',
       'module.exports.exportedName = inline;',
       'this.memberName = 2;',
+      'const rows = [',
+      '  { lineStartKey: 1 },',
+      '];',
+      'call({ first: f(a, b), afterCallKey: 1 });',
+      'function build() {',
+      '  return { returnedKey: 1, returnedShorthand };',
+      '}',
       '',
     ].join('\n'));
     writeFile('src/shapes.py', ['class Shape:', '    def indented_def(self):', '        self.self_attr = 1', ''].join('\n'));
@@ -366,7 +373,8 @@ describe('resolve-symbols', () => {
     const names = [
       'destructuredName', 'restName', 'defaultedName', 'indentedKey', 'plainMethod', 'asyncMethod', 'getterName',
       'firstKey', 'secondKey', 'nestedKey', 'shorthandName', 'otherShorthand', 'staticMethod', 'typedMethod',
-      'exportedName', 'memberName', 'indented_def', 'self_attr', 'memberFun', 'memberVal', 'memberVar',
+      'exportedName', 'memberName', 'lineStartKey', 'afterCallKey', 'returnedKey', 'returnedShorthand',
+      'indented_def', 'self_attr', 'memberFun', 'memberVal', 'memberVar',
     ];
 
     const { json } = run({
@@ -377,7 +385,7 @@ describe('resolve-symbols', () => {
     });
 
     assert.deepEqual(json.unresolved, ['renameTheThing']);
-    assert.deepEqual(json.files.find((f) => f.path === 'src/shapes.js').symbols.map((s) => s.name), ['handlers', 'inline', 'short', 'Box']);
+    assert.deepEqual(json.files.find((f) => f.path === 'src/shapes.js').symbols.map((s) => s.name), ['handlers', 'inline', 'short', 'Box', 'rows', 'build']);
     assert.ok(json.files.every((f) => !('members' in f)), 'members stay out of the payload');
   });
 
@@ -390,16 +398,18 @@ describe('resolve-symbols', () => {
       "const other = 'quotedMethod() {' + `{ templateShorthand }`;",
       'call(first, plainRead, last); // trailingKey: 1',
       'const value = source.memberRead === 2;',
-      'function outer() {',
+      'function outer(first: number, typedParam: string) {',
       '  const localConst = 1;',
       '  function localFunction() {}',
-      '  if (value) {}',
+      '  if (value) { blockRead }',
+      '  for (const x of xs) { loopRead, otherRead }',
       '}',
       '',
     ].join('\n'));
     const names = [
       'commentKey', 'commentMethod', 'blockKey', 'docKey', 'docShorthand', 'stringKey', 'stringShorthand',
-      'quotedMethod', 'templateShorthand', 'plainRead', 'trailingKey', 'memberRead', 'localConst', 'localFunction',
+      'quotedMethod', 'templateShorthand', 'plainRead', 'trailingKey', 'memberRead', 'typedParam', 'localConst',
+      'localFunction', 'blockRead', 'loopRead', 'otherRead',
     ];
 
     const { json } = run({ stdin: JSON.stringify({ touches: ['src/decoys.js'], what: `Use ${names.join(', ')}.` }) });
