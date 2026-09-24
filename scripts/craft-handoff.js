@@ -381,7 +381,7 @@ function relevantFilesText(files, references, unresolved, record) {
     }
   }
   if (unresolved && unresolved.length) {
-    lines.push(`Unresolved in the entry's own description (not found in any touched file): ${unresolved.join(", ")} — an invented API or an un-caught rename, resolve before trusting it.`);
+    lines.push(`Unresolved in the entry's own description (not found in any touched file): ${unresolved.join(", ")} — a name defined outside the touched files, an invented API or an un-caught rename; resolve before trusting it.`);
   }
   return lines.join("\n");
 }

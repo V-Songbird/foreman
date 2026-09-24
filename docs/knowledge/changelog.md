@@ -248,6 +248,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   `unused_deps` for `unused_deps.test.js`. Only the parts split on `.`, `-`
   and `_` counted before, so `unused` and `deps` were known and the stem was
   not.
+- That line, and the `unresolved` bullet the crafting session reads, now name
+  a name defined outside the touched files as the first possible cause, such
+  as an existing analogue the description cites. They named only an invented
+  API or an un-caught rename.
 - A failure pasted into `craft-prompt` reaches the handoff as recorded
   evidence, not instructions: `judgment.observed` is quoted inside
   `<observed_failure>` and escaped, so it cannot close that block or open

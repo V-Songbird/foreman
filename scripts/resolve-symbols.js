@@ -211,7 +211,8 @@ function candidateIdentifiers(what) {
 }
 
 // Names in `what` that match no symbol in any touched file. A hit here is
-// usually one of two things: an invented API, or a rename the entry never
+// one of three things: a name defined in a file the entry does not touch,
+// such as an analogue it cites; an invented API; or a rename the entry never
 // caught up with. Anything that reads as a path fragment is dropped — those
 // are `touches` restated, not claims about code.
 //

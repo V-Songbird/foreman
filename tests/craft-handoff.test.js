@@ -1942,6 +1942,16 @@ describe('relevant_files symbol cap', () => {
     assert.ok(!lines[0].includes('build the new code the same way'));
   });
 
+  // [Foreman: 670] Most names this line lists are real ones defined in a file
+  // the entry does not touch, such as an analogue its what cites; the line
+  // named only an invented API or an un-caught rename.
+  test('the Unresolved line names a definition outside the touched files as a cause', () => {
+    assert.equal(
+      relevantFilesText([], [], ['toToolCalls', 'fooBar']),
+      "Unresolved in the entry's own description (not found in any touched file): toToolCalls, fooBar — a name defined outside the touched files, an invented API or an un-caught rename; resolve before trusting it."
+    );
+  });
+
   test('rankSymbols reports the count it dropped, never a silent truncation', () => {
     const { kept, dropped } = rankSymbols(file(40).symbols, new Set());
     assert.equal(kept.length, SYMBOL_KEEP);

@@ -156,8 +156,8 @@ and `scripts/`.
      patterns that has a NUL byte in that part is binary and not searched
      at all, so a name that appears only past the cut or only in a binary
      stays listed; the file's warning says when either applies. Treat each
-     as either an invented API or an un-caught rename, and resolve it
-     before assembly.
+     as a name defined outside the touched files, an invented API or an
+     un-caught rename, and resolve it before assembly.
    <!-- [Foreman: 109] -->
    - `verification` — present only when a `verify` command was passed;
      pass the command gathered for the verification block, once it is
