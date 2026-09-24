@@ -40,6 +40,12 @@ picked and follow it together with this file:
   moment the row carrying the embedded entry paragraph is created — finding it
   already `in_progress` when the embedded instruction runs is expected, and
   re-running that update is a harmless no-op.
+- A Claude Code session without `TaskCreate`, such as a desktop session
+  started from a task chip, creates no row, so the hook never opens the
+  entry. Say once that the task could not be tracked, open the entry yourself
+  with the `update-status` `in_progress` call its entry paragraph embeds,
+  before any other step, then work the prompt, or each `tasks[]` row, in
+  order with every check.
 - In Codex, work the prompt directly. A plan tool may track progress, but it
   does not replace the roadmap lifecycle: open a selected entry when work
   starts with `hooks/codex-task.js start` as
