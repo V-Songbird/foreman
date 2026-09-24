@@ -49,7 +49,7 @@ alter a marketplace or start model sessions.
 
 The README serves every host. Its shared sections read the same for everyone; host differences
 sit in the How to ask table, one Install subsection per host, the Differences between hosts
-table and one results table per host under The numbers: Claude Code results, Codex results and
+table and one results table per host under The numbers: Codex results, Claude Code results and
 Antigravity results. A feature one host lacks is named as not available there, never described
 with the other host's behavior. Keep benchmark questions and columns identical across the host
 tables; each table carries its own `foundry:evidence` declaration, model and date, plus a source
