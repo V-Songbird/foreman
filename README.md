@@ -60,6 +60,17 @@ Plain sentences work in every assistant: "add this to the roadmap", "where are w
 
 Foreman is one plugin for the three assistants. Install it in the one you use; only the commands differ.
 
+### Codex
+
+Requirements: Node.js and Git (tested with Node.js 22), and a Codex host with plugin support.
+
+```text
+codex plugin marketplace add V-Songbird/foundry
+codex plugin add foreman@foundry
+```
+
+Review and trust its hooks with `/hooks`, then start a new Codex session. Ask Foreman to initialize the project, or select its installed `init` skill.
+
 ### Claude Code
 
 Requirements: Node.js and Git (tested with Node.js 22). In Claude Code, Foreman needs version 2.1.147 or later.
@@ -72,17 +83,6 @@ Inside Claude Code:
 ```
 
 Start a new session to load the plugin. Run `/foreman:init` once in the project.
-
-### Codex
-
-Requirements: Node.js and Git (tested with Node.js 22), and a Codex host with plugin support.
-
-```text
-codex plugin marketplace add V-Songbird/foundry
-codex plugin add foreman@foundry
-```
-
-Review and trust its hooks with `/hooks`, then start a new Codex session. Ask Foreman to initialize the project, or select its installed `init` skill.
 
 ### Antigravity
 
@@ -136,18 +136,6 @@ On every host, a shell command can still write the roadmap file, and reading a f
 
 Each result belongs to the named model and recorded run. Measurements belong to the model and setup that produced them, so each host keeps its own table. Missing measurements remain marked as unmeasured.
 
-### Claude Code results
-
-<!-- foundry:evidence {"platform":"Claude","status":"measured","models":["Claude Sonnet (proof-sn2)","Claude Opus (proof-op2)"],"source":"docs/foreman/research/foreman-proof-axes-2026-08-29.md","date":"2026-08-29"} -->
-| Model | Setup | Correct tasks | Mean session cost |
-| --- | --- | --- | --- |
-| Claude Sonnet (proof-sn2) | Written task paragraph | 100% | $0.0757 |
-| Claude Sonnet (proof-sn2) | Foreman | 100% | $0.0820 |
-| Claude Opus (proof-op2) | Written task paragraph | 100% | $0.1627 |
-| Claude Opus (proof-op2) | Foreman | 100% | $0.1746 |
-
-Foreman tied the well-written paragraph on correctness and cost more: 8.3% on Sonnet and 7.3% on Opus. These are historical comparisons, not a claim about the current release or another model.
-
 ### Codex results
 
 <!-- foundry:evidence {"platform":"Codex","status":"pending","reason":"Functional Codex validation exists; equivalent paired performance measurements are not available."} -->
@@ -157,6 +145,18 @@ Foreman tied the well-written paragraph on correctness and cost more: 8.3% on So
 | Not measured | foreman | Not measured | Not measured |
 
 Codex functional tests establish specific behaviors, not a speed, cost or correctness advantage over a baseline. Comparative performance remains unmeasured.
+
+### Claude Code results
+
+<!-- foundry:evidence {"platform":"Claude","status":"measured","models":["Claude Sonnet","Claude Opus"],"date":"2026-08-29"} -->
+| Model | Setup | Correct tasks | Mean session cost |
+| --- | --- | --- | --- |
+| Claude Sonnet | Written task paragraph | 100% | $0.0757 |
+| Claude Sonnet | Foreman | 100% | $0.0820 |
+| Claude Opus | Written task paragraph | 100% | $0.1627 |
+| Claude Opus | Foreman | 100% | $0.1746 |
+
+Foreman tied the well-written paragraph on correctness and cost more: 8.3% on Sonnet and 7.3% on Opus. These are historical comparisons, not a claim about the current release or another model.
 
 ### Antigravity results
 

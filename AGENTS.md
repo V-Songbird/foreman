@@ -52,7 +52,8 @@ sit in the How to ask table, one Install subsection per host, the Differences be
 table and one results table per host under The numbers: Claude Code results, Codex results and
 Antigravity results. A feature one host lacks is named as not available there, never described
 with the other host's behavior. Keep benchmark questions and columns identical across the host
-tables; each table carries its own `foundry:evidence` declaration, model, source and date. Never
+tables; each table carries its own `foundry:evidence` declaration, model and date, plus a source
+naming a public page when one exists. Never
 present a Claude Code result as a Codex result, never treat unit tests as a performance run, and
 show `Not measured` where evidence is absent.
 
