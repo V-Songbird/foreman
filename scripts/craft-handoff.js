@@ -1453,12 +1453,9 @@ function assemble(root, input) {
   // side is held before they are built.
   const rulesBlock = taskRulesText(holdUserRoot(record), holdUserRoot(judgment), hasVerification, fixCeilingLine, checkpointEmbed, reviewEachIncrement, host);
   const recoveryBlock = reviewEachIncrement && input.resume ? incrementResumeText(holdUserRoot(record), host) : "";
-  // [Foreman: 231] Claude Code's standard profile is the length it saves, so
-  // <invariants> rides on reinforced only there. A Codex handoff treats it as
-  // task evidence and keeps it on either profile. [Foreman: 597] <context> is
-  // task evidence on every host and profile: it carries the entry's notes and
-  // its depends_on_docs, which nothing else in a standard handoff repeats.
-  const keepsEvidenceBlocks = host === "codex" || reinforced;
+  // [Foreman: 597, 605] <context> and <invariants> are task evidence on every
+  // host and profile: the entry's notes, its depends_on_docs and the crafter's
+  // observable assertions, which nothing else in a standard handoff repeats.
   // A decision entry's task_rules already say "do not write implementation
   // code" — synthesizing `Implement: <title>.` as the request sentence puts
   // the contradiction in the one line that carries the actual ask.
@@ -1474,7 +1471,7 @@ function assemble(root, input) {
         ? `Investigate: ${judgment.question}`
         : `${request("Implement", requestSubject)}.`));
   const invariantsText =
-    keepsEvidenceBlocks && judgment.invariants && judgment.invariants.length
+    judgment.invariants && judgment.invariants.length
       ? holdUserRoot(`<invariants>\n${judgment.invariants.join("\n")}\n</invariants>`)
       : "";
   const exampleText =

@@ -1008,7 +1008,7 @@ describe('drift pins', () => {
   test('both skills still gather the three optional per-task fields', () => {
     for (const rel of [['craft-prompt', 'SKILL.md'], ['roadmap', 'pick.md']]) {
       const skill = readSkill(...rel);
-      assert.ok(skill.includes('`invariants`'), `${rel.join('/')} lost the invariants mapping`);
+      assert.ok(skill.includes('invariants` ←'), `${rel.join('/')} lost the invariants mapping`);
       assert.ok(skill.includes('Expected file surface:'), `${rel.join('/')} lost the file-surface mapping`);
       assert.ok(skill.includes('test-first ordering'), `${rel.join('/')} lost the test-first mapping`);
     }

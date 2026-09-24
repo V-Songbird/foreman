@@ -1993,18 +1993,22 @@ describe('judgment.context and the standard profile', () => {
     assert.ok(!dropped(json), `warned about a block it kept: ${JSON.stringify(json.warnings)}`);
   });
 
-  test('standard preserves observable invariants even if the project omits background (codex)', () => {
-    writeRoadmap(project, [entryFields()]);
-    writeConfig(project, { omitSections: ['background'] });
-    const invariants = ['An expired token returns HTTP 401.', 'A valid token preserves the session.'];
-    const { json } = run(project, { entry: '001', destination: 'task', host: 'codex', judgment: goodJudgment({ invariants }) });
-    assert.equal(json.profile, 'standard');
-    assert.equal(json.gate.ok, true);
-    assert.ok(!json.prompt.includes('<background>'));
-    const actual = json.prompt.match(/<invariants>\n([\s\S]*?)\n<\/invariants>/);
-    assert.ok(actual);
-    assert.deepEqual(actual[1].split('\n'), invariants);
-  });
+  // [Foreman: 605] <invariants> is task evidence on every host, like <context>:
+  // a standard Claude Code handoff used to drop it without a word.
+  for (const host of ['claude', 'codex']) {
+    test(`standard preserves observable invariants even if the project omits background (${host})`, () => {
+      writeRoadmap(project, [entryFields()]);
+      writeConfig(project, { omitSections: ['background'] });
+      const invariants = ['An expired token returns HTTP 401.', 'A valid token preserves the session.'];
+      const { json } = run(project, { entry: '001', destination: 'task', host, judgment: goodJudgment({ invariants }) });
+      assert.equal(json.profile, 'standard');
+      assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+      assert.ok(!json.prompt.includes('<background>'));
+      const actual = json.prompt.match(/<invariants>\n([\s\S]*?)\n<\/invariants>/);
+      assert.ok(actual, 'standard dropped <invariants>');
+      assert.deepEqual(actual[1].split('\n'), invariants);
+    });
+  }
 
   test('standard retains supplied evidence and context without profile inflation (codex)', () => {
     writeRoadmap(project, [entryFields()]);

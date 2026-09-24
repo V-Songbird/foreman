@@ -111,6 +111,9 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
 - A standard handoff keeps its `<context>` block, as a Codex handoff already
   did, so an entry's recorded notes and its dependencies' decision documents
   reach the session. The warning that the block had been dropped is gone.
+- A standard handoff keeps the `<invariants>` block too, as a Codex handoff
+  already did, so the observable assertions a crafter supplies reach the
+  session instead of being dropped without a word.
 
 ### Codex
 

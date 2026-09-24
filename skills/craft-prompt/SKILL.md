@@ -357,7 +357,7 @@ the touched paths, assembles the XML from the canonical blocks, bakes the
 checkpoint/split delivery artifacts, and runs the mechanical gate
 in-process — nothing left here to re-derive or re-list. `tone`, `example`,
 and `output_format` land only in a full-strength prompt, which most fresh
-craft-prompt tasks are not (in Claude Code, `invariants` too), and the
+craft-prompt tasks are not, and the
 project configuration can omit sections; if the user picked one of those
 optional sections and it did not make it in, say so plainly rather than
 acting as if it had.
