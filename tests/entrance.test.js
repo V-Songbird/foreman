@@ -222,4 +222,13 @@ describe("one package for Claude Code and Codex", () => {
       assert.doesNotMatch(text, /don't get\s+MCP tools/, rel);
     }
   });
+
+  // [Foreman: 643] A chip-started desktop session has no TaskCreate, so the
+  // delivery-path sentence names it only for a session that has the tool.
+  test("the delivery-path sentence scopes TaskCreate to a session that has it", () => {
+    const text = fs.readFileSync(path.join(root, "skills/roadmap/destination-question.md"), "utf-8");
+    assert.doesNotMatch(text, /regardless of\s+Desktop\s+or\s+CLI/);
+    assert.match(text, /`TaskCreate` needs a\s+session\s+that has the tool/);
+    assert.match(text, /\]\(delivery\.md#execute-here\)/);
+  });
 });

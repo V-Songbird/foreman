@@ -112,6 +112,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   desktop session started from a task chip, says once that the task could not
   be tracked and opens the roadmap entry itself with the `update-status` call
   the handoff embeds, since no task hook fires there.
+- The destination question no longer calls `TaskCreate` a delivery path on
+  the desktop app and the CLI alike. It names `TaskCreate` only for a session
+  that has the tool and sends a session without it, such as one started from
+  a task chip, to that `Execute here` path.
 - The rule against `mcp__ccd_session__spawn_task` now gives the reason that
   holds: it only offers the user a chip, which runs nothing until clicked. The
   claim that its sessions get no MCP tools is gone; a clicked chip's session
