@@ -161,6 +161,33 @@ function detectProfile(prompt) {
 const PLUGIN_CACHE_PATH_RE =
   /plugins[\\/]cache[\\/][\w.@-]+[\\/][\w.@-]+[\\/]\d+\.\d+\.\d+[\w.-]*/;
 
+// [Foreman: 632] Characters a model reads and a person reviewing the prompt
+// does not see: zero-width characters, the word joiner, a byte order mark past
+// the first character, bidi embeddings, overrides and isolates, and Unicode
+// tags. The set is the one Slag's anneal uses for its
+// instruction-hidden-characters finding. Three uses render, so they pass: a
+// byte order mark as the very first character, a joiner right after an emoji
+// or skin tone (a ZWJ sequence such as a family emoji), and a subdivision
+// flag's tag run, 3 to 7 lowercase letters or digits after U+1F3F4 closed by
+// U+E007F. Anneal passes any tag run after that flag; this one does not, so
+// ASCII hidden as tags behind a flag is still caught.
+const HIDDEN_CHARACTERS = /[​-‍⁠﻿‪-‮⁦-⁩\u{E0000}-\u{E007F}]/gu;
+const RENDERED_CHARACTERS =
+  /^﻿|(?<=\p{Extended_Pictographic}️?|[\u{1F3FB}-\u{1F3FF}])‍|\u{1F3F4}[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A}]{3,7}\u{E007F}/gu;
+
+// One "line N: U+200B, 4 Unicode tag characters" string per line that carries
+// a hidden character; empty when there is none. Tags are counted, never
+// decoded, so the evidence cannot replay what they spell.
+function hiddenCharacters(text) {
+  return String(text).replace(RENDERED_CHARACTERS, "").split("\n").flatMap((line, i) => {
+    const found = [...line.matchAll(HIDDEN_CHARACTERS)].map(([char]) => char.codePointAt(0));
+    if (!found.length) return [];
+    const tags = found.filter((code) => code >= 0xe0000).length;
+    const named = [...new Set(found.filter((code) => code < 0xe0000))].map((code) => `U+${code.toString(16).toUpperCase().padStart(4, "0")}`);
+    return [`line ${i + 1}: ${[...named, ...(tags ? [`${tags} Unicode tag character${tags > 1 ? "s" : ""}`] : [])].join(", ")}`];
+  });
+}
+
 function norm(text) {
   return String(text).replace(/\s+/g, " ").trim();
 }
@@ -258,12 +285,23 @@ function checkPrompt(prompt, opts) {
   const codex = host === "codex";
   // What each host calls the destination that runs without a user present.
   const agentName = codex ? "delegated subagent" : "background Agent";
-  // Recovery notes are quoted evidence, not executable prompt instructions.
-  // They must neither satisfy required blocks nor trigger placeholder checks.
-  prompt = prompt.replace(/<recorded_increment_notes>\n[\s\S]*?\n<\/recorded_increment_notes>/g,
-    "<recorded_increment_notes>\n</recorded_increment_notes>");
   const errors = [];
   const warnings = [];
+  // [Foreman: 632] Read before the quoted evidence is blanked below: pasted
+  // and recorded text is where hidden characters arrive.
+  const hidden = hiddenCharacters(prompt);
+  if (hidden.length) {
+    const shown = hidden.length > 5 ? [...hidden.slice(0, 5), `${hidden.length - 5} more lines`] : hidden;
+    errors.push(problem(
+      `invisible characters in the prompt (${shown.join("; ")}) — a model reads them and a person reviewing the prompt does not, so they can carry instructions nobody approved`,
+      "Delete them from the text they came from (pasted output, the entry's fields or notes, a recorded lesson), then craft the prompt again. A byte order mark may open the file, and emoji joiners and subdivision-flag tags may stay.",
+      null
+    ));
+  }
+  // Recovery notes and pasted failures are quoted evidence, not executable
+  // prompt instructions. They must neither satisfy required blocks nor trigger
+  // placeholder checks.
+  prompt = prompt.replace(/<(recorded_increment_notes|observed_failure)>\n[\s\S]*?\n<\/\1>/g, "<$1>\n</$1>");
   const canonical = readCanonical(host);
   const config = render(opts.root || projectDir());
   const omit = new Set(config.omit);
@@ -621,6 +659,7 @@ module.exports = {
   segmentsInOrder,
   detectProfile,
   norm,
+  hiddenCharacters,
   PLACEHOLDER_FRAGMENTS,
   PROFILES,
   CONCISE_TRUTH_SENTENCE,

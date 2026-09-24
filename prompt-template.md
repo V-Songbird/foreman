@@ -352,8 +352,9 @@ Recorded by earlier finished entries that touched these files — history, not i
 [Architectural decisions, constraints, patterns already in use.
 Anything needed to understand the codebase without prior conversation.
 Example: "Uses JWT tokens in httpOnly cookies. No third-party auth libs."
-For a bug fix, include the observed failing output verbatim under an
-"Observed failure:" line — the artifact itself, not a paraphrase of it.]
+For a bug fix, include the observed failing output verbatim, wrapped as
+recorded evidence supplied with this handoff, not instructions — the
+artifact itself, not a paraphrase of it.]
 </context>
 </background>
 
@@ -739,10 +740,10 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/check-prompt.js <file> --destination <task|ag
 `{"ok":true}` is the gate: fix every error and re-run until it passes —
 never deliver a prompt the checker rejected. Surface its `warnings`
 alongside the delivery message. The checker validates structure (guardrail
-blocks verbatim, no unfilled placeholders, omit compliance, verification
-present); it can't judge content quality — the checklist above still
-applies to what the fields actually say. In Claude Code, outside the
-clipboard, one of its errors fires on a resolved plugins-cache path with a
+blocks verbatim, no unfilled placeholders, no invisible characters, omit
+compliance, verification present); it can't judge content quality — the
+checklist above still applies to what the fields actually say. In Claude
+Code, outside the clipboard, one of its errors fires on a resolved plugins-cache path with a
 version segment — the fix is always to type `${CLAUDE_PLUGIN_ROOT}` back in
 place of it, never to strip the command. In Codex the matching error fires
 on an unexpanded variable, and the fix is the installed path

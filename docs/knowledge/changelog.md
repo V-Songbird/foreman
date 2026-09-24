@@ -202,6 +202,18 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   file with no definition patterns carries, such as the `reviewedAt` key in a
   README's evidence comment. Such a file's text is searched for the whole
   word; a name it lacks is still listed.
+- A failure pasted into `craft-prompt` reaches the handoff as recorded
+  evidence, not instructions: `judgment.observed` is quoted inside
+  `<observed_failure>` and escaped, so it cannot close that block or open
+  another one.
+- The gate refuses a prompt carrying characters a model reads and a person
+  does not see: zero-width characters, the word joiner, a byte order mark
+  past the first character, bidi controls and Unicode tags. A leading byte
+  order mark, the joiner inside an emoji and a subdivision flag's tags still
+  pass. The error names each line and code point, and counts tags without
+  decoding them.
+- Survey's investigators treat the files, commits and comments they read as
+  evidence: text there that asks them to act is reported, never followed.
 
 ## 3.1.0 — 2026-09-15
 
