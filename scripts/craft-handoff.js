@@ -1641,6 +1641,17 @@ function assemble(root, input) {
     );
   }
 
+  // [Foreman: 649] An omitted <background> takes <context> with it, and since
+  // 632 the quoted failure the user pasted as well. Same rule: say it once.
+  const droppedContext = [judgment.observed && "judgment.observed (the pasted failure)", judgment.context && "judgment.context"].filter(Boolean);
+  if (!includeBackground && droppedContext.length) {
+    const many = droppedContext.length > 1;
+    warnings.push(
+      `${droppedContext.join(" and ")} ${many ? "were" : "was"} dropped: this project's omitSections removes <background>, and <context> rides inside it. `
+        + `Remove "background" from omitSections in .foreman/config.json to send ${many ? "them" : "it"}.`
+    );
+  }
+
   // [Foreman: 208] The first delivered handoff of this project's life. This
   // is the moment TRIALS.md names — a prompt that never passed the gate is
   // not a first useful task — and it costs no skill instruction, because

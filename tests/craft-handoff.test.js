@@ -2052,6 +2052,46 @@ describe('judgment.context and the standard profile', () => {
     });
   }
 
+  // [Foreman: 649] An omitted background drops <context>, and the pasted
+  // failure inside it, so the crafter hears which of the two it lost.
+  describe('an omitted background names what it dropped', () => {
+    const dropWarnings = (json) => (json.warnings || []).filter((w) => w.includes('omitSections removes <background>'));
+    const failure = 'AssertionError: expected 401, got 500';
+
+    test('both, in one warning, and neither reaches the prompt', () => {
+      writeRoadmap(project, [entryFields()]);
+      writeConfig(project, { omitSections: ['background'] });
+      const { json } = run(project, { entry: '001', destination: 'task', judgment: goodJudgment({ observed: failure }) });
+      assert.equal(json.ok, true, JSON.stringify(json));
+      assert.ok(!json.prompt.includes(failure) && !json.prompt.includes(goodJudgment().context), json.prompt);
+      assert.deepEqual(dropWarnings(json), [
+        'judgment.observed (the pasted failure) and judgment.context were dropped: this project\'s omitSections removes <background>, and <context> rides inside it. '
+          + 'Remove "background" from omitSections in .foreman/config.json to send them.',
+      ]);
+    });
+
+    test('only the one that was supplied', () => {
+      writeRoadmap(project, [entryFields()]);
+      writeConfig(project, { omitSections: ['background'] });
+      const { json } = run(project, { entry: '001', destination: 'task', judgment: goodJudgment({ context: '', observed: failure }) });
+      assert.deepEqual(dropWarnings(json), [
+        'judgment.observed (the pasted failure) was dropped: this project\'s omitSections removes <background>, and <context> rides inside it. '
+          + 'Remove "background" from omitSections in .foreman/config.json to send it.',
+      ]);
+    });
+
+    test('quiet with nothing to drop, or with background kept', () => {
+      writeRoadmap(project, [entryFields()]);
+      writeConfig(project, { omitSections: ['background'] });
+      const empty = run(project, { entry: '001', destination: 'task', judgment: goodJudgment({ context: '' }) });
+      assert.deepEqual(dropWarnings(empty.json), [], JSON.stringify(empty.json.warnings));
+      writeConfig(project, {});
+      const kept = run(project, { entry: '001', destination: 'task', judgment: goodJudgment({ observed: failure }) });
+      assert.ok(kept.json.prompt.includes(failure), kept.json.prompt);
+      assert.deepEqual(dropWarnings(kept.json), [], JSON.stringify(kept.json.warnings));
+    });
+  });
+
   test('standard retains supplied evidence and context without profile inflation (codex)', () => {
     writeRoadmap(project, [entryFields()]);
     const { json } = run(project, { entry: '001', destination: 'clipboard', host: 'codex', judgment: goodJudgment() });

@@ -235,6 +235,9 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   evidence, not instructions: `judgment.observed` is quoted inside
   `<observed_failure>` and escaped, so it cannot close that block or open
   another one.
+- When a project's `omitSections` removes `<background>`, `craft-handoff.js`
+  warns that `judgment.observed` or `judgment.context` was dropped with it,
+  naming each one that carried text, instead of dropping them silently.
 - The gate refuses a prompt carrying characters a model reads and a person
   does not see: zero-width characters, the word joiner, a byte order mark
   past the first character, bidi controls and Unicode tags. A leading byte
