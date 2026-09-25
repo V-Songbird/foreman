@@ -202,7 +202,7 @@ test("subagent checkpoint uses explicit parent session and agent identity", () =
 // like the scripts/ CLIs: a bad flag fails before anything is written.
 for (const [label, args, error] of [
   ["an unknown flag", ["--bogus", "x"], /unknown flag for codex-task\.js start: --bogus\. Valid flags: --id, --root, --session, --agent/],
-  ["a repeated --id", ["--id", "002"], /repeated flag for codex-task\.js start: --id/],
+  ["a repeated --id", ["--id", "002"], /repeated flag for codex-task\.js start: --id\. Give --id once\.$/],
   ["an empty --agent", ["--agent", ""], /missing value for codex-task\.js start: --agent/],
 ]) {
   test(`start refuses ${label} and writes nothing`, () => {

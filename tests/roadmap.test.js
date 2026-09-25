@@ -1894,6 +1894,21 @@ describe('flag values', () => {
     });
   }
 
+  // [Foreman: 780] Only the flags roadmap.js splits on commas suggest them.
+  for (const [argv, error] of [
+    [['list', '--status', 'done', '--status', 'planned'], 'repeated flag for list: --status. Give --status once; join several values with commas in that one value'],
+    [['notes', '--paths', 'a', '--paths', 'b'], 'repeated flag for notes: --paths. Give --paths once; join several values with commas in that one value'],
+    [['notes', '--area', 'a', '--area', 'b'], 'repeated flag for notes: --area. Give --area once.'],
+    [['next-candidates', '--limit', '3', '--limit', '5'], 'repeated flag for next-candidates: --limit. Give --limit once.'],
+    [['next-candidates', '--hint', 'auth', '--hint=cache'], 'repeated flag for next-candidates: --hint. Give --hint once.'],
+  ]) {
+    test(`${JSON.stringify(argv)} fails for the repeated flag`, () => {
+      const { status, json } = run(argv);
+      assert.equal(status, 1);
+      assert.equal(json.error, error);
+    });
+  }
+
   // [Foreman: 735] `--limit abc` returned no candidates and `--limit -1` all
   // but the last, both with ok:true.
   for (const limit of ['abc', '-1', '0', '2.5', '1e1', '01', '3x']) {

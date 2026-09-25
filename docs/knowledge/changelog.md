@@ -290,8 +290,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   bad field value, such as `question_asked '{"flow":"pik"}'`, fails in every
   project. A valid event still records nothing while the log is off, and the
   skills and the `trial-log.js` usage text now say so.
-- A value flag given twice fails and writes nothing, saying to give it once
-  and join several values with commas. `roadmap.js list --ids 691 --ids 999`
+- A value flag given twice fails and writes nothing, saying to give it once.
+  A flag that takes a comma list, such as `roadmap.js list --ids` and
+  `--status`, `notes --paths` and `resolve-symbols.js --touches`, also says to
+  join several values with commas there. `roadmap.js list --ids 691 --ids 999`
   used to list 999 alone. The same holds for every other value flag:
   `roadmap.js` `next-candidates` and `notes`, `safe-commit.js finish
   --baseline`, `resolve-symbols.js` and the two `scripts/health` reports.

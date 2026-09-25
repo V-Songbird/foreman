@@ -583,7 +583,7 @@ function readStdin() {
 }
 
 function main() {
-  const flags = parseFlags("resolve-symbols.js", { touches: "value", what: "value", verify: "value" }, process.argv.slice(2));
+  const flags = parseFlags("resolve-symbols.js", { touches: "list", what: "value", verify: "value" }, process.argv.slice(2));
   const stdin = flags.touches ? {} : readStdin();
   const touches = flags.touches ? flags.touches.split(",") : stdin.touches;
   const what = flags.what !== undefined ? flags.what : stdin.what;

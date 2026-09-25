@@ -119,16 +119,23 @@ describe('Foreman CLIs refuse a flag they do not take', () => {
 
   // [Foreman: 735] parseFlags kept the last of a repeated value flag, so
   // `--baseline a --baseline b` compared against b alone.
+  // [Foreman: 780] Only a flag its command splits on commas suggests them.
   test('every CLI with a value flag refuses it twice', () => {
     const head = git('rev-parse', 'HEAD').trim();
-    const fix = (name, flag) => `repeated flag for ${name}: --${flag}. Give --${flag} once; join several values with commas in that one value`;
+    const fix = (name, flag) => `repeated flag for ${name}: --${flag}. Give --${flag} once.`;
     refuses(
       'safe-commit.js',
       ['finish', '--baseline', head, '--baseline=' + head],
       { id: '001', expected: ['src'], message_title: 'Change a' },
       fix('safe-commit.js finish', 'baseline')
     );
-    refuses('resolve-symbols.js', ['--touches', 'src/a.js', '--touches', 'src/b.js'], null, fix('resolve-symbols.js', 'touches'));
+    refuses(
+      'resolve-symbols.js',
+      ['--touches', 'src/a.js', '--touches', 'src/b.js'],
+      null,
+      'repeated flag for resolve-symbols.js: --touches. Give --touches once; join several values with commas in that one value'
+    );
+    refuses('resolve-symbols.js', ['--touches', 'src/a.js', '--what', 'a', '--what=b'], null, fix('resolve-symbols.js', 'what'));
     const roadmap = path.join(project, 'ROADMAP.jsonl');
     for (const script of ['roadmap-health.js', 'attention-cost.js']) {
       refuses(`health/${script}`, ['--roadmap', roadmap, '--date', '2026-01-01', '--date=2026-01-02'], null, fix(script, 'date'));
