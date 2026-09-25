@@ -18,6 +18,7 @@
 //     name it carries resolves and a name it lacks stays unresolved
 //   - that search stops at PLAIN_TEXT_LIMIT bytes and skips a binary, and
 //     the file's warning says so
+//   - such a file that cannot be read is marked unreadable, not searched
 //   - a code file past that limit yields symbols and imports from its first
 //     PLAIN_TEXT_LIMIT bytes only, and its warning says so
 //   - a directory and an unsupported extension each degrade cleanly, with a
@@ -301,6 +302,25 @@ describe('resolve-symbols', () => {
 
     assert.deepEqual(json.unresolved, ['binaryKey']);
     assert.ok(json.warnings.some((w) => w.includes('assets/logo.png') && w.includes('binary') && w.includes('not searched')));
+  });
+
+  // [Foreman: 785] The read is stubbed through fs itself, the module's own
+  // seam: no file mode makes an existing file unreadable on Windows and POSIX alike.
+  test('an unsupported file that cannot be read is marked unreadable, not searched as text', (t) => {
+    writeFile('docs/locked.md', 'lockedKey\n');
+    const { resolve } = require(SCRIPT);
+    const openSync = fs.openSync;
+    t.mock.method(fs, 'openSync', (file, ...rest) => {
+      if (String(file).endsWith('locked.md')) throw Object.assign(new Error('EACCES'), { code: 'EACCES' });
+      return openSync(file, ...rest);
+    });
+
+    const payload = resolve(project, ['docs/locked.md'], 'Keep lockedKey.');
+
+    assert.deepEqual(payload.files[0], { path: 'docs/locked.md', unsupported: true, unreadable: true, symbols: [] });
+    assert.deepEqual(payload.unresolved, ['lockedKey']);
+    assert.ok(payload.warnings.includes('docs/locked.md: could not be read — skipped'));
+    assert.ok(!payload.warnings.some((w) => w.includes('plain text')));
   });
 
   test('a code file past the limit yields symbols and imports from its first bytes only', () => {

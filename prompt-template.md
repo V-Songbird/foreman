@@ -154,7 +154,9 @@ and `scripts/`.
      no symbols and `relevant_files` lists its path alone. Its text is
      still searched for `unresolved` names as plain text, and its
      warning says how far: whole, its first 1 MiB only, or not at all
-     when it is binary. Cite what the task changes in it yourself.
+     when it is binary. A file that could not be read carries
+     `unreadable` as well, and its warning is that marker's. Cite what
+     the task changes in it yourself.
    - `outside_project` — the path resolves outside the project root, so it
      was not read, and it can never be a file this task writes. Fix or
      drop it before delivering — a roadmap path pointing outside the repo

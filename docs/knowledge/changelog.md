@@ -426,6 +426,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   findings to the session that dispatched it instead of asking you, and the
   dispatching session follows its own instructions. Without a marker the
   reminder is unchanged.
+- A planned file with no definition patterns, such as Markdown or JSON, that
+  exists but cannot be read is marked `unreadable` in the handoff's file
+  payload and warned about as skipped. Its warning no longer says its names
+  were searched as plain text.
 
 ## 3.1.0 — 2026-09-15
 

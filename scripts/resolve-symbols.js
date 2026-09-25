@@ -285,7 +285,7 @@ function plainTextOf(root, relPath) {
     if (chunk.includes(0)) return { text: "", binary: true };
     return { text: chunk.toString("utf-8"), truncated };
   } catch {
-    return { text: "" };
+    return { text: "", failed: true };
   }
 }
 
@@ -514,10 +514,15 @@ function resolve(root, touches, what, verify) {
   for (const file of files) {
     if (file.missing) warnings.push(`${file.path}: not on disk — expected if this task creates it, stale touches if not`);
     if (file.outside_project) warnings.push(`${file.path}: resolves outside the project — not read; fix or drop it`);
+    // [Foreman: 785] A failed plain-text read marks the file unreadable, as
+    // resolveFile does for a code file, instead of claiming it was searched.
     if (file.unsupported) {
       const plain = plainTextOf(root, file.path);
-      plainText.push(plain.text);
-      warnings.push(plainTextWarning(file.path, plain));
+      if (plain.failed) file.unreadable = true;
+      else {
+        plainText.push(plain.text);
+        warnings.push(plainTextWarning(file.path, plain));
+      }
     }
     if (file.unreadable) warnings.push(`${file.path}: could not be read — skipped`);
     if (file.truncated) {
