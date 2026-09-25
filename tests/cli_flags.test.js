@@ -142,6 +142,23 @@ describe('Foreman CLIs refuse a flag they do not take', () => {
     }
   });
 
+  // [Foreman: 790] A stray argument after a value flag names that flag, and
+  // only a flag its command splits on commas suggests them.
+  test('a stray argument after a value flag names the flag', () => {
+    refuses(
+      'resolve-symbols.js',
+      ['--touches', 'src/a.js', 'src/b.js'],
+      null,
+      'unexpected argument for resolve-symbols.js: src/b.js. --touches takes one value: join several with commas and quote one that has spaces. Valid flags: --touches, --what, --verify'
+    );
+    refuses(
+      'resolve-symbols.js',
+      ['--touches', 'src/a.js', '--what', 'fix', 'the', 'bug'],
+      null,
+      'unexpected argument for resolve-symbols.js: the. --what takes one value: quote one that has spaces. Valid flags: --touches, --what, --verify'
+    );
+  });
+
   // [Foreman: 779] `--help` prints the CLI's usage and runs nothing, even
   // beside a bad flag: it failed as an unknown flag everywhere but roadmap.js
   // and the first argument of trial-log.js.

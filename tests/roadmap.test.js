@@ -1836,7 +1836,6 @@ describe('unknown flags', () => {
 // 641, and `list --ids` alone filtered to nothing.
 describe('flag values', () => {
   const LIST_FLAGS = 'Valid flags: --status, --ids, --summary, --stats, --archived';
-  const STRAY = 'A value goes after its flag (--flag value or --flag=value); join several with commas and quote one that has spaces.';
 
   beforeEach(() => {
     writeRoadmap(project, [
@@ -1857,18 +1856,30 @@ describe('flag values', () => {
     assert.equal(json.error, `unknown flag for list: --id. ${LIST_FLAGS}`);
   });
 
-  for (const [label, argv, stray] of [
-    ['a bare id', ['list', '001'], '001'],
-    ['a second space-separated id', ['list', '--ids', '001', '002'], '002'],
-    ['a value after a switch', ['list', '--summary', '001'], '001'],
+  // [Foreman: 790] The error names the flag before the stray argument and
+  // suggests commas only after a flag that takes a comma list.
+  for (const [label, argv, stray, advice] of [
+    ['a bare id', ['list', '001'], '001', 'A value goes after its flag (--flag value or --flag=value).'],
+    ['a second space-separated id', ['list', '--ids', '001', '002'], '002', '--ids takes one value: join several with commas and quote one that has spaces.'],
+    ['a second id after --ids=', ['list', '--ids=001', '002'], '002', '--ids takes one value: join several with commas and quote one that has spaces.'],
+    ['a value after a switch', ['list', '--summary', '001'], '001', '--summary is a switch and takes no value.'],
   ]) {
     test(`list refuses ${label} instead of guessing`, () => {
       const { status, json } = run(argv);
       assert.equal(status, 1);
-      assert.equal(json.error, `unexpected argument for list: ${stray}. ${STRAY} ${LIST_FLAGS}`);
+      assert.equal(json.error, `unexpected argument for list: ${stray}. ${advice} ${LIST_FLAGS}`);
       assert.equal(json.entries, undefined);
     });
   }
+
+  test('next-candidates --limit 3 5 names --limit as taking one value, without commas', () => {
+    const { status, json } = run(['next-candidates', '--limit', '3', '5']);
+    assert.equal(status, 1);
+    assert.equal(
+      json.error,
+      'unexpected argument for next-candidates: 5. --limit takes one value: quote one that has spaces. Valid flags: --limit, --menu, --hint'
+    );
+  });
 
   for (const argv of [['list', '--ids'], ['list', '--ids', '--summary'], ['list', '--ids='], ['list', '--ids', '']]) {
     test(`${JSON.stringify(argv)} fails for the missing value`, () => {

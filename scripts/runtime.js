@@ -40,22 +40,28 @@ function projectDir(env = process.env, cwd = process.cwd()) {
 // `list --ids 691 --ids 999` listed 999 alone.
 // [Foreman: 780] Only a "list" flag's error suggests commas; `--limit 3
 // --limit 5` would have been steered to a list it does not parse.
+// [Foreman: 790] A stray argument's error names the flag just before it, so
+// only an argument after a "list" flag is told about commas: `--limit 3 5`
+// and `codex-task.js start --id 001 002` were steered to lists too.
 function parseFlags(name, valid, argv) {
   const names = Object.keys(valid);
   const validHelp = `Valid flags: ${names.map((f) => `--${f}`).join(", ")}`;
   const flags = {};
+  let prev;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (!a.startsWith("--")) {
-      throw new Error(
-        `unexpected argument for ${name}: ${a}. ` +
-          (names.length
-            ? `A value goes after its flag (--flag value or --flag=value); join several with commas and quote one that has spaces. ${validHelp}`
-            : `${name} takes no arguments`)
-      );
+      if (!names.length) throw new Error(`unexpected argument for ${name}: ${a}. ${name} takes no arguments`);
+      const advice = !prev
+        ? "A value goes after its flag (--flag value or --flag=value)"
+        : valid[prev] === "switch"
+          ? `--${prev} is a switch and takes no value`
+          : `--${prev} takes one value: ${valid[prev] === "list" ? "join several with commas and " : ""}quote one that has spaces`;
+      throw new Error(`unexpected argument for ${name}: ${a}. ${advice}. ${validHelp}`);
     }
     const eq = a.indexOf("=");
     const key = eq === -1 ? a.slice(2) : a.slice(2, eq);
+    prev = key;
     if (!Object.hasOwn(valid, key)) {
       throw new Error(`unknown flag for ${name}: --${key}. ` + (names.length ? validHelp : `${name} takes no flags`));
     }

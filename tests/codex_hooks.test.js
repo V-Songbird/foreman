@@ -216,6 +216,18 @@ for (const [label, args, error] of [
   });
 }
 
+// [Foreman: 790] --id takes one value, so a second id is not told to use commas.
+test("start refuses a second id after --id without suggesting commas", () => {
+  const before = fs.readFileSync(path.join(root, "ROADMAP.jsonl"));
+  const result = runNodeScript(path.join(HOOKS_DIR, "codex-task.js"), ["start", "--id", "001", "002", "--root", root, "--session", session], null, { FOREMAN_HOST: "codex" });
+  assert.equal(result.status, 1);
+  assert.equal(
+    JSON.parse(result.stdout).error,
+    "unexpected argument for codex-task.js start: 002. --id takes one value: quote one that has spaces. Valid flags: --id, --root, --session, --agent"
+  );
+  assert.deepEqual(fs.readFileSync(path.join(root, "ROADMAP.jsonl")), before);
+});
+
 test("start takes --id=ID", () => {
   const result = runNodeScript(path.join(HOOKS_DIR, "codex-task.js"), ["start", "--id=001", "--root", root, "--session", session], null, { FOREMAN_HOST: "codex" });
   assert.equal(result.status, 0, result.stdout);

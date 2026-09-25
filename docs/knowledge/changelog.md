@@ -272,11 +272,16 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
 - A `roadmap.js` flag takes its value as `--flag value` or `--flag=value`, and
   an argument the parser cannot place fails the call instead of being guessed
   at. `list 640` used to print the whole roadmap and `list --ids 640 641`
-  dropped 641; both now exit 1 and say that a value goes after its flag, with
-  several joined by commas. A value flag with no value or an empty one, such
-  as `list --ids`, `list --ids=` or `next-candidates --limit`, and a value on
-  a switch, such as `--summary=yes`, fail the same way. A subcommand without
-  flags, such as `update-status`, refuses any argument.
+  dropped 641; both now exit 1. The error names the flag the stray argument
+  follows: the first says that a value goes after its flag, the second that
+  `--ids` takes one value, with several joined by commas. Only a flag that
+  takes a comma list suggests commas; `next-candidates --limit 3 5` and
+  `codex-task.js start --id 001 002` say the flag takes one value, and
+  `list --summary 001` that `--summary` is a switch. A value flag with no
+  value or an empty one, such as `list --ids`, `list --ids=` or
+  `next-candidates --limit`, and a value on a switch, such as
+  `--summary=yes`, fail the same way. A subcommand without flags, such as
+  `update-status`, refuses any argument.
 - The other Foreman CLIs parse their flags the same way and fail on one they
   do not take, writing nothing: `safe-commit.js`, `resolve-symbols.js`,
   `craft-handoff.js`, `render-sections.js`, `trial-log.js`,
