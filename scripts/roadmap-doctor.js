@@ -87,9 +87,9 @@ function isUnsafePath(value) {
   return roadmap().isUnsafePath(value);
 }
 
-function checkEntry(entry, index, out) {
+function checkEntry(entry, index, out, line) {
   if (!isObject(entry)) {
-    out.push(finding("invalid_type", "error", [], `line ${index + 1} is not a JSON object`));
+    out.push(finding("invalid_type", "error", [], `line ${line} is not a JSON object`));
     return;
   }
   const {
@@ -99,7 +99,7 @@ function checkEntry(entry, index, out) {
   // [Foreman: 728] An id carrying a hidden character is located by its line.
   const id = typeof entry.id === "string" && !hiddenIn(entry.id).length ? entry.id : "";
   const ids = id ? [id] : [];
-  const at = id ? `entry ${id}` : `line ${index + 1}`;
+  const at = id ? `entry ${id}` : `line ${line}`;
 
   // [Foreman: 129] The format meta line. readEntries consumes it wherever it
   // is legal -- first line, whole-number version this Foreman supports -- so
@@ -123,9 +123,9 @@ function checkEntry(entry, index, out) {
   }
 
   if (entry.id === undefined || entry.id === null) {
-    out.push(finding("missing_field", "error", [], `line ${index + 1} has no id`, { field: "id" }));
+    out.push(finding("missing_field", "error", [], `line ${line} has no id`, { field: "id" }));
   } else if (typeof entry.id !== "string") {
-    out.push(finding("invalid_type", "error", [], `line ${index + 1}: id must be a string`, { field: "id" }));
+    out.push(finding("invalid_type", "error", [], `line ${line}: id must be a string`, { field: "id" }));
   } else if (!isValidId(entry.id)) {
     out.push(finding("invalid_id", "error", ids, `${at}: id must be three or more digits, zero-padded to at least three ("001", "999", "1000"), not ${quoted(entry.id)}. Repair with "roadmap.js reassign-id" naming the entry's title`, { field: "id" }));
   }
@@ -329,12 +329,16 @@ function checkSimilarity(rows, out, lines) {
  * alone) skips it rather than paying for it on every mutation.
  * `resolve(id)` (optional) looks an unresolved dependency up in the sibling
  * file, so an active entry may depend on an archived parent.
+ * [Foreman: 755] `at` (optional) holds each entry's file line; without it a
+ * finding counts lines from 1, as the write gate, which keys findings by
+ * code, field and ids, does not need the file's lines.
  */
 function validateEntries(entries, options = {}) {
   const out = [];
-  entries.forEach((entry, index) => checkEntry(entry, index, out));
+  const at = options.at || entries.map((entry, index) => index + 1);
+  entries.forEach((entry, index) => checkEntry(entry, index, out, at[index]));
   const rows = entries.filter(isObject);
-  const lines = new Map(entries.map((entry, index) => [entry, index + 1]));
+  const lines = new Map(entries.map((entry, index) => [entry, at[index]]));
   checkGraph(rows, out, options.resolve, lines);
   if (options.similarity !== false) checkSimilarity(rows, out, lines);
   return out;
@@ -378,7 +382,7 @@ const HANDOFF_FIELDS = ["title", "why", "what", "notes", "doc", "planned_touches
  * would refuse a close whose generated scope-drift note quotes a path git
  * reported.
  */
-function validateHiddenCharacters(entries) {
+function validateHiddenCharacters(entries, at = entries.map((entry, index) => index + 1)) {
   const { isValidId } = roadmap();
   const out = [];
   entries.forEach((entry, index) => {
@@ -391,7 +395,7 @@ function validateHiddenCharacters(entries) {
         "hidden_characters",
         "error",
         valid ? [entry.id] : [],
-        `${valid ? `entry ${entry.id}` : `line ${index + 1}`}: ${field} carries characters a reader cannot see (${found.join("; ")}) — the prompt gate refuses every handoff that quotes it`,
+        `${valid ? `entry ${entry.id}` : `line ${at[index]}`}: ${field} carries characters a reader cannot see (${found.join("; ")}) — the prompt gate refuses every handoff that quotes it`,
         { field }
       ));
     }
@@ -404,7 +408,7 @@ function validateHiddenCharacters(entries) {
 // sits in both files. The message names the repair because the repair is not
 // a hand edit — re-running the same move finishes it, since both commands
 // treat a byte-identical destination copy as an interrupted move.
-function validateAcrossFiles(active, archived) {
+function validateAcrossFiles(active, archived, at = archived.map((entry, index) => index + 1)) {
   const out = [];
   const activeIds = new Set(
     active.filter((entry) => isObject(entry) && typeof entry.id === "string").map((entry) => entry.id)
@@ -416,7 +420,7 @@ function validateAcrossFiles(active, archived) {
       "duplicate_across_files",
       "error",
       hidden ? [] : [entry.id],
-      `${hidden ? `line ${index + 1} of .foreman/archive.jsonl` : `entry ${entry.id}`} is in both ROADMAP.jsonl and .foreman/archive.jsonl — an archive/restore that was interrupted between the two writes; re-run "roadmap.js archive" (or "restore") for that id to finish the move`
+      `${hidden ? `line ${at[index]} of .foreman/archive.jsonl` : `entry ${entry.id}`} is in both ROADMAP.jsonl and .foreman/archive.jsonl — an archive/restore that was interrupted between the two writes; re-run "roadmap.js archive" (or "restore") for that id to finish the move`
     ));
   });
   return out;

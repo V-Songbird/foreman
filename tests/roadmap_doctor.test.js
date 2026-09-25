@@ -187,10 +187,11 @@ describe('doctor field and type findings', () => {
     assertFinding(doctor(), 'invalid_type', 'error', ['001']);
   });
 
+  // writeRoadmap and writeArchiveFile stamp the format meta line as line 1.
   test('invalid_type: a line that is not a JSON object', () => {
     writeRoadmap(project, [base('001'), 42]);
     const finding = assertFinding(doctor(), 'invalid_type', 'error');
-    assert.match(finding.message, /line 2 is not a JSON object/);
+    assert.match(finding.message, /line 3 is not a JSON object/);
   });
 
   test('invalid_type: a non-string item inside planned_touches', () => {
@@ -275,7 +276,7 @@ describe('doctor field and type findings', () => {
     assert.ok(!stdout.includes(ZWSP), 'no finding carries the stored value');
     const report = JSON.parse(stdout);
     const id = assertFinding(report, 'invalid_id', 'error', []);
-    assert.match(id.message, /^line 1: id must be .*, not a value carrying characters a reader cannot see \(U\+200B\)\. Repair with "roadmap\.js reassign-id" naming the entry's title$/);
+    assert.match(id.message, /^line 2: id must be .*, not a value carrying characters a reader cannot see \(U\+200B\)\. Repair with "roadmap\.js reassign-id" naming the entry's title$/);
     const touch = assertFinding(report, 'invalid_path', 'warning', ['002']);
     assert.match(touch.message, /^entry 002: planned_touches a value carrying characters a reader cannot see \(U\+200B\) is absolute/);
     for (const code of ['unknown_status', 'unknown_source', 'invalid_date', 'unknown_kind', 'unknown_model', 'unknown_effort']) {
@@ -286,6 +287,7 @@ describe('doctor field and type findings', () => {
   // [Foreman: 747] The graph findings name an entry whose id carries a hidden
   // character by its line and leave it out of ids, as checkEntry does, and a
   // depends_on item by its code points.
+  // writeRoadmap and writeArchiveFile stamp the format meta line as line 1.
   test('graph findings name a hidden id by line and a hidden dependency by code point', () => {
     const hidden = `0${ZWSP}02`;
     const other = `0${ZWSP}04`;
@@ -309,14 +311,14 @@ describe('doctor field and type findings', () => {
     const expected = [
       ['missing_dependency', ['001'], `entry 001 depends on ${named}, which does not exist`],
       ['duplicate_dependency', ['001'], `entry 001 lists dependency ${named} more than once`],
-      ['duplicate_id', [], `id ${named} appears on 2 lines (2, 3)`],
-      ['self_dependency', [], 'line 2 depends on itself'],
-      ['terminal_without_evidence', [], 'line 2 is done with no commits and no notes — nothing records what happened'],
-      ['awaiting_without_evidence', [], 'line 3 is awaiting_acceptance with no commits and no notes — nothing records the work it asks the user to accept'],
-      ['dependency_cycle', ['005'], `line 4 depends on 005, which depends back on ${named}`],
+      ['duplicate_id', [], `id ${named} appears on 2 lines (3, 4)`],
+      ['self_dependency', [], 'line 3 depends on itself'],
+      ['terminal_without_evidence', [], 'line 3 is done with no commits and no notes — nothing records what happened'],
+      ['awaiting_without_evidence', [], 'line 4 is awaiting_acceptance with no commits and no notes — nothing records the work it asks the user to accept'],
+      ['dependency_cycle', ['005'], `line 5 depends on 005, which depends back on ${named}`],
       ['stranded_dependency', ['006'], `entry 006 waits on ${named}, which is dropped — it can never become ready without an edge change`],
-      ['similar_titles', [], 'line 2 and line 3 overlap 1.00 on title/why — possible duplicates'],
-      ['duplicate_across_files', [], `line 1 of .foreman/archive.jsonl is in both ROADMAP.jsonl and .foreman/archive.jsonl — an archive/restore that was interrupted between the two writes; re-run "roadmap.js archive" (or "restore") for that id to finish the move`],
+      ['similar_titles', [], 'line 3 and line 4 overlap 1.00 on title/why — possible duplicates'],
+      ['duplicate_across_files', [], `line 2 of .foreman/archive.jsonl is in both ROADMAP.jsonl and .foreman/archive.jsonl — an archive/restore that was interrupted between the two writes; re-run "roadmap.js archive" (or "restore") for that id to finish the move`],
     ];
     for (const [code, ids, message] of expected) {
       const hit = report.findings.find((item) => item.code === code && item.message.startsWith(message.slice(0, 12)));
@@ -325,6 +327,35 @@ describe('doctor field and type findings', () => {
       assert.equal(hit.message, message, code);
     }
     assert.equal(withCode(report, 'self_dependency')[0].repairable, false, 'no id to repair it by');
+  });
+
+  // [Foreman: 755] A finding's line is the file's own line: the format meta
+  // line and a blank line count, in the roadmap and in the archive alike.
+  test('a finding names the file line past the format meta line and a blank line', () => {
+    const hidden = `0${ZWSP}02`;
+    const text = (rows) => [JSON.stringify({ foreman_roadmap_format: 2 }), '', ...rows.map((row) => JSON.stringify(row))].join('\n') + '\n';
+    fs.writeFileSync(path.join(project, 'ROADMAP.jsonl'), text([
+      base('001'),
+      base(hidden, { title: `t${ZWSP}`, depends_on: [hidden] }),
+      base(hidden),
+      42,
+    ]));
+    fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
+    fs.writeFileSync(path.join(project, '.foreman', 'archive.jsonl'), text([base(hidden, { status: 'done', commits: ['abc1234'] })]));
+    const report = JSON.parse(runRoadmap(['doctor'], null, env).stdout);
+    const messages = report.findings.map((item) => item.message);
+    for (const expected of [
+      /^line 4: id must be /,
+      /^line 5: id must be /,
+      /^line 4 depends on itself$/,
+      /appears on 2 lines \(4, 5\)$/,
+      /^line 6 is not a JSON object$/,
+      /^line 4: title carries /,
+      /^\.foreman\/archive\.jsonl: line 3: id must be /,
+      /^line 3 of \.foreman\/archive\.jsonl is in both /,
+    ]) {
+      assert.ok(messages.some((message) => expected.test(message)), `${expected}: ${JSON.stringify(messages)}`);
+    }
   });
 
   // [Foreman: 750] The detail object names them too, and so do a holder's

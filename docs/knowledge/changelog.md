@@ -202,6 +202,9 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   dependencies. `roadmap.js notes` prints such an area the same way, and so
   does the note and result of an `update-status` close that records a lesson,
   and so do `reassign-id`'s refusals and result for an id, title or date.
+- A line `roadmap.js doctor` names, in the roadmap or the archive, is now the
+  file's own line. It used to leave out the format meta line and blank lines,
+  so it named the line above the entry in every file Foreman writes.
 - Every `roadmap.js` write still accepts the errors a file already had, but
   only as many of each as it had. An entry whose id carries such a character,
   restored or archived beside another one, used to pass as the damage already

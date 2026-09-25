@@ -164,9 +164,16 @@ function unsupportedFormatError(version, label) {
 // One parser for both files — the archive is the same JSONL with the same
 // marker, so it gets the same reader rather than a second implementation.
 function readEntriesFrom(file, label) {
-  if (!fs.existsSync(file)) return [];
+  return readRowsFrom(file, label).entries;
+}
+
+// [Foreman: 755] `at[i]` is the file line entries[i] came from, so doctor
+// names the line a reader finds past the format meta line and blank lines.
+function readRowsFrom(file, label) {
+  if (!fs.existsSync(file)) return { entries: [], at: [] };
   const lines = fs.readFileSync(file, "utf-8").split("\n");
   const entries = [];
+  const at = [];
   // Absence means 1, same rule the marker has always had.
   let format = 1;
   lines.forEach((raw, i) => {
@@ -188,6 +195,7 @@ function readEntriesFrom(file, label) {
       }
     }
     entries.push(obj);
+    at.push(i + 1);
   });
   // [Foreman: 130] Reading an older format is normalization, not migration:
   // callers always see the current entry shape, and the FILE is untouched.
@@ -195,7 +203,7 @@ function readEntriesFrom(file, label) {
   // hooks) working on an unmigrated roadmap. [Foreman: 130] A write is what
   // finally rewrites the file, migrating it first, with a backup — see
   // migrateIfNeeded.
-  return upgradeEntries(entries, format);
+  return { entries: upgradeEntries(entries, format), at };
 }
 
 // [Foreman: 132] ACTIVE entries only, and deliberately unchanged in shape:
@@ -2519,20 +2527,20 @@ function migrateFile(file, read, write) {
 // must never pay for a git history scan. A roadmap with no duplicate is
 // untouched by the pass.
 function allFindings(root) {
-  const active = readEntries(root);
-  const archived = readArchive(root);
+  const { entries: active, at: activeAt } = readRowsFrom(roadmapPath(root), "ROADMAP.jsonl");
+  const { entries: archived, at: archivedAt } = readRowsFrom(archivePath(root), ARCHIVE_LABEL);
   return enrichDuplicates(root, [
-    ...validateEntries(active, { resolve: otherFileResolver(() => archived) }),
-    ...validateHiddenCharacters(active),
+    ...validateEntries(active, { resolve: otherFileResolver(() => archived), at: activeAt }),
+    ...validateHiddenCharacters(active, activeAt),
     ...[
-      ...validateEntries(archived, { resolve: otherFileResolver(() => active) }),
-      ...validateHiddenCharacters(archived),
+      ...validateEntries(archived, { resolve: otherFileResolver(() => active), at: archivedAt }),
+      ...validateHiddenCharacters(archived, archivedAt),
     ].map((item) => ({
       ...item,
       repairable: false,
       message: `${ARCHIVE_LABEL}: ${item.message}`,
     })),
-    ...validateAcrossFiles(active, archived),
+    ...validateAcrossFiles(active, archived, archivedAt),
     ...validateConfig(root),
     ...validateAreaNotes(root),
     ...hookDependencies(),
