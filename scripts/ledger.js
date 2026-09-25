@@ -348,7 +348,8 @@ function prune(root, { dryRun = false } = {}) {
 }
 
 /**
- * [Foreman: 247] Mark every record anchored to `id` as no longer resolvable.
+ * [Foreman: 247] Mark every record written for `id` as no longer resolvable
+ * through that id.
  *
  * `reassign-id` repairs a duplicated id by renumbering all but one holder. The
  * id then unambiguously names the holder that kept it — but a record written
@@ -372,12 +373,14 @@ function demoteAnchors(root, id, { date } = {}) {
   if (state.error) return { demoted: 0, reason: state.error };
 
   let demoted = 0;
+  // [Foreman: 769] A close writes the id on the record, never on its anchor. A
+  // recorded sha stays on the demoted anchor: it names one commit whichever
+  // holder wrote it, so only the fallback through the id's trailers goes.
   const rewrite = (record) => {
-    const anchor = record.anchor;
-    const namesId = anchor && anchor.kind === 'entry' && String(anchor.entry) === wanted;
-    if (!namesId) return record;
+    const anchor = record.anchor || {};
+    if (String(record.entry) !== wanted || anchor.kind === 'ambiguous') return record;
     demoted += 1;
-    return { ...record, anchor: { kind: 'ambiguous', was: wanted, since: date } };
+    return { ...record, anchor: { kind: 'ambiguous', was: wanted, since: date, ...(anchor.sha ? { sha: anchor.sha } : {}) } };
   };
   const records = [...state.records, ...state.retired].map(rewrite);
   if (!demoted) return { demoted: 0 };

@@ -19,6 +19,7 @@ const {
   runRoadmap,
 } = require('./helpers');
 const ledger = require(path.join(__dirname, '..', 'scripts', 'ledger.js'));
+const noteStaleness = require(path.join(__dirname, '..', 'scripts', 'note-staleness.js'));
 
 let project;
 
@@ -498,7 +499,7 @@ describe('a duplicated file stays readable before the repair', () => {
       lesson: 'the rate lookup is cached in src/rate.js',
       paths: ['src/rate.js'],
       entry: '130',
-      anchor: { kind: 'entry', entry: '130' },
+      anchor: { kind: 'entry' },
       date: '2026-08-01',
     });
 
@@ -510,6 +511,49 @@ describe('a duplicated file stays readable before the repair', () => {
     assert.equal(stored.anchor.kind, 'ambiguous');
     assert.equal(stored.anchor.was, '130');
     assert.equal(stored.lesson, 'the rate lookup is cached in src/rate.js');
+  });
+
+  // [Foreman: 769] The anchors a close writes, {kind:"entry"} and
+  // {kind:"commit",sha}, resolved through the shared id's trailers after the
+  // repair until demotion keyed on the record's own entry.
+  test('a lesson a close wrote stops resolving through the shared id, unless its own sha still resolves', () => {
+    initGitRepo(project);
+    mergedRoadmap();
+    const live = commitWithMessage('src/rate.js', '// fixture', 'Retry the webhook\n\nForeman: 130');
+    const lessons = [
+      ['entry-kind', { kind: 'entry' }],
+      ['gone sha', { kind: 'commit', sha: 'deadbee' }],
+      ['live sha', { kind: 'commit', sha: live }],
+    ];
+    for (const [lesson, anchor] of lessons) {
+      ledger.append(project, { lesson, paths: ['src/rate.js'], entry: '130', anchor, date: '2026-08-01' });
+    }
+    const labels = () => ledger.read(project).records.map((record) => noteStaleness.resolve(project, record).label);
+    // Before the repair every one of them resolves against a commit naming 130.
+    assert.deepEqual(labels(), Array(3).fill(`[entry 130, 2026-08-01, at ${live} — unchanged since]`));
+
+    const { status, json } = run(['reassign-id'], { id: '130', keep: 'Cache the rate lookup' });
+
+    assert.equal(status, 0);
+    assert.equal(json.notes_anchors_demoted, 3);
+    assert.deepEqual(labels(), [
+      '[entry 130, 2026-08-01 — anchor unresolvable, staleness unknown]',
+      '[entry 130, 2026-08-01 — anchor unresolvable, staleness unknown]',
+      `[entry 130, 2026-08-01, at ${live} — unchanged since]`,
+    ]);
+  });
+
+  test('a sole holder moved off a malformed id demotes no lesson it wrote', () => {
+    writeRoadmap(project, [entry('129'), entry('07', { title: 'S' })]);
+    fs.mkdirSync(path.join(project, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(project, 'src', 'rate.js'), '// fixture', 'utf-8');
+    ledger.append(project, { lesson: 'rate', paths: ['src/rate.js'], entry: '07', anchor: { kind: 'entry' }, date: '2026-08-01' });
+
+    const { status, json } = run(['reassign-id'], { id: '07', keep: 'S' });
+
+    assert.equal(status, 0);
+    assert.equal('notes_anchors_demoted' in json, false);
+    assert.deepEqual(ledger.read(project).records[0].anchor, { kind: 'entry' });
   });
 
   test('says nothing about notes when the project has no lesson store', () => {

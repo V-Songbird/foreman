@@ -284,7 +284,7 @@ describe('a duplicate-id repair and the lessons anchored to it', () => {
       lesson: 'the parser lives in src/a.js',
       paths: ['src/a.js'],
       entry: '007',
-      anchor: { kind: 'entry', entry: '007' },
+      anchor: { kind: 'entry' },
       date: '2026-08-01',
     });
     ledger.append(project, {
@@ -304,9 +304,27 @@ describe('a duplicate-id repair and the lessons anchored to it', () => {
     assert.equal(first.lesson, 'the parser lives in src/a.js');
     assert.equal(first.entry, '007');
     assert.equal(first.date, '2026-08-01');
-    // A commit anchor names a sha, not an id, so the repair cannot have
-    // confused it and it is left exactly alone.
+    // A record naming another entry is left exactly alone.
     assert.deepEqual(second.anchor, { kind: 'commit', sha: 'abc1234' });
+  });
+
+  // [Foreman: 769] The sha names one commit whichever holder wrote the record,
+  // so it stays; only the fallback through the shared id's trailers goes.
+  test('demotes a commit anchor on the repaired id but keeps its sha', () => {
+    const project = makeTmpProject();
+    seed(project);
+    ledger.append(project, {
+      lesson: 'the tokenizer lives in src/b.js',
+      paths: ['src/b.js'],
+      entry: '007',
+      anchor: { kind: 'commit', sha: 'abc1234' },
+      date: '2026-08-02',
+    });
+
+    assert.equal(ledger.demoteAnchors(project, '007', { date: '2026-08-19' }).demoted, 1);
+    assert.deepEqual(ledger.read(project).records[0].anchor, { kind: 'ambiguous', was: '007', since: '2026-08-19', sha: 'abc1234' });
+    // A second repair of the same id finds nothing left to demote.
+    assert.deepEqual(ledger.demoteAnchors(project, '007', { date: '2026-08-20' }), { demoted: 0 });
   });
 
   test('leaves an existing supersede marker working, because the key does not move', () => {
@@ -316,7 +334,7 @@ describe('a duplicate-id repair and the lessons anchored to it', () => {
       lesson: 'the parser lives in src/a.js',
       paths: ['src/a.js'],
       entry: '007',
-      anchor: { kind: 'entry', entry: '007' },
+      anchor: { kind: 'entry' },
       date: '2026-08-01',
     });
     const key = keyOf(project, 'the parser lives in src/a.js');

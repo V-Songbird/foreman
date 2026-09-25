@@ -44,9 +44,10 @@ function candidateShas(root, record) {
   // shared this record's id, and nothing can say which of them wrote it. The
   // id now names the OTHER entry, so resolving it would produce a confident
   // freshness claim from the wrong history. Refusing to resolve costs a label;
-  // resolving costs the trust the whole channel runs on.
-  if (anchor && anchor.kind === 'ambiguous') return [];
-  const recorded = anchor && anchor.kind === 'commit' && anchor.sha ? [String(anchor.sha)] : [];
+  // resolving costs the trust the whole channel runs on. [Foreman: 769] A sha
+  // the record kept names one commit, so it still resolves.
+  const recorded = anchor && (anchor.kind === 'commit' || anchor.kind === 'ambiguous') && anchor.sha ? [String(anchor.sha)] : [];
+  if (anchor && anchor.kind === 'ambiguous') return recorded;
   const trailers = record && record.entry !== undefined && record.entry !== null
     ? trailerShasFor(root, record.entry)
     : null;

@@ -230,6 +230,13 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   Doctor's `invalid_id` finding now names `reassign-id`. Such an id used to
   have no repair but a hand edit, and a duplicate repair left it on the kept
   holder.
+- `reassign-id` on a duplicated id demotes the lessons a close recorded for
+  that id, so their staleness no longer resolves through the commits that name
+  the id; a lesson that recorded its commit still resolves through that commit.
+  It used to demote only a record shape no close writes, so every lesson kept
+  resolving through the shared id, and a lesson whose commit a rebase replaced
+  could read as fresh from the other holder's commits. Moving the sole holder
+  of an id that fails the id format demotes nothing.
 - `roadmap.js` fails on a flag its subcommand does not take instead of
   ignoring it, and writes nothing. `list --id 613` used to print the whole
   roadmap; it now exits 1 and the error names `list`'s flags. A subcommand

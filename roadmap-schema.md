@@ -620,16 +620,22 @@ file may carry any number of anchors and a file of stray brackets would spend
 the budget on lines that are then dropped. This channel is independent of
 `ledger.enabled`: an anchor is the project's own comment, not Foreman's state.
 
-**Reassign-id.** For an entry-kind record the entry id *is* the anchor, and
-`reassign-id` renumbers holders while immutable commit trailers keep naming
-the old id. Because the id was duplicated, no record written while both
+**Reassign-id.** A record's `entry` is the id its trailers resolve through,
+and `reassign-id` renumbers holders while immutable commit trailers keep
+naming the old id. Because the id was duplicated, no record written while both
 holders existed can be attributed to either — so `reassign-id` **demotes**
-every record anchored to the repaired id to `{"kind":"ambiguous","was":"<id>"}`
-rather than repointing it at the holder that kept the id. The lesson, its
-`entry` and its `date` are true history and stay exactly as recorded; only the
-freshness verdict falls to unknown, which is the honest answer. The result
-reports `notes_anchors_demoted`. Demotion does not change the record's key, so
-an existing supersede marker keeps working.
+every record whose `entry` is the repaired id to
+`{"kind":"ambiguous","was":"<id>","since":"<date>"}` rather than repointing it
+at the holder that kept the id. A commit-kind anchor keeps its `sha` on the
+demoted anchor: a sha names one commit whichever holder wrote the record, so
+the record still resolves through it, and only the fallback through the id's
+trailers stops. The lesson, its `entry` and its `date` are true history and
+stay exactly as recorded; without a sha that resolves, the freshness verdict
+falls to unknown, which is the honest answer. The result reports
+`notes_anchors_demoted`. Demotion does not change the record's key, so an
+existing supersede marker keeps working. Moving the sole holder of an id that
+fails the id format demotes nothing: that holder wrote every record naming the
+id.
 
 ---
 

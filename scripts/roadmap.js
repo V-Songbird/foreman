@@ -2433,8 +2433,12 @@ function cmdReassignIdUnlocked(root, payload) {
   // ours to fix. Which holder wrote a given record is unknowable, so the
   // anchor is demoted rather than repointed: the lesson keeps serving, and its
   // staleness reads "unknown" instead of resolving against the wrong entry's
-  // history.
-  const notes = ledger.demoteAnchors(root, id, { date });
+  // history. [Foreman: 769] Demotion keys on the record's own entry, since a
+  // close never writes the id on the anchor; a recorded sha keeps resolving,
+  // and only the fallback through the id's trailers stops. A sole holder
+  // moved off a malformed id wrote every record naming it, so nothing is
+  // ambiguous and nothing is demoted.
+  const notes = holders.length > 1 ? ledger.demoteAnchors(root, id, { date }) : null;
 
   const result = {
     kept: { id: named(id), ...(malformed ? { to: keptTo } : {}), title: named(kept.entry.title) },
@@ -2888,12 +2892,13 @@ naming the field, each line and code point.
                     from correct, checked against the kept holder
                     returns {kept:{id,title}, reassigned:[{from,to,title,
                     trailer_commits}], dependents_on_kept:[ids]}
-                    a lesson-ledger record anchored to the repaired id
+                    a lesson-ledger record written for the repaired id
                     cannot be attributed to either holder, so every one
-                    is demoted to an unresolvable anchor rather than
-                    pointed at the surviving holder's history
-                    (notes_anchors_demoted counts them). The lesson and
-                    its date stay; only the freshness verdict falls to
+                    is demoted: it stops resolving through the id's
+                    commit trailers rather than reading the surviving
+                    holder's history (notes_anchors_demoted counts them).
+                    The lesson and its date stay; a record that kept its
+                    commit sha still resolves through it, the rest read
                     unknown
   archive           stdin JSON: {ids:["019", ...]}
                     moves terminal (done/dropped/rejected) entries out of
