@@ -1900,7 +1900,12 @@ function touchesOverlap(left, right) {
 const MENU_SETTLE_ROWS = 2;
 
 function cmdNextCandidates(root, filters) {
-  const limit = filters && filters.limit ? parseInt(filters.limit, 10) : 3;
+  // [Foreman: 735] `--limit abc` returned no candidates and `--limit -1`
+  // every one but the last, both with ok:true.
+  if (filters && filters.limit !== undefined && !/^[1-9]\d*$/.test(String(filters.limit))) {
+    throw new Error(`invalid value for next-candidates: --limit ${filters.limit}. Give a whole number of 1 or more, as in --limit 5`);
+  }
+  const limit = filters && filters.limit ? Number(filters.limit) : 3;
   const hintWords = normalizeWords(filters && typeof filters.hint === "string" ? filters.hint : "");
   const entries = readEntries(root);
   const byId = new Map(entries.map((e) => [e.id, e]));
@@ -2713,12 +2718,13 @@ prints one JSON line to stdout: {"ok":true, ...} on success,
 {"ok":false,"error":"..."} (exit 1) on failure. A flag a subcommand does not
 list below fails the call, and the error names the flags it takes (or says
 it takes none) -- nothing is read or written. A flag's value follows it as
---flag value or --flag=value; an argument no flag takes, a value flag without
-its value and a value on a switch fail too. Any mutating subcommand run
-against a file below the current format migrates it first (see "migrate"
-below) and adds a "migrated" field ({from, to, backup}) to its own result --
-absent when the file was already current. add, update-status, annotate and
-correct refuse text that looks like a credential (an API key, a token, a
+--flag value or --flag=value; an argument no flag takes, a value flag
+without its value or given twice, and a value on a switch fail too.
+<subcommand> --help prints only that subcommand's section below. Any
+mutating subcommand run against a file below the current format migrates it
+first (see "migrate" below) and adds a "migrated" field ({from, to, backup})
+to its own result -- absent when the file was already current. add,
+update-status, annotate and correct refuse text that looks like a credential (an API key, a token, a
 private key block, an Authorization value or a password inside a URL): nothing
 is written, and the error names the field and the kind, never the text. They
 likewise refuse a title, why, what, notes or lesson carrying a character
@@ -2940,7 +2946,7 @@ naming the field, each line and code point.
                     flag: --archived   (optional: read .foreman/archive.jsonl
                     instead of ROADMAP.jsonl -- same filter semantics;
                     without it every view is active-only)
-  next-candidates   flag: --limit N   (optional, default 3)
+  next-candidates   flag: --limit N   (optional, default 3; a whole number of 1 or more)
                     flag: --menu   (optional: compact choice rows only;
                     fetch the selected entry with list --ids <id>)
                     flag: --hint "words"   (optional: rank by how many of
@@ -3140,6 +3146,16 @@ function main() {
   }
   if (!Object.hasOwn(SUBCOMMAND_FLAGS, sub)) {
     throw new Error(`unknown subcommand: ${sub}. Use ${Object.keys(SUBCOMMAND_FLAGS).join("|")}`);
+  }
+  // [Foreman: 735] `<subcommand> --help` prints that subcommand's section of
+  // USAGE and runs nothing; it failed as an unknown flag.
+  if (rest.includes("--help")) {
+    const lines = USAGE.split("\n");
+    const start = lines.findIndex((line) => line.startsWith(`  ${sub} `));
+    let end = start + 1;
+    while (/^ {3,}\S/.test(lines[end])) end++;
+    process.stdout.write(lines.slice(start, end).join("\n") + "\n");
+    return;
   }
   const flags = parseFlags(sub, SUBCOMMAND_FLAGS[sub], rest);
   const root = projectDir();

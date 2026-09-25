@@ -267,6 +267,16 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   `trial-log.js` refuses an argument after its event and JSON fields.
   `resolve-symbols.js` and `render-sections.js` now report a failure as one
   JSON line with `ok:false` instead of a stack trace.
+- A value flag given twice fails and writes nothing, saying to give it once
+  and join several values with commas. `roadmap.js list --ids 691 --ids 999`
+  used to list 999 alone. The same holds for every other value flag:
+  `roadmap.js` `next-candidates` and `notes`, `safe-commit.js finish
+  --baseline`, `resolve-symbols.js` and the two `scripts/health` reports.
+- `roadmap.js next-candidates --limit` takes a whole number of 1 or more and
+  fails on anything else. `--limit abc` used to return no candidates and
+  `--limit -1` every candidate but the last, both as a success.
+- `roadmap.js <subcommand> --help` prints that subcommand's section of the
+  usage and runs nothing; it used to fail as an unknown flag.
 - The message that blocks a direct edit of `ROADMAP.jsonl`,
   `.foreman/archive.jsonl` or `.foreman/notes.jsonl` now names every
   `roadmap.js` subcommand, `note-supersede` and `note-prune` included.

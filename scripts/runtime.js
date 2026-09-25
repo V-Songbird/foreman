@@ -35,6 +35,8 @@ function projectDir(env = process.env, cwd = process.cwd()) {
 // `safe-commit.js finish --no-comit` fails before anything is written instead
 // of committing. `valid` maps each flag name to "switch" or "value"; `name`
 // is the command the errors name.
+// [Foreman: 735] A value flag given twice fails instead of keeping the last:
+// `list --ids 691 --ids 999` listed 999 alone.
 function parseFlags(name, valid, argv) {
   const names = Object.keys(valid);
   const validHelp = `Valid flags: ${names.map((f) => `--${f}`).join(", ")}`;
@@ -58,6 +60,9 @@ function parseFlags(name, valid, argv) {
       if (eq !== -1) throw new Error(`unexpected value for ${name}: ${a}. --${key} is a switch and takes no value`);
       flags[key] = true;
       continue;
+    }
+    if (Object.hasOwn(flags, key)) {
+      throw new Error(`repeated flag for ${name}: --${key}. Give --${key} once; join several values with commas in that one value`);
     }
     let value;
     if (eq !== -1) value = a.slice(eq + 1);

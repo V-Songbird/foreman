@@ -1831,6 +1831,32 @@ describe('flag values', () => {
     assert.equal(json.error, 'missing value for next-candidates: --limit. Give it as --limit <value> or --limit=<value>');
   });
 
+  // [Foreman: 735] `list --ids 691 --ids 999` listed 999 alone.
+  for (const argv of [['list', '--ids', '001', '--ids', '002'], ['list', '--ids=001', '--ids=002'], ['list', '--ids', '001', '--summary', '--ids=002']]) {
+    test(`${JSON.stringify(argv)} fails for the repeated flag`, () => {
+      const { status, json } = run(argv);
+      assert.equal(status, 1);
+      assert.equal(json.error, 'repeated flag for list: --ids. Give --ids once; join several values with commas in that one value');
+      assert.equal(json.entries, undefined);
+    });
+  }
+
+  // [Foreman: 735] `--limit abc` returned no candidates and `--limit -1` all
+  // but the last, both with ok:true.
+  for (const limit of ['abc', '-1', '0', '2.5', '1e1', '01', '3x']) {
+    test(`next-candidates --limit ${limit} fails`, () => {
+      const { status, json } = run(['next-candidates', `--limit=${limit}`]);
+      assert.equal(status, 1);
+      assert.equal(json.error, `invalid value for next-candidates: --limit ${limit}. Give a whole number of 1 or more, as in --limit 5`);
+      assert.equal(json.candidates, undefined);
+    });
+  }
+
+  test('next-candidates --limit takes a whole number of 1 or more', () => {
+    assert.equal(run(['next-candidates', '--limit', '1']).json.candidates.length, 1);
+    assert.equal(run(['next-candidates', '--limit', '10']).json.candidates.length, 2);
+  });
+
   test('a switch given a value fails', () => {
     const { status, json } = run(['list', '--summary=yes']);
     assert.equal(status, 1);
@@ -2248,5 +2274,34 @@ describe('--help', () => {
     const result = runRoadmap([], undefined, env);
     assert.equal(result.status, 0);
     assert.match(result.stdout, /check-duplicate/);
+  });
+
+  // [Foreman: 735] `list --help` failed as an unknown flag.
+  test('<subcommand> --help prints only that subcommand\'s section', () => {
+    const result = runRoadmap(['list', '--help'], undefined, env);
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /^ {2}list {2,}flag: --status/);
+    assert.match(result.stdout, /--archived/);
+    assert.doesNotMatch(result.stdout, /next-candidates|roadmap\.js --/);
+    assert.equal(result.stdout.trim().split('\n').length, 17);
+  });
+
+  test('every subcommand has a section to print', () => {
+    const { SUBCOMMAND_FLAGS } = require('../scripts/roadmap');
+    for (const sub of Object.keys(SUBCOMMAND_FLAGS)) {
+      const result = runRoadmap([sub, '--help'], undefined, env);
+      assert.equal(result.status, 0, sub);
+      assert.ok(result.stdout.startsWith(`  ${sub} `), `${sub}: ${result.stdout}`);
+      assert.doesNotMatch(result.stdout, /\n\n|Examples:/, sub);
+    }
+  });
+
+  test('--help wins over the other arguments and writes nothing', () => {
+    writeRoadmap(project, [{ id: '001', title: 'a', status: 'planned' }]);
+    const before = fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf-8');
+    const result = runRoadmap(['update-status', '--bogus', '--help'], { id: '001', status: 'done' }, env);
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /^ {2}update-status /);
+    assert.equal(fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf-8'), before);
   });
 });
