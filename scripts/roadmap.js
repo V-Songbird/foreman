@@ -419,11 +419,12 @@ function isValidId(value) {
 }
 
 // Numeric max + 1, then padded -- so 999 is followed by 1000, not by a
-// lexicographic neighbour. Existing ids are never re-padded.
+// lexicographic neighbour. Existing ids are never re-padded. [Foreman: 758]
+// An id that fails the format is skipped: parseInt reads `99<U+200B>0` as 99.
 function nextId(entries) {
   let max = 0;
   for (const e of entries) {
-    const n = parseInt(e.id, 10);
+    const n = isValidId(e.id) ? parseInt(e.id, 10) : NaN;
     if (Number.isFinite(n) && n > max) max = n;
   }
   return String(max + 1).padStart(3, "0");
@@ -2362,9 +2363,10 @@ function cmdReassignIdUnlocked(root, payload) {
     const to = nextId(known);
     known.push({ id: to });
     holder.entry.id = to;
+    // [Foreman: 758] Named, so repairing a hidden id writes no new one into notes.
     holder.entry.notes = appendNote(
       holder.entry.notes,
-      `id reassigned from ${id} during duplicate repair; commit trailers ${commitTrailerFor(id)} predate the reassignment`
+      `id reassigned from ${named(id)} during duplicate repair; commit trailers ${commitTrailerFor(named(id))} predate the reassignment`
     );
     holder.entry.updated_at = date;
     return { from: named(id), to, title: named(holder.entry.title), trailer_commits: trailers };

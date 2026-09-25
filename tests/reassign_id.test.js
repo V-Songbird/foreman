@@ -430,6 +430,26 @@ describe('reassign-id names a hidden character instead of printing it', () => {
     assert.deepEqual(json.kept, { id: named, title: 'A' });
     assert.equal(json.reassigned[0].from, named);
   });
+
+  // [Foreman: 758] parseInt read `99<U+200B>0` as 99, so the renumbered
+  // holder took 100 instead of the id after the highest valid one.
+  test('the next free id skips an id that fails the id format', () => {
+    const id = `99${ZWSP}0`;
+    const json = reassign([entry('050'), entry(id, { title: 'A' }), entry(id, { title: 'B' })], { id, keep: 'A' });
+    assert.equal(json.reassigned[0].to, '051');
+  });
+
+  test('the renumbered note names the hidden id instead of storing it', () => {
+    reassign([entry(hiddenId, { title: 'A' }), entry(hiddenId, { title: 'B' })], { id: hiddenId, keep: 'A' });
+    const renumbered = readFileRows('ROADMAP.jsonl').find((row) => row.title === 'B');
+    assert.ok(
+      renumbered.notes.endsWith(
+        ` id reassigned from ${named} during duplicate repair; commit trailers Foreman: ${named} predate the reassignment`
+      ),
+      renumbered.notes
+    );
+    assert.ok(!renumbered.notes.includes(ZWSP));
+  });
 });
 
 describe('a duplicated file stays readable before the repair', () => {
