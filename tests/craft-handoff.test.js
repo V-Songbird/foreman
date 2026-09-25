@@ -202,10 +202,9 @@ describe('entry mode', () => {
 });
 
 describe('entry-less mode', () => {
-  test('all entry-equivalent fields given inline, no "entry" key', () => {
+  test('title, what and touches given inline, no "entry" key', () => {
     const { status, json } = run(project, {
       title: 'Ad-hoc client retry fix',
-      why: 'Retries double-count under load.',
       what: 'Fix the backoff loop in the API client.',
       planned_touches: ['src/auth/middleware.js'],
       destination: 'task',
@@ -257,7 +256,7 @@ describe('profile signals — each flippable independently, off in the baseline'
   // switch the handoff to the reinforced profile either.
   test('resumed: an entry-less handoff given resume keeps the standard profile', () => {
     const { json } = run(project, {
-      title: 'Ad-hoc client retry fix', why: 'Retries double-count under load.', what: 'Fix the backoff loop in the API client.',
+      title: 'Ad-hoc client retry fix', what: 'Fix the backoff loop in the API client.',
       planned_touches: ['src/auth/middleware.js'], resume: true, destination: 'clipboard', judgment: goodJudgment(),
     });
     assert.equal(json.ok, true, JSON.stringify(json));
@@ -269,7 +268,7 @@ describe('profile signals — each flippable independently, off in the baseline'
   // observed_touches neither resume the handoff nor reach its text.
   test('resumed: an entry-less handoff given commits and observed_touches keeps the standard profile', () => {
     const { json } = run(project, {
-      title: 'Ad-hoc client retry fix', why: 'Retries double-count under load.', what: 'Fix the backoff loop in the API client.',
+      title: 'Ad-hoc client retry fix', what: 'Fix the backoff loop in the API client.',
       planned_touches: ['src/auth/middleware.js'], commits: ['a1b2c3d'], observed_touches: ['src/legacy/retry.js'],
       destination: 'clipboard', judgment: goodJudgment(),
     });
@@ -870,7 +869,6 @@ describe('the gate — pass and failure both surfaced, never swallowed', () => {
   test('a broken handoff (no steps, no touches, no verification) fails the gate — errors ride along with the prompt, not swallowed', () => {
     const { status, json } = run(project, {
       title: 'Bad entry',
-      why: 'x',
       what: 'y',
       destination: 'clipboard',
       request: 'Investigate.',
@@ -886,7 +884,7 @@ describe('the gate — pass and failure both surfaced, never swallowed', () => {
   });
 
   test('missing destination is a clean error, not a crash', () => {
-    const { status, json } = run(project, { title: 'x', why: 'x', what: 'x', judgment: goodJudgment() });
+    const { status, json } = run(project, { title: 'x', what: 'x', judgment: goodJudgment() });
     assert.equal(status, 1);
     assert.match(json.error, /destination/);
   });
