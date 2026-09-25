@@ -263,6 +263,19 @@ describe('doctor field and type findings', () => {
     assert.match(finding.message, /^\.foreman\/archive\.jsonl: entry 002: why carries/);
   });
 
+  // [Foreman: 728] JSON.stringify keeps a hidden character as it is, so a
+  // finding that quotes a value names its code points instead.
+  test('invalid_id and invalid_path name a hidden character by code point, never the value', () => {
+    writeRoadmap(project, [base(`0${ZWSP}01`), base('002', { planned_touches: [`../${ZWSP}secrets.env`] })]);
+    const { stdout } = runRoadmap(['doctor'], null, env);
+    assert.ok(!stdout.includes(ZWSP), 'no finding carries the stored value');
+    const report = JSON.parse(stdout);
+    const id = assertFinding(report, 'invalid_id', 'error', []);
+    assert.match(id.message, /^line 1: id must be .*, not a value carrying characters a reader cannot see \(U\+200B\)$/);
+    const touch = assertFinding(report, 'invalid_path', 'warning', ['002']);
+    assert.match(touch.message, /^entry 002: planned_touches a value carrying characters a reader cannot see \(U\+200B\) is absolute/);
+  });
+
   // The file's format version lives on its own first line, not on an entry
   // — full coverage of the marker is in roadmap_migrate.test.js.
   test('unsupported_schema_version: a format marker no reader will honor', () => {

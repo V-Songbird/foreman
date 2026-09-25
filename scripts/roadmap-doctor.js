@@ -96,7 +96,8 @@ function checkEntry(entry, index, out) {
     STATUSES, SOURCES, KINDS, isValidModel, EFFORTS, validateDoc, isValidId,
     ROADMAP_FORMAT_KEY, CURRENT_ROADMAP_FORMAT, isFormatMeta,
   } = roadmap();
-  const id = typeof entry.id === "string" ? entry.id : "";
+  // [Foreman: 728] An id carrying a hidden character is located by its line.
+  const id = typeof entry.id === "string" && !hiddenIn(entry.id).length ? entry.id : "";
   const ids = id ? [id] : [];
   const at = id ? `entry ${id}` : `line ${index + 1}`;
 
@@ -126,7 +127,7 @@ function checkEntry(entry, index, out) {
   } else if (typeof entry.id !== "string") {
     out.push(finding("invalid_type", "error", [], `line ${index + 1}: id must be a string`, { field: "id" }));
   } else if (!isValidId(entry.id)) {
-    out.push(finding("invalid_id", "error", ids, `${at}: id must be three or more digits, zero-padded to at least three ("001", "999", "1000"), not ${JSON.stringify(entry.id)}`, { field: "id" }));
+    out.push(finding("invalid_id", "error", ids, `${at}: id must be three or more digits, zero-padded to at least three ("001", "999", "1000"), not ${quoted(entry.id)}`, { field: "id" }));
   }
 
   for (const field of REQUIRED_TEXT) {
@@ -163,7 +164,7 @@ function checkEntry(entry, index, out) {
   // the repository as damage, and nothing can repair it from here anyway.
   for (const item of Array.isArray(entry.planned_touches) ? entry.planned_touches : []) {
     if (typeof item === "string" && item && isUnsafePath(item)) {
-      out.push(finding("invalid_path", "warning", ids, `${at}: planned_touches "${item}" is absolute or escapes the project`, { field: "planned_touches" }));
+      out.push(finding("invalid_path", "warning", ids, `${at}: planned_touches ${quoted(item, `"${item}"`)} is absolute or escapes the project`, { field: "planned_touches" }));
     }
   }
 
@@ -330,6 +331,14 @@ function validateEntries(entries, options = {}) {
 function hiddenIn(value) {
   const found = hiddenCharacters(` ${Array.isArray(value) ? value.join("\n") : (value ?? "")}`);
   return Array.isArray(value) ? found.map((hit) => hit.replace(/^line/, "item")) : found;
+}
+
+// [Foreman: 728] A stored value as a finding quotes it. JSON.stringify keeps a
+// hidden character as it is, so a value carrying one is named by its code
+// points, as hidden_characters names them, and its text is left out.
+function quoted(value, text = JSON.stringify(value)) {
+  const found = hiddenIn(value).map((hit) => hit.replace(/^line \d+: /, ""));
+  return found.length ? `a value carrying characters a reader cannot see (${found.join("; ")})` : text;
 }
 
 // [Foreman: 700] One "field line N: U+200B" hit per lesson-store field that
