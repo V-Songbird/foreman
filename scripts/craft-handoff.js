@@ -1468,9 +1468,11 @@ function assemble(root, input) {
   // side is held before they are built.
   const rulesBlock = taskRulesText(holdUserRoot(record), holdUserRoot(judgment), hasVerification, fixCeilingLine, checkpointEmbed, reviewEachIncrement, host);
   const recoveryBlock = reviewEachIncrement && input.resume ? incrementResumeText(holdUserRoot(record), host) : "";
-  // [Foreman: 597, 605] <context> and <invariants> are task evidence on every
-  // host and profile: the entry's notes, its depends_on_docs and the crafter's
-  // observable assertions, which nothing else in a standard handoff repeats.
+  // [Foreman: 597, 605, 701] <context> and <invariants> are task evidence on
+  // every host and profile: the entry's notes, its depends_on_docs, the pasted
+  // failure and the crafter's observable assertions, which nothing else in a
+  // standard handoff repeats. Both sit outside <background>, so an omitted
+  // background cannot drop them.
   // A decision entry's task_rules already say "do not write implementation
   // code" — synthesizing `Implement: <title>.` as the request sentence puts
   // the contradiction in the one line that carries the actual ask.
@@ -1530,7 +1532,6 @@ function assemble(root, input) {
       parts.push(`<tone>\n${holdUserRoot(input.customTone) || defaultTone}\n</tone>`);
     }
     if (includeBackground) {
-      const ctxBlock = ctxText ? `<context>\n${ctxText}\n</context>\n` : "";
       // Prior work rides in the background block itself, never in <context>:
       // it is recalled from other entries, not this entry's own evidence.
       const recallBlock = priorWork ? `${priorWork}\n` : "";
@@ -1547,8 +1548,9 @@ function assemble(root, input) {
       // pointer at code the destination is about to read, and it is only worth
       // anything before the reading starts.
       const anchorsBlock = anchors ? `${anchors}\n` : "";
-      parts.push(`<background>\n<relevant_files>\n${backgroundInner}\n</relevant_files>\n${recallBlock}${lessonsBlock}${chainBlock}${anchorsBlock}${ctxBlock}</background>`);
+      parts.push(`<background>\n<relevant_files>\n${backgroundInner}\n</relevant_files>\n${recallBlock}${lessonsBlock}${chainBlock}${anchorsBlock}</background>`);
     }
+    if (ctxText) parts.push(`<context>\n${ctxText}\n</context>`);
     if (reinforced) parts.push(noInventionLine);
     if (invariantsText) parts.push(invariantsText);
     parts.push(rulesBlock);
@@ -1639,17 +1641,6 @@ function assemble(root, input) {
     warnings.push(
       "judgment.purpose was dropped: the entry's own why fills the purpose line word for word. "
         + "Anything the why does not already say belongs in judgment.context or judgment.constraints."
-    );
-  }
-
-  // [Foreman: 649] An omitted <background> takes <context> with it, and since
-  // 632 the quoted failure the user pasted as well. Same rule: say it once.
-  const droppedContext = [judgment.observed && "judgment.observed (the pasted failure)", judgment.context && "judgment.context"].filter(Boolean);
-  if (!includeBackground && droppedContext.length) {
-    const many = droppedContext.length > 1;
-    warnings.push(
-      `${droppedContext.join(" and ")} ${many ? "were" : "was"} dropped: this project's omitSections removes <background>, and <context> rides inside it. `
-        + `Remove "background" from omitSections in .foreman/config.json to send ${many ? "them" : "it"}.`
     );
   }
 

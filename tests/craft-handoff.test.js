@@ -2087,43 +2087,37 @@ describe('judgment.context and the standard profile', () => {
     });
   }
 
-  // [Foreman: 649] An omitted background drops <context>, and the pasted
-  // failure inside it, so the crafter hears which of the two it lost.
-  describe('an omitted background names what it dropped', () => {
-    const dropWarnings = (json) => (json.warnings || []).filter((w) => w.includes('omitSections removes <background>'));
+  // [Foreman: 701] <context> sits outside <background>, so a project that omits
+  // background still sends the entry's context and the pasted failure, and no
+  // warning says they were dropped.
+  describe('<context> survives an omitted background', () => {
     const failure = 'AssertionError: expected 401, got 500';
+    const contextBlock = (prompt) => (prompt.match(/<context>\n([\s\S]*?)\n<\/context>/) || [])[1];
 
-    test('both, in one warning, and neither reaches the prompt', () => {
+    for (const host of ['claude', 'codex']) {
+      for (const [profile, fields] of [['standard', {}], ['reinforced', { commits: ['a1b2c3d'] }]]) {
+        test(`the context and the pasted failure both reach the prompt (${host}, ${profile})`, () => {
+          writeRoadmap(project, [entryFields(fields)]);
+          writeConfig(project, { omitSections: ['background'] });
+          const { json } = run(project, { entry: '001', destination: 'task', host, judgment: goodJudgment({ observed: failure }) });
+          assert.equal(json.profile, profile);
+          assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+          assert.ok(!json.prompt.includes('<background>'), json.prompt);
+          const context = contextBlock(json.prompt);
+          assert.ok(context, `omitted background dropped <context>: ${json.prompt}`);
+          assert.ok(context.includes(goodJudgment().context));
+          assert.ok(context.includes(`<observed_failure>\n${failure}\n</observed_failure>`), context);
+          assert.ok(!(json.warnings || []).some((w) => w.includes('dropped')), JSON.stringify(json.warnings));
+        });
+      }
+    }
+
+    test('with background kept, it follows </background> instead of riding inside it', () => {
       writeRoadmap(project, [entryFields()]);
-      writeConfig(project, { omitSections: ['background'] });
       const { json } = run(project, { entry: '001', destination: 'task', judgment: goodJudgment({ observed: failure }) });
-      assert.equal(json.ok, true, JSON.stringify(json));
-      assert.ok(!json.prompt.includes(failure) && !json.prompt.includes(goodJudgment().context), json.prompt);
-      assert.deepEqual(dropWarnings(json), [
-        'judgment.observed (the pasted failure) and judgment.context were dropped: this project\'s omitSections removes <background>, and <context> rides inside it. '
-          + 'Remove "background" from omitSections in .foreman/config.json to send them.',
-      ]);
-    });
-
-    test('only the one that was supplied', () => {
-      writeRoadmap(project, [entryFields()]);
-      writeConfig(project, { omitSections: ['background'] });
-      const { json } = run(project, { entry: '001', destination: 'task', judgment: goodJudgment({ context: '', observed: failure }) });
-      assert.deepEqual(dropWarnings(json), [
-        'judgment.observed (the pasted failure) was dropped: this project\'s omitSections removes <background>, and <context> rides inside it. '
-          + 'Remove "background" from omitSections in .foreman/config.json to send it.',
-      ]);
-    });
-
-    test('quiet with nothing to drop, or with background kept', () => {
-      writeRoadmap(project, [entryFields()]);
-      writeConfig(project, { omitSections: ['background'] });
-      const empty = run(project, { entry: '001', destination: 'task', judgment: goodJudgment({ context: '' }) });
-      assert.deepEqual(dropWarnings(empty.json), [], JSON.stringify(empty.json.warnings));
-      writeConfig(project, {});
-      const kept = run(project, { entry: '001', destination: 'task', judgment: goodJudgment({ observed: failure }) });
-      assert.ok(kept.json.prompt.includes(failure), kept.json.prompt);
-      assert.deepEqual(dropWarnings(kept.json), [], JSON.stringify(kept.json.warnings));
+      assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+      assert.ok(json.prompt.includes('</background>\n\n<context>\n'), json.prompt);
+      assert.ok(contextBlock(json.prompt).includes(failure));
     });
   });
 
