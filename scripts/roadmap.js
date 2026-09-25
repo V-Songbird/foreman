@@ -2690,13 +2690,19 @@ function cmdDoctor(root, flags) {
     // read the repair is applied to.
     const entries = readEntries(root);
     const resolve = archiveResolver(root);
-    const fixed = applyRepairs(entries, validateEntries(entries, { resolve }));
+    const refused = [];
+    const fixed = applyRepairs(
+      entries,
+      [...validateEntries(entries, { resolve }), ...validateHiddenCharacters(entries)],
+      refused
+    );
     // The write gate tolerates what the file already had, so a partial
     // repair is never blocked by the damage it cannot fix.
     const migrated = fixed.length ? writeEntries(root, entries, resolve) : undefined;
     // Re-validate from disk, not from memory — the report describes the file
     // that now exists.
     const result = { ...summarize(allFindings(root)), fixed };
+    if (refused.length) result.refused = refused;
     if (migrated) result.migrated = migrated;
     return result;
   });
@@ -3053,10 +3059,17 @@ naming the field, each line and code point.
                     --fix applies ONLY the repairable ones (an absent
                     depends_on/planned_touches/observed_touches/commits/
                     notes, a self-dependency
-                    edge, a repeated dependency id) under the mutation lock,
-                    then re-validates and returns what it changed as
-                    "fixed". Ambiguous findings are never auto-fixed --
-                    they are reported for a human to decide.
+                    edge, a repeated dependency id, hidden characters in
+                    the notes of an entry whose id is valid and held once)
+                    under the mutation lock, then re-validates and returns
+                    what it changed as "fixed". The notes repair deletes
+                    only the characters hidden_characters names; every
+                    line and date stamp stays, and updated_at does not
+                    move. When the stripped notes would look like a
+                    credential, that entry is left as it was and listed in
+                    "refused" with the kind, never the text. Ambiguous
+                    findings are never auto-fixed -- they are reported for
+                    a human to decide.
                     A malformed or misplaced format meta line is reported as
                     unsupported_schema_version and repaired by "migrate",
                     never by --fix.

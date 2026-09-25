@@ -212,7 +212,7 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   and so do `reassign-id`'s refusals and result for an id, title or date.
 - The roadmap skill's doctor branch now names a repair for every finding
   `roadmap.js doctor` reports: `hidden_characters` by field (`correct`, or
-  `update-status` for `doc`; `notes` has none), `notes_hidden_characters`
+  `update-status` for `doc`, `doctor --fix` for notes), `notes_hidden_characters`
   through `note-supersede`, `notes_dead_record` through `note-prune` when the
   user asks, and an unrecognized `model` or `effort` or a bad `doc` through
   `update-status`, which it used to call unrepairable. It passes on every info
@@ -254,6 +254,13 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   resolving through the shared id, and a lesson whose commit a rebase replaced
   could read as fresh from the other holder's commits. Moving the sole holder
   of an id that fails the id format demotes nothing.
+- `roadmap.js doctor --fix` repairs a `hidden_characters` finding on an
+  entry's notes by deleting only those characters, so every line and date
+  stamp stays and `updated_at` does not move. When the result would look like
+  a credential, the entry is left as it was and listed under `refused`. Notes
+  had no repair but a hand edit of `ROADMAP.jsonl`; an archived entry, or one
+  whose id is invalid or held twice, still needs `restore` or `reassign-id`
+  first.
 - `roadmap.js` fails on a flag its subcommand does not take instead of
   ignoring it, and writes nothing. `list --id 613` used to print the whole
   roadmap; it now exits 1 and the error names `list`'s flags. A subcommand

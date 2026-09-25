@@ -32,8 +32,13 @@ selects work.
      `update-status` with the entry's current status and the corrected field
    - a character a reader cannot see (`hidden_characters`) → by its field:
      `title`, `why`, `what` or `planned_touches` → `correct`; `doc` →
-     `update-status` with `doc`; `notes` has no repair command, since
-     `annotate` only appends — say so
+     `update-status` with `doc`; `notes` (`repairable: true`) → offer
+     `roadmap.js doctor --fix`, which deletes only those characters and keeps
+     every line; an entry it lists under `refused` would read as a
+     credential once stripped, so pass on that message and leave it for the
+     user; a `notes` finding that is not repairable (the id is invalid or
+     held twice, or the entry is archived) has no repair command until
+     `reassign-id` or `restore` makes it repairable — say so
    - a lesson record carrying one (`notes_hidden_characters`) →
      `note-supersede` with each record key the message names
    - lessons whose files are all gone (`notes_dead_record`) → `note-prune`,

@@ -36,7 +36,7 @@ const { configPath, OMITTABLE_TAGS } = require("./render-sections");
 // ledger.js requires nothing from this module, so there is no cycle to
 // defer around -- unlike roadmap.js below.
 const ledger = require("./ledger");
-const { hiddenCharacters } = require("./check-prompt");
+const { hiddenCharacters, stripHiddenCharacters } = require("./check-prompt");
 
 // roadmap.js requires this module at load time, so requiring it back up here
 // would capture a half-built exports object. Node's module cache makes the
@@ -373,17 +373,29 @@ function recordHiddenCharacters(record) {
 // it, and doc through a dependent's depends_on_docs.
 const HANDOFF_FIELDS = ["title", "why", "what", "notes", "doc", "planned_touches"];
 
+// [Foreman: 777] hiddenIn's view of a stored value, repaired: checked behind a
+// space, so a leading byte order mark goes too.
+function stripHiddenIn(value) {
+  return stripHiddenCharacters(` ${value}`).slice(1);
+}
+
 /**
  * [Foreman: 700] Every handoff field that already carries a character the
  * prompt gate refuses. An error: the gate refuses every prompt that quotes
- * the field, so the entry's own handoff breaks, and notes cannot be corrected.
- * Doctor-only, outside validateEntries: roadmap.js refuseHiddenCharacters
- * refuses these characters at input, and in the whole-file write gate a hit
- * would refuse a close whose generated scope-drift note quotes a path git
- * reported.
+ * the field, so the entry's own handoff breaks. Doctor-only, outside
+ * validateEntries: roadmap.js refuseHiddenCharacters refuses these characters
+ * at input, and in the whole-file write gate a hit would refuse a close whose
+ * generated scope-drift note quotes a path git reported.
+ * [Foreman: 777] notes has no command that rewrites it, so a notes hit on an
+ * entry whose id is valid and held once is repairable: --fix strips the
+ * characters, which leaves every line, date stamp and machine note in place.
  */
 function validateHiddenCharacters(entries, at = entries.map((entry, index) => index + 1)) {
   const { isValidId } = roadmap();
+  const held = new Map();
+  for (const entry of entries) {
+    if (isObject(entry)) held.set(entry.id, (held.get(entry.id) || 0) + 1);
+  }
   const out = [];
   entries.forEach((entry, index) => {
     if (!isObject(entry)) return;
@@ -396,7 +408,7 @@ function validateHiddenCharacters(entries, at = entries.map((entry, index) => in
         "error",
         valid ? [entry.id] : [],
         `${valid ? `entry ${entry.id}` : `line ${at[index]}`}: ${field} carries characters a reader cannot see (${found.join("; ")}) — the prompt gate refuses every handoff that quotes it`,
-        { field }
+        { field, repairable: field === "notes" && typeof entry.notes === "string" && valid && held.get(entry.id) === 1 }
       ));
     }
   });
@@ -720,8 +732,11 @@ function validateConfig(root) {
  * `updated_at` deliberately stays untouched: normalizing a container field
  * is not a change to the task, and bumping the date would make a long-closed
  * entry look freshly done to post-commit.js.
+ * [Foreman: 777] Stripping hidden characters from notes can join a credential
+ * they split, so a stripped value every write would refuse as a credential is
+ * left as it was and reported in `refused`, naming the kind, never the text.
  */
-function applyRepairs(entries, findings) {
+function applyRepairs(entries, findings, refused = []) {
   const byId = new Map();
   for (const entry of entries) {
     if (isObject(entry) && typeof entry.id === "string" && !byId.has(entry.id)) byId.set(entry.id, entry);
@@ -738,6 +753,14 @@ function applyRepairs(entries, findings) {
       entry.depends_on = entry.depends_on.filter((dep) => dep !== entry.id);
     } else if (item.code === "duplicate_dependency") {
       entry.depends_on = [...new Set(entry.depends_on)];
+    } else if (item.code === "hidden_characters" && item.field === "notes") {
+      const stripped = stripHiddenIn(entry.notes);
+      const kind = roadmap().credentialKind(stripped);
+      if (kind) {
+        refused.push({ ids: item.ids, field: "notes", message: `entry ${entry.id}: notes without its hidden characters looks like it holds ${kind}, so it was left as it was` });
+        continue;
+      }
+      entry.notes = stripped;
     } else {
       continue;
     }

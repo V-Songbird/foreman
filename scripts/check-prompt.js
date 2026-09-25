@@ -199,6 +199,19 @@ function hiddenCharacters(text) {
   });
 }
 
+// [Foreman: 777] The text without the characters hiddenCharacters reports: the
+// rendered uses stay, everything else in the set goes, and nothing else moves.
+function stripHiddenCharacters(text) {
+  const source = String(text);
+  let out = "";
+  let last = 0;
+  for (const match of source.matchAll(RENDERED_CHARACTERS)) {
+    out += source.slice(last, match.index).replace(HIDDEN_CHARACTERS, "") + match[0];
+    last = match.index + match[0].length;
+  }
+  return out + source.slice(last).replace(HIDDEN_CHARACTERS, "");
+}
+
 function norm(text) {
   return String(text).replace(/\s+/g, " ").trim();
 }
@@ -677,6 +690,7 @@ module.exports = {
   detectProfile,
   norm,
   hiddenCharacters,
+  stripHiddenCharacters,
   HIDDEN_CHARACTERS,
   PLACEHOLDER_FRAGMENTS,
   PROFILES,

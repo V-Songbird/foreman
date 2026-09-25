@@ -1682,6 +1682,49 @@ describe('hidden characters in a title, why, what or notes are refused before an
     const fixed = run(['correct'], { id: '001', expected_updated_at: '2026-07-01', what: 'old text', expected: { what: `old${ZWSP} text` } });
     assert.equal(fixed.status, 0, JSON.stringify(fixed.json));
   });
+
+  // [Foreman: 777] Notes has no command that rewrites it, so doctor --fix
+  // strips what the gate refuses and leaves every line where it was.
+  const hiddenFindings = (json) => json.findings.filter((item) => item.code === 'hidden_characters');
+
+  test('doctor --fix strips hidden characters from notes and keeps every line, stamp and updated_at', () => {
+    const family = [0x1f468, 0x1f469, 0x1f467].map((code) => String.fromCodePoint(code)).join(ZWJ);
+    const notes = `${BOM}2026-07-01 dispatched to background agent\n2026-07-02 parse${ZWSP}s lazily${LRI}, kept ${family}\n2026-07-03 correction applied: what`;
+    writeRoadmap(project, [{ ...ENTRY, what: `old${ZWSP} text`, notes }]);
+    const before = hiddenFindings(run(['doctor']).json);
+    assert.deepEqual(before.map((item) => [item.field, item.repairable]), [['what', false], ['notes', true]]);
+
+    const { status, json } = run(['doctor', '--fix']);
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.deepEqual(json.fixed.map((item) => [item.code, item.field]), [['hidden_characters', 'notes']]);
+    assert.equal(json.refused, undefined);
+    assert.deepEqual(hiddenFindings(json).map((item) => item.field), ['what'], 'what is correct\'s repair, not --fix\'s');
+    const entry = run(['list', '--ids', '001']).json.entries[0];
+    assert.equal(entry.notes, `2026-07-01 dispatched to background agent\n2026-07-02 parses lazily, kept ${family}\n2026-07-03 correction applied: what`);
+    assert.equal(entry.updated_at, '2026-07-01');
+    assert.equal(entry.what, `old${ZWSP} text`);
+  });
+
+  test('doctor --fix leaves notes that would read as a credential once stripped, naming the kind only', () => {
+    const notes = `token ghp_abcdefghij${ZWSP}klmnopqrstuv`;
+    writeRoadmap(project, [{ ...ENTRY, notes }]);
+    const before = fs.readFileSync(file(), 'utf-8');
+    const { status, json } = run(['doctor', '--fix']);
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.deepEqual(json.fixed, []);
+    assert.deepEqual(json.refused, [{ ids: ['001'], field: 'notes', message: 'entry 001: notes without its hidden characters looks like it holds a GitHub token, so it was left as it was' }]);
+    assert.equal(fs.readFileSync(file(), 'utf-8'), before);
+    assert.deepEqual(hiddenFindings(json).map((item) => item.field), ['notes']);
+  });
+
+  test('doctor --fix does not strip the notes of an id two entries hold', () => {
+    writeRoadmap(project, [{ ...ENTRY, notes: `a${ZWSP}` }, { ...ENTRY, title: 'b', notes: `b${ZWSP}` }]);
+    const before = fs.readFileSync(file(), 'utf-8');
+    const { json } = run(['doctor', '--fix']);
+    assert.deepEqual(hiddenFindings(json).map((item) => item.repairable), [false, false]);
+    assert.deepEqual(json.fixed, []);
+    assert.equal(fs.readFileSync(file(), 'utf-8'), before);
+  });
 });
 
 describe('field length warnings', () => {
