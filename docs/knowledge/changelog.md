@@ -189,6 +189,14 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   roadmap; it now exits 1 and the error names `list`'s flags. A subcommand
   without flags, such as `update-status` or `migrate`, says it takes none.
   `note-prune` accepts only `--dry-run`, no longer `--dryRun`.
+- A `roadmap.js` flag takes its value as `--flag value` or `--flag=value`, and
+  an argument the parser cannot place fails the call instead of being guessed
+  at. `list 640` used to print the whole roadmap and `list --ids 640 641`
+  dropped 641; both now exit 1 and say that a value goes after its flag, with
+  several joined by commas. A value flag with no value or an empty one, such
+  as `list --ids`, `list --ids=` or `next-candidates --limit`, and a value on
+  a switch, such as `--summary=yes`, fail the same way. A subcommand without
+  flags, such as `update-status`, refuses any argument.
 - A direct parent's decision `doc` still reaches its dependent's
   `next-candidates` and `list --ids` rows after the parent is archived, so
   the handoff keeps pointing at the settled decision.

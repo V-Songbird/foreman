@@ -1764,6 +1764,81 @@ describe('unknown flags', () => {
   });
 });
 
+// [Foreman: 691] Each flag is a switch or takes one value. An argument no flag
+// claims, a value flag left without its value, and a value on a switch fail
+// the call: `list 640` printed the whole roadmap, `list --ids 640 641` dropped
+// 641, and `list --ids` alone filtered to nothing.
+describe('flag values', () => {
+  const LIST_FLAGS = 'Valid flags: --status, --ids, --summary, --stats, --archived';
+  const STRAY = 'A value goes after its flag (--flag value or --flag=value); join several with commas and quote one that has spaces.';
+
+  beforeEach(() => {
+    writeRoadmap(project, [
+      { id: '001', title: 'a', status: 'planned' },
+      { id: '002', title: 'b', status: 'planned' },
+    ]);
+  });
+
+  test('--flag=value is the same as --flag value', () => {
+    assert.deepEqual(run(['list', '--ids=002']).json.entries.map((e) => e.id), ['002']);
+    assert.deepEqual(run(['list', '--status=planned', '--summary']).json.entries.map((e) => e.id), ['001', '002']);
+    assert.equal(run(['next-candidates', '--limit=1']).json.candidates.length, 1);
+  });
+
+  test('an unknown flag given with = is named without its value', () => {
+    const { status, json } = run(['list', '--id=001']);
+    assert.equal(status, 1);
+    assert.equal(json.error, `unknown flag for list: --id. ${LIST_FLAGS}`);
+  });
+
+  for (const [label, argv, stray] of [
+    ['a bare id', ['list', '001'], '001'],
+    ['a second space-separated id', ['list', '--ids', '001', '002'], '002'],
+    ['a value after a switch', ['list', '--summary', '001'], '001'],
+  ]) {
+    test(`list refuses ${label} instead of guessing`, () => {
+      const { status, json } = run(argv);
+      assert.equal(status, 1);
+      assert.equal(json.error, `unexpected argument for list: ${stray}. ${STRAY} ${LIST_FLAGS}`);
+      assert.equal(json.entries, undefined);
+    });
+  }
+
+  for (const argv of [['list', '--ids'], ['list', '--ids', '--summary'], ['list', '--ids='], ['list', '--ids', '']]) {
+    test(`${JSON.stringify(argv)} fails for the missing value`, () => {
+      const { status, json } = run(argv);
+      assert.equal(status, 1);
+      assert.equal(json.error, 'missing value for list: --ids. Give it as --ids <value> or --ids=<value>');
+    });
+  }
+
+  test('next-candidates --limit alone fails instead of returning nothing', () => {
+    const { status, json } = run(['next-candidates', '--limit']);
+    assert.equal(status, 1);
+    assert.equal(json.error, 'missing value for next-candidates: --limit. Give it as --limit <value> or --limit=<value>');
+  });
+
+  test('a switch given a value fails', () => {
+    const { status, json } = run(['list', '--summary=yes']);
+    assert.equal(status, 1);
+    assert.equal(json.error, 'unexpected value for list: --summary=yes. --summary is a switch and takes no value');
+  });
+
+  test('a subcommand that takes no flags refuses an argument and writes nothing', () => {
+    const { status, json } = run(['update-status', '001'], { id: '001', status: 'in_progress' });
+    assert.equal(status, 1);
+    assert.equal(json.error, 'unexpected argument for update-status: 001. update-status takes no arguments');
+    assert.equal(run(['list', '--ids', '001']).json.entries[0].status, 'planned');
+  });
+
+  test('the unknown-subcommand message lists the subcommands the flag table holds', () => {
+    const { SUBCOMMAND_FLAGS } = require('../scripts/roadmap');
+    const { status, json } = run(['bogus']);
+    assert.equal(status, 1);
+    assert.equal(json.error, `unknown subcommand: bogus. Use ${Object.keys(SUBCOMMAND_FLAGS).join('|')}`);
+  });
+});
+
 describe('doc field', () => {
   test('add accepts "none"', () => {
     const { status, json } = run(['add'], { title: 'a', why: 'a', what: 'a', source: 'user', doc: 'none' });

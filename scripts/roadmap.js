@@ -2607,7 +2607,9 @@ const USAGE = `roadmap.js -- mechanical CRUD for ROADMAP.jsonl. Every call
 prints one JSON line to stdout: {"ok":true, ...} on success,
 {"ok":false,"error":"..."} (exit 1) on failure. A flag a subcommand does not
 list below fails the call, and the error names the flags it takes (or says
-it takes none) -- nothing is read or written. Any mutating subcommand run
+it takes none) -- nothing is read or written. A flag's value follows it as
+--flag value or --flag=value; an argument no flag takes, a value flag without
+its value and a value on a switch fail too. Any mutating subcommand run
 against a file below the current format migrates it first (see "migrate"
 below) and adds a "migrated" field ({from, to, backup}) to its own result --
 absent when the file was already current. add, update-status, annotate and
@@ -2987,49 +2989,62 @@ Examples:
   node roadmap.js migrate
 `;
 
-// [Foreman: 640] The flags each subcommand reads; an empty list means it takes
-// none. Any other flag fails the call instead of being ignored: `list --id 613`
-// used to drop the filter and print the whole roadmap.
+// [Foreman: 640] The flags each subcommand reads; an empty object means it
+// takes none. Any other flag fails the call instead of being ignored: `list
+// --id 613` used to drop the filter and print the whole roadmap.
+// [Foreman: 691] Each flag is a switch or takes one value, given as `--flag
+// value` or `--flag=value`. An argument no flag claims, a value flag without
+// its value and a value on a switch fail too: `list 640` printed the whole
+// roadmap and `list --ids 640 641` dropped 641.
 const SUBCOMMAND_FLAGS = {
-  add: [],
-  "update-status": [],
-  annotate: [],
-  "update-deps": [],
-  correct: [],
-  "reassign-id": [],
-  archive: [],
-  restore: [],
-  list: ["status", "ids", "summary", "stats", "archived"],
-  "next-candidates": ["limit", "menu", "hint"],
-  notes: ["paths", "area"],
-  "note-supersede": [],
-  "note-prune": ["dry-run"],
-  "check-duplicate": [],
-  doctor: ["fix"],
-  migrate: [],
+  add: {},
+  "update-status": {},
+  annotate: {},
+  "update-deps": {},
+  correct: {},
+  "reassign-id": {},
+  archive: {},
+  restore: {},
+  list: { status: "value", ids: "value", summary: "switch", stats: "switch", archived: "switch" },
+  "next-candidates": { limit: "value", menu: "switch", hint: "value" },
+  notes: { paths: "value", area: "value" },
+  "note-supersede": {},
+  "note-prune": { "dry-run": "switch" },
+  "check-duplicate": {},
+  doctor: { fix: "switch" },
+  migrate: {},
 };
 
 function parseFlags(sub, argv) {
   const valid = SUBCOMMAND_FLAGS[sub];
+  const names = Object.keys(valid);
+  const validHelp = `Valid flags: ${names.map((f) => `--${f}`).join(", ")}`;
   const flags = {};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a.startsWith("--")) {
-      const key = a.slice(2);
-      if (!valid.includes(key)) {
-        throw new Error(
-          `unknown flag for ${sub}: ${a}. ` +
-            (valid.length ? `Valid flags: ${valid.map((f) => `--${f}`).join(", ")}` : `${sub} takes no flags`)
-        );
-      }
-      const next = argv[i + 1];
-      if (next !== undefined && !next.startsWith("--")) {
-        flags[key] = next;
-        i += 1;
-      } else {
-        flags[key] = true;
-      }
+    if (!a.startsWith("--")) {
+      throw new Error(
+        `unexpected argument for ${sub}: ${a}. ` +
+          (names.length
+            ? `A value goes after its flag (--flag value or --flag=value); join several with commas and quote one that has spaces. ${validHelp}`
+            : `${sub} takes no arguments`)
+      );
     }
+    const eq = a.indexOf("=");
+    const key = eq === -1 ? a.slice(2) : a.slice(2, eq);
+    if (!Object.hasOwn(valid, key)) {
+      throw new Error(`unknown flag for ${sub}: --${key}. ` + (names.length ? validHelp : `${sub} takes no flags`));
+    }
+    if (valid[key] === "switch") {
+      if (eq !== -1) throw new Error(`unexpected value for ${sub}: ${a}. --${key} is a switch and takes no value`);
+      flags[key] = true;
+      continue;
+    }
+    let value;
+    if (eq !== -1) value = a.slice(eq + 1);
+    else if (argv[i + 1] !== undefined && !argv[i + 1].startsWith("--")) value = argv[++i];
+    if (!value) throw new Error(`missing value for ${sub}: --${key}. Give it as --${key} <value> or --${key}=<value>`);
+    flags[key] = value;
   }
   return flags;
 }
@@ -3040,8 +3055,10 @@ function main() {
     process.stdout.write(USAGE);
     return;
   }
-  // An unknown subcommand falls through to the switch's own error.
-  const flags = Object.hasOwn(SUBCOMMAND_FLAGS, sub) ? parseFlags(sub, rest) : {};
+  if (!Object.hasOwn(SUBCOMMAND_FLAGS, sub)) {
+    throw new Error(`unknown subcommand: ${sub}. Use ${Object.keys(SUBCOMMAND_FLAGS).join("|")}`);
+  }
+  const flags = parseFlags(sub, rest);
   const root = projectDir();
   let result;
   switch (sub) {
@@ -3093,10 +3110,6 @@ function main() {
     case "migrate":
       result = cmdMigrate(root);
       break;
-    default:
-      throw new Error(
-        `unknown subcommand: ${sub}. Use add|update-status|annotate|update-deps|correct|reassign-id|archive|restore|list|next-candidates|notes|note-supersede|note-prune|check-duplicate|doctor|migrate`
-      );
   }
   process.stdout.write(JSON.stringify({ ok: true, ...result }));
 }
@@ -3197,6 +3210,9 @@ module.exports = {
   // actually writes rather than a second copy of it.
   CORRECTION_MARKER,
   USAGE,
+  // [Foreman: 691] The subcommands and their flags; the unknown-subcommand
+  // message is built from its keys.
+  SUBCOMMAND_FLAGS,
 };
 
 if (require.main === module) {
