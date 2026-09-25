@@ -368,6 +368,70 @@ describe('reassign-id refusals', () => {
   });
 });
 
+// [Foreman: 753] Doctor's duplicate repair sends the model here with the
+// stored id and titles, so a refusal or result that quotes one names a hidden
+// character by code point, as doctor does, instead of carrying it.
+describe('reassign-id names a hidden character instead of printing it', () => {
+  const ZWSP = String.fromCodePoint(0x200b);
+  const named = 'a value carrying characters a reader cannot see (U+200B)';
+  const hiddenId = `13${ZWSP}0`;
+
+  function reassign(entries, payload) {
+    writeRoadmap(project, entries);
+    const result = runRoadmap(['reassign-id'], payload, { CLAUDE_PROJECT_DIR: project });
+    assert.ok(!result.stdout.includes(ZWSP), 'the output carries no stored hidden character');
+    return JSON.parse(result.stdout);
+  }
+
+  test('every refusal names the id, the titles and the dates by code point', () => {
+    const cases = [
+      [[entry('130')], { id: hiddenId, keep: 'x' }, `no entry with id ${named} in ROADMAP.jsonl or .foreman/archive.jsonl`],
+      [[entry(hiddenId)], { id: hiddenId, keep: 'x' }, `id ${named} is held by exactly one entry — there is nothing to repair`],
+      [
+        [entry(hiddenId, { title: `A${ZWSP}` }), entry(hiddenId, { title: 'B' })],
+        { id: hiddenId, keep: `n${ZWSP}o` },
+        `no holder of ${named} has the title ${named} — the holders are ${named}, "B"`,
+      ],
+      [
+        [entry(hiddenId, { title: `A${ZWSP}` }), entry(hiddenId, { title: `A${ZWSP}` })],
+        { id: hiddenId, keep: `A${ZWSP}` },
+        `2 holders of ${named} share the title ${named} — titles are the only thing`,
+      ],
+      [
+        [entry(hiddenId, { title: 'A' }), entry(hiddenId)],
+        { id: hiddenId, keep: 'A', expected_updated_at_kept: `2020${ZWSP}` },
+        `the holder keeping ${named} was last updated 2026-01-01, not ${named} — `,
+      ],
+    ];
+    for (const [entries, payload, message] of cases) {
+      const json = reassign(entries, payload);
+      assert.equal(json.ok, false);
+      assert.ok(json.error.startsWith(message), json.error);
+    }
+  });
+
+  test('the result names a kept or renumbered title and a dependent id the same way', () => {
+    const json = reassign(
+      [
+        entry('130', { title: `A${ZWSP}` }),
+        entry('130', { title: `B${ZWSP}` }),
+        entry(`13${ZWSP}1`, { depends_on: ['130'] }),
+      ],
+      { id: '130', keep: `A${ZWSP}` }
+    );
+    assert.deepEqual(json.kept, { id: '130', title: named });
+    assert.equal(json.reassigned[0].from, '130');
+    assert.equal(json.reassigned[0].title, named);
+    assert.deepEqual(json.dependents_on_kept, [named]);
+  });
+
+  test('the result names a duplicated id carrying one', () => {
+    const json = reassign([entry(hiddenId, { title: 'A' }), entry(hiddenId, { title: 'B' })], { id: hiddenId, keep: 'A' });
+    assert.deepEqual(json.kept, { id: named, title: 'A' });
+    assert.equal(json.reassigned[0].from, named);
+  });
+});
+
 describe('a duplicated file stays readable before the repair', () => {
   test('list returns both holders as separate rows', () => {
     mergedRoadmap();

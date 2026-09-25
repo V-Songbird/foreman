@@ -2277,6 +2277,10 @@ function cmdReassignId(root, payload) {
   return withRoadmapLock(root, () => cmdReassignIdUnlocked(root, payload));
 }
 
+// [Foreman: 753] Doctor sends the model here with the stored id and titles,
+// so a value this prints names a hidden character by code point, as doctor's do.
+const named = (value) => quoted(value, value);
+
 function cmdReassignIdUnlocked(root, payload) {
   const { id, keep, expected_updated_at_kept: expectedKept } = payload || {};
   if (typeof id !== "string" || !id) throw new Error("reassign-id requires id: the duplicated entry id");
@@ -2294,15 +2298,15 @@ function cmdReassignIdUnlocked(root, payload) {
   if (holders.length < 2) {
     throw new Error(
       holders.length
-        ? `id ${id} is held by exactly one entry — there is nothing to repair`
-        : `no entry with id ${id} in ROADMAP.jsonl or ${ARCHIVE_LABEL}`
+        ? `id ${named(id)} is held by exactly one entry — there is nothing to repair`
+        : `no entry with id ${named(id)} in ROADMAP.jsonl or ${ARCHIVE_LABEL}`
     );
   }
-  const titles = holders.map((holder) => JSON.stringify(holder.entry.title)).join(", ");
+  const titles = holders.map((holder) => quoted(holder.entry.title)).join(", ");
   const matches = holders.filter((holder) => holder.entry.title === keep);
   if (!matches.length) {
     throw new Error(
-      `no holder of ${id} has the title ${JSON.stringify(keep)} — the holders are ${titles}`
+      `no holder of ${named(id)} has the title ${quoted(keep)} — the holders are ${titles}`
     );
   }
   // The degenerate merge: the same task added on both branches. Renumbering
@@ -2312,7 +2316,7 @@ function cmdReassignIdUnlocked(root, payload) {
   // them is a hand edit, which is the one thing the guard hook leaves open.
   if (matches.length > 1) {
     throw new Error(
-      `${matches.length} holders of ${id} share the title ${JSON.stringify(keep)} — titles are the only thing `
+      `${matches.length} holders of ${named(id)} share the title ${quoted(keep)} — titles are the only thing `
         + "telling duplicate holders apart, so this one is a manual dedup: drop or re-title one of them by hand "
         + "(the guard hook leaves the Bash path open for a file the CLI cannot repair), then re-run"
     );
@@ -2324,7 +2328,7 @@ function cmdReassignIdUnlocked(root, payload) {
   // since have moved.
   if (expectedKept !== undefined && kept.entry.updated_at !== expectedKept) {
     throw new Error(
-      `the holder keeping ${id} was last updated ${kept.entry.updated_at}, not ${expectedKept} — `
+      `the holder keeping ${named(id)} was last updated ${named(kept.entry.updated_at)}, not ${named(expectedKept)} — `
         + "re-read the duplicate and re-decide which holder keeps the id"
     );
   }
@@ -2346,7 +2350,7 @@ function cmdReassignIdUnlocked(root, payload) {
       `id reassigned from ${id} during duplicate repair; commit trailers ${commitTrailerFor(id)} predate the reassignment`
     );
     holder.entry.updated_at = date;
-    return { from: id, to, title: holder.entry.title, trailer_commits: trailers };
+    return { from: named(id), to, title: named(holder.entry.title), trailer_commits: trailers };
   });
   let migrated;
   if (others.some((holder) => !holder.archived)) {
@@ -2364,14 +2368,14 @@ function cmdReassignIdUnlocked(root, payload) {
   const notes = ledger.demoteAnchors(root, id, { date });
 
   const result = {
-    kept: { id, title: kept.entry.title },
+    kept: { id: named(id), title: named(kept.entry.title) },
     reassigned,
     // Every entry still pointing at the id -- which now unambiguously means
     // the kept holder. The list is what `update-deps` gets aimed at when one
     // of them actually meant a renumbered entry.
     dependents_on_kept: [...active, ...archived]
       .filter((entry) => entry && Array.isArray(entry.depends_on) && entry.depends_on.includes(id))
-      .map((entry) => entry.id),
+      .map((entry) => named(entry.id)),
   };
   if (migrated) result.migrated = migrated;
   if (notes && notes.demoted) result.notes_anchors_demoted = notes.demoted;

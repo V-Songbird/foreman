@@ -200,7 +200,8 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   date, in the message and in the duplicate's `detail`, and leave an
   id carrying one out of `ids`, so `doctor --fix` no longer repairs its
   dependencies. `roadmap.js notes` prints such an area the same way, and so
-  does the note and result of an `update-status` close that records a lesson.
+  does the note and result of an `update-status` close that records a lesson,
+  and so do `reassign-id`'s refusals and result for an id, title or date.
 - Every `roadmap.js` write still accepts the errors a file already had, but
   only as many of each as it had. An entry whose id carries such a character,
   restored or archived beside another one, used to pass as the damage already

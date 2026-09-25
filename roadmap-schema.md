@@ -404,7 +404,8 @@ that `id` is a key. **Detect** it with `doctor`: the collision is
 everything depending on the id, and the commits already labelled
 `Foreman: <id>`. A value there carrying a character a reader cannot see is
 named by its code points instead of printed, so such a title cannot be
-copied into `keep`. **Repair** it with `reassign-id`, naming the exact `title` of
+copied into `keep`; `reassign-id`'s refusals and result name one the same
+way. **Repair** it with `reassign-id`, naming the exact `title` of
 the holder that keeps the id — usually the one those commit trailers,
 `[Foreman: <id>]` anchors, and dependents already mean. Every other holder is
 renumbered to a fresh id; dependents are left alone and keep pointing at the
