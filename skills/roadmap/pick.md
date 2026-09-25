@@ -79,8 +79,9 @@ answer or say no, Fast pick continues unchanged.
 <!-- [Foreman: 209] -->
 **Trial log.** Which row the user chose exists only in this turn — no script
 and no hook can see it, so these lines are the only reason the recommendation
-numbers exist at all. Each is a no-op unless the project set `trialLog`, so
-none needs a check first and it never blocks the flow.
+numbers exist at all. A valid call records nothing unless the project set
+`trialLog`, so it needs no check first; a malformed one fails in every
+project. Either way it never blocks the flow.
 
 `next-candidates --menu` has already recorded `menu_shown` and, on a menu
 built with `--hint`, `hint_used` —

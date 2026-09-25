@@ -12,8 +12,8 @@
 //
 // 1. **Opt-in and silent.** Nothing is recorded unless the project's
 //    .foreman/config.json sets `trialLog: true`. Off is the default and off
-//    means the writer does nothing at all — no file created, no directory
-//    made, no error.
+//    means the writer does nothing at all for a valid event — no file
+//    created, no directory made, no error.
 // 2. **A trial must never be able to break the work.** Every entry point is
 //    wrapped: a full disk, a read-only .foreman, a corrupt config, a bad
 //    event — none of them may propagate into the roadmap write or the hook
@@ -198,22 +198,20 @@ function validate(event, fields) {
  * Append one event. Never throws.
  *
  * Returns {recorded: true, line} when it wrote, {recorded: false, reason}
- * otherwise — "invalid" with an `error` for an event name outside the
- * vocabulary whether or not the log is on, "disabled" when the project has
- * not opted in, "invalid" when a known event's fields fail the check,
- * "write_failed" when the filesystem refused. Callers may ignore all of it; the return exists so
+ * otherwise — "invalid" with an `error` for an event outside the vocabulary
+ * whether or not the log is on, "disabled" when the project has not opted
+ * in, "write_failed" when the filesystem refused. Callers may ignore all of it; the return exists so
  * the tests can see which happened.
  */
 function record(event, fields = {}, options = {}) {
   const root = options.root || projectDir();
   try {
-    // [Foreman: 772] The event name is checked before the opt-in, so a
-    // misspelled event fails in every project. A known event still records
-    // nothing while the log is off.
+    // [Foreman: 772, 781] The whole event is checked before the opt-in, so a
+    // misspelled event or a bad field fails in every project. A valid event
+    // still records nothing while the log is off.
     const error = validate(event, fields);
-    if (error && !Object.hasOwn(EVENTS, event)) return { recorded: false, reason: "invalid", error };
-    if (!enabled(root)) return { recorded: false, reason: "disabled" };
     if (error) return { recorded: false, reason: "invalid", error };
+    if (!enabled(root)) return { recorded: false, reason: "disabled" };
     const line = { event, ts: today(), session: sessionToken(root), ...fields };
     fs.mkdirSync(foremanDir(root), { recursive: true });
     fs.appendFileSync(logPath(root), `${JSON.stringify(line)}\n`);
@@ -347,7 +345,8 @@ function main() {
         ok: true,
         usage:
           "trial-log.js <event> ['<json fields>'] — append one event to .foreman/trial-log.jsonl. "
-          + "Silent no-op unless .foreman/config.json sets trialLog: true. "
+          + "Records nothing unless .foreman/config.json sets trialLog: true; a malformed event "
+          + "(unknown name, missing or illegal field) fails with ok:false in every project. "
           + `Events: ${Object.keys(EVENTS).join(", ")}.`,
       })
     );

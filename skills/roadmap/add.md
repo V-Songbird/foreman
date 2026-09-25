@@ -50,5 +50,6 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js question_asked '{"flow":"add"}'
 ```
 
 One event per question interaction, never one per field it carried — the cost
-being measured is the interruption. It is a no-op unless the project set
-`trialLog`, so it needs no check first and never blocks the flow.
+being measured is the interruption. A valid call records nothing unless the
+project set `trialLog`, so it needs no check first; a malformed one fails in
+every project. Either way it never blocks the flow.

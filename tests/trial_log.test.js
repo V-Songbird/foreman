@@ -103,6 +103,28 @@ describe('trial log — opt-in', () => {
     assert.ok(!fs.existsSync(path.join(project, '.foreman')), 'nothing may be written while off');
   });
 
+  // [Foreman: 781] A known event with a bad field fails the same way.
+  test('a known event with a bad field is refused with the log off, and nothing is written', () => {
+    for (const [event, fields] of [
+      ['question_asked', { flow: 'pik' }],
+      ['init_completed', { tasks: '3' }],
+      ['init_completed', {}],
+      ['session_start', { note: 'x' }],
+    ]) {
+      const result = record(event, fields);
+      assert.equal(result.recorded, false, event);
+      assert.equal(result.reason, 'invalid', JSON.stringify(fields));
+      assert.equal(result.error, trial.validate(event, fields));
+    }
+    const cli = runNodeScript(path.join(SCRIPTS_DIR, 'trial-log.js'), ['question_asked', '{"flow":"pik"}'], null, {
+      CLAUDE_PROJECT_DIR: project,
+    });
+    const out = JSON.parse(cli.stdout);
+    assert.equal(out.ok, false);
+    assert.equal(out.reason, 'invalid');
+    assert.ok(!fs.existsSync(path.join(project, '.foreman')), 'nothing may be written while off');
+  });
+
   test('records once the project opts in', () => {
     on();
     assert.equal(record('session_start', {}).recorded, true);

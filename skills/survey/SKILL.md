@@ -365,6 +365,6 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js question_asked '{"flow":"survey"
 One event per interaction, never one per question: one `AskUserQuestion` call
 in Claude Code, however many questions it batches; one picker call or one
 plain-text question in Codex; one `ask_question` call in Antigravity.
-A skipped question is never logged. It is a
-no-op unless the project set `trialLog`, so it needs no check first and never
-blocks the flow.
+A skipped question is never logged. A valid call records nothing unless the
+project set `trialLog`, so it needs no check first; a malformed one fails in
+every project. Either way it never blocks the flow.

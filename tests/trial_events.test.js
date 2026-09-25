@@ -152,13 +152,19 @@ describe('the model-side trial events', () => {
     );
   });
 
-  test('every prose invocation says it is silent and never blocks', () => {
+  // [Foreman: 781] A valid call records nothing while the trial is off; a
+  // malformed one fails in every project.
+  test('every prose invocation says what happens with the trial off and never blocks', () => {
     const files = new Set(invocations().map((i) => i.file));
     for (const rel of files) {
       const flat = fs.readFileSync(path.join(SKILLS, rel), 'utf-8').replace(/\s+/g, ' ');
       assert.ok(
-        /no-op unless the project set `trialLog`/.test(flat),
-        `${rel} does not say the write is a no-op when the trial is off`
+        /A valid call records nothing unless the project set `trialLog`/.test(flat),
+        `${rel} does not say a valid write records nothing when the trial is off`
+      );
+      assert.ok(
+        /a malformed one fails in every project/.test(flat),
+        `${rel} does not say a malformed write fails in every project`
       );
       assert.ok(
         /never blocks? the flow/.test(flat),

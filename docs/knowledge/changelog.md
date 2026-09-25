@@ -282,10 +282,11 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   `trial-log.js` refuses an argument after its event and JSON fields.
   `resolve-symbols.js` and `render-sections.js` now report a failure as one
   JSON line with `ok:false` instead of a stack trace.
-- `trial-log.js` refuses an event name outside its vocabulary even when the
-  project has not turned the trial log on, so a misspelled event in a skill
-  fails in every project. A known event still records nothing while the log
-  is off.
+- `trial-log.js` refuses an event outside its vocabulary even when the
+  project has not turned the trial log on, so a misspelled event name or a
+  bad field value, such as `question_asked '{"flow":"pik"}'`, fails in every
+  project. A valid event still records nothing while the log is off, and the
+  skills and the `trial-log.js` usage text now say so.
 - A value flag given twice fails and writes nothing, saying to give it once
   and join several values with commas. `roadmap.js list --ids 691 --ids 999`
   used to list 999 alone. The same holds for every other value flag:

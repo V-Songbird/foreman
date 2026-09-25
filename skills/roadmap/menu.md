@@ -54,5 +54,6 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js question_asked '{"flow":"pick"}'
 
 `pick`, `add`, `correct`, `status` or `survey`, whichever the routing lands
 on. The structural doctor has no flow and records nothing. One event per
-question interaction, as the runtime defines it. It is a no-op unless the
-project set `trialLog`, so it needs no check first and never blocks the flow.
+question interaction, as the runtime defines it. A valid call records nothing
+unless the project set `trialLog`, so it needs no check first; a malformed one
+fails in every project. Either way it never blocks the flow.

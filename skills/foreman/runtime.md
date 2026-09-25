@@ -113,8 +113,10 @@ them after each commit.
 
 ## Trial events
 
-Trial logging is local and opt-in: every call is a no-op unless the project set
-`trialLog`, and a failure to record never interrupts work. Record only events
+Trial logging is local and opt-in: a valid call records nothing unless the
+project set `trialLog`, a malformed one (an unknown event, a missing or illegal
+field) fails in every project, and a failure to record never interrupts work.
+Record only events
 that actually occurred. `question_asked` is one question interaction the user
 saw: one `AskUserQuestion` call in Claude Code, however many questions it
 batches; one picker call or one plain-text question in Codex; one
