@@ -117,7 +117,7 @@ and `scripts/`.
    "verify":"..."}` on stdin, which also fills `unresolved` and
    `verification`). One JSON object: `{"ok": true, "files": [{"path",
    "missing"?, "directory"?, "unsupported"?, "outside_project"?,
-   "truncated"?, "lastChanged"?, "symbols":
+   "unreadable"?, "truncated"?, "lastChanged"?, "symbols":
    [{"name", "line"}]}], "unresolved": [...], "references": [{"helper",
    "files": [...]}], "verification"?: {"command", "resolves", "via"},
    "warnings": [...]}`. Skip the call only when no file paths are known yet.
@@ -147,6 +147,10 @@ and `scripts/`.
      drop it before delivering — a roadmap path pointing outside the repo
      is never followed. `check-prompt.js` refuses a prompt that still
      carries this marker, so this one is a gate, not a reminder.
+   - `unreadable` — the file exists but reading or scanning it failed,
+     so it carries no symbols, `relevant_files` lists its path alone,
+     and a name found only in it stays in `unresolved`. Its warning says
+     it was skipped; read it yourself before citing anything from it.
    - `unresolved` — identifier-shaped names in the task's own description
      that match no symbol in any touched file, no name a touched code
      file defines inside a body (an object key, a method, a member
