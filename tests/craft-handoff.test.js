@@ -265,6 +265,21 @@ describe('profile signals — each flippable independently, off in the baseline'
     assert.equal(json.profile, 'standard');
   });
 
+  // [Foreman: 794] History belongs to an entry: stdin commits and
+  // observed_touches neither resume the handoff nor reach its text.
+  test('resumed: an entry-less handoff given commits and observed_touches keeps the standard profile', () => {
+    const { json } = run(project, {
+      title: 'Ad-hoc client retry fix', why: 'Retries double-count under load.', what: 'Fix the backoff loop in the API client.',
+      planned_touches: ['src/auth/middleware.js'], commits: ['a1b2c3d'], observed_touches: ['src/legacy/retry.js'],
+      destination: 'clipboard', judgment: goodJudgment(),
+    });
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.equal(json.signals.resumed, false);
+    assert.equal(json.profile, 'standard');
+    assert.ok(!json.prompt.includes('a1b2c3d'), json.prompt);
+    assert.ok(!json.prompt.includes('src/legacy/retry.js'), json.prompt);
+  });
+
   // [Foreman: 775, 783, 784] The resume sentence names where the prompt quotes
   // the notes: <context> below it, or <increment_resume> above it under
   // increment review. Outside increment review it keeps the list --ids command

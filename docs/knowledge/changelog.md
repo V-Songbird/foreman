@@ -421,7 +421,9 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
 - An entry-less handoff given `resume` gets no `<increment_resume>` block
   and keeps the profile its other signals give. It used to get one that
   pointed at the conversation's evidence and quoted empty notes, and the flag
-  alone made it reinforced. No skill sends `resume` without an entry.
+  alone made it reinforced. `commits` and `observed_touches` given without an
+  entry are ignored too; either one alone made the handoff reinforced. No
+  skill sends any of the three without an entry.
 - Both quotes of an entry's notes stop at 2,000 characters. Past that, whole
   lines are left out, never part of one: first the stamps that name no
   finding (`correction applied:`, `dispatched to`, `id reassigned from`),

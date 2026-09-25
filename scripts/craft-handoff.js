@@ -249,8 +249,10 @@ function loadRecord(root, input) {
     depends_on: input.depends_on || [],
     kind: input.kind,
     updated_at: input.updated_at,
-    commits: input.commits || [],
-    observed_touches: input.observed_touches || [],
+    // [Foreman: 794] No history either: commits and observed_touches belong
+    // to an entry, so stdin copies would raise `resumed` and feed recall.
+    commits: [],
+    observed_touches: [],
     depends_on_docs: input.depends_on_docs || [],
   };
 }
