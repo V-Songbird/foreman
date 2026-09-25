@@ -225,6 +225,20 @@ const OVERLAP_CAVEAT =
   "task's planned_touches — a ranking hint, not proof: that field is a " +
   "prediction, so a task tagged no-overlap can still be the one this commit completes.)";
 
+// [Foreman: 696] A dispatch marker is the notes line a dispatching session
+// writes with `annotate` when it hands an entry to another session:
+// "dispatched to background agent `<id>`", "dispatched to Codex subagent
+// <id>" or "dispatched to Antigravity subagent <id>" (delivery-agent.md). A
+// plain session never writes one, so it is the signal that a dispatcher owns
+// the entry's acceptance and the findings from its work. It marks the entry,
+// not the session, so the wording names each role and leaves any other
+// session on the steps it already had.
+const DISPATCH_MARKER_RE = /^(?:\d{4}-\d{2}-\d{2}\s+)?dispatched to /m;
+
+function dispatchedIds(entries) {
+  return entries.filter((e) => DISPATCH_MARKER_RE.test(String(e.notes || ""))).map((e) => e.id);
+}
+
 // Two independent triggers, since a task stops getting any nudge the moment
 // it leaves in_progress — real usage showed a follow-up bugfix commit
 // (found right after finishing a task, before moving on, or while the task
@@ -261,6 +275,7 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
     );
     const list = inProgress.map((e, i) => `${e.id} ("${e.title}")${tags[i]}`).join(", ");
     const caveat = tags.some(Boolean) ? " " + OVERLAP_CAVEAT : "";
+    const dispatched = dispatchedIds(inProgress);
     if (requireVerification) {
       parts.push(
         `This commit may complete an in-progress ROADMAP.jsonl task (${list}), ` +
@@ -277,6 +292,13 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
           `echo '{"id":"<id>","status":"in_progress","notes":"<what they said>"}' | node "${SCRIPT_PATH}" update-status ` +
           "— don't mark done. If this session has no user to ask (a background " +
           "agent), leave it awaiting_acceptance — the user confirms later." +
+          (dispatched.length
+            ? ` Entries whose notes carry a dispatch marker: ${dispatched.join(", ")}. ` +
+              "A session dispatched to work one of these records awaiting_acceptance as above " +
+              "but leaves its acceptance to the session that dispatched it, and reports there " +
+              "instead of asking the user; the dispatching session handles acceptance as its " +
+              "own instructions say."
+            : "") +
           caveat
       );
     } else {
@@ -476,6 +498,15 @@ function main() {
   }
   if (config.discoverySuggestions) {
     blocks.push(discoveryBlock(hostName(), config.requireVerification));
+    const dispatched = dispatchedIds([...inProgress, ...followUpAll]);
+    if (dispatched.length) {
+      blocks.push(
+        `[Foreman] Entries whose notes carry a dispatch marker: ${dispatched.join(", ")}. ` +
+          "A session dispatched to work one of these returns its findings, with their " +
+          "evidence, to the session that dispatched it instead of asking the user or adding " +
+          "them; the dispatching session files them as its own instructions say."
+      );
+    }
   }
   if (!blocks.length) return;
 

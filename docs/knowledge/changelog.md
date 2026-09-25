@@ -303,6 +303,12 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   the close stored it.
 - Survey's investigators treat the files, commits and comments they read as
   evidence: text there that asks them to act is reported, never followed.
+- The commit reminder names each entry whose notes carry a dispatch marker,
+  such as `dispatched to background agent <id>`. The session dispatched to
+  work it records `awaiting_acceptance` and reports its acceptance and its
+  findings to the session that dispatched it instead of asking you, and the
+  dispatching session follows its own instructions. Without a marker the
+  reminder is unchanged.
 
 ## 3.1.0 — 2026-09-15
 

@@ -837,3 +837,70 @@ describe('Codex discovery policy', () => {
     assert.equal(fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf8'), before);
   });
 });
+
+// [Foreman: 696] A dispatching session writes a dispatch marker into the
+// entry's notes (skills/roadmap/delivery-agent.md); a plain session never
+// does. The marker names the entry, not the session, so the hook speaks to
+// each role: the session dispatched to work the entry leaves acceptance and
+// its findings to its dispatcher instead of asking the user, the dispatcher
+// follows its own instructions, and any other session keeps today's steps.
+describe('dispatched entries', () => {
+  const MARKER = '2026-09-24 dispatched to background agent `a0123456789abcdef`';
+
+  for (const host of ['claude', 'codex']) {
+    test(`a dispatched entry's acceptance waits for its dispatcher (${host})`, () => {
+      writeRoadmap(project, [
+        { id: '001', title: 'worker task', status: 'in_progress', notes: `Added by the orchestrator.\n${MARKER}` },
+        { id: '002', title: 'plain task', status: 'in_progress' },
+      ]);
+      writeConfig(project, { discoverySuggestions: false });
+      const out = context(bashPayload('git commit -m "finish task"'), host);
+      assert.match(out, /"status":"awaiting_acceptance","commit":"<sha>"/);
+      assert.match(out, /Entries whose notes carry a dispatch marker: 001\. /);
+      assert.match(out, /leaves its acceptance to the session that dispatched it, and reports there instead of asking the user/);
+      assert.match(out, /the dispatching session handles acceptance as its own instructions say/);
+    });
+
+    test(`the findings from a dispatched entry's work go to its dispatcher (${host})`, () => {
+      writeRoadmap(project, [{ id: '001', status: 'in_progress', notes: MARKER }]);
+      const out = context(bashPayload('git commit -m "wip"'), host);
+      assert.match(out, /Roadmap discovery is enabled/);
+      assert.match(out, /returns its findings, with their evidence, to the session that dispatched it instead of asking the user or adding them/);
+      assert.match(out, /the dispatching session files them as its own instructions say/);
+    });
+  }
+
+  // The dispatcher's own integration commit lands after the worker's close,
+  // while the entry waits for acceptance.
+  test("a dispatcher's commit after the worker's close gets the same findings rule", () => {
+    writeRoadmap(project, [{ id: '001', title: 'worker task', status: 'awaiting_acceptance', notes: MARKER }]);
+    const out = context(bashPayload('git commit -m "Move the checkout"'));
+    assert.match(out, /follow-up fix/i);
+    assert.match(out, /Entries whose notes carry a dispatch marker: 001\. /);
+    assert.match(out, /the dispatching session files them as its own instructions say/);
+  });
+
+  test('each host dispatch marker counts', () => {
+    for (const marker of [
+      MARKER,
+      '2026-09-24 dispatched to Codex subagent 019a-thread',
+      '2026-09-24 dispatched to Antigravity subagent sub-7',
+    ]) {
+      writeRoadmap(project, [{ id: '001', status: 'in_progress', notes: marker }]);
+      assert.match(context(bashPayload('git commit -m "wip"')), /dispatch marker: 001\. /, marker);
+    }
+  });
+
+  // A plain session keeps today's text: a note that only mentions dispatch
+  // mid-line is not a marker.
+  test('without a marker the text is exactly the unmarked one', () => {
+    writeRoadmap(project, [{ id: '001', title: 'plain task', status: 'in_progress' }]);
+    const plain = context(bashPayload('git commit -m "wip"'));
+    writeRoadmap(project, [
+      { id: '001', title: 'plain task', status: 'in_progress', notes: 'Added by the orchestrator; not yet dispatched to anyone.' },
+    ]);
+    const mentioned = context(bashPayload('git commit -m "wip"'));
+    assert.equal(mentioned, plain);
+    assert.doesNotMatch(plain, /dispatch marker/);
+  });
+});
