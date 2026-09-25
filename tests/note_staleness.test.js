@@ -251,7 +251,8 @@ describe('the notes pull command', () => {
       const shown = byKey.get(ledger.recordKey(stored));
       assert.ok(shown, `${stored.entry} is listed by the key note-supersede takes`);
       assert.deepEqual(shown.hidden_characters, [hit]);
-      assert.match(shown.withheld, /retire it by its key with `roadmap\.js note-supersede`/);
+      // [Foreman: 749] It states what note-supersede can do, not an order to run it.
+      assert.equal(shown.withheld, 'its text carries characters a reader cannot see, so no handoff or file read serves it; `roadmap.js note-supersede` can retire it by its key');
       for (const field of ['lesson', 'entry', 'date', 'paths', 'label']) assert.equal(shown[field], undefined, `${stored.entry} ${field}`);
     }
   });

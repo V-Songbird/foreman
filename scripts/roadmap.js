@@ -2529,7 +2529,7 @@ function cmdNotes(root, flags) {
           key,
           area,
           hidden_characters: hidden,
-          withheld: "its text carries characters a reader cannot see, so no handoff or file read serves it — retire it by its key with `roadmap.js note-supersede`",
+          withheld: "its text carries characters a reader cannot see, so no handoff or file read serves it; `roadmap.js note-supersede` can retire it by its key",
         };
       }
       return {
