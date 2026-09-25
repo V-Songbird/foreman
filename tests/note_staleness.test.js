@@ -219,4 +219,35 @@ describe('the notes pull command', () => {
     });
     assert.deepEqual(notes(root).records, []);
   });
+
+  // [Foreman: 723] Survey hands this output to a model, so a record that
+  // servedBody (681) serves nowhere prints its key and code points, never its
+  // text, the way doctor (700) names it.
+  test('a record carrying a character a reader cannot see prints its key and code points, never its text', () => {
+    const root = project();
+    const zwsp = String.fromCodePoint(0x200b);
+    const rlo = String.fromCodePoint(0x202e);
+    for (const file of ['src/auth/session.js', 'src/auth/token.js']) {
+      fs.mkdirSync(path.join(root, path.dirname(file)), { recursive: true });
+      fs.writeFileSync(path.join(root, file), 'x', 'utf-8');
+    }
+    const clean = record({ entry: '001', paths: ['src/auth/session.js'], date: today() });
+    const badLesson = record({ entry: '002', lesson: `use the ${zwsp}cache`, date: today() });
+    const badPath = record({ entry: '003', paths: ['src/auth/token.js', `src/auth/${rlo}x.js`], date: today() });
+    fs.mkdirSync(path.join(root, '.foreman'), { recursive: true });
+    fs.writeFileSync(ledger.notesPath(root), [clean, badLesson, badPath].map((r) => `${JSON.stringify(r)}\n`).join(''), 'utf-8');
+
+    const result = runRoadmap(['notes'], null, { CLAUDE_PROJECT_DIR: root });
+    assert.doesNotMatch(result.stdout, /[\u200B\u202E]|\\u200b|\\u202e/i, 'no hidden character reaches the output, raw or escaped');
+    const out = JSON.parse(result.stdout);
+    const byKey = new Map(out.records.map((r) => [r.key, r]));
+    assert.equal(byKey.get(ledger.recordKey(clean)).lesson, 'refresh() owns the token clock', 'a clean record still prints its text');
+    for (const [stored, hit] of [[badLesson, 'lesson line 1: U+200B'], [badPath, 'paths item 2: U+202E']]) {
+      const shown = byKey.get(ledger.recordKey(stored));
+      assert.ok(shown, `${stored.entry} is listed by the key note-supersede takes`);
+      assert.deepEqual(shown.hidden_characters, [hit]);
+      assert.match(shown.withheld, /retire it by its key with `roadmap\.js note-supersede`/);
+      for (const field of ['lesson', 'entry', 'date', 'paths', 'label']) assert.equal(shown[field], undefined, `${stored.entry} ${field}`);
+    }
+  });
 });

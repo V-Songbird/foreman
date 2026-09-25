@@ -22,6 +22,7 @@ const noteStaleness = require("./note-staleness");
 const {
   validateEntries,
   validateHiddenCharacters,
+  recordHiddenCharacters,
   validateAcrossFiles,
   enrichDuplicates,
   validateConfig,
@@ -2511,16 +2512,32 @@ function cmdNotes(root, flags) {
 
   const result = {
     areas: served,
-    records: resolved.map(({ record, state, label: line }) => ({
-      key: ledger.recordKey(record),
-      area: record.area || ".",
-      entry: record.entry,
-      date: record.date,
-      paths: record.paths,
-      lesson: record.lesson,
-      staleness: state,
-      label: line,
-    })),
+    records: resolved.map(({ record, state, label: line }) => {
+      const key = ledger.recordKey(record);
+      const area = record.area || ".";
+      // [Foreman: 723] Survey hands this output to a model, and JSON.stringify
+      // keeps a hidden character as it is. A record servedBody serves nowhere
+      // prints what doctor names it by: its key and code points, not its text.
+      const hidden = recordHiddenCharacters(record);
+      if (hidden.length) {
+        return {
+          key,
+          area,
+          hidden_characters: hidden,
+          withheld: "its text carries characters a reader cannot see, so no handoff or file read serves it — retire it by its key with `roadmap.js note-supersede`",
+        };
+      }
+      return {
+        key,
+        area,
+        entry: record.entry,
+        date: record.date,
+        paths: record.paths,
+        lesson: record.lesson,
+        staleness: state,
+        label: line,
+      };
+    }),
   };
   if (overflow > 0) {
     result.overflow = `+${overflow} more area${overflow === 1 ? "" : "s"} — filter with --area or --paths`;

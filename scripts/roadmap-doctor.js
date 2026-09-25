@@ -332,6 +332,13 @@ function hiddenIn(value) {
   return Array.isArray(value) ? found.map((hit) => hit.replace(/^line/, "item")) : found;
 }
 
+// [Foreman: 700] One "field line N: U+200B" hit per lesson-store field that
+// servedBody checks, since every serving path prints them. [Foreman: 723]
+// roadmap.js notes prints a record with hits by its key and these instead.
+function recordHiddenCharacters(record) {
+  return ["lesson", "entry", "date", "paths"].flatMap((field) => hiddenIn(record[field]).map((hit) => `${field} ${hit}`));
+}
+
 // The stored strings a handoff prints: an entry's own title, why, what, notes
 // and planned_touches, another entry's title and notes when a handoff recalls
 // it, and doc through a dependent's depends_on_docs.
@@ -624,7 +631,7 @@ function validateAreaNotes(root) {
   // skips it and nothing breaks. One finding, naming each record's key for
   // note-supersede.
   const hidden = records.flatMap((record) => {
-    const hits = ["lesson", "entry", "date", "paths"].flatMap((field) => hiddenIn(record[field]).map((hit) => `${field} ${hit}`));
+    const hits = recordHiddenCharacters(record);
     return hits.length ? [`${ledger.recordKey(record)} (${hits.join("; ")})`] : [];
   });
   if (hidden.length) {
@@ -758,6 +765,7 @@ module.exports = {
   hookDependencies,
   validateEntries,
   validateHiddenCharacters,
+  recordHiddenCharacters,
   validateAcrossFiles,
   enrichDuplicates,
   validateConfig,

@@ -176,7 +176,9 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
 - A stored lesson whose text, files, entry or date carry a character a reader
   cannot see, such as a zero-width space, a bidi override or a Unicode tag, is
   no longer served by the handoff or by the hook that runs when a file is
-  read. `roadmap.js notes` still lists it, so `note-supersede` can retire it.
+  read. `roadmap.js notes` still lists it, so `note-supersede` can retire it,
+  but by its key and the code points it carries, never its text, since survey
+  hands that output to a model.
 - `roadmap.js doctor` reports text already stored with a character a reader
   cannot see. An entry's title, why, what, notes, doc or planned files, in the
   roadmap or the archive, is an error (`hidden_characters`), since every
