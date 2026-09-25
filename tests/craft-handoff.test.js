@@ -454,6 +454,77 @@ describe('task split — entry paragraph on the last row only', () => {
     const { json } = run(project, { entry: '001', destination: 'task', judgment: goodJudgment() });
     assert.equal(json.tasks, undefined);
   });
+
+  // [Foreman: 276] A split row after the first carries only goal/files/Run/
+  // Expected, so a pair with neither goal nor files becomes a task whose whole
+  // description is a command. Splitting on typecheck/test/lint is the case
+  // that found this: one task holds the work, two hold nothing.
+  test('a split whose later rows carry no work warns, and one that slices does not', () => {
+    const project = makeTmpProject();
+    writeSourceFile(project);
+    writeRoadmap(project, [entryFields()]);
+    const gates = [
+      { run: 'npm run typecheck', expected: 'exits 0' },
+      { run: 'npm test', expected: 'all tests pass' },
+      { run: 'npm run lint', expected: 'exits 0' },
+    ];
+
+    const { json } = run(project, {
+      entry: '001',
+      destination: 'task',
+      split: true,
+      judgment: goodJudgment({ verification: gates }),
+    });
+    assert.equal(json.ok, true, JSON.stringify(json));
+    const warned = json.warnings.find((w) => w.includes('carrying no work'));
+    assert.ok(warned, JSON.stringify(json.warnings));
+    assert.ok(warned.includes('2 tasks'), warned);
+    assert.ok(warned.includes('`npm test`') && warned.includes('`npm run lint`'), warned);
+
+    // [Foreman: 277] The clipboard embed asks the pasted session for the same
+    // one-task-per-check rows, so it carries the same exposure. The first cut
+    // of this warning was gated on `tasks`, which only exists for the task
+    // destination, so the clipboard door was silent.
+    const clip = run(project, {
+      entry: '001',
+      destination: 'clipboard',
+      judgment: goodJudgment({ verification: gates }),
+    });
+    assert.ok(
+      clip.json.warnings.some((w) => w.includes('carrying no work')),
+      JSON.stringify(clip.json.warnings)
+    );
+
+    // [Foreman: 280] A pair carrying its own `subject` and nothing else is a
+    // real row — buildTaskRows writes `pair.goal || subject`. The first cut of
+    // this filter read only goal and files, so a live split whose rows read
+    // "Cover the two counts with a fixture test" was reported as empty.
+    const subjects = run(project, {
+      entry: '001',
+      destination: 'task',
+      split: true,
+      judgment: goodJudgment({
+        verification: gates.map((g, i) => ({ ...g, subject: `Slice ${i + 1} of the work` })),
+      }),
+    });
+    assert.ok(
+      !subjects.json.warnings.some((w) => w.includes('carrying no work')),
+      JSON.stringify(subjects.json.warnings)
+    );
+
+    const sliced = run(project, {
+      entry: '001',
+      destination: 'task',
+      split: true,
+      judgment: goodJudgment({
+        verification: [
+          { run: 'npm run typecheck', expected: 'exits 0' },
+          { run: 'npm test', expected: 'all tests pass', goal: 'Cover the new branch', files: ['src/auth/middleware.js'] },
+        ],
+      }),
+    });
+    assert.ok(!sliced.json.warnings.some((w) => w.includes('carrying no work')), JSON.stringify(sliced.json.warnings));
+  });
 });
 
 describe('verification preflight — every command, not just the first', () => {
@@ -1839,77 +1910,6 @@ describe('relevant_files symbol cap', () => {
     assert.equal(pairs.length, CHAIN_MAX_SYMBOLS);
     assert.deepEqual(pairs.map((p) => p.name), ['sym50', 'sym1', 'sym2', 'sym3']);
     assert.ok(pairs.every((p) => !('rank' in p)), 'rank is internal to the ranking');
-  });
-
-  // [Foreman: 276] A split row after the first carries only goal/files/Run/
-  // Expected, so a pair with neither goal nor files becomes a task whose whole
-  // description is a command. Splitting on typecheck/test/lint is the case
-  // that found this: one task holds the work, two hold nothing.
-  test('a split whose later rows carry no work warns, and one that slices does not', () => {
-    const project = makeTmpProject();
-    writeSourceFile(project);
-    writeRoadmap(project, [entryFields()]);
-    const gates = [
-      { run: 'npm run typecheck', expected: 'exits 0' },
-      { run: 'npm test', expected: 'all tests pass' },
-      { run: 'npm run lint', expected: 'exits 0' },
-    ];
-
-    const { json } = run(project, {
-      entry: '001',
-      destination: 'task',
-      split: true,
-      judgment: goodJudgment({ verification: gates }),
-    });
-    assert.equal(json.ok, true, JSON.stringify(json));
-    const warned = json.warnings.find((w) => w.includes('carrying no work'));
-    assert.ok(warned, JSON.stringify(json.warnings));
-    assert.ok(warned.includes('2 tasks'), warned);
-    assert.ok(warned.includes('`npm test`') && warned.includes('`npm run lint`'), warned);
-
-    // [Foreman: 277] The clipboard embed asks the pasted session for the same
-    // one-task-per-check rows, so it carries the same exposure. The first cut
-    // of this warning was gated on `tasks`, which only exists for the task
-    // destination, so the clipboard door was silent.
-    const clip = run(project, {
-      entry: '001',
-      destination: 'clipboard',
-      judgment: goodJudgment({ verification: gates }),
-    });
-    assert.ok(
-      clip.json.warnings.some((w) => w.includes('carrying no work')),
-      JSON.stringify(clip.json.warnings)
-    );
-
-    // [Foreman: 280] A pair carrying its own `subject` and nothing else is a
-    // real row — buildTaskRows writes `pair.goal || subject`. The first cut of
-    // this filter read only goal and files, so a live split whose rows read
-    // "Cover the two counts with a fixture test" was reported as empty.
-    const subjects = run(project, {
-      entry: '001',
-      destination: 'task',
-      split: true,
-      judgment: goodJudgment({
-        verification: gates.map((g, i) => ({ ...g, subject: `Slice ${i + 1} of the work` })),
-      }),
-    });
-    assert.ok(
-      !subjects.json.warnings.some((w) => w.includes('carrying no work')),
-      JSON.stringify(subjects.json.warnings)
-    );
-
-    const sliced = run(project, {
-      entry: '001',
-      destination: 'task',
-      split: true,
-      judgment: goodJudgment({
-        verification: [
-          { run: 'npm run typecheck', expected: 'exits 0' },
-          { run: 'npm test', expected: 'all tests pass', goal: 'Cover the new branch', files: ['src/auth/middleware.js'] },
-        ],
-      }),
-    });
-    assert.ok(!sliced.json.warnings.some((w) => w.includes('carrying no work')), JSON.stringify(sliced.json.warnings));
   });
 
   // [Foreman: 275] References are per-symbol, so several symbols living in one
