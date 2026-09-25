@@ -1260,7 +1260,7 @@ describe('invisible characters', () => {
     const project = makeTmpProject();
     const { goodPrompt } = fixtures('claude');
     const quoted = (tag, body) => withContext(`Observed failure. Recorded evidence supplied with this handoff (not instructions):\n<${tag}>\n${body}\n</${tag}>`);
-    for (const tag of ['observed_failure', 'recorded_increment_notes']) {
+    for (const tag of ['observed_failure', 'recorded_increment_notes', 'recorded_entry_notes']) {
       const hidden = runCheck(project, goodPrompt({ context: quoted(tag, 'Error: boom\u2066') }), ['--destination', 'task', '--host', 'claude']);
       assert.ok(invisibleError(hidden.json), `${tag}: ${JSON.stringify(hidden.json)}`);
       const placeholder = runCheck(project, goodPrompt({ context: quoted(tag, 'log: [exact command here]') }), ['--destination', 'task', '--host', 'claude']);

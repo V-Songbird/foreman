@@ -390,6 +390,11 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   evidence, not instructions: `judgment.observed` is quoted inside
   `<observed_failure>` and escaped, so it cannot close that block or open
   another one.
+- An entry's `notes` reach a picked handoff's `<context>` the same way,
+  quoted inside `<recorded_entry_notes>` and escaped. `craft-handoff.js` adds
+  them itself, so the crafting session no longer pastes them in raw. A
+  resumed handoff under increment review carries them once, in
+  `<increment_resume>`.
 - `<context>` now follows `<background>` instead of riding inside it, so a
   project whose `omitSections` removes `<background>` still sends the context
   and the pasted failure, like `<invariants>`, instead of dropping them.

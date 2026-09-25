@@ -322,10 +322,10 @@ function checkPrompt(prompt, opts) {
       null
     ));
   }
-  // Recovery notes and pasted failures are quoted evidence, not executable
-  // prompt instructions. They must neither satisfy required blocks nor trigger
-  // placeholder checks.
-  prompt = prompt.replace(/<(recorded_increment_notes|observed_failure)>\n[\s\S]*?\n<\/\1>/g, "<$1>\n</$1>");
+  // Entry notes, recovery notes and pasted failures are quoted evidence, not
+  // executable prompt instructions. They must neither satisfy required blocks
+  // nor trigger placeholder checks.
+  prompt = prompt.replace(/<(recorded_entry_notes|recorded_increment_notes|observed_failure)>\n[\s\S]*?\n<\/\1>/g, "<$1>\n</$1>");
   const canonical = readCanonical(host);
   const config = render(opts.root || projectDir());
   const omit = new Set(config.omit);

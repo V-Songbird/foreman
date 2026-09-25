@@ -859,8 +859,11 @@ function recordedEvidence(tag, text) {
 // [Foreman: 632] A pasted failure goes in as the artifact, wrapped: a handoff
 // is itself pasted into a session, and text planted in pasted output is read
 // as the user's own instruction unless it is marked as evidence.
-function contextText(judgmentContext, dependsOnDocs, observed) {
+// [Foreman: 783] An entry's notes go in the same way, so the crafter never
+// pastes them raw into judgment.context.
+function contextText(judgmentContext, dependsOnDocs, observed, notes) {
   let text = judgmentContext || "";
+  if (notes) text += `${text ? "\n" : ""}Prior findings recorded on this entry. ${recordedEvidence("recorded_entry_notes", notes)}`;
   if (observed) text += `${text ? "\n" : ""}Observed failure. ${recordedEvidence("observed_failure", observed)}`;
   if (dependsOnDocs && dependsOnDocs.length) {
     text += `${text ? "\n" : ""}Decision docs to read first, so a settled question isn't re-decided: ${dependsOnDocs.join(", ")}`;
@@ -1461,19 +1464,21 @@ function assemble(root, input) {
   const lessons = holdUserRoot(ledgerText(root, record));
   const anchors = holdUserRoot(anchorsText(root, record, config.ledger.dir, history));
   const chain = holdUserRoot(symbolChainText(root, record, symbolResult.files, history));
-  const ctxText = holdUserRoot(contextText(judgment.context, record.depends_on_docs, judgment.observed));
+  const recoveryCarriesNotes = reviewEachIncrement && input.resume;
+  const ctxText = holdUserRoot(contextText(judgment.context, record.depends_on_docs, judgment.observed, record.id && !recoveryCarriesNotes ? record.notes : ""));
   const includeTone = !workflowStage && reinforced && (destination === "agent" || !omit.has("tone"));
   const includeBackground = !omit.has("background");
   const includeOutputFormat = !workflowStage && reinforced && !omit.has("output_format");
   // These two mix Foreman's own commands with the user's text, so the user's
   // side is held before they are built.
   const rulesBlock = taskRulesText(holdUserRoot(record), holdUserRoot(judgment), hasVerification, fixCeilingLine, checkpointEmbed, reviewEachIncrement, host);
-  const recoveryBlock = reviewEachIncrement && input.resume ? incrementResumeText(holdUserRoot(record), host) : "";
-  // [Foreman: 597, 605, 701] <context> and <invariants> are task evidence on
-  // every host and profile: the entry's notes, its depends_on_docs, the pasted
-  // failure and the crafter's observable assertions, which nothing else in a
-  // standard handoff repeats. Both sit outside <background>, so an omitted
-  // background cannot drop them.
+  const recoveryBlock = recoveryCarriesNotes ? incrementResumeText(holdUserRoot(record), host) : "";
+  // [Foreman: 597, 605, 701, 783] <context> and <invariants> are task evidence
+  // on every host and profile: judgment.context, the entry's notes (unless
+  // <increment_resume> already carries them), its depends_on_docs, the pasted
+  // judgment.observed failure and the crafter's observable assertions, which
+  // nothing else in a standard handoff repeats. Both sit outside <background>,
+  // so an omitted background cannot drop them.
   // A decision entry's task_rules already say "do not write implementation
   // code" — synthesizing `Implement: <title>.` as the request sentence puts
   // the contradiction in the one line that carries the actual ask.

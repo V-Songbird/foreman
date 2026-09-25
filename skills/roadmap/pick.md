@@ -215,11 +215,11 @@ this session's model, and a pasted prompt runs wherever the user pastes it.
      purpose line ("Why this task exists: …"), so the user's stated
      intention reaches the session unparaphrased; a `purpose` passed here
      would be dropped in its favour.
-   - `context` ← the entry's `what`, plus its `notes` when non-empty,
-     attributed as prior recorded findings on this entry (a survey verdict,
-     a defer trigger, a previous session's evidence) — the selected-entry
-     read already carries them, so this stops the destination re-deriving
-     what someone already wrote down; they stay evidence to check.
+   - `context` ← the entry's `what`. Do not copy its `notes`: when they
+     are non-empty the script adds them to `context` itself, escaped and
+     marked as recorded evidence, so the destination reads prior findings
+     (a survey verdict, a defer trigger, a previous session's evidence) as
+     data to check.
      `depends_on_docs` needs no gathering: when the selected entry carries a
      non-empty one, the script folds those resolved document paths into
      `context` on its own.
