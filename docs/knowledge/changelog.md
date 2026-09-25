@@ -202,6 +202,15 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   dependencies. `roadmap.js notes` prints such an area the same way, and so
   does the note and result of an `update-status` close that records a lesson,
   and so do `reassign-id`'s refusals and result for an id, title or date.
+- The roadmap skill's doctor branch now names a repair for every finding
+  `roadmap.js doctor` reports: `hidden_characters` by field (`correct`, or
+  `update-status` for `doc`; `notes` has none), `notes_hidden_characters`
+  through `note-supersede`, `notes_dead_record` through `note-prune` when the
+  user asks, and an unrecognized `model` or `effort` or a bad `doc` through
+  `update-status`, which it used to call unrepairable. It passes on every info
+  finding, not only the hook disclosure. `roadmap.js doctor --help` says it
+  also checks what the write gate leaves out, names the `info` severity and
+  lists every code doctor reports.
 - A line `roadmap.js doctor` names, in the roadmap or the archive, is now the
   file's own line. It used to leave out the format meta line and blank lines,
   so it named the line above the entry in every file Foreman writes.

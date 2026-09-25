@@ -3007,12 +3007,16 @@ naming the field, each line and code point.
                     each match includes its status so callers can
                     tell "already declined" from "already on the roadmap"
   doctor            flag: --fix   (optional; read-only without it)
-                    checks the whole roadmap and .foreman/config.json against
-                    the structural contract every mutation is held to, and
-                    prints {ok, findings, summary:{errors,warnings}} -- here
+                    checks the whole roadmap against the structural contract
+                    every mutation is held to, and also what the write gate
+                    leaves out: a character a reader cannot see in a field a
+                    handoff quotes, titles that read alike, .foreman/config.json
+                    and the lesson store .foreman/notes.jsonl; prints {ok,
+                    findings, summary:{errors,warnings}} -- here
                     ok means "no error-severity finding", not "the call
                     worked" (a failed call still exits 1 with error)
-                    each finding: code, severity ("error"|"warning"), the
+                    each finding: code, severity ("error"|"warning"|"info";
+                    info counts toward neither total), the
                     entry ids it concerns, a one-line message, and
                     repairable:true only where the fix is mechanical
                     a duplicate_id/duplicate_across_files finding also carries
@@ -3032,7 +3036,11 @@ naming the field, each line and code point.
                     terminal_without_evidence, awaiting_without_evidence,
                     unsupported_schema_version,
                     duplicate_across_files, unknown_config_key,
-                    invalid_config_value, unreadable_config
+                    invalid_config_value, unreadable_config,
+                    hidden_characters, notes_unreadable,
+                    notes_unsupported_format, notes_invalid_record,
+                    notes_dead_record, notes_hidden_characters,
+                    hook_dependencies
                     the whole per-entry contract also runs over
                     .foreman/archive.jsonl (its findings' messages carry that
                     prefix, and --fix never writes that file)
