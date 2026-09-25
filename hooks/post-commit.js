@@ -360,6 +360,8 @@ function discoveryBlock(host = hostName(), requireVerification = true) {
 // An inline scope-creep log closes with the status the project's acceptance
 // policy allows: with requireVerification on (the default), finished work
 // waits for the user's confirmation like every other close.
+// [Foreman: 742] A background agent hands its candidates back, as
+// discovery.md tells the other hosts, instead of dropping them.
 function claudeDiscoveryBlock(requireVerification = true) {
   const loggedStatus = requireVerification ? "awaiting_acceptance" : "done";
   return (
@@ -399,8 +401,10 @@ function claudeDiscoveryBlock(requireVerification = true) {
     "Never call " +
     "mcp__ccd_session__spawn_task for these — it only offers the user a " +
     "chip that runs nothing until they click it. Never act without asking. If this " +
-    "session has no user to ask (a background agent), skip the suggestions " +
-    "entirely. Say nothing if nothing is confirmed."
+    "session has no user to ask (a background agent), return each candidate and " +
+    "its evidence in your final report to the session that started you, which " +
+    "handles them. Don't discard them, ask the user or add entries yourself. " +
+    "Say nothing if nothing is confirmed."
   );
 }
 

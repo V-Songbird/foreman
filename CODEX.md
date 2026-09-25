@@ -100,8 +100,9 @@ advisory: a commit made inside a helper script need not be recognized for the
 completion review to run. No experimental environment switch changes the
 discovery threshold. Local tests verify that the policy is delivered, not that a
 model will identify every useful finding. Claude Code keeps its own
-commit-time discovery prompt, which asks with `AskUserQuestion` and skips
-suggestions in a background agent that has no user to ask.
+commit-time discovery prompt, which asks with `AskUserQuestion`; a background
+agent with no user to ask returns its candidates and their evidence in its
+final report instead.
 
 From the project directory, using the actual installed plugin path:
 

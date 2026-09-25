@@ -809,10 +809,20 @@ describe('the discovery inclusion bar', () => {
       'MUST go through the duplicate check',
       'do NOT run extra',
       'Never act without asking',
-      'skip the suggestions',
     ]) {
       assert.ok(block.includes(shared), `the block lost "${shared}"`);
     }
+  });
+
+  // [Foreman: 742] A background agent keeps its findings on every host, as
+  // skills/foreman/discovery.md says: it hands them back instead of
+  // dropping them.
+  test('a background agent returns its candidates instead of skipping them', () => {
+    const block = discoveryBlock('claude');
+    assert.doesNotMatch(block, /skip the suggestions/);
+    assert.match(block, /no user to ask \(a background agent\), return each candidate and its evidence in your final report/);
+    assert.match(block, /Don't discard them, ask the user or add entries yourself/);
+    assert.match(discoveryBlock('codex'), /returns candidates and evidence to its coordinator;\s+it must not discard them/);
   });
 
   // Codex reads skills/foreman/discovery.md, the policy its handoffs and

@@ -146,6 +146,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
 - A background agent resumed from the pick menu is checked the same way:
   when it reports it finished, the session reads its `Run:`/`Expected:`
   results and the entry's status and `unverified:` lines before relaying it.
+- A background agent keeps the out-of-scope findings the commit reminder asks
+  for: it returns each one with its evidence in its final report, for the
+  session that started it to handle, instead of skipping them. Codex and
+  Antigravity already did this.
 
 ### Codex
 
