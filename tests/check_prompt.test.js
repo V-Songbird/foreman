@@ -110,6 +110,8 @@ function fixtures(host) {
   // [Foreman: 138, 231] The short profile: identity + goal, the concise truth
   // line, touches, how to verify — the Run:/Expected: pairs and the fix ceiling
   // that closes them — and the closure-evidence rule. Nothing else.
+  // [Foreman: 597, 773] Plus the <context> part craft-handoff.js emits on the
+  // standard profile too, after </background> and joined like every other part.
   function standardPrompt(overrides = {}) {
     const parts = {
       codex_runtime: runtime,
@@ -117,6 +119,7 @@ function fixtures(host) {
       truth_line: CONCISE_TRUTH_SENTENCE,
       approval: host === 'claude' ? APPROVAL_SOURCE_SENTENCE : IMPLEMENTATION_AUTHORIZATION_SENTENCE,
       background: '<background>\n<relevant_files>\nsrc/auth/middleware.ts — refreshToken (42), verifySession (77)\n</relevant_files>\n</background>',
+      context: '<context>\nUses JWT tokens in httpOnly cookies. No third-party auth libs.\n</context>',
       task_rules: `<task_rules>\n- Fix the bug.\n\nConstraints:\n- Do not modify the public API.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\n${FIX_CEILING_LINE}\n</task_rules>`,
       closure: CLOSURE_EVIDENCE_SENTENCE,
       request: 'Fix the token refresh bug in the auth middleware.',
