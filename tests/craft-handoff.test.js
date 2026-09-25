@@ -280,6 +280,25 @@ describe('profile signals — each flippable independently, off in the baseline'
     assert.ok(!json.prompt.includes('src/legacy/retry.js'), json.prompt);
   });
 
+  // [Foreman: 795] The rest of an entry is ignored without one: why,
+  // depends_on, updated_at and depends_on_docs leave the handoff unchanged.
+  test('an entry-less handoff given why, depends_on, updated_at and depends_on_docs is unchanged', () => {
+    const base = {
+      title: 'Ad-hoc client retry fix', what: 'Fix the backoff loop in the API client.',
+      planned_touches: ['src/auth/middleware.js'], destination: 'clipboard',
+      judgment: goodJudgment({ purpose: 'The on-call runbook cites this fix.' }),
+    };
+    const plain = run(project, base).json;
+    const given = run(project, {
+      ...base, why: 'Retries double-count under load.', depends_on: ['101', '102', '103'],
+      updated_at: '2020-01-01', depends_on_docs: ['docs/decisions/retry-policy.md'],
+    }).json;
+    assert.equal(plain.ok, true, JSON.stringify(plain));
+    assert.equal(plain.profile, 'standard');
+    assert.match(plain.prompt, /The on-call runbook cites this fix\./);
+    assert.deepEqual(given, plain);
+  });
+
   // [Foreman: 775, 783, 784] The resume sentence names where the prompt quotes
   // the notes: <context> below it, or <increment_resume> above it under
   // increment review. Outside increment review it keeps the list --ids command

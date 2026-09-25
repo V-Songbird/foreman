@@ -240,20 +240,24 @@ function loadRecord(root, input) {
   return {
     id: null,
     title: input.title || "",
-    why: input.why || "",
     what: input.what || "",
+    planned_touches: input.planned_touches || input.touches || [],
+    kind: input.kind,
     // [Foreman: 787] No notes: craft-prompt never gathers any, and an
     // entry-less handoff has no entry to read them from.
     notes: "",
-    planned_touches: input.planned_touches || input.touches || [],
-    depends_on: input.depends_on || [],
-    kind: input.kind,
-    updated_at: input.updated_at,
     // [Foreman: 794] No history either: commits and observed_touches belong
     // to an entry, so stdin copies would raise `resumed` and feed recall.
     commits: [],
     observed_touches: [],
-    depends_on_docs: input.depends_on_docs || [],
+    // [Foreman: 795] Nor the rest of an entry: craft-prompt sends none of
+    // these, and stdin copies would replace judgment.purpose (why), raise
+    // `highlyConstrained` (depends_on) or `stale` (updated_at), and add
+    // <context>'s decision-docs line (depends_on_docs).
+    why: "",
+    depends_on: [],
+    updated_at: "",
+    depends_on_docs: [],
   };
 }
 

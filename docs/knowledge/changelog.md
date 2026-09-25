@@ -422,8 +422,11 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   and keeps the profile its other signals give. It used to get one that
   pointed at the conversation's evidence and quoted empty notes, and the flag
   alone made it reinforced. `commits` and `observed_touches` given without an
-  entry are ignored too; either one alone made the handoff reinforced. No
-  skill sends any of the three without an entry.
+  entry are ignored too; either one alone made the handoff reinforced. So
+  are `why`, `depends_on`, `updated_at` and `depends_on_docs`: the why
+  replaced the interview's purpose line, three dependencies or an old date
+  made the handoff reinforced, and the docs reached `<context>`. No skill
+  sends any of these without an entry.
 - Both quotes of an entry's notes stop at 2,000 characters. Past that, whole
   lines are left out, never part of one: first the stamps that name no
   finding (`correction applied:`, `dispatched to`, `id reassigned from`),
