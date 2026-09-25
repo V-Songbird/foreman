@@ -142,6 +142,19 @@ and `scripts/`.
      so the destination is not misled either way. Fix or drop it when it
      is stale, before delivering. `check-prompt.js` warns on the marker
      and does not refuse it.
+   - `directory` — the path is a directory, so nothing under it is
+     read: it carries no symbols and no warning, `relevant_files` lists
+     its path alone, and a name defined only inside it stays in
+     `unresolved`. Expected when `planned_touches` names an area rather
+     than files; name the files instead when you already know which
+     ones the task touches.
+   - `unsupported` — Foreman has no definition patterns for this file
+     type (anything but JavaScript, TypeScript, Python and Kotlin, so
+     Markdown and JSON, but also Go, Rust or Java source): it carries
+     no symbols and `relevant_files` lists its path alone. Its text is
+     still searched for `unresolved` names as plain text, and its
+     warning says how far: whole, its first 1 MiB only, or not at all
+     when it is binary. Cite what the task changes in it yourself.
    - `outside_project` — the path resolves outside the project root, so it
      was not read, and it can never be a file this task writes. Fix or
      drop it before delivering — a roadmap path pointing outside the repo
