@@ -110,9 +110,9 @@ test('ordinary resume and a new reviewed run do not activate the recovery block'
   assert.doesNotMatch(assemble(root, { ...request(), resume: false }).prompt, /<increment_resume>/);
 });
 
-// [Foreman: 787] An entry-less record has no notes: a stdin notes field is
-// not read, so only the conversation's own evidence is pointed at.
-test('entry-less resume points at the conversation without inventing a roadmap identifier', (t) => {
+// [Foreman: 787, 789] An entry-less record has no notes to recover, so
+// `resume` without an entry adds no recovery block and no stdin notes.
+test('entry-less resume adds no recovery block', (t) => {
   const root = setup(t, 'not the selected record');
   const req = request('clipboard');
   delete req.entry;
@@ -120,10 +120,7 @@ test('entry-less resume points at the conversation without inventing a roadmap i
     touches: ['opening.md'], notes: 'Earlier conversation accepted the opening draft.' });
   const result = assemble(root, req);
   assert.equal(result.ok, true);
-  const block = result.prompt.match(/<increment_resume>[\s\S]*?<\/increment_resume>/)[0];
-  assert.ok(block.includes('<recorded_increment_notes>\n\n</recorded_increment_notes>'), block);
+  assert.doesNotMatch(result.prompt, /<increment_resume>|<recorded_increment_notes>/);
   assert.doesNotMatch(result.prompt, /Earlier conversation accepted the opening draft/);
-  assert.doesNotMatch(block, /Command:.*list --ids/);
-  assert.match(block, /No roadmap entry is attached/);
-  assert.doesNotMatch(block, /not the selected record/);
+  assert.doesNotMatch(result.prompt, /not the selected record/);
 });

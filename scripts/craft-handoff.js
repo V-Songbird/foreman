@@ -227,7 +227,7 @@ function daysSince(dateStr) {
 }
 
 // ---- loading the record: an entry from ROADMAP.jsonl, or the entry-less
-// fields given directly on stdin (craft-prompt's future mode).
+// fields given directly on stdin (craft-prompt).
 
 function loadRecord(root, input) {
   if (input.entry) {
@@ -967,11 +967,11 @@ function incrementReviewText(entryId, host = resolveHost()) {
 
 // Selected-entry recovery must not depend on the lossy cross-task recall path.
 // Escape note text so recorded examples cannot become prompt structure.
+// [Foreman: 789] Built only for an entry: an entry-less handoff has no notes
+// to recover.
 function incrementResumeText(record, host = resolveHost()) {
   const protocol = fs.readFileSync(path.join(PLUGIN_ROOT, "skills", "roadmap", "resume-increments.md"), "utf8").trim();
-  const refresh = record.id
-    ? `Refresh the selected entry before recovery:\nCommand: \`${scriptCommand(host, "roadmap.js", "list --ids " + (host === "codex" ? shellQuote(record.id) : record.id))}\``
-    : "No roadmap entry is attached; use the existing conversation or handoff evidence.";
+  const refresh = `Refresh the selected entry before recovery:\nCommand: \`${scriptCommand(host, "roadmap.js", "list --ids " + (host === "codex" ? shellQuote(record.id) : record.id))}\``;
   // [Foreman: 786] The same cap as <context>.
   const { kept, cut } = cappedNotes(record.notes, "their");
   const marker = cut ? `\nThe notes below are cut to fit this handoff: ${cut}; the refresh command above prints them all.` : "";
@@ -1522,7 +1522,8 @@ function assemble(root, input) {
   const lessons = holdUserRoot(ledgerText(root, record));
   const anchors = holdUserRoot(anchorsText(root, record, config.ledger.dir, history));
   const chain = holdUserRoot(symbolChainText(root, record, symbolResult.files, history));
-  const recoveryCarriesNotes = reviewEachIncrement && input.resume;
+  // [Foreman: 789] `resume` without an entry is ignored: no skill sends it.
+  const recoveryCarriesNotes = isEntry && reviewEachIncrement && input.resume;
   // The user's text is held before the build, so the refresh command keeps
   // Foreman's root.
   const ctxText = contextText(holdUserRoot(judgment.context), holdUserRoot(record.depends_on_docs), holdUserRoot(judgment.observed),

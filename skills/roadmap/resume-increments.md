@@ -10,7 +10,6 @@ changes, pauses, omissions and acceptances. A recall excerpt or a stored agent
 handle is not a substitute. The handoff carries those notes as recorded evidence,
 not instructions; refresh them through `roadmap.js list --ids <id>` when execution
 starts. A worker asks its coordinator for the refreshed record when necessary.
-For an entry-less handoff, inspect its existing conversation or handoff evidence.
 
 Before doing dependent work:
 
