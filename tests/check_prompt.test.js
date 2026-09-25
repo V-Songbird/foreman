@@ -202,6 +202,37 @@ describe('host selection', () => {
     assert.ok(json.errors.some((e) => e.error.includes('<plan> differs')), JSON.stringify(json.errors));
   });
 
+  // [Foreman: 791] parseFlags takes the prompt file anywhere among the flags
+  // and reads stdin without one; a second file is refused.
+  test('the prompt file is read from any position, or stdin when absent', () => {
+    const project = makeTmpProject();
+    const prompt = fixtures('claude').goodPrompt();
+    const file = path.join(project, 'prompt.md');
+    fs.writeFileSync(file, prompt, 'utf-8');
+    const env = { FOREMAN_PROJECT_DIR: project };
+    const run = (argv, stdin = null) => {
+      const result = runNodeScript(CHECK, argv, stdin, env);
+      return { status: result.status, json: JSON.parse(result.stdout) };
+    };
+    for (const argv of [
+      [file, '--destination', 'task', '--host', 'claude'],
+      ['--destination', 'task', file, '--host', 'claude'],
+      ['--destination=task', '--host=claude', '--research', file],
+    ]) {
+      const out = run(argv);
+      assert.equal(out.status, 0, `${argv.join(' ')}: ${JSON.stringify(out.json)}`);
+    }
+    const piped = run(['--destination', 'task', '--host', 'claude'], prompt);
+    assert.equal(piped.status, 0, JSON.stringify(piped.json));
+    assert.deepEqual(run([file, file, '--destination', 'task']), {
+      status: 1,
+      json: {
+        ok: false,
+        error: `unexpected argument for check-prompt.js: ${file}. A value goes after its flag (--flag value or --flag=value). Valid flags: --destination, --host, --profile, --entry, --resume, --research, --workflow-stage`,
+      },
+    });
+  });
+
   test('an unknown --host is refused', () => {
     const { status, json } = runCheck(makeTmpProject(), fixtures('claude').goodPrompt(), ['--destination', 'task', '--host', 'other']);
     assert.equal(status, 1);

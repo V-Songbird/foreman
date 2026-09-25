@@ -142,6 +142,39 @@ describe('Foreman CLIs refuse a flag they do not take', () => {
     }
   });
 
+  // [Foreman: 791] check-prompt.js kept the last of a repeated flag, took the
+  // next flag as a value and named no valid flag in its unknown-argument error.
+  test('check-prompt.js refuses a repeated, valueless or unknown flag', () => {
+    const file = path.join(project, 'prompt.md');
+    fs.writeFileSync(file, 'x\n');
+    const valid = 'Valid flags: --destination, --host, --profile, --entry, --resume, --research, --workflow-stage';
+    refuses('check-prompt.js', [file, '--destnation', 'task'], null, `unknown flag for check-prompt.js: --destnation. ${valid}`);
+    refuses(
+      'check-prompt.js',
+      [file, '--destination', 'task', '--destination', 'agent'],
+      null,
+      'repeated flag for check-prompt.js: --destination. Give --destination once.'
+    );
+    refuses(
+      'check-prompt.js',
+      [file, '--destination', '--research'],
+      null,
+      'missing value for check-prompt.js: --destination. Give it as --destination <value> or --destination=<value>'
+    );
+    refuses(
+      'check-prompt.js',
+      [file, '--destination', 'task', '--entry'],
+      null,
+      'missing value for check-prompt.js: --entry. Give it as --entry <value> or --entry=<value>'
+    );
+    refuses(
+      'check-prompt.js',
+      [file, '--destination', 'task', '--resume=yes'],
+      null,
+      'unexpected value for check-prompt.js: --resume=yes. --resume is a switch and takes no value'
+    );
+  });
+
   // [Foreman: 790] A stray argument after a value flag names that flag, and
   // only a flag its command splits on commas suggests them.
   test('a stray argument after a value flag names the flag', () => {
@@ -179,6 +212,10 @@ describe('Foreman CLIs refuse a flag they do not take', () => {
       ['scripts/render-sections.js', ['--help'], 'render-sections.js -- reads the project'],
       ['scripts/build-windows-launchers.js', ['--write', '--help'], 'build-windows-launchers.js [--write] -- checks'],
       ['scripts/trial-log.js', ['question_asked', '--help'], '{"ok":true,"usage":"trial-log.js <event>'],
+      ['scripts/check-prompt.js', ['--destination', '--help'], 'check-prompt.js -- mechanical gate'],
+      ['scripts/check-prompt.js', ['prompt.md', '--destnation', 'x', '--help'], 'check-prompt.js -- mechanical gate'],
+      ['scripts/check-prompt.js', ['-h'], 'check-prompt.js -- mechanical gate'],
+      ['scripts/check-prompt.js', ['--destination', 'task', '-h'], 'check-prompt.js -- mechanical gate'],
     ];
     for (const [script, argv, usage] of cases) {
       const before = snapshot();

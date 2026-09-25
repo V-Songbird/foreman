@@ -43,7 +43,10 @@ function projectDir(env = process.env, cwd = process.cwd()) {
 // [Foreman: 790] A stray argument's error names the flag just before it, so
 // only an argument after a "list" flag is told about commas: `--limit 3 5`
 // and `codex-task.js start --id 001 002` were steered to lists too.
-function parseFlags(name, valid, argv) {
+// [Foreman: 791] `positional`, when given, names the one argument no flag
+// claims that the command takes, anywhere among the flags (check-prompt.js's
+// prompt file); the others leave it off and keep refusing every such argument.
+function parseFlags(name, valid, argv, positional) {
   const names = Object.keys(valid);
   const validHelp = `Valid flags: ${names.map((f) => `--${f}`).join(", ")}`;
   const flags = {};
@@ -51,6 +54,10 @@ function parseFlags(name, valid, argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (!a.startsWith("--")) {
+      if (positional && !Object.hasOwn(flags, positional)) {
+        flags[positional] = a;
+        continue;
+      }
       if (!names.length) throw new Error(`unexpected argument for ${name}: ${a}. ${name} takes no arguments`);
       const advice = !prev
         ? "A value goes after its flag (--flag value or --flag=value)"

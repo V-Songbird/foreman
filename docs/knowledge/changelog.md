@@ -315,6 +315,12 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   `build-windows-launchers.js`, the two `scripts/health` reports and
   `hooks/codex-task.js`, and anywhere among `trial-log.js`'s arguments. It
   wins over every other flag; it used to fail as an unknown flag.
+- `check-prompt.js` parses its flags the way the other Foreman CLIs do. A
+  repeated value flag fails instead of keeping the last, a flag is no longer
+  taken as the value of the one before it (`--destination --help` prints the
+  usage), `--flag=value` works, and an unknown flag's error names the valid
+  ones. The prompt file still goes anywhere among the flags, stdin still
+  stands in for it, and `-h` still prints the usage.
 - The message that blocks a direct edit of `ROADMAP.jsonl`,
   `.foreman/archive.jsonl` or `.foreman/notes.jsonl` now names every
   `roadmap.js` subcommand, `note-supersede` and `note-prune` included.

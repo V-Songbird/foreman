@@ -15,7 +15,7 @@
 const fs = require("fs");
 const path = require("path");
 const { render, projectDir } = require("./render-sections.js");
-const { HOSTS, detectHost } = require("./runtime.js");
+const { HOSTS, detectHost, parseFlags, printHelp } = require("./runtime.js");
 
 const TEMPLATE_PATH = path.join(__dirname, "..", "prompt-template.md");
 
@@ -625,35 +625,26 @@ instruction, not a complaint.
                   replaced by the host's fixed enforcement sentence.
 `;
 
-function parseArgs(argv) {
-  const opts = { file: null };
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (a === "--destination") opts.destination = argv[++i];
-    else if (a === "--host") opts.host = argv[++i];
-    else if (a === "--profile") opts.profile = argv[++i];
-    else if (a === "--entry") opts.entry = argv[++i];
-    else if (a === "--resume") opts.resume = true;
-    else if (a === "--research") opts.research = true;
-    else if (a === "--workflow-stage") opts.workflowStage = true;
-    else if (a === "--help" || a === "-h") opts.help = true;
-    else if (!a.startsWith("--") && !opts.file) opts.file = a;
-    else throw new Error(`unknown argument: ${a}`);
-  }
-  return opts;
-}
+// [Foreman: 791] Flags go through runtime.parseFlags like every other Foreman
+// CLI: a repeated value flag, a flag taken as a value (`--destination --help`)
+// and an unknown flag fail, the last naming the valid ones. -h stays help.
+const FLAGS = {
+  destination: "value",
+  host: "value",
+  profile: "value",
+  entry: "value",
+  resume: "switch",
+  research: "switch",
+  "workflow-stage": "switch",
+};
 
 function main() {
-  const opts = parseArgs(process.argv.slice(2));
-  if (opts.help) {
-    process.stdout.write(USAGE);
-    return;
-  }
+  const argv = process.argv.slice(2);
+  if (printHelp(argv.includes("-h") ? ["--help"] : argv, USAGE)) return;
+  const flags = parseFlags("check-prompt.js", FLAGS, argv, "file");
+  const opts = { ...flags, workflowStage: flags["workflow-stage"] };
   if (!opts.destination || !DESTINATIONS.has(opts.destination)) {
     throw new Error(`--destination is required and must be one of ${[...DESTINATIONS].join("|")}`);
-  }
-  if (opts.entry !== undefined && (!opts.entry || opts.entry.startsWith("--"))) {
-    throw new Error("--entry requires an entry id");
   }
   if (opts.profile !== undefined && !PROFILES.has(opts.profile)) {
     throw new Error(`--profile must be one of ${[...PROFILES].join("|")}`);
