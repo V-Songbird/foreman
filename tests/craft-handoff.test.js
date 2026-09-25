@@ -253,6 +253,18 @@ describe('profile signals — each flippable independently, off in the baseline'
     assert.match(json.prompt, /already marked `in_progress`/);
   });
 
+  // [Foreman: 793] Without an entry the flag is ignored, so it cannot
+  // switch the handoff to the reinforced profile either.
+  test('resumed: an entry-less handoff given resume keeps the standard profile', () => {
+    const { json } = run(project, {
+      title: 'Ad-hoc client retry fix', why: 'Retries double-count under load.', what: 'Fix the backoff loop in the API client.',
+      planned_touches: ['src/auth/middleware.js'], resume: true, destination: 'clipboard', judgment: goodJudgment(),
+    });
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.equal(json.signals.resumed, false);
+    assert.equal(json.profile, 'standard');
+  });
+
   // [Foreman: 775, 783, 784] The resume sentence names where the prompt quotes
   // the notes: <context> below it, or <increment_resume> above it under
   // increment review. Outside increment review it keeps the list --ids command

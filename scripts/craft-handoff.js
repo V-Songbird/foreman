@@ -260,7 +260,8 @@ function loadRecord(root, input) {
 // already in hand.
 
 function computeSignals(root, record, input, symbolFiles, hasVerification) {
-  const resumed = Boolean(input.resume) || (record.commits || []).length > 0 || (record.observed_touches || []).length > 0;
+  // [Foreman: 793] `resume` without an entry is ignored here too.
+  const resumed = Boolean(record.id && input.resume) ||(record.commits || []).length > 0 || (record.observed_touches || []).length > 0;
 
   // Conflicting — recomputed here, never trusted from the caller: any
   // OTHER in_progress entry's planned_touches, folder-aware, same rule
