@@ -603,7 +603,7 @@ instruction, not a complaint.
 
   --help or -h prints this and checks nothing; a value flag also takes --flag=value.
 
-  --host         the host that will run the prompt: it picks the template
+  --host          the host that will run the prompt: it picks the template
                   variant of every host-tagged block and the host's
                   plugin-path rule. antigravity takes the Codex form.
                   Optional: without it the host this process runs in is
