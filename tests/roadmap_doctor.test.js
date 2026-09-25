@@ -275,7 +275,7 @@ describe('doctor field and type findings', () => {
     assert.ok(!stdout.includes(ZWSP), 'no finding carries the stored value');
     const report = JSON.parse(stdout);
     const id = assertFinding(report, 'invalid_id', 'error', []);
-    assert.match(id.message, /^line 1: id must be .*, not a value carrying characters a reader cannot see \(U\+200B\)$/);
+    assert.match(id.message, /^line 1: id must be .*, not a value carrying characters a reader cannot see \(U\+200B\)\. Repair with "roadmap\.js reassign-id" naming the entry's title$/);
     const touch = assertFinding(report, 'invalid_path', 'warning', ['002']);
     assert.match(touch.message, /^entry 002: planned_touches a value carrying characters a reader cannot see \(U\+200B\) is absolute/);
     for (const code of ['unknown_status', 'unknown_source', 'invalid_date', 'unknown_kind', 'unknown_model', 'unknown_effort']) {

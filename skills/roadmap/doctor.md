@@ -20,6 +20,9 @@ selects work.
      row; the same id in both `ROADMAP.jsonl` and the archive
      (`duplicate_across_files`) → inspect which copy is current, then re-run
      the interrupted `archive` (or `restore`) on that id
+   - an id that fails the id format (`invalid_id`) → `reassign-id` with the
+     entry's exact title as `keep`; leave `id` out when the message names it
+     by code point
    - wrong/missing `title`, `why`, `what`, `kind`, or `planned_touches` →
      `correct`, with expected values
    - an unrecognized status (`unknown_status`) → `update-status`
@@ -31,7 +34,7 @@ selects work.
      `observed_touches`/`commits`/`notes`), a self-dependency, or a
      repeated dependency (`repairable: true`) → offer
      `roadmap.js doctor --fix`, which applies only those mechanical repairs
-   - anything else — a malformed id, an unrecognized `source`/`model`/
+   - anything else — an unrecognized `source`/`model`/
      `effort`, a bad date, two entries that just read alike
      (`similar_titles`), or a `.foreman/config.json` finding — has no
      `roadmap.js` repair command; say so and name the field rather than

@@ -420,6 +420,15 @@ trailers stay wrong on purpose.** History is immutable, so a commit saying
 records that in a dated `notes` line, and the repair result lists the affected
 shas so the mismatch is known rather than discovered later.
 
+**An id that fails the id format** (`invalid_id`: a hidden character, `07`)
+has the same repair, and one holder is enough. Keeping such an id repairs
+nothing, so every holder moves, the kept one first, and each `depends_on`
+naming the old id is re-pointed at the kept holder's new id, which the result
+gives as `kept.to`; each moved entry gets a dated note. Doctor names a hidden
+id by code point, so it cannot be copied into `id`: leave `id` out and
+`keep`'s exact title finds the entry whose id fails the format, in either
+file. A title whose entry holds a valid id is refused without an `id`.
+
 ---
 
 ## Worked example

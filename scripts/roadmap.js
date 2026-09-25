@@ -2300,20 +2300,40 @@ function cmdReassignId(root, payload) {
 const named = (value) => quoted(value, value);
 
 function cmdReassignIdUnlocked(root, payload) {
-  const { id, keep, expected_updated_at_kept: expectedKept } = payload || {};
-  if (typeof id !== "string" || !id) throw new Error("reassign-id requires id: the duplicated entry id");
+  const { keep, expected_updated_at_kept: expectedKept } = payload || {};
+  let { id } = payload || {};
   if (typeof keep !== "string" || !keep) {
     throw new Error("reassign-id requires keep: the exact title of the holder that keeps the id");
   }
   const active = readEntries(root);
   const archived = readArchive(root);
+  // [Foreman: 762] Doctor names a hidden id by code point, so it cannot be
+  // copied here: without an id, keep's title finds the entry whose id fails
+  // the format.
+  if (id === undefined) {
+    const found = [...new Set([...active, ...archived]
+      .filter((entry) => entry && entry.title === keep && !isValidId(entry.id))
+      .map((entry) => entry.id))];
+    if (found.length !== 1) {
+      throw new Error(
+        found.length
+          ? `${found.length} entries titled ${quoted(keep)} hold different ids that fail the id format — pass id`
+          : `no entry titled ${quoted(keep)} holds an id that fails the id format — pass id to repair a duplicated one`
+      );
+    }
+    [id] = found;
+  }
+  if (typeof id !== "string" || !id) throw new Error("reassign-id requires id: the duplicated entry id");
+  // [Foreman: 762] Keeping an id that fails the format repairs nothing, so the
+  // kept holder moves too, and one holder is enough to act on.
+  const malformed = !isValidId(id);
   // File order, active file first -- the renumbering has to be reproducible,
   // and a duplicated id is exactly the case where nothing else orders these.
   const holders = [
     ...active.filter((entry) => entry && entry.id === id).map((entry) => ({ entry, archived: false })),
     ...archived.filter((entry) => entry && entry.id === id).map((entry) => ({ entry, archived: true })),
   ];
-  if (holders.length < 2) {
+  if (holders.length < (malformed ? 1 : 2)) {
     throw new Error(
       holders.length
         ? `id ${named(id)} is held by exactly one entry — there is nothing to repair`
@@ -2359,6 +2379,14 @@ function cmdReassignIdUnlocked(root, payload) {
   const known = [...active, ...archived];
   const date = today();
   const others = holders.filter((holder) => holder !== kept);
+  let keptTo;
+  if (malformed) {
+    keptTo = nextId(known);
+    known.push({ id: keptTo });
+    kept.entry.id = keptTo;
+    kept.entry.notes = appendNote(kept.entry.notes, `id reassigned from ${named(id)}, which fails the id format`);
+    kept.entry.updated_at = date;
+  }
   const reassigned = others.map((holder) => {
     const to = nextId(known);
     known.push({ id: to });
@@ -2371,11 +2399,25 @@ function cmdReassignIdUnlocked(root, payload) {
     holder.entry.updated_at = date;
     return { from: named(id), to, title: named(holder.entry.title), trailer_commits: trailers };
   });
+  // Every entry still pointing at the id -- which now unambiguously means
+  // the kept holder. The list is what `update-deps` gets aimed at when one
+  // of them actually meant a renumbered entry.
+  const dependents = [...active, ...archived]
+    .filter((entry) => entry && Array.isArray(entry.depends_on) && entry.depends_on.includes(id));
+  const moved = malformed ? holders : others;
+  if (malformed) {
+    for (const entry of dependents) {
+      entry.depends_on = entry.depends_on.map((dep) => (dep === id ? keptTo : dep));
+      entry.updated_at = date;
+    }
+  }
+  const rewrites = (file) => moved.some((holder) => holder.archived === (file === archived))
+    || (malformed && dependents.some((entry) => file.includes(entry)));
   let migrated;
-  if (others.some((holder) => !holder.archived)) {
+  if (rewrites(active)) {
     migrated = writeEntries(root, active, otherFileResolver(() => archived));
   }
-  if (others.some((holder) => holder.archived)) {
+  if (rewrites(archived)) {
     migrated = writeArchive(root, archived) || migrated;
   }
   // [Foreman: 247] Lesson records anchored to the repaired id have the same
@@ -2387,14 +2429,9 @@ function cmdReassignIdUnlocked(root, payload) {
   const notes = ledger.demoteAnchors(root, id, { date });
 
   const result = {
-    kept: { id: named(id), title: named(kept.entry.title) },
+    kept: { id: named(id), ...(malformed ? { to: keptTo } : {}), title: named(kept.entry.title) },
     reassigned,
-    // Every entry still pointing at the id -- which now unambiguously means
-    // the kept holder. The list is what `update-deps` gets aimed at when one
-    // of them actually meant a renumbered entry.
-    dependents_on_kept: [...active, ...archived]
-      .filter((entry) => entry && Array.isArray(entry.depends_on) && entry.depends_on.includes(id))
-      .map((entry) => named(entry.id)),
+    dependents_on_kept: dependents.map((entry) => named(entry.id)),
   };
   if (migrated) result.migrated = migrated;
   if (notes && notes.demoted) result.notes_anchors_demoted = notes.demoted;
@@ -2812,7 +2849,7 @@ naming the field, each line and code point.
                     returns changed:[...] listing only the fields that
                     actually differed, plus the same compact graph-fact
                     fields when non-empty
-  reassign-id       stdin JSON: {id, keep, expected_updated_at_kept?}
+  reassign-id       stdin JSON: {id?, keep, expected_updated_at_kept?}
                     the branch-merge repair: two branches computed the same
                     next id, so the merged file has two entries claiming it
                     (doctor reports duplicate_id, or duplicate_across_files
@@ -2830,9 +2867,15 @@ naming the field, each line and code point.
                     not automated
                     holders may live in ROADMAP.jsonl or the archive; both
                     files are rewritten with the same gate as any other write
-                    refuses: an id only one entry holds, a keep title no
+                    refuses: a valid id only one entry holds, a keep title no
                     holder has, and a keep title SEVERAL holders share (the
                     same task added on both branches -- dedup that by hand)
+                    An id that fails the id format (a hidden character, "07")
+                    moves too: every holder, the kept one included, gets a
+                    fresh id, and each depends_on naming the old id follows
+                    the kept holder (kept.to in the result). id may be
+                    omitted: keep's exact title then finds the entry, since
+                    doctor names a hidden id by code point
                     expected_updated_at_kept is the optional staleness guard
                     from correct, checked against the kept holder
                     returns {kept:{id,title}, reassigned:[{from,to,title,

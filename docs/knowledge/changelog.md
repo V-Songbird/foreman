@@ -220,6 +220,13 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   the other holder to the id after the highest valid one, and its note names
   the old id by code point. It used to read `99` + U+200B + `0` as 99 when
   picking the new id, and to copy the hidden character into the note.
+- `reassign-id` repairs an id that fails the id format, such as one carrying
+  a hidden character or `07`, even when one entry holds it: every holder, the
+  kept one included, moves to a fresh id, and each dependency on the old id
+  follows the kept holder. Without `id`, `keep`'s title finds the entry.
+  Doctor's `invalid_id` finding now names `reassign-id`. Such an id used to
+  have no repair but a hand edit, and a duplicate repair left it on the kept
+  holder.
 - `roadmap.js` fails on a flag its subcommand does not take instead of
   ignoring it, and writes nothing. `list --id 613` used to print the whole
   roadmap; it now exits 1 and the error names `list`'s flags. A subcommand

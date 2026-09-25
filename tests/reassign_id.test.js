@@ -360,10 +360,10 @@ describe('reassign-id refusals', () => {
     assert.equal(json.ok, true);
   });
 
-  test('id and keep are both required', () => {
+  test('keep is required, and id unless keep names an entry whose id fails the id format', () => {
     mergedRoadmap();
 
-    assert.match(run(['reassign-id'], { keep: 'Cache the rate lookup' }).json.error, /requires id/);
+    assert.match(run(['reassign-id'], { keep: 'Cache the rate lookup' }).json.error, /holds an id that fails the id format — pass id/);
     assert.match(run(['reassign-id'], { id: '130' }).json.error, /requires keep/);
   });
 });
@@ -386,7 +386,7 @@ describe('reassign-id names a hidden character instead of printing it', () => {
   test('every refusal names the id, the titles and the dates by code point', () => {
     const cases = [
       [[entry('130')], { id: hiddenId, keep: 'x' }, `no entry with id ${named} in ROADMAP.jsonl or .foreman/archive.jsonl`],
-      [[entry(hiddenId)], { id: hiddenId, keep: 'x' }, `id ${named} is held by exactly one entry — there is nothing to repair`],
+      [[entry('130', { title: `A${ZWSP}` })], { keep: `A${ZWSP}` }, `no entry titled ${named} holds an id that fails the id format`],
       [
         [entry(hiddenId, { title: `A${ZWSP}` }), entry(hiddenId, { title: 'B' })],
         { id: hiddenId, keep: `n${ZWSP}o` },
@@ -427,7 +427,7 @@ describe('reassign-id names a hidden character instead of printing it', () => {
 
   test('the result names a duplicated id carrying one', () => {
     const json = reassign([entry(hiddenId, { title: 'A' }), entry(hiddenId, { title: 'B' })], { id: hiddenId, keep: 'A' });
-    assert.deepEqual(json.kept, { id: named, title: 'A' });
+    assert.deepEqual(json.kept, { id: named, to: '001', title: 'A' });
     assert.equal(json.reassigned[0].from, named);
   });
 
@@ -436,7 +436,8 @@ describe('reassign-id names a hidden character instead of printing it', () => {
   test('the next free id skips an id that fails the id format', () => {
     const id = `99${ZWSP}0`;
     const json = reassign([entry('050'), entry(id, { title: 'A' }), entry(id, { title: 'B' })], { id, keep: 'A' });
-    assert.equal(json.reassigned[0].to, '051');
+    assert.equal(json.kept.to, '051');
+    assert.equal(json.reassigned[0].to, '052');
   });
 
   test('the renumbered note names the hidden id instead of storing it', () => {
@@ -605,6 +606,89 @@ describe('an id-addressed write refuses a duplicated id', () => {
     assert.match(
       JSON.parse(result.stdout).error,
       /\(a value carrying characters a reader cannot see \(U\+200B\), "B"\)/
+    );
+  });
+});
+
+// [Foreman: 762] An id that fails the id format is itself the damage, so
+// keeping it repairs nothing: every holder moves, the kept one first, and the
+// edges that named it follow the kept holder. Doctor names a hidden id by code
+// point, so the title alone must be enough to find the entry.
+describe('reassign-id moves an id that fails the id format', () => {
+  const ZWSP = String.fromCodePoint(0x200b);
+  const named = 'a value carrying characters a reader cannot see (U+200B)';
+  const hiddenId = `13${ZWSP}0`;
+
+  function reassign(payload) {
+    const result = runRoadmap(['reassign-id'], payload, { CLAUDE_PROJECT_DIR: project });
+    assert.ok(!result.stdout.includes(ZWSP), 'the output carries no stored hidden character');
+    return JSON.parse(result.stdout);
+  }
+
+  test('a single holder found by its title alone moves to the next free id', () => {
+    writeRoadmap(project, [entry('129'), entry(hiddenId, { title: 'A' })]);
+
+    const json = reassign({ keep: 'A' });
+
+    assert.equal(json.ok, true, json.error);
+    assert.deepEqual(json.kept, { id: named, to: '130', title: 'A' });
+    assert.deepEqual(json.reassigned, []);
+    const moved = readFileRows('ROADMAP.jsonl').find((row) => row.title === 'A');
+    assert.equal(moved.id, '130');
+    assert.ok(moved.notes.endsWith(` id reassigned from ${named}, which fails the id format`), moved.notes);
+    const doctor = runRoadmap(['doctor'], null, { CLAUDE_PROJECT_DIR: project });
+    assert.deepEqual(JSON.parse(doctor.stdout).findings.filter((f) => f.code === 'invalid_id'), []);
+  });
+
+  test('a single holder named by a malformed id it prints plainly moves too', () => {
+    writeRoadmap(project, [entry('129'), entry('07', { title: 'S' })]);
+
+    const json = reassign({ id: '07', keep: 'S' });
+
+    assert.equal(json.ok, true, json.error);
+    assert.deepEqual(json.kept, { id: '07', to: '130', title: 'S' });
+  });
+
+  test('on a duplicated malformed id the kept holder moves first and its dependents follow it', () => {
+    writeRoadmap(project, [
+      entry('129'),
+      entry(hiddenId, { title: 'A' }),
+      entry(hiddenId, { title: 'B' }),
+      entry('131', { depends_on: [hiddenId] }),
+    ]);
+
+    const json = reassign({ id: hiddenId, keep: 'A' });
+
+    assert.equal(json.ok, true, json.error);
+    assert.deepEqual(json.kept, { id: named, to: '132', title: 'A' });
+    assert.deepEqual(json.reassigned.map((row) => [row.to, row.title]), [['133', 'B']]);
+    assert.deepEqual(json.dependents_on_kept, ['131']);
+    const rows = readFileRows('ROADMAP.jsonl');
+    assert.deepEqual(rows.find((row) => row.id === '131').depends_on, ['132']);
+    assert.deepEqual(rows.map((row) => row.id), ['129', '132', '133', '131']);
+  });
+
+  test('an archived holder moves inside the archive', () => {
+    writeRoadmap(project, [entry('129'), entry('131', { depends_on: [hiddenId] })]);
+    writeArchiveFile([entry(hiddenId, { title: 'A', status: 'done', notes: 'shipped' })]);
+
+    const json = reassign({ keep: 'A' });
+
+    assert.equal(json.ok, true, json.error);
+    assert.deepEqual(json.kept, { id: named, to: '132', title: 'A' });
+    assert.deepEqual(readFileRows('.foreman/archive.jsonl').map((row) => row.id), ['132']);
+    assert.deepEqual(readFileRows('ROADMAP.jsonl').find((row) => row.id === '131').depends_on, ['132']);
+  });
+
+  test('without an id, a title whose entry holds a valid id is refused', () => {
+    writeRoadmap(project, [entry('129', { title: 'A' })]);
+
+    const json = reassign({ keep: 'A' });
+
+    assert.equal(json.ok, false);
+    assert.equal(
+      json.error,
+      'no entry titled "A" holds an id that fails the id format — pass id to repair a duplicated one'
     );
   });
 });

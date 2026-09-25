@@ -127,7 +127,7 @@ function checkEntry(entry, index, out) {
   } else if (typeof entry.id !== "string") {
     out.push(finding("invalid_type", "error", [], `line ${index + 1}: id must be a string`, { field: "id" }));
   } else if (!isValidId(entry.id)) {
-    out.push(finding("invalid_id", "error", ids, `${at}: id must be three or more digits, zero-padded to at least three ("001", "999", "1000"), not ${quoted(entry.id)}`, { field: "id" }));
+    out.push(finding("invalid_id", "error", ids, `${at}: id must be three or more digits, zero-padded to at least three ("001", "999", "1000"), not ${quoted(entry.id)}. Repair with "roadmap.js reassign-id" naming the entry's title`, { field: "id" }));
   }
 
   for (const field of REQUIRED_TEXT) {
