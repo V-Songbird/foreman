@@ -196,7 +196,8 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   source, date, kind, model or effort now does the same when that value
   carries such a character, and names an entry whose id carries one by its
   line. The dependency, duplicate, similarity and missing-evidence findings
-  do too, for an id, a dependency or a duplicate's holder title, and leave an
+  do too, for an id, a dependency or a duplicate's holder title, status or
+  date, in the message and in the duplicate's `detail`, and leave an
   id carrying one out of `ids`, so `doctor --fix` no longer repairs its
   dependencies. `roadmap.js notes` prints such an area the same way, and so
   does the note and result of an `update-status` close that records a lesson.

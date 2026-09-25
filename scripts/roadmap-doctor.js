@@ -476,9 +476,16 @@ function describeDuplicate(root, id, active, archived) {
   };
 }
 
+// [Foreman: 750] detail reaches a model beside the message, so a stored string
+// carrying a hidden character is named there as the message names it.
+function namedDetail(detail) {
+  const name = (item) => Object.fromEntries(Object.entries(item).map(([key, value]) => [key, quoted(value, value)]));
+  return { ...detail, holders: detail.holders.map(name), dependents: detail.dependents.map(name) };
+}
+
 function duplicateMessage(message, id, detail) {
   const holders = detail.holders
-    .map((h) => `${quoted(h.title)} (${h.status}, created ${h.created_at}${h.archived ? ", archived" : ""})`)
+    .map((h) => `${quoted(h.title)} (${quoted(h.status, h.status)}, created ${quoted(h.created_at, h.created_at)}${h.archived ? ", archived" : ""})`)
     .join(", ");
   const dependents = detail.dependents.length
     ? `depended on by ${detail.dependents.map((d) => `${quoted(d.id, d.id)}${d.archived ? " (archived)" : ""}`).join(", ")}`
@@ -506,7 +513,7 @@ function enrichDuplicates(root, findings, active, archived) {
     if (!DUPLICATE_CODES.has(item.code) || !item.ids.length) return item;
     const id = item.ids[0];
     const detail = describeDuplicate(root, id, active, archived);
-    return { ...item, message: duplicateMessage(item.message, id, detail), detail };
+    return { ...item, message: duplicateMessage(item.message, id, detail), detail: namedDetail(detail) };
   });
 }
 

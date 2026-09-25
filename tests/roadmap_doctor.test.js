@@ -327,17 +327,25 @@ describe('doctor field and type findings', () => {
     assert.equal(withCode(report, 'self_dependency')[0].repairable, false, 'no id to repair it by');
   });
 
+  // [Foreman: 750] The detail object names them too, and so do a holder's
+  // status and created_at, in the message and in detail.
   test('duplicate_id enrichment names a hidden holder title and dependent id by code point', () => {
     writeRoadmap(project, [
       base('001', { title: `sig${ZWSP}001` }),
-      base('001', { title: 'other' }),
+      base('001', { title: 'other', status: `planned${ZWSP}`, created_at: `2026-07-01${ZWSP}` }),
       base(`0${ZWSP}03`, { depends_on: ['001'] }),
     ]);
     const { stdout } = runRoadmap(['doctor'], null, env);
-    assert.ok(!stdout.replace(/"detail":\{.*?\}\]\}/g, '').includes(ZWSP), 'no message carries the stored value');
+    assert.ok(!stdout.includes(ZWSP), 'no finding carries the stored value');
     const hit = assertFinding(JSON.parse(stdout), 'duplicate_id', 'error', ['001']);
-    assert.match(hit.message, /holders: a value carrying characters a reader cannot see \(U\+200B\) \(planned, created 2026-07-01\), "other" \(planned/);
-    assert.match(hit.message, /depended on by a value carrying characters a reader cannot see \(U\+200B\)/);
+    const named = 'a value carrying characters a reader cannot see (U+200B)';
+    assert.ok(hit.message.includes(`holders: ${named} (planned, created 2026-07-01), "other" (${named}, created ${named})`), hit.message);
+    assert.ok(hit.message.includes(`depended on by ${named}`), hit.message);
+    assert.deepEqual(hit.detail.holders, [
+      { title: named, status: 'planned', created_at: '2026-07-01' },
+      { title: 'other', status: named, created_at: named },
+    ]);
+    assert.deepEqual(hit.detail.dependents, [{ id: named }]);
   });
 
   // The file's format version lives on its own first line, not on an entry

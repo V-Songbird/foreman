@@ -402,7 +402,9 @@ that `id` is a key. **Detect** it with `doctor`: the collision is
 `duplicate_id` (both holders in `ROADMAP.jsonl`) or `duplicate_across_files`
 (one of them archived), and the finding's `detail` names every holder,
 everything depending on the id, and the commits already labelled
-`Foreman: <id>`. **Repair** it with `reassign-id`, naming the exact `title` of
+`Foreman: <id>`. A value there carrying a character a reader cannot see is
+named by its code points instead of printed, so such a title cannot be
+copied into `keep`. **Repair** it with `reassign-id`, naming the exact `title` of
 the holder that keeps the id — usually the one those commit trailers,
 `[Foreman: <id>]` anchors, and dependents already mean. Every other holder is
 renumbered to a fresh id; dependents are left alone and keep pointing at the
