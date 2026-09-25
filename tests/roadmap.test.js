@@ -729,6 +729,16 @@ describe('annotate', () => {
     assert.match(json.entry.notes, /^\d{4}-\d{2}-\d{2} only note$/);
   });
 
+  // [Foreman: 788] A caller's own leading date is dropped when it is today's,
+  // so the line carries one date; a different date is the caller's text.
+  test("drops the caller's leading date when it is today's, and keeps another", () => {
+    const { today } = require('../scripts/roadmap');
+    const { json } = run(['annotate'], { id: '001', notes: `${today()} ${today()} orchestrator: second` });
+    assert.equal(json.entry.notes.split('\n')[1], `${today()} orchestrator: second`);
+    const other = run(['annotate'], { id: '001', notes: '2000-01-02 owner decided' }).json;
+    assert.equal(other.entry.notes.split('\n')[2], `${today()} 2000-01-02 owner decided`);
+  });
+
   test('rejects a missing notes field', () => {
     const { status, json } = run(['annotate'], { id: '001' });
     assert.equal(status, 1);

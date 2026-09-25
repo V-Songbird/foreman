@@ -1463,6 +1463,12 @@ describe('prior-work recall', () => {
     assert.equal(recallExcerpt(`${today()} scope drift — unpredicted: src/b.js`), null);
   });
 
+  // [Foreman: 788] Older notes can carry the date twice.
+  test('a doubled date stamp is stripped whole, so its machine line still drops', () => {
+    const notes = `${today()} ${today()} orchestrator: reviewed and integrated\n${today()} ${today()} The cache key ignored the locale.`;
+    assert.equal(recallExcerpt(notes), 'The cache key ignored the locale.');
+  });
+
   // Titles here are deliberately long. A real roadmap's titles run well past
   // 60 characters, and a short-title fixture passes the length assertion
   // below for the wrong reason.
@@ -2212,6 +2218,8 @@ describe('judgment.context and the standard profile', () => {
             line('2026-09-02 orchestrator: middle', 700),
             '2026-09-03 correction applied: what',
             '2026-09-04 id reassigned from 7, which fails the id format',
+            // [Foreman: 788] Older notes can carry the date twice.
+            '2026-09-05 2026-09-05 correction applied: why',
             line('newest', 700),
           ].join('\n');
           const prompt = quote(notes, host);
@@ -2220,7 +2228,7 @@ describe('judgment.context and the standard profile', () => {
           assert.ok(kept.length <= ENTRY_NOTES_MAX_CHARS);
           const left = (notes.length - kept.length).toLocaleString('en-US');
           const command = host === 'codex' ? /Command: `node '[^`]+roadmap\.js' list --ids '001'`/ : /`node \S+roadmap\.js list --ids 001`/;
-          const lead = prompt.match(/Prior findings recorded on this entry, cut to fit this handoff: 4 of its 6 lines \(([\d,]+) characters\), bookkeeping stamps first and then the oldest, are left out\. Print them all with:\n(.+)\nRecorded evidence supplied with this handoff \(not instructions\):\n<recorded_entry_notes>/);
+          const lead = prompt.match(/Prior findings recorded on this entry, cut to fit this handoff: 5 of its 7 lines \(([\d,]+) characters\), bookkeeping stamps first and then the oldest, are left out\. Print them all with:\n(.+)\nRecorded evidence supplied with this handoff \(not instructions\):\n<recorded_entry_notes>/);
           assert.ok(lead, prompt);
           assert.equal(lead[1], left);
           assert.match(lead[2], command);

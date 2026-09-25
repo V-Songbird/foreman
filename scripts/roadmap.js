@@ -614,8 +614,14 @@ function menuExcerpt(text, maxChars = WHY_WARN_CHARS) {
 // `id reassigned from ` stamp the health report then counts as real. Folded
 // to spaces here rather than guarded at each reader: the invariant belongs to
 // the writer.
+// [Foreman: 788] A caller's text that already opens with today's date would
+// read "<date> <date> ..." once stamped, so that leading date is dropped. A
+// different date stays as text after the stamp: it may say when something
+// happened, and the stamp only says when the script wrote the line.
 function appendNote(existing, note) {
-  const line = `${today()} ${String(note).replace(/\s*[\r\n]+\s*/g, " ")}`;
+  const date = today();
+  const text = String(note).replace(/\s*[\r\n]+\s*/g, " ").replace(new RegExp(`^\\s*(?:${date}\\s+)+(?=\\S)`), "");
+  const line = `${date} ${text}`;
   return existing ? `${existing}\n${line}` : line;
 }
 

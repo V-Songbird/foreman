@@ -107,6 +107,12 @@ describe("roadmap health — metrics from the files alone", () => {
     assert.deepEqual(metrics.corrections.applied.ids, ["001", "002"]);
   });
 
+  // [Foreman: 788] Older notes can carry the date twice.
+  test("counts a stamp whose line carries a doubled date", () => {
+    const metrics = fileMetrics([entry("001", { notes: `2026-07-05 2026-07-05 ${CORRECTION_MARKER}why` })], [], DATE);
+    assert.equal(metrics.corrections.applied.count, 1);
+  });
+
   test("an archived entry's corrections belong to its own period, not today's plan", () => {
     const active = [entry("001", { notes: `2026-07-05 ${CORRECTION_MARKER}what` })];
     const archived = [

@@ -433,11 +433,13 @@ const MACHINE_NOTE_RE =
   /^(scope drift —|correction applied:|id reassigned from |dispatched to background agent|dispatched to Codex subagent|dispatched to Antigravity subagent|survey \(unconfirmed\):|deferred:|orchestrator:|lesson recorded:|lesson not recorded|unverified:|verification resolved:|accepted:|changes requested:|paused:|review pending:)/;
 
 // The longest line of `notes` that a human (or a closing session) actually
-// wrote: date stamp stripped, machine lines dropped, capped.
+// wrote: date stamps stripped, machine lines dropped, capped. [Foreman: 788]
+// Every leading date goes: notes written before appendNote dropped a caller's
+// own same-day date carry two ("<date> <date> orchestrator: ...").
 function recallExcerpt(notes) {
   const lines = String(notes || "")
     .split("\n")
-    .map((line) => line.replace(/^\d{4}-\d{2}-\d{2}\s+/, "").trim())
+    .map((line) => line.replace(/^(?:\d{4}-\d{2}-\d{2}\s+)+/, "").trim())
     .filter((line) => line && !MACHINE_NOTE_RE.test(line));
   if (!lines.length) return null;
   const longest = lines.reduce((a, b) => (b.length > a.length ? b : a));
@@ -866,7 +868,7 @@ function recordedEvidence(tag, text) {
 const ENTRY_NOTES_MAX_CHARS = 2000;
 // Narrower than MACHINE_NOTE_RE on purpose: orchestrator, lesson, survey,
 // deferral and review lines are findings a resuming session needs.
-const BOOKKEEPING_NOTE_RE = /^(?:\d{4}-\d{2}-\d{2}\s+)?(?:correction applied:|dispatched to |id reassigned from )/;
+const BOOKKEEPING_NOTE_RE = /^(?:\d{4}-\d{2}-\d{2}\s+)*(?:correction applied:|dispatched to |id reassigned from )/;
 
 // The notes to quote and, when some were left out, the clause that says how
 // many. `owner` is "its" for the entry, "their" for the notes.

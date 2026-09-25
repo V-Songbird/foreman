@@ -233,7 +233,8 @@ const OVERLAP_CAVEAT =
 // the entry's acceptance and the findings from its work. It marks the entry,
 // not the session, so the wording names each role and leaves any other
 // session on the steps it already had.
-const DISPATCH_MARKER_RE = /^(?:\d{4}-\d{2}-\d{2}\s+)?dispatched to /m;
+// [Foreman: 788] Older notes can carry the date twice, so it may repeat.
+const DISPATCH_MARKER_RE = /^(?:\d{4}-\d{2}-\d{2}\s+)*dispatched to /m;
 
 function dispatchedIds(entries) {
   return entries.filter((e) => DISPATCH_MARKER_RE.test(String(e.notes || ""))).map((e) => e.id);

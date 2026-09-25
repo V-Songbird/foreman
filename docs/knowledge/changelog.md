@@ -436,6 +436,11 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   exists but cannot be read is marked `unreadable` in the handoff's file
   payload and warned about as skipped. Its warning no longer says its names
   were searched as plain text.
+- A note whose text already opens with today's date is written with that date
+  once, not twice; a different leading date stays as part of the note. Notes
+  written earlier with a doubled date read right everywhere a stamp is read:
+  the recall excerpt, the handoff's notes cap, the health report's correction
+  count and the commit reminder's dispatch marker.
 
 ## 3.1.0 — 2026-09-15
 

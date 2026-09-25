@@ -73,8 +73,9 @@ function notesOf(entry) {
 // correction applied: needed here" — reads as a correction under a bare
 // substring test. appendNote always writes `YYYY-MM-DD <note>`, so a real
 // stamp is the whole start of its line and prose mentioning it is not.
+// [Foreman: 788] Older notes can carry the date twice, so it may repeat.
 function stampLine(marker) {
-  return new RegExp(`^\\d{4}-\\d{2}-\\d{2} ${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
+  return new RegExp(`^(?:\\d{4}-\\d{2}-\\d{2} )+${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
 }
 
 function countStamps(entry, marker) {

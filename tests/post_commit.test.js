@@ -895,6 +895,8 @@ describe('dispatched entries', () => {
       MARKER,
       '2026-09-24 dispatched to Codex subagent 019a-thread',
       '2026-09-24 dispatched to Antigravity subagent sub-7',
+      // [Foreman: 788] Older notes can carry the date twice.
+      '2026-09-24 2026-09-24 dispatched to background agent `a1`',
     ]) {
       writeRoadmap(project, [{ id: '001', status: 'in_progress', notes: marker }]);
       assert.match(context(bashPayload('git commit -m "wip"')), /dispatch marker: 001\. /, marker);
