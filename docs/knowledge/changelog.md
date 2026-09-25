@@ -398,6 +398,12 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   them itself, so the crafting session no longer pastes them in raw. A
   resumed handoff under increment review carries them once, in
   `<increment_resume>`.
+- Both quotes of an entry's notes stop at 2,000 characters. Past that, whole
+  lines are left out, never part of one: first the stamps that name no
+  finding (`correction applied:`, `dispatched to`, `id reassigned from`),
+  then the oldest lines. The newest line stays even when it alone is longer.
+  A sentence before the quote counts what was left out and names the
+  `roadmap.js list --ids` command that prints the notes whole.
 - `<context>` now follows `<background>` instead of riding inside it, so a
   project whose `omitSections` removes `<background>` still sends the context
   and the pasted failure, like `<invariants>`, instead of dropping them.

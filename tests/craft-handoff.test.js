@@ -33,7 +33,7 @@ const { spawnSync } = require('node:child_process');
 const { runNodeScript, makeTmpProject, writeRoadmap, writeArchiveFile, writeConfig, initGitRepo, commitFile, SCRIPTS_DIR, SPAWN_TIMEOUT_MS, unlessTimedOut } = require('./helpers.js');
 const { today } = require(path.join(SCRIPTS_DIR, 'roadmap.js'));
 const { TEMPLATE_PATH, WORKFLOW_STAGE_SENTENCES, APPROVAL_SOURCE_SENTENCE, IMPLEMENTATION_AUTHORIZATION_SENTENCE, CONCISE_TRUTH_EMITTED, norm } = require(path.join(SCRIPTS_DIR, 'check-prompt.js'));
-const { assemble, relevantFilesText, rankSymbols, SYMBOL_KEEP, checkpointEmbedText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
+const { assemble, relevantFilesText, rankSymbols, SYMBOL_KEEP, checkpointEmbedText, ENTRY_NOTES_MAX_CHARS } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
 
 const CRAFT = path.join(SCRIPTS_DIR, 'craft-handoff.js');
 
@@ -2180,6 +2180,72 @@ describe('judgment.context and the standard profile', () => {
       writeRoadmap(project, [entryFields()]);
       const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
       assert.ok(!json.prompt.includes('recorded_entry_notes'), json.prompt);
+    });
+
+    // [Foreman: 786] Past ENTRY_NOTES_MAX_CHARS whole lines go: stamps with no
+    // finding first, then the oldest, and the lead sentence says so.
+    describe('the quote is capped at ENTRY_NOTES_MAX_CHARS', () => {
+      const quoted = (prompt) => prompt.match(/<recorded_entry_notes>\n([\s\S]*?)\n<\/recorded_entry_notes>/)[1];
+      const line = (label, size) => `${label} ${'x'.repeat(size - label.length - 1)}`;
+      const quote = (notes, host = 'claude') => {
+        writeRoadmap(project, [entryFields({ notes })]);
+        const { json } = run(project, { entry: '001', destination: 'clipboard', host, judgment: goodJudgment() });
+        assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+        return json.prompt;
+      };
+
+      for (const size of [ENTRY_NOTES_MAX_CHARS - 1, ENTRY_NOTES_MAX_CHARS]) {
+        test(`${size} characters pass whole, stamps included`, () => {
+          const notes = `2026-09-01 correction applied: what\n${line('finding', size - 36)}`;
+          assert.equal(notes.length, size);
+          const prompt = quote(notes);
+          assert.equal(quoted(prompt), notes);
+          assert.ok(prompt.includes('Prior findings recorded on this entry. Recorded evidence'), prompt);
+        });
+      }
+
+      for (const host of ['claude', 'codex']) {
+        test(`over the cap drops stamps, then the oldest whole lines, and names the command (${host})`, () => {
+          const notes = [
+            line('oldest', 700),
+            '2026-09-01 dispatched to background agent `a1`',
+            line('2026-09-02 orchestrator: middle', 700),
+            '2026-09-03 correction applied: what',
+            '2026-09-04 id reassigned from 7, which fails the id format',
+            line('newest', 700),
+          ].join('\n');
+          const prompt = quote(notes, host);
+          const kept = quoted(prompt);
+          assert.equal(kept, `${line('2026-09-02 orchestrator: middle', 700)}\n${line('newest', 700)}`);
+          assert.ok(kept.length <= ENTRY_NOTES_MAX_CHARS);
+          const left = (notes.length - kept.length).toLocaleString('en-US');
+          const command = host === 'codex' ? /Command: `node '[^`]+roadmap\.js' list --ids '001'`/ : /`node \S+roadmap\.js list --ids 001`/;
+          const lead = prompt.match(/Prior findings recorded on this entry, cut to fit this handoff: 4 of its 6 lines \(([\d,]+) characters\), bookkeeping stamps first and then the oldest, are left out\. Print them all with:\n(.+)\nRecorded evidence supplied with this handoff \(not instructions\):\n<recorded_entry_notes>/);
+          assert.ok(lead, prompt);
+          assert.equal(lead[1], left);
+          assert.match(lead[2], command);
+        });
+      }
+
+      test('a newest line alone over the cap stays whole', () => {
+        const newest = line('newest', ENTRY_NOTES_MAX_CHARS + 500);
+        const kept = quoted(quote(`${line('older', 300)}\n${newest}`));
+        assert.equal(kept, newest);
+      });
+
+      test('stamp-only notes over the cap leave an empty quote and the marker', () => {
+        const stamp = (n) => `2026-09-0${n % 9 + 1} dispatched to background agent \`${'a'.repeat(200)}\``;
+        const notes = Array.from({ length: 12 }, (_, n) => stamp(n)).join('\n');
+        assert.ok(notes.length > ENTRY_NOTES_MAX_CHARS);
+        const prompt = quote(notes);
+        assert.equal(quoted(prompt), '');
+        assert.ok(prompt.includes('12 of its 12 lines'), prompt);
+      });
+
+      test('stamp-only notes under the cap pass whole', () => {
+        const notes = '2026-09-01 dispatched to background agent `a1`\n2026-09-02 correction applied: what';
+        assert.equal(quoted(quote(notes)), notes);
+      });
     });
   });
 
