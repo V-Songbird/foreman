@@ -84,6 +84,25 @@ describe('trial log — opt-in', () => {
     assert.equal(record('session_start', {}).reason, 'disabled');
   });
 
+  // [Foreman: 772] A misspelled event in a skill must fail in every project,
+  // not only in the few that turned the log on.
+  test('an unknown event is refused with the log off, and nothing is written', () => {
+    for (const event of ['question_askd', 'toString']) {
+      const result = record(event, {});
+      assert.equal(result.recorded, false, event);
+      assert.equal(result.reason, 'invalid', event);
+      assert.equal(result.error, `unknown event ${JSON.stringify(event)}`);
+    }
+    const cli = runNodeScript(path.join(SCRIPTS_DIR, 'trial-log.js'), ['question_askd', '{"flow":"pick"}'], null, {
+      CLAUDE_PROJECT_DIR: project,
+    });
+    const out = JSON.parse(cli.stdout);
+    assert.equal(out.ok, false);
+    assert.equal(out.reason, 'invalid');
+    assert.equal(record('question_asked', { flow: 'pick' }).reason, 'disabled');
+    assert.ok(!fs.existsSync(path.join(project, '.foreman')), 'nothing may be written while off');
+  });
+
   test('records once the project opts in', () => {
     on();
     assert.equal(record('session_start', {}).recorded, true);

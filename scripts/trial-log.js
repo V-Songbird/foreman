@@ -182,7 +182,7 @@ function sessionToken(root, { renew = false } = {}) {
  * did not, and passing one through would defeat the privacy guarantee.
  */
 function validate(event, fields) {
-  const spec = EVENTS[event];
+  const spec = Object.hasOwn(EVENTS, event) ? EVENTS[event] : null;
   if (!spec) return `unknown event ${JSON.stringify(event)}`;
   for (const [key, check] of Object.entries(spec)) {
     if (!(key in fields)) return `${event} requires ${key}`;
@@ -198,16 +198,21 @@ function validate(event, fields) {
  * Append one event. Never throws.
  *
  * Returns {recorded: true, line} when it wrote, {recorded: false, reason}
- * otherwise — "disabled" when the project has not opted in, "invalid" with
- * an `error` when the event failed the vocabulary check, "write_failed" when
+ * otherwise — "invalid" with an `error` for an event name outside the
+ * vocabulary whether or not the log is on, "disabled" when the project has not
+ * opted in, "invalid" when a known event's fields fail the check, "write_failed" when
  * the filesystem refused. Callers may ignore all of it; the return exists so
  * the tests can see which happened.
  */
 function record(event, fields = {}, options = {}) {
   const root = options.root || projectDir();
   try {
-    if (!enabled(root)) return { recorded: false, reason: "disabled" };
+    // [Foreman: 772] The event name is checked before the opt-in, so a
+    // misspelled event fails in every project. A known event still records
+    // nothing while the log is off.
     const error = validate(event, fields);
+    if (error && !Object.hasOwn(EVENTS, event)) return { recorded: false, reason: "invalid", error };
+    if (!enabled(root)) return { recorded: false, reason: "disabled" };
     if (error) return { recorded: false, reason: "invalid", error };
     const line = { event, ts: today(), session: sessionToken(root), ...fields };
     fs.mkdirSync(foremanDir(root), { recursive: true });
