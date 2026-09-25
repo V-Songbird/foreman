@@ -32,7 +32,7 @@ function hook(name, data = {}) {
   return result.stdout ? JSON.parse(result.stdout) : null;
 }
 function task(action, id = "001", args = []) {
-  return runNodeScript(path.join(HOOKS_DIR, "codex-task.js"), [action, "--id", id, "--root", root, "--session", session, "--agent", "", ...args], null, { FOREMAN_HOST: "codex" });
+  return runNodeScript(path.join(HOOKS_DIR, "codex-task.js"), [action, "--id", id, "--root", root, "--session", session, ...args], null, { FOREMAN_HOST: "codex" });
 }
 
 test("discovery travels through start and no-commit completion without writing candidates", () => {
@@ -196,6 +196,30 @@ test("subagent checkpoint uses explicit parent session and agent identity", () =
   task("check", "001", ["--agent", "worker"]);
   assert.equal(hook("stop.js", { hook_event_name: "Stop" }), null);
   assert.equal(hook("stop.js", { hook_event_name: "SubagentStop", agent_id: "worker" }).decision, "block");
+});
+
+// [Foreman: 771] codex-task.js parses its flags through runtime.parseFlags,
+// like the scripts/ CLIs: a bad flag fails before anything is written.
+for (const [label, args, error] of [
+  ["an unknown flag", ["--bogus", "x"], /unknown flag for codex-task\.js start: --bogus\. Valid flags: --id, --root, --session, --agent/],
+  ["a repeated --id", ["--id", "002"], /repeated flag for codex-task\.js start: --id/],
+  ["an empty --agent", ["--agent", ""], /missing value for codex-task\.js start: --agent/],
+]) {
+  test(`start refuses ${label} and writes nothing`, () => {
+    const before = fs.readFileSync(path.join(root, "ROADMAP.jsonl"));
+    const result = task("start", "001", args);
+    assert.equal(result.status, 1);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, false);
+    assert.match(output.error, error);
+    assert.deepEqual(fs.readFileSync(path.join(root, "ROADMAP.jsonl")), before);
+  });
+}
+
+test("start takes --id=ID", () => {
+  const result = runNodeScript(path.join(HOOKS_DIR, "codex-task.js"), ["start", "--id=001", "--root", root, "--session", session], null, { FOREMAN_HOST: "codex" });
+  assert.equal(result.status, 0, result.stdout);
+  assert.equal(JSON.parse(result.stdout).status, "in_progress");
 });
 
 // [Foreman: 760] A duplicated id names neither holder, so the checkpoint

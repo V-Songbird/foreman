@@ -165,6 +165,11 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   without it in either profile, so a hand-assembled standard prompt that
   passed before fails until it carries the sentence. Antigravity handoffs,
   which take the Codex form, carry it too.
+- `hooks/codex-task.js start` and `check` parse their flags the way the
+  `scripts/` CLIs do, here and on Antigravity. A value flag given twice fails
+  and writes nothing: `start --id 999 --id 001` used to start 001. `--id=001`
+  now works, an empty value such as `--agent ""` fails, and every flag error
+  names the four flags.
 
 ### Every host
 
