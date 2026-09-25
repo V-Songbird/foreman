@@ -616,7 +616,8 @@ fields, each in its host's variant. Nothing about it changes.
 **Standard** carries only: `<task_context>` (the entry's identity and the
 one-sentence goal), the concise truth line below, `<relevant_files>` with its
 symbols, `<prior_work>` when anything was recalled, `<context>` when
-the crafter supplied one or the entry names `depends_on_docs`, `<invariants>`
+the crafter supplied one or pasted an observed failure, or the entry names
+`depends_on_docs`, `<invariants>`
 when the crafter supplied them, `<task_rules>`
 (constraints plus the `Verification (REQUIRED):` Run:/Expected: and
 Look:/Expected: pairs and the bounded fix ceiling that closes them), the
