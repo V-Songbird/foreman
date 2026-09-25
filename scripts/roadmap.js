@@ -1374,9 +1374,12 @@ function recordLesson(root, entry, { lesson, commit }) {
     return refuse(stored.reason, `lesson not recorded (${stored.reason}): ${lesson}`);
   }
   recordTrial("lesson_present", { stored: true, outcome: "stored" }, { root });
+  // [Foreman: 747] The area is a path prefix git reported, named by code point
+  // when it carries a hidden character.
+  const area = quoted(stored.area, stored.area);
   return {
-    report: stored,
-    note: `lesson recorded: ${ledger.NOTES_RELATIVE}, area ${stored.area}`,
+    report: { ...stored, area },
+    note: `lesson recorded: ${ledger.NOTES_RELATIVE}, area ${area}`,
   };
 }
 

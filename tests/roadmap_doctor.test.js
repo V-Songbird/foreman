@@ -283,6 +283,63 @@ describe('doctor field and type findings', () => {
     }
   });
 
+  // [Foreman: 747] The graph findings name an entry whose id carries a hidden
+  // character by its line and leave it out of ids, as checkEntry does, and a
+  // depends_on item by its code points.
+  test('graph findings name a hidden id by line and a hidden dependency by code point', () => {
+    const hidden = `0${ZWSP}02`;
+    const other = `0${ZWSP}04`;
+    const gone = `0${ZWSP}07`;
+    const missing = `9${ZWSP}99`;
+    writeRoadmap(project, [
+      base('001', { depends_on: [missing, missing] }),
+      base(hidden, { status: 'done', depends_on: [hidden] }),
+      base(hidden, { status: 'awaiting_acceptance' }),
+      base(other, { depends_on: ['005'] }),
+      base('005', { depends_on: [other] }),
+      base('006', { depends_on: [gone] }),
+      base(gone, { status: 'dropped', notes: 'dropped' }),
+      base('008', { status: 'done', commits: ['abc1234'], depends_on: [hidden] }),
+    ]);
+    writeArchiveFile(project, [base(hidden, { status: 'done', commits: ['abc1234'] })]);
+    const { stdout } = runRoadmap(['doctor'], null, env);
+    assert.ok(!stdout.includes(ZWSP), 'no finding carries the stored value');
+    const report = JSON.parse(stdout);
+    const named = 'a value carrying characters a reader cannot see (U+200B)';
+    const expected = [
+      ['missing_dependency', ['001'], `entry 001 depends on ${named}, which does not exist`],
+      ['duplicate_dependency', ['001'], `entry 001 lists dependency ${named} more than once`],
+      ['duplicate_id', [], `id ${named} appears on 2 lines (2, 3)`],
+      ['self_dependency', [], 'line 2 depends on itself'],
+      ['terminal_without_evidence', [], 'line 2 is done with no commits and no notes — nothing records what happened'],
+      ['awaiting_without_evidence', [], 'line 3 is awaiting_acceptance with no commits and no notes — nothing records the work it asks the user to accept'],
+      ['dependency_cycle', ['005'], `line 4 depends on 005, which depends back on ${named}`],
+      ['stranded_dependency', ['006'], `entry 006 waits on ${named}, which is dropped — it can never become ready without an edge change`],
+      ['similar_titles', [], 'line 2 and line 3 overlap 1.00 on title/why — possible duplicates'],
+      ['duplicate_across_files', [], `line 1 of .foreman/archive.jsonl is in both ROADMAP.jsonl and .foreman/archive.jsonl — an archive/restore that was interrupted between the two writes; re-run "roadmap.js archive" (or "restore") for that id to finish the move`],
+    ];
+    for (const [code, ids, message] of expected) {
+      const hit = report.findings.find((item) => item.code === code && item.message.startsWith(message.slice(0, 12)));
+      assert.ok(hit, `${code}: ${JSON.stringify(report.findings.filter((item) => item.code === code))}`);
+      assert.deepEqual(hit.ids, ids, code);
+      assert.equal(hit.message, message, code);
+    }
+    assert.equal(withCode(report, 'self_dependency')[0].repairable, false, 'no id to repair it by');
+  });
+
+  test('duplicate_id enrichment names a hidden holder title and dependent id by code point', () => {
+    writeRoadmap(project, [
+      base('001', { title: `sig${ZWSP}001` }),
+      base('001', { title: 'other' }),
+      base(`0${ZWSP}03`, { depends_on: ['001'] }),
+    ]);
+    const { stdout } = runRoadmap(['doctor'], null, env);
+    assert.ok(!stdout.replace(/"detail":\{.*?\}\]\}/g, '').includes(ZWSP), 'no message carries the stored value');
+    const hit = assertFinding(JSON.parse(stdout), 'duplicate_id', 'error', ['001']);
+    assert.match(hit.message, /holders: a value carrying characters a reader cannot see \(U\+200B\) \(planned, created 2026-07-01\), "other" \(planned/);
+    assert.match(hit.message, /depended on by a value carrying characters a reader cannot see \(U\+200B\)/);
+  });
+
   // The file's format version lives on its own first line, not on an entry
   // — full coverage of the marker is in roadmap_migrate.test.js.
   test('unsupported_schema_version: a format marker no reader will honor', () => {

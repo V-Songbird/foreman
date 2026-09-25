@@ -189,6 +189,23 @@ describe('update-status lesson', () => {
     assert.match(json.entry.notes, /lesson recorded: \.foreman\/notes\.jsonl, area src\/auth/);
   });
 
+  // [Foreman: 747] The area is a path prefix git reported; the close's note
+  // and report name a hidden character in it by code point.
+  test('a hidden character in the area is named by code point in the note and report', () => {
+    const zwsp = String.fromCodePoint(0x200b);
+    const project = makeTmpProject();
+    writeRoadmap(project, [entry({ observed_touches: [`src/${zwsp}auth/a.js`, `src/${zwsp}auth/b.js`] })]);
+    fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
+    fs.writeFileSync(path.join(project, '.foreman', 'config.json'), JSON.stringify({ ledger: { enabled: true } }), 'utf-8');
+    const result = runRoadmap(['update-status'], JSON.stringify({ id: '001', status: 'done', lesson: 'a durable fact' }), { CLAUDE_PROJECT_DIR: project });
+    assert.ok(!result.stdout.replace(/"observed_touches":\[[^\]]*\]/, '').includes(zwsp), result.stdout);
+    const json = JSON.parse(result.stdout);
+    const named = 'a value carrying characters a reader cannot see (U+200B)';
+    assert.equal(json.lesson.area, named);
+    assert.match(json.entry.notes, /lesson recorded: \.foreman\/notes\.jsonl, area a value carrying characters a reader cannot see \(U\+200B\)$/);
+    assert.equal(storedRecords(project)[0].area, `src/${zwsp}auth`, 'the store keeps the area as recorded');
+  });
+
   test('a recorded commit anchors the record to that sha', () => {
     const project = enabledProject();
     const { json } = close(project, { commit: 'a1b2c3d', lesson: 'a durable fact about src/Auth' });

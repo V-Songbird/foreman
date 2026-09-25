@@ -195,7 +195,11 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   never the text. A finding that quotes an entry's id, planned file, status,
   source, date, kind, model or effort now does the same when that value
   carries such a character, and names an entry whose id carries one by its
-  line. `roadmap.js notes` prints such an area the same way.
+  line. The dependency, duplicate, similarity and missing-evidence findings
+  do too, for an id, a dependency or a duplicate's holder title, and leave an
+  id carrying one out of `ids`, so `doctor --fix` no longer repairs its
+  dependencies. `roadmap.js notes` prints such an area the same way, and so
+  does the note and result of an `update-status` close that records a lesson.
 - `roadmap.js` fails on a flag its subcommand does not take instead of
   ignoring it, and writes nothing. `list --id 613` used to print the whole
   roadmap; it now exits 1 and the error names `list`'s flags. A subcommand

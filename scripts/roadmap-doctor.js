@@ -207,22 +207,34 @@ function checkEntry(entry, index, out) {
   }
 }
 
+// [Foreman: 747] A graph finding names an entry as checkEntry does: by its id,
+// or by its line when the id carries a hidden character, which then stays out
+// of ids. `lines` maps each row to its line.
+function located(lines) {
+  return {
+    at: (entry) => (hiddenIn(entry.id).length ? `line ${lines.get(entry)}` : `entry ${entry.id}`),
+    clean: (...ids) => ids.filter((id) => !hiddenIn(id).length),
+  };
+}
+
 // [Foreman: 132] `resolve(id)` answers "does this id live in the OTHER file"
 // (the archive, when validating the roadmap; the roadmap, when validating the
 // archive) and hands back that entry. It is consulted only for an id the rows
 // themselves do not carry, so a project with no archive never reads one.
-function checkGraph(rows, out, resolve) {
+function checkGraph(rows, out, resolve, lines) {
   const { reaches, TERMINAL_STATUSES } = roadmap();
+  const { at, clean } = located(lines);
   const byId = new Map();
-  const counts = new Map();
+  const onLines = new Map();
   for (const entry of rows) {
     if (typeof entry.id !== "string" || !entry.id) continue;
-    counts.set(entry.id, (counts.get(entry.id) || 0) + 1);
+    onLines.set(entry.id, [...(onLines.get(entry.id) || []), lines.get(entry)]);
     if (!byId.has(entry.id)) byId.set(entry.id, entry);
   }
-  for (const [id, count] of counts) {
-    if (count > 1) {
-      out.push(finding("duplicate_id", "error", [id], `id ${id} appears on ${count} lines`, { field: "id" }));
+  for (const [id, where] of onLines) {
+    if (where.length > 1) {
+      const shown = clean(id).length ? "" : ` (${where.join(", ")})`;
+      out.push(finding("duplicate_id", "error", clean(id), `id ${quoted(id, id)} appears on ${where.length} lines${shown}`, { field: "id" }));
     }
   }
 
@@ -232,28 +244,29 @@ function checkGraph(rows, out, resolve) {
     const seen = new Set();
     for (const dep of entry.depends_on) {
       if (typeof dep !== "string" || !dep) continue;
+      const ids = clean(id);
       if (dep === id) {
-        out.push(finding("self_dependency", "error", [id], `entry ${id} depends on itself`, { field: "depends_on", repairable: true }));
+        out.push(finding("self_dependency", "error", ids, `${at(entry)} depends on itself`, { field: "depends_on", repairable: Boolean(ids.length) }));
         continue;
       }
       if (seen.has(dep)) {
-        out.push(finding("duplicate_dependency", "warning", [id], `entry ${id} lists dependency ${dep} more than once`, { field: "depends_on", repairable: true }));
+        out.push(finding("duplicate_dependency", "warning", ids, `${at(entry)} lists dependency ${quoted(dep, dep)} more than once`, { field: "depends_on", repairable: Boolean(ids.length) }));
         continue;
       }
       seen.add(dep);
       const parent = byId.get(dep) || (resolve ? resolve(dep) : null);
       if (!parent) {
-        out.push(finding("missing_dependency", "error", [id], `entry ${id} depends on ${dep}, which does not exist`, { field: "depends_on" }));
+        out.push(finding("missing_dependency", "error", ids, `${at(entry)} depends on ${quoted(dep, dep)}, which does not exist`, { field: "depends_on" }));
         continue;
       }
       // Same predicate update-deps refuses an edge with, applied to edges
       // that are already in the file.
       if (reaches(rows, dep, id)) {
-        out.push(finding("dependency_cycle", "error", [id, dep], `entry ${id} depends on ${dep}, which depends back on ${id}`, { field: "depends_on" }));
+        out.push(finding("dependency_cycle", "error", clean(id, dep), `${at(entry)} depends on ${quoted(dep, dep)}, which depends back on ${quoted(id, id)}`, { field: "depends_on" }));
         continue;
       }
       if (TERMINAL_STATUSES.has(parent.status) && parent.status !== "done" && !TERMINAL_STATUSES.has(entry.status)) {
-        out.push(finding("stranded_dependency", "warning", [id], `entry ${id} waits on ${dep}, which is ${parent.status} — it can never become ready without an edge change`, { field: "depends_on" }));
+        out.push(finding("stranded_dependency", "warning", ids, `${at(entry)} waits on ${quoted(dep, dep)}, which is ${parent.status} — it can never become ready without an edge change`, { field: "depends_on" }));
       }
     }
   }
@@ -272,8 +285,8 @@ function checkGraph(rows, out, resolve) {
     if (recordedCommits(entry).length || String(entry.notes || "").trim()) continue;
     out.push(
       entry.status === "done"
-        ? finding("terminal_without_evidence", "warning", [entry.id], `entry ${entry.id} is done with no commits and no notes — nothing records what happened`)
-        : finding("awaiting_without_evidence", "warning", [entry.id], `entry ${entry.id} is awaiting_acceptance with no commits and no notes — nothing records the work it asks the user to accept`)
+        ? finding("terminal_without_evidence", "warning", clean(entry.id), `${at(entry)} is done with no commits and no notes — nothing records what happened`)
+        : finding("awaiting_without_evidence", "warning", clean(entry.id), `${at(entry)} is awaiting_acceptance with no commits and no notes — nothing records the work it asks the user to accept`)
     );
   }
 }
@@ -282,27 +295,29 @@ function checkGraph(rows, out, resolve) {
 // a task, run over the pairs already on the roadmap. Capped like
 // check-duplicate's own match list: this is a heuristic, and an unbounded
 // pair list on a large roadmap would cost more context than it saves.
-function checkSimilarity(rows, out) {
+function checkSimilarity(rows, out, lines) {
   const { normalizeWords, jaccard, DUPLICATE_THRESHOLD, MAX_MATCHES } = roadmap();
+  const { at, clean } = located(lines);
   const texts = rows
     .filter((entry) => typeof entry.id === "string" && entry.id)
-    .map((entry) => ({ id: entry.id, words: normalizeWords(`${entry.title || ""} ${entry.why || ""}`) }));
+    .map((entry) => ({ entry, words: normalizeWords(`${entry.title || ""} ${entry.why || ""}`) }));
   const pairs = [];
   for (let i = 0; i < texts.length; i += 1) {
     for (let j = i + 1; j < texts.length; j += 1) {
       const score = jaccard(texts[i].words, texts[j].words);
-      if (score >= DUPLICATE_THRESHOLD) pairs.push({ a: texts[i].id, b: texts[j].id, score });
+      if (score >= DUPLICATE_THRESHOLD) pairs.push({ a: texts[i].entry, b: texts[j].entry, score });
     }
   }
   pairs
     .sort((left, right) => right.score - left.score)
     .slice(0, MAX_MATCHES)
     .forEach((pair) => {
+      const ids = clean(pair.a.id, pair.b.id);
       out.push(finding(
         "similar_titles",
         "warning",
-        [pair.a, pair.b],
-        `entries ${pair.a} and ${pair.b} overlap ${pair.score.toFixed(2)} on title/why — possible duplicates`
+        ids,
+        `${ids.length === 2 ? `entries ${pair.a.id} and ${pair.b.id}` : `${at(pair.a)} and ${at(pair.b)}`} overlap ${pair.score.toFixed(2)} on title/why — possible duplicates`
       ));
     });
 }
@@ -319,8 +334,9 @@ function validateEntries(entries, options = {}) {
   const out = [];
   entries.forEach((entry, index) => checkEntry(entry, index, out));
   const rows = entries.filter(isObject);
-  checkGraph(rows, out, options.resolve);
-  if (options.similarity !== false) checkSimilarity(rows, out);
+  const lines = new Map(entries.map((entry, index) => [entry, index + 1]));
+  checkGraph(rows, out, options.resolve, lines);
+  if (options.similarity !== false) checkSimilarity(rows, out, lines);
   return out;
 }
 
@@ -393,15 +409,16 @@ function validateAcrossFiles(active, archived) {
   const activeIds = new Set(
     active.filter((entry) => isObject(entry) && typeof entry.id === "string").map((entry) => entry.id)
   );
-  for (const entry of archived) {
-    if (!isObject(entry) || typeof entry.id !== "string" || !activeIds.has(entry.id)) continue;
+  archived.forEach((entry, index) => {
+    if (!isObject(entry) || typeof entry.id !== "string" || !activeIds.has(entry.id)) return;
+    const hidden = hiddenIn(entry.id).length;
     out.push(finding(
       "duplicate_across_files",
       "error",
-      [entry.id],
-      `entry ${entry.id} is in both ROADMAP.jsonl and .foreman/archive.jsonl — an archive/restore that was interrupted between the two writes; re-run "roadmap.js archive" (or "restore") for that id to finish the move`
+      hidden ? [] : [entry.id],
+      `${hidden ? `line ${index + 1} of .foreman/archive.jsonl` : `entry ${entry.id}`} is in both ROADMAP.jsonl and .foreman/archive.jsonl — an archive/restore that was interrupted between the two writes; re-run "roadmap.js archive" (or "restore") for that id to finish the move`
     ));
-  }
+  });
   return out;
 }
 
@@ -461,10 +478,10 @@ function describeDuplicate(root, id, active, archived) {
 
 function duplicateMessage(message, id, detail) {
   const holders = detail.holders
-    .map((h) => `${JSON.stringify(h.title)} (${h.status}, created ${h.created_at}${h.archived ? ", archived" : ""})`)
+    .map((h) => `${quoted(h.title)} (${h.status}, created ${h.created_at}${h.archived ? ", archived" : ""})`)
     .join(", ");
   const dependents = detail.dependents.length
-    ? `depended on by ${detail.dependents.map((d) => `${d.id}${d.archived ? " (archived)" : ""}`).join(", ")}`
+    ? `depended on by ${detail.dependents.map((d) => `${quoted(d.id, d.id)}${d.archived ? " (archived)" : ""}`).join(", ")}`
     : "nothing depends on it";
   const count = detail.trailer_commit_count;
   const shown = detail.trailer_commits;
@@ -485,7 +502,8 @@ function duplicateMessage(message, id, detail) {
 function enrichDuplicates(root, findings, active, archived) {
   if (!findings.some((item) => DUPLICATE_CODES.has(item.code))) return findings;
   return findings.map((item) => {
-    if (!DUPLICATE_CODES.has(item.code)) return item;
+    // [Foreman: 747] A hidden id is located by line, with no id to describe.
+    if (!DUPLICATE_CODES.has(item.code) || !item.ids.length) return item;
     const id = item.ids[0];
     const detail = describeDuplicate(root, id, active, archived);
     return { ...item, message: duplicateMessage(item.message, id, detail), detail };
