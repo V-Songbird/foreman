@@ -457,17 +457,6 @@ describe('a duplicated file stays readable before the repair', () => {
     assert.equal(duplicate.json.matches.filter((row) => row.id === '130').length, 2);
   });
 
-  test('a mutation on the duplicated id resolves to the FIRST holder only', () => {
-    mergedRoadmap();
-
-    const { status, json } = run(['update-status'], { id: '130', status: 'in_progress' });
-
-    assert.equal(status, 0);
-    assert.equal(json.entry.title, 'Cache the rate lookup');
-    const rows = readFileRows('ROADMAP.jsonl').filter((row) => row.id === '130');
-    assert.deepEqual(rows.map((row) => row.status), ['in_progress', 'done']);
-  });
-
   test('a mutation elsewhere in the file is not blocked by the inherited duplicate', () => {
     mergedRoadmap();
 
@@ -509,5 +498,93 @@ describe('a duplicated file stays readable before the repair', () => {
 
     assert.equal(status, 0);
     assert.equal('notes_anchors_demoted' in json, false);
+  });
+});
+
+// [Foreman: 754] A duplicated id names neither holder, so every write that
+// addresses an entry by id refuses it and points at the repair, instead of
+// silently taking the first holder (or, for archive and restore, dropping the
+// others from the file they left).
+describe('an id-addressed write refuses a duplicated id', () => {
+  const refusal = (label, titles) =>
+    `entry 130 is held by 2 entries in ${label} (${titles}) — run "roadmap.js reassign-id" `
+      + 'with the title of the holder that keeps the id, then re-run; nothing was written';
+
+  function fileText(relPath) {
+    const full = path.join(project, relPath);
+    return fs.existsSync(full) ? fs.readFileSync(full, 'utf-8') : null;
+  }
+
+  test('update-status, annotate, update-deps and correct refuse and write nothing', () => {
+    const calls = [
+      ['update-status', { id: '130', status: 'in_progress' }],
+      ['annotate', { id: '130', notes: 'a note' }],
+      ['update-deps', { id: '130', add_depends_on: ['129'] }],
+      ['correct', { id: '130', expected_updated_at: '2026-01-01', expected: { what: 'Implement task 130' }, what: 'new what' }],
+    ];
+    for (const [command, payload] of calls) {
+      mergedRoadmap();
+      const before = fileText('ROADMAP.jsonl');
+
+      const { status, json } = run([command], payload);
+
+      assert.equal(status, 1, command);
+      assert.equal(json.error, refusal('ROADMAP.jsonl', '"Cache the rate lookup", "Retry the webhook"'), command);
+      assert.equal(fileText('ROADMAP.jsonl'), before, `${command} wrote nothing`);
+    }
+  });
+
+  test('archive refuses instead of dropping the holder it did not move', () => {
+    writeRoadmap(project, [
+      entry('130', { title: 'Done side', status: 'done' }),
+      entry('130', { title: 'Planned side' }),
+    ]);
+    const before = fileText('ROADMAP.jsonl');
+
+    const { status, json } = run(['archive'], { ids: ['130'] });
+
+    assert.equal(status, 1);
+    assert.equal(json.error, refusal('ROADMAP.jsonl', '"Done side", "Planned side"'));
+    assert.equal(fileText('ROADMAP.jsonl'), before);
+    assert.equal(fileText('.foreman/archive.jsonl'), null);
+  });
+
+  test('restore refuses two archived holders of one id', () => {
+    writeRoadmap(project, [entry('129')]);
+    writeArchiveFile([
+      entry('130', { title: 'First done', status: 'done' }),
+      entry('130', { title: 'Then dropped', status: 'dropped' }),
+    ]);
+    const before = fileText('.foreman/archive.jsonl');
+
+    const { status, json } = run(['restore'], { ids: ['130'] });
+
+    assert.equal(status, 1);
+    assert.equal(json.error, refusal('.foreman/archive.jsonl', '"First done", "Then dropped"'));
+    assert.equal(fileText('.foreman/archive.jsonl'), before);
+    assert.deepEqual(readFileRows('ROADMAP.jsonl').map((row) => row.id), ['129']);
+  });
+
+  test('an active holder with an archived twin is still the one entry a write reaches', () => {
+    writeRoadmap(project, [entry('130', { title: 'Active side' })]);
+    writeArchiveFile([entry('130', { title: 'Archived side', status: 'done' })]);
+
+    const { status, json } = run(['annotate'], { id: '130', notes: 'still writable' });
+
+    assert.equal(status, 0);
+    assert.equal(json.entry.title, 'Active side');
+  });
+
+  test('a holder title carrying a hidden character is named by code point', () => {
+    const ZWSP = String.fromCodePoint(0x200b);
+    writeRoadmap(project, [entry('130', { title: `A${ZWSP}` }), entry('130', { title: 'B' })]);
+
+    const result = runRoadmap(['annotate'], { id: '130', notes: 'x' }, { CLAUDE_PROJECT_DIR: project });
+
+    assert.ok(!result.stdout.includes(ZWSP));
+    assert.match(
+      JSON.parse(result.stdout).error,
+      /\(a value carrying characters a reader cannot see \(U\+200B\), "B"\)/
+    );
   });
 });

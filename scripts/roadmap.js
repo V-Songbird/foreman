@@ -1127,6 +1127,23 @@ function missingEntryError(resolve, id) {
   return new Error(`no entry with id ${id}`);
 }
 
+// [Foreman: 754] The one lookup every id-addressed write goes through. An id
+// two lines of the same file share names neither of them: taking the first
+// edited or closed an entry the caller may not have meant, and archive/restore
+// dropped the rest. The write gate tolerates the inherited duplicate_id, so
+// the refusal has to happen here.
+function soleHolder(entries, id, label) {
+  const holders = entries.filter((entry) => entry && entry.id === id);
+  if (holders.length > 1) {
+    throw new Error(
+      `entry ${named(id)} is held by ${holders.length} entries in ${label} `
+        + `(${holders.map((entry) => quoted(entry.title)).join(", ")}) — run "roadmap.js reassign-id" `
+        + "with the title of the holder that keeps the id, then re-run; nothing was written"
+    );
+  }
+  return holders[0];
+}
+
 function cmdUpdateStatus(root, payload) {
   refuseCredentials("update-status", payload, ["notes", "lesson", "add_touches", "doc", "model"]);
   refuseHiddenCharacters("update-status", payload, ["notes", "lesson"]);
@@ -1196,7 +1213,7 @@ function cmdUpdateStatusUnlocked(root, payload) {
     ...entry,
     depends_on: [...(entry.depends_on || [])],
   }));
-  const entry = entries.find((e) => e.id === id);
+  const entry = soleHolder(entries, id, "ROADMAP.jsonl");
   if (!entry) throw missingEntryError(resolve, id);
   // Internal compare-and-set guard for hooks that first made a read-only
   // eligibility check. Recheck inside the mutation lock so a concurrent
@@ -1404,7 +1421,7 @@ function cmdAnnotateUnlocked(root, payload) {
   const { id, notes } = payload || {};
   if (!id || !notes) throw new Error("annotate requires id, notes");
   const entries = readEntries(root);
-  const entry = entries.find((e) => e.id === id);
+  const entry = soleHolder(entries, id, "ROADMAP.jsonl");
   if (!entry) throw missingEntryError(archiveResolver(root), id);
   // append-only invariant: never replace existing notes
   entry.notes = appendNote(entry.notes, notes);
@@ -1453,7 +1470,7 @@ function cmdUpdateDepsUnlocked(root, payload) {
     depends_on: [...(entry.depends_on || [])],
   }));
   const resolve = archiveResolver(root);
-  const entry = entries.find((e) => e.id === id);
+  const entry = soleHolder(entries, id, "ROADMAP.jsonl");
   if (!entry) throw missingEntryError(resolve, id);
   // An archived (usually done) parent is a legitimate edge, same as add's.
   const knownIds = new Set(entries.map((e) => e.id));
@@ -1575,7 +1592,7 @@ function cmdCorrectUnlocked(root, payload) {
     depends_on: [...(entry.depends_on || [])],
   }));
   const resolve = archiveResolver(root);
-  const entry = entries.find((e) => e.id === id);
+  const entry = soleHolder(entries, id, "ROADMAP.jsonl");
   if (!entry) throw missingEntryError(resolve, id);
   if (!CORRECTABLE_STATUSES.has(entry.status)) {
     throw new Error(
@@ -2186,7 +2203,7 @@ function moveEntries(root, payload, direction) {
   const wanted = [...new Set(ids)];
   const moving = [];
   for (const id of wanted) {
-    const entry = source.find((candidate) => candidate.id === id);
+    const entry = soleHolder(source, id, sourceLabel);
     const already = destinationById.get(id);
     if (!entry) {
       throw new Error(
@@ -2312,7 +2329,7 @@ function cmdReassignIdUnlocked(root, payload) {
   // The degenerate merge: the same task added on both branches. Renumbering
   // would leave two identical entries with different ids, which is a worse
   // roadmap than the one that came in -- and the CLI cannot tell them apart to
-  // edit one, since every command resolves an id to the FIRST holder. Deduping
+  // edit one, since every id-addressed command refuses a duplicated id. Deduping
   // them is a hand edit, which is the one thing the guard hook leaves open.
   if (matches.length > 1) {
     throw new Error(

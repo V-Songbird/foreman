@@ -206,6 +206,11 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   only as many of each as it had. An entry whose id carries such a character,
   restored or archived beside another one, used to pass as the damage already
   there; the write is now refused.
+- `roadmap.js` `update-status`, `annotate`, `update-deps`, `correct`,
+  `archive` and `restore` refuse an id that two entries of the same file
+  share, naming the holders' titles and pointing to `reassign-id`. They used
+  to act on the first holder, and `archive` and `restore` dropped the other
+  holders from the file they moved out of.
 - `roadmap.js` fails on a flag its subcommand does not take instead of
   ignoring it, and writes nothing. `list --id 613` used to print the whole
   roadmap; it now exits 1 and the error names `list`'s flags. A subcommand

@@ -405,7 +405,9 @@ everything depending on the id, and the commits already labelled
 `Foreman: <id>`. A value there carrying a character a reader cannot see is
 named by its code points instead of printed, so such a title cannot be
 copied into `keep`; `reassign-id`'s refusals and result name one the same
-way. **Repair** it with `reassign-id`, naming the exact `title` of
+way. Until the repair, `update-status`, `annotate`, `update-deps`, `correct`,
+`archive` and `restore` refuse an id two entries of the same file share, so
+none of them edits, closes or moves one holder by guess. **Repair** it with `reassign-id`, naming the exact `title` of
 the holder that keeps the id — usually the one those commit trailers,
 `[Foreman: <id>]` anchors, and dependents already mean. Every other holder is
 renumbered to a fresh id; dependents are left alone and keep pointing at the
