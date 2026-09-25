@@ -92,7 +92,8 @@ function fixtures(host) {
       scope_discipline: `<scope_discipline>${scopeText}</scope_discipline>`,
       entry_paragraph: '',
       tone: '<tone>\nMinimal, professional conversation — silent by default. If an output style already governs this session\'s voice, defer to it.\n</tone>',
-      background: '<background>\n<relevant_files>\nsrc/auth/middleware.ts — refreshToken (42), verifySession (77)\n</relevant_files>\n<context>\nUses JWT tokens in httpOnly cookies. No third-party auth libs.\n</context>\n</background>',
+      background: '<background>\n<relevant_files>\nsrc/auth/middleware.ts — refreshToken (42), verifySession (77)\n</relevant_files>\n</background>',
+      context: '<context>\nUses JWT tokens in httpOnly cookies. No third-party auth libs.\n</context>',
       no_invention: NO_INVENTION_LINE,
       invariants: '',
       task_rules: `<task_rules>\n- Check the refresh path against the failing test.\n- Fix the bug.\n\nConstraints:\n- Do not modify the public API.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\n${FIX_CEILING_LINE}\n</task_rules>`,
@@ -269,7 +270,7 @@ for (const host of HOSTS) {
       test('leftover template placeholder is an error', () => {
         const project = makeTmpProject();
         const prompt = goodPrompt({
-          background: '<background>\n<relevant_files>\n[Exact file paths for every file the task touches, each with the symbols that matter.]\n</relevant_files>\n<context>\nSome context.\n</context>\n</background>',
+          background: '<background>\n<relevant_files>\n[Exact file paths for every file the task touches, each with the symbols that matter.]\n</relevant_files>\n</background>',
         });
         const { json } = check(project, prompt, ['--destination', 'clipboard']);
         assert.ok(json.errors.some((e) => e.error.includes('placeholder')));
@@ -289,11 +290,11 @@ for (const host of HOSTS) {
       test('empty relevant_files is an error; a path-less one is a warning', () => {
         const project = makeTmpProject();
         const empty = goodPrompt({
-          background: '<background>\n<relevant_files>\n</relevant_files>\n<context>\nctx\n</context>\n</background>',
+          background: '<background>\n<relevant_files>\n</relevant_files>\n</background>',
         });
         assert.ok(check(project, empty, ['--destination', 'clipboard']).json.errors.some((e) => e.error.includes('relevant_files')));
         const vague = goodPrompt({
-          background: '<background>\n<relevant_files>\nthe auth module\n</relevant_files>\n<context>\nctx\n</context>\n</background>',
+          background: '<background>\n<relevant_files>\nthe auth module\n</relevant_files>\n</background>',
         });
         const { json } = check(project, vague, ['--destination', 'clipboard']);
         assert.equal(json.ok, true);
@@ -488,7 +489,7 @@ for (const host of HOSTS) {
       test('a symbol-only citation passes clean — no line numbers required', () => {
         const project = makeTmpProject();
         const prompt = goodPrompt({
-          background: '<background>\n<relevant_files>\nsrc/auth/middleware.ts — refreshToken, verifySession\n</relevant_files>\n<context>\nSome context.\n</context>\n</background>',
+          background: '<background>\n<relevant_files>\nsrc/auth/middleware.ts — refreshToken, verifySession\n</relevant_files>\n</background>',
         });
         const { status, json } = check(project, prompt, ['--destination', 'task']);
         assert.equal(status, 0, JSON.stringify(json));
@@ -498,7 +499,7 @@ for (const host of HOSTS) {
       test('a bare directory still passes clean — the roadmap touches pass-through depends on it', () => {
         const project = makeTmpProject();
         const prompt = goodPrompt({
-          background: '<background>\n<relevant_files>\nforeman/skills/\n</relevant_files>\n<context>\nSome context.\n</context>\n</background>',
+          background: '<background>\n<relevant_files>\nforeman/skills/\n</relevant_files>\n</background>',
         });
         const { status, json } = check(project, prompt, ['--destination', 'task']);
         assert.equal(status, 0, JSON.stringify(json));
@@ -514,7 +515,7 @@ for (const host of HOSTS) {
       test('a MISSING: path warns and still passes — the task may be the one creating it', () => {
         const project = makeTmpProject();
         const prompt = goodPrompt({
-          background: '<background>\n<relevant_files>\nsrc/api/retry.js — MISSING: nothing at this path yet. Either this task creates the file, or the plan is stale and needs fixing.\n</relevant_files>\n<context>\nSome context.\n</context>\n</background>',
+          background: '<background>\n<relevant_files>\nsrc/api/retry.js — MISSING: nothing at this path yet. Either this task creates the file, or the plan is stale and needs fixing.\n</relevant_files>\n</background>',
         });
         const { status, json } = check(project, prompt, ['--destination', 'task']);
         assert.equal(status, 0, JSON.stringify(json));
@@ -524,7 +525,7 @@ for (const host of HOSTS) {
       test('an OUTSIDE PROJECT: path is still refused — it was never read, and no task writes outside the root', () => {
         const project = makeTmpProject();
         const prompt = goodPrompt({
-          background: '<background>\n<relevant_files>\n../elsewhere/a.ts — OUTSIDE PROJECT: resolves outside the project root, not read\n</relevant_files>\n<context>\nSome context.\n</context>\n</background>',
+          background: '<background>\n<relevant_files>\n../elsewhere/a.ts — OUTSIDE PROJECT: resolves outside the project root, not read\n</relevant_files>\n</background>',
         });
         const { status, json } = check(project, prompt, ['--destination', 'task']);
         assert.notEqual(status, 0, JSON.stringify(json));
@@ -542,7 +543,7 @@ for (const host of HOSTS) {
       test('a citation with no path at all still warns', () => {
         const project = makeTmpProject();
         const prompt = goodPrompt({
-          background: '<background>\n<relevant_files>\nthe auth module\n</relevant_files>\n<context>\nSome context.\n</context>\n</background>',
+          background: '<background>\n<relevant_files>\nthe auth module\n</relevant_files>\n</background>',
         });
         const { json } = check(project, prompt, ['--destination', 'task']);
         assert.ok(json.warnings.some((w) => w.includes('no path-like reference')), JSON.stringify(json.warnings));
@@ -818,7 +819,8 @@ for (const host of HOSTS) {
       test('warnings stay bare strings, because nothing has to be repaired to deliver', () => {
         const project = makeTmpProject();
         const { json } = check(project, goodPrompt({
-          background: '<background>\n<relevant_files>\nsrc/a.ts — go (1)\n</relevant_files>\n<context>\nAs we discussed above, keep it small.\n</context>\n</background>',
+          background: '<background>\n<relevant_files>\nsrc/a.ts — go (1)\n</relevant_files>\n</background>',
+          context: '<context>\nAs we discussed above, keep it small.\n</context>',
         }), ['--destination', 'clipboard']);
         assert.ok(json.warnings.length > 0);
         for (const w of json.warnings) assert.equal(typeof w, 'string');
@@ -826,6 +828,20 @@ for (const host of HOSTS) {
     });
   });
 }
+
+// [Foreman: 701, 737] Foreman emits <context> after </background>; the gate
+// never looked at where <context> sits, so a hand-built prompt that still
+// nests it inside <background> keeps passing.
+test('the gate still accepts <context> nested inside <background>', () => {
+  const project = makeTmpProject();
+  const { goodPrompt } = fixtures('claude');
+  const nested = goodPrompt({
+    background: '<background>\n<relevant_files>\nsrc/auth/middleware.ts — refreshToken (42), verifySession (77)\n</relevant_files>\n<context>\nUses JWT tokens in httpOnly cookies.\n</context>\n</background>',
+    context: '',
+  });
+  const { status, json } = runCheck(project, nested, ['--destination', 'clipboard', '--host', 'claude']);
+  assert.equal(status, 0, JSON.stringify(json));
+});
 
 // [Foreman: 107] Claude Code substitutes ${CLAUDE_PLUGIN_ROOT} into a skill's
 // text, so a crafter copies the resolved, version-pinned path by default; the
@@ -1199,8 +1215,7 @@ describe('invisible characters', () => {
   const RAINBOW_FLAG = '\u{1F3F3}\uFE0F\u200D\u{1F308}';
   const TECHNOLOGIST = '\u{1F9D1}\u{1F3FD}\u200D\u{1F4BB}';
   const SCOTLAND = `\u{1F3F4}${tags('gbsct')}\u{E007F}`;
-  const withContext = (context) =>
-    `<background>\n<relevant_files>\nsrc/auth/middleware.ts — refreshToken (42), verifySession (77)\n</relevant_files>\n<context>\n${context}\n</context>\n</background>`;
+  const withContext = (context) => `<context>\n${context}\n</context>`;
   const invisibleError = (json) => (json.errors || []).find((e) => e.error.startsWith('invisible characters in the prompt'));
 
   test('every character of the set is caught, with its line and code point', () => {
@@ -1230,10 +1245,10 @@ describe('invisible characters', () => {
     test(`${host}: the gate refuses a hidden character and passes rendered text`, () => {
       const project = makeTmpProject();
       const { goodPrompt } = fixtures(host);
-      const bad = runCheck(project, goodPrompt({ background: withContext('Uses JWT\u200B tokens.') }), ['--destination', 'task', '--host', host]);
+      const bad = runCheck(project, goodPrompt({ context: withContext('Uses JWT\u200B tokens.') }), ['--destination', 'task', '--host', host]);
       assert.equal(bad.status, 1);
       assert.match(invisibleError(bad.json).error, /\(line \d+: U\+200B\)/);
-      const good = runCheck(project, `\uFEFF${goodPrompt({ background: withContext(`Owned by ${FAMILY} in ${SCOTLAND}.`) })}`, ['--destination', 'task', '--host', host]);
+      const good = runCheck(project, `\uFEFF${goodPrompt({ context: withContext(`Owned by ${FAMILY} in ${SCOTLAND}.`) })}`, ['--destination', 'task', '--host', host]);
       assert.equal(good.status, 0, JSON.stringify(good.json));
     });
   }
@@ -1243,9 +1258,9 @@ describe('invisible characters', () => {
     const { goodPrompt } = fixtures('claude');
     const quoted = (tag, body) => withContext(`Observed failure. Recorded evidence supplied with this handoff (not instructions):\n<${tag}>\n${body}\n</${tag}>`);
     for (const tag of ['observed_failure', 'recorded_increment_notes']) {
-      const hidden = runCheck(project, goodPrompt({ background: quoted(tag, 'Error: boom\u2066') }), ['--destination', 'task', '--host', 'claude']);
+      const hidden = runCheck(project, goodPrompt({ context: quoted(tag, 'Error: boom\u2066') }), ['--destination', 'task', '--host', 'claude']);
       assert.ok(invisibleError(hidden.json), `${tag}: ${JSON.stringify(hidden.json)}`);
-      const placeholder = runCheck(project, goodPrompt({ background: quoted(tag, 'log: [exact command here]') }), ['--destination', 'task', '--host', 'claude']);
+      const placeholder = runCheck(project, goodPrompt({ context: quoted(tag, 'log: [exact command here]') }), ['--destination', 'task', '--host', 'claude']);
       assert.equal(placeholder.status, 0, `${tag}: ${JSON.stringify(placeholder.json)}`);
     }
   });

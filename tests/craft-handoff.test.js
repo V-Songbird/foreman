@@ -1381,16 +1381,14 @@ describe('prior-work recall', () => {
     const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
     assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
 
-    const background = json.prompt.slice(
-      json.prompt.indexOf('<background>'),
-      json.prompt.indexOf('</background>')
-    );
+    const backgroundEnd = json.prompt.indexOf('</background>');
+    const background = json.prompt.slice(json.prompt.indexOf('<background>'), backgroundEnd);
     const recallAt = background.indexOf('<prior_work>');
     assert.ok(recallAt > -1, 'recall never made it into <background>');
-    const contextAt = background.indexOf('<context>');
-    if (contextAt > -1) assert.ok(recallAt < contextAt, 'recall must sit outside <context>');
+    assert.ok(!background.includes('<context>'), '<context> must follow </background>, not sit inside it');
+    assert.ok(json.prompt.indexOf('<context>') > backgroundEnd, '<context> must follow </background>');
 
-    const block = background.slice(recallAt).replace(/<context>[\s\S]*$/, '').trim();
+    const block = background.slice(recallAt).trim();
     assert.ok(block.length < 1200, `recall payload was ${block.length} chars`);
   });
 
@@ -1612,11 +1610,11 @@ describe('the symbol chain', () => {
   test('sits inside <background>, outside <context>, and never promotes the profile', () => {
     shapedProject();
     const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
-    const background = json.prompt.slice(json.prompt.indexOf('<background>'), json.prompt.indexOf('</background>'));
-    const at = background.indexOf('Entries whose commits shaped');
-    assert.ok(at > -1, 'the chain must ride inside <background>');
-    const contextAt = background.indexOf('<context>');
-    if (contextAt > -1) assert.ok(at < contextAt, 'the chain must sit outside <context>');
+    const backgroundEnd = json.prompt.indexOf('</background>');
+    const background = json.prompt.slice(json.prompt.indexOf('<background>'), backgroundEnd);
+    assert.ok(background.includes('Entries whose commits shaped'), 'the chain must ride inside <background>');
+    assert.ok(!background.includes('<context>'), '<context> must follow </background>, not sit inside it');
+    assert.ok(json.prompt.indexOf('<context>') > backgroundEnd, '<context> must follow </background>');
     assert.equal(json.profile, 'standard');
   });
 
