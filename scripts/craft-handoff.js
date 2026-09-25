@@ -1774,8 +1774,9 @@ const USAGE = `craft-handoff.js -- assembles a gate-checked handoff prompt in on
 Takes no flags: stdin JSON in, one JSON line out:
 {ok, prompt, profile, signals, tasks?, gate, warnings}; exit 1 when ok is false.
 
-The input is {"entry":"<id>", ...} for a roadmap pick, or title, why and what
-given inline for an entry-less prompt, plus host, destination and judgment.
+The input is {"entry":"<id>", ...} for a roadmap pick, or title, what and
+touches given inline for an entry-less prompt (judgment.purpose carries the
+why), plus host, destination and judgment.
 skills/roadmap/pick.md step 3 and skills/craft-prompt/SKILL.md give the full payload.
 `;
 
