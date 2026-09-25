@@ -165,7 +165,8 @@ function resolveFile(root, relPath) {
     const text = chunk.toString("utf-8");
     const source = truncated ? text.slice(0, text.lastIndexOf("\n") + 1) : text;
     const symbols = extractSymbols(source, language);
-    return { path: relPath, ...(truncated ? { truncated: true } : {}), symbols, members: extractMembers(source, language) };
+    // [Foreman: 706] `text` is every byte read, uncut, for localImports.
+    return { path: relPath, ...(truncated ? { truncated: true } : {}), symbols, members: extractMembers(source, language), text };
   } catch {
     return { path: relPath, unreadable: true, symbols: [] };
   }
@@ -383,14 +384,17 @@ function normalizeTarget(target) {
   return target.replace(/\.(js|mjs|cjs|jsx|ts|tsx|mts|cts|py|kt|kts)$/, "");
 }
 
-function localImports(root, relPath) {
+// [Foreman: 706] `source` is the text resolveFile already read; without it
+// the file is read here.
+function localImports(root, relPath, source) {
   const full = path.resolve(root, relPath);
   const targets = new Set();
-  let source;
-  try {
-    source = readHead(full).chunk.toString("utf-8");
-  } catch {
-    return targets;
+  if (source === undefined) {
+    try {
+      source = readHead(full).chunk.toString("utf-8");
+    } catch {
+      return targets;
+    }
   }
   IMPORT_SPECIFIER.lastIndex = 0;
   let match;
@@ -435,12 +439,12 @@ function toPosix(relPath) {
   return relPath.split(path.sep).join("/");
 }
 
-function referenceImplementations(root, files) {
+function referenceImplementations(root, files, texts = new Map()) {
   const wanted = new Map();
   const touched = new Set(files.map((file) => path.resolve(root, file.path)));
   for (const file of files) {
     if (file.missing || file.directory || file.unsupported || file.unreadable || file.outside_project) continue;
-    for (const target of localImports(root, file.path)) wanted.set(target, new Set());
+    for (const target of localImports(root, file.path, texts.get(file.path))) wanted.set(target, new Set());
   }
   if (!wanted.size) return { references: [], truncated: false };
 
@@ -496,11 +500,14 @@ function resolve(root, touches, what, verify) {
   const list = Array.isArray(touches) ? touches.filter((p) => typeof p === "string" && p.trim()) : [];
   if (!list.length) warnings.push("no touches paths given — nothing to resolve");
 
-  // Members only feed `unresolved`; the payload's files keep their documented shape.
+  // Members only feed `unresolved` and text only feeds `references`; the
+  // payload's files keep their documented shape.
   const members = [];
+  const texts = new Map();
   const files = list.map((relPath) => {
-    const { members: names = [], ...file } = resolveFile(root, relPath.trim());
+    const { members: names = [], text, ...file } = resolveFile(root, relPath.trim());
     members.push(...names);
+    if (text !== undefined) texts.set(file.path, text);
     return file;
   });
   const plainText = [];
@@ -526,7 +533,7 @@ function resolve(root, touches, what, verify) {
     }
   }
 
-  const { references, truncated } = referenceImplementations(root, files);
+  const { references, truncated } = referenceImplementations(root, files, texts);
   if (truncated) {
     warnings.push(`reference scan stopped at ${WALK_LIMIT} files — the reference list may be incomplete`);
   }

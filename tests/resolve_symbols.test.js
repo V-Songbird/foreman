@@ -569,6 +569,40 @@ describe('resolve-symbols preflight', () => {
     assert.deepEqual(json.references, []);
   });
 
+  // [Foreman: 706] Pins the whole payload for a touched file with a local
+  // import, so reading each touched file once changes no output.
+  test('a touched file with a local import yields this exact payload', () => {
+    writeFile('src/helper.js', 'module.exports = { help: () => 1 };\n');
+    writeFile('src/sample.js', "const { help } = require('./helper');\nfunction sampleFn() { return help(); }\n");
+    writeFile('src/sibling.js', "const { help } = require('./helper');\n");
+
+    const { json } = run({ argv: ['--touches', 'src/sample.js', '--what', 'Call sampleFn() and missingFn().'] });
+
+    assert.deepEqual(json, {
+      ok: true,
+      files: [{ path: 'src/sample.js', symbols: [{ name: 'sampleFn', line: 2 }] }],
+      unresolved: ['missingFn'],
+      references: [{ helper: 'src/helper', files: ['src/sibling.js'] }],
+      warnings: [],
+    });
+  });
+
+  // [Foreman: 706] Past the limit the symbols stop at the last whole line, but
+  // the imports come from every byte read: a require that ends exactly at the
+  // cut still names a reference.
+  test('a require ending at the limit still names a reference while its line yields no symbol', () => {
+    const { PLAIN_TEXT_LIMIT } = require(SCRIPT);
+    const cutLine = 'const cutName = require("./cut")';
+    writeFile('src/huge.js', `//${'x'.repeat(PLAIN_TEXT_LIMIT - cutLine.length - 3)}\n${cutLine};\n`);
+    writeFile('src/other.js', 'const cutName = require("./cut");\n');
+
+    const { json } = run({ argv: ['--touches', 'src/huge.js'] });
+
+    assert.equal(json.files[0].truncated, true);
+    assert.deepEqual(json.files[0].symbols, []);
+    assert.deepEqual(json.references, [{ helper: 'src/cut', files: ['src/other.js'] }]);
+  });
+
   test('package imports are not treated as references', () => {
     writeFile('src/sample.js', SAMPLE_JS);
     writeFile('src/sibling.js', "const fs = require('fs');\n");
