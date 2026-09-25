@@ -253,6 +253,22 @@ describe('profile signals — each flippable independently, off in the baseline'
     assert.match(json.prompt, /already marked `in_progress`/);
   });
 
+  // [Foreman: 775] Only increment review carries the notes into the prompt, so
+  // the resume sentence names the command that reads them, not a block above.
+  for (const destination of ['task', 'agent', 'clipboard']) {
+    test(`a Claude ${destination} resume points at the notes it does not carry`, () => {
+      writeRoadmap(project, [entryFields({ status: 'in_progress', notes: 'Earlier finding: refresh races the logout.' })]);
+      for (const reviewEachIncrement of [false, true]) {
+        const result = assemble(project, { entry: '001', host: 'claude', destination, resume: true, reviewEachIncrement, judgment: goodJudgment({ verification: [{ run: 'npm test', expected: 'all tests pass', review: { action: 'Read the diff', expected: 'Refresh precedes expiry' } }] }) });
+        assert.equal(result.ok, true, JSON.stringify(result.gate));
+        const text = result.prompt || result.tasks.map(row => row.description).join('\n');
+        assert.doesNotMatch(text, /included above/);
+        assert.match(text, /earlier findings may sit in its `notes`, read them before re-deriving anything:\n`node \S+\/scripts\/roadmap\.js list --ids 001`/);
+        assert.equal(text.includes('refresh races the logout'), reviewEachIncrement);
+      }
+    });
+  }
+
   test('conflicting: fires when an in_progress entry\'s planned_touches overlaps, folder-aware', () => {
     writeRoadmap(project, [
       entryFields(),

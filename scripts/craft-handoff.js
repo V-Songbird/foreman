@@ -1116,7 +1116,7 @@ function plannedSubmodule(root, touches) {
 
 function claudeEntryParagraphText({ id, resume, requireVerification, askLesson, destination, investigation, reviewEachIncrement = false, submodule = null, privateRoadmap = false }) {
   const opening = resume
-    ? `This task is ROADMAP.jsonl entry \`${id}\`, already marked \`in_progress\` by an earlier session — don't re-mark it; earlier findings may sit in its \`notes\` (included above), read them before re-deriving anything.`
+    ? `This task is ROADMAP.jsonl entry \`${id}\`, already marked \`in_progress\` by an earlier session — don't re-mark it; earlier findings may sit in its \`notes\`, read them before re-deriving anything:\n\`node ${CLAUDE_ROOT}/scripts/roadmap.js list --ids ${id}\``
     : `This task is ROADMAP.jsonl entry \`${id}\`. Mark it \`in_progress\` before doing anything else — Foreman's picking flow deliberately leaves it \`planned\` until you do:\n\`echo '{"id":"${id}","status":"in_progress"}' | node ${CLAUDE_ROOT}/scripts/roadmap.js update-status\``;
 
   const beginStep = `Then take the commit boundary before touching any file:\n\`node ${CLAUDE_ROOT}/scripts/safe-commit.js begin\`\nKeep its \`baseline.head\`. A \`dirty:true\` result means the tree already carries someone else's changes: tell the user in one line, then do the work and make NO commit at all — leave everything in the tree for them. Never stage around it.`;
