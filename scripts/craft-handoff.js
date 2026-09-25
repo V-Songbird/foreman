@@ -1117,9 +1117,19 @@ function plannedSubmodule(root, touches) {
   }) || null;
 }
 
-function claudeEntryParagraphText({ id, resume, requireVerification, askLesson, destination, investigation, reviewEachIncrement = false, submodule = null, privateRoadmap = false }) {
+// [Foreman: 775, 783, 784] A resume opening says where this handoff quotes the
+// entry's notes, and outside increment review, whose block carries its own
+// refresh command, how to read notes recorded after it was written.
+function resumeNotesText(notesPlace, refresh) {
+  if (notesPlace === "increment_resume") return " Its recorded notes, and the command that refreshes them, are in <increment_resume> above; read them before re-deriving anything.";
+  return notesPlace === "context"
+    ? ` Its recorded notes are quoted in <recorded_entry_notes> within <context> below; read them before re-deriving anything. Anything recorded after this handoff was written:\n${refresh}`
+    : ` It had no recorded notes when this handoff was written; check for newer ones before re-deriving anything:\n${refresh}`;
+}
+
+function claudeEntryParagraphText({ id, resume, notesPlace = null, requireVerification, askLesson, destination, investigation, reviewEachIncrement = false, submodule = null, privateRoadmap = false }) {
   const opening = resume
-    ? `This task is ROADMAP.jsonl entry \`${id}\`, already marked \`in_progress\` by an earlier session — don't re-mark it; earlier findings may sit in its \`notes\`, read them before re-deriving anything:\n\`node ${CLAUDE_ROOT}/scripts/roadmap.js list --ids ${id}\``
+    ? `This task is ROADMAP.jsonl entry \`${id}\`, already marked \`in_progress\` by an earlier session — don't re-mark it.` + resumeNotesText(notesPlace, `\`node ${CLAUDE_ROOT}/scripts/roadmap.js list --ids ${id}\``)
     : `This task is ROADMAP.jsonl entry \`${id}\`. Mark it \`in_progress\` before doing anything else — Foreman's picking flow deliberately leaves it \`planned\` until you do:\n\`echo '{"id":"${id}","status":"in_progress"}' | node ${CLAUDE_ROOT}/scripts/roadmap.js update-status\``;
 
   const beginStep = `Then take the commit boundary before touching any file:\n\`node ${CLAUDE_ROOT}/scripts/safe-commit.js begin\`\nKeep its \`baseline.head\`. A \`dirty:true\` result means the tree already carries someone else's changes: tell the user in one line, then do the work and make NO commit at all — leave everything in the tree for them. Never stage around it.`;
@@ -1203,10 +1213,10 @@ function claudeEntryParagraphText({ id, resume, requireVerification, askLesson, 
   return steps.filter(Boolean).join("\n");
 }
 
-function codexEntryParagraphText({ id, resume, requireVerification, askLesson, destination, investigation, reviewEachIncrement = false, submodule = null, privateRoadmap = false }) {
+function codexEntryParagraphText({ id, resume, notesPlace = null, requireVerification, askLesson, destination, investigation, reviewEachIncrement = false, submodule = null, privateRoadmap = false }) {
   const code = (value) => "`" + value + "`";
   const opening = resume
-    ? "This task is ROADMAP.jsonl entry " + code(id) + ", already marked " + code("in_progress") + " by an earlier session. Read recorded findings before resuming."
+    ? "This task is ROADMAP.jsonl entry " + code(id) + ", already marked " + code("in_progress") + " by an earlier session." + resumeNotesText(notesPlace, "Command: " + code(pluginCommand("roadmap.js", "list --ids " + shellQuote(id))))
     : "This task is ROADMAP.jsonl entry " + code(id) + ". Mark it " + code("in_progress") + " through the explicit lifecycle before task work.";
   const startStep = "Before any roadmap mutation, verify the branch satisfies the user's restrictions; create or use an authorized working branch when needed.\nCommand: "
     + code(pluginCommand("../hooks/codex-task.js", "start --id " + shellQuote(id)))
@@ -1446,6 +1456,9 @@ function assemble(root, input) {
         // mechanical signal — that also fires on plain non-empty
         // commits/observed_touches, which is not the same claim.
         resume: Boolean(input.resume),
+        // Where this handoff quotes the entry's notes: the same choice ctxText
+        // and recoveryBlock make below.
+        notesPlace: reviewEachIncrement && input.resume ? "increment_resume" : record.notes ? "context" : null,
         requireVerification: config.requireVerification,
         reviewEachIncrement,
         destination,

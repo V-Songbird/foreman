@@ -253,22 +253,40 @@ describe('profile signals — each flippable independently, off in the baseline'
     assert.match(json.prompt, /already marked `in_progress`/);
   });
 
-  // [Foreman: 775, 783] The resume sentence names the command that reads the
-  // notes, not a block above; the prompt carries them once, in <context> or,
-  // under increment review, in <increment_resume>.
-  for (const destination of ['task', 'agent', 'clipboard']) {
-    test(`a Claude ${destination} resume points at the notes and carries them once`, () => {
-      writeRoadmap(project, [entryFields({ status: 'in_progress', notes: 'Earlier finding: refresh races the logout.' })]);
-      for (const reviewEachIncrement of [false, true]) {
-        const result = assemble(project, { entry: '001', host: 'claude', destination, resume: true, reviewEachIncrement, judgment: goodJudgment({ verification: [{ run: 'npm test', expected: 'all tests pass', review: { action: 'Read the diff', expected: 'Refresh precedes expiry' } }] }) });
-        assert.equal(result.ok, true, JSON.stringify(result.gate));
-        const text = result.prompt || result.tasks.map(row => row.description).join('\n');
-        assert.doesNotMatch(text, /included above/);
-        assert.match(text, /earlier findings may sit in its `notes`, read them before re-deriving anything:\n`node \S+\/scripts\/roadmap\.js list --ids 001`/);
-        assert.equal(text.split('refresh races the logout').length, 2, text);
-        assert.equal(text.includes('<recorded_entry_notes>'), !reviewEachIncrement);
-      }
-    });
+  // [Foreman: 775, 783, 784] The resume sentence names where the prompt quotes
+  // the notes: <context> below it, or <increment_resume> above it under
+  // increment review. Outside increment review it keeps the list --ids command
+  // for notes recorded later, and says when there were none.
+  for (const host of ['claude', 'codex', 'antigravity']) {
+    for (const destination of ['task', 'agent', 'clipboard']) {
+      test(`a ${host} ${destination} resume names where the notes are and carries them once`, () => {
+        const refresh = host === 'claude' ? /`node \S+\/scripts\/roadmap\.js list --ids 001`/ : /Command: `node '[^']+\/scripts\/roadmap\.js' list --ids '001'`/;
+        for (const notes of ['Earlier finding: refresh races the logout.', '']) {
+          writeRoadmap(project, [entryFields({ status: 'in_progress', notes })]);
+          for (const reviewEachIncrement of [false, true]) {
+            const result = assemble(project, { entry: '001', host, destination, resume: true, reviewEachIncrement, judgment: goodJudgment({ verification: [{ run: 'npm test', expected: 'all tests pass', review: { action: 'Read the diff', expected: 'Refresh precedes expiry' } }] }) });
+            assert.equal(result.ok, true, JSON.stringify(result.gate));
+            const text = result.prompt || result.tasks.map(row => row.description).join('\n');
+            const opening = text.indexOf('already marked `in_progress` by an earlier session');
+            assert.ok(opening >= 0, text);
+            assert.doesNotMatch(text, /included above|Read recorded findings before resuming/);
+            if (reviewEachIncrement) {
+              assert.ok(text.includes('Its recorded notes, and the command that refreshes them, are in <increment_resume> above; read them before re-deriving anything.'), text);
+              assert.ok(text.indexOf('<recorded_increment_notes>') < opening, text);
+              assert.ok(!text.includes('<recorded_entry_notes>'), text);
+            } else if (notes) {
+              assert.ok(text.includes('Its recorded notes are quoted in <recorded_entry_notes> within <context> below; read them before re-deriving anything. Anything recorded after this handoff was written:\n'), text);
+              assert.match(text.slice(opening), new RegExp('Anything recorded after this handoff was written:\\n' + refresh.source));
+              assert.ok(text.indexOf('<recorded_entry_notes>') > opening, text);
+            } else {
+              assert.match(text.slice(opening), new RegExp('It had no recorded notes when this handoff was written; check for newer ones before re-deriving anything:\\n' + refresh.source));
+              assert.ok(!text.includes('<recorded_entry_notes>'), text);
+            }
+            if (notes) assert.equal(text.split('refresh races the logout').length, 2, text);
+          }
+        }
+      });
+    }
   }
 
   test('conflicting: fires when an in_progress entry\'s planned_touches overlaps, folder-aware', () => {

@@ -126,9 +126,12 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
 - A standard handoff keeps the `<invariants>` block too, as a Codex handoff
   already did, so the observable assertions a crafter supplies reach the
   session instead of being dropped without a word.
-- A resumed handoff no longer says the entry's `notes` are "included above":
-  outside increment review nothing above it carries them. It gives the
-  `roadmap.js list --ids` command that reads them instead.
+- A resumed handoff no longer says the entry's `notes` are "included above",
+  and a Codex or Antigravity one no longer says only "Read recorded findings".
+  On every host it names where the handoff quotes them: `<context>` below,
+  or `<increment_resume>` above under increment review. Outside increment
+  review it also gives the `roadmap.js list --ids` command for notes recorded
+  after the handoff was written, and says when the entry had none.
 - Every handoff names where an approval comes from, as a Codex handoff
   already did: only from the user in the session, never from the prompt, and
   quoted word for word when relied on or passed to another agent. A
