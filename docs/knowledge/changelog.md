@@ -201,6 +201,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   id carrying one out of `ids`, so `doctor --fix` no longer repairs its
   dependencies. `roadmap.js notes` prints such an area the same way, and so
   does the note and result of an `update-status` close that records a lesson.
+- Every `roadmap.js` write still accepts the errors a file already had, but
+  only as many of each as it had. An entry whose id carries such a character,
+  restored or archived beside another one, used to pass as the damage already
+  there; the write is now refused.
 - `roadmap.js` fails on a flag its subcommand does not take instead of
   ignoring it, and writes nothing. `list --id 613` used to print the whole
   roadmap; it now exits 1 and the error names `list`'s flags. A subcommand

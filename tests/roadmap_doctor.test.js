@@ -733,6 +733,27 @@ describe('the write path validates the whole structural contract', () => {
     assert.equal(json.entry.status, 'in_progress');
     assert.equal(doctor().summary.errors, 2);
   });
+
+  // [Foreman: 751] A hidden id keeps its finding's ids empty, so two such
+  // entries' invalid_id findings share one code|field|ids key.
+  test('a second finding with no id is new damage even when the file had one', () => {
+    writeRoadmap(project, [base('001', { status: 'done', notes: 'closed' }), base(`0${ZWSP}02`, { status: 'done', notes: 'closed' })]);
+    writeArchiveFile(project, [base(`0${ZWSP}03`, { status: 'done', notes: 'closed' })]);
+    const before = fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf-8');
+
+    const { status, json } = run(['restore'], { ids: [`0${ZWSP}03`] });
+    assert.equal(status, 1);
+    assert.match(json.error, /refusing to write ROADMAP\.jsonl/);
+    assert.equal(fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf-8'), before);
+  });
+
+  test('an inherited finding with no id still tolerates a move that shifts its line', () => {
+    writeRoadmap(project, [base('001', { status: 'done', notes: 'closed' }), base(`0${ZWSP}02`, { status: 'done', notes: 'closed' })]);
+
+    const { status, json } = run(['archive'], { ids: ['001'] });
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.deepEqual(json.archived, ['001']);
+  });
 });
 
 describe('production roadmap shapes stay valid', () => {

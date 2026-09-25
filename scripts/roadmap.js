@@ -311,9 +311,17 @@ function writeEntriesTo(file, label, entries, read, resolve) {
   // or not the first line) is dropped here — the stamped line below is its
   // repair, and it keeps the invariant exactly one marker, always first.
   const rows = entries.filter((entry) => !isFormatMeta(entry));
-  const allowed = new Set(existingErrorKeys(read, resolve));
+  // [Foreman: 751] Counted, not a set: findings with no id share one key, so
+  // only as many of a key as the file already had count as inherited.
+  const allowed = new Map();
+  for (const key of existingErrorKeys(read, resolve)) allowed.set(key, (allowed.get(key) || 0) + 1);
   const blocking = validateEntries(rows, { similarity: false, resolve })
-    .filter((item) => item.severity === "error" && !allowed.has(findingKey(item)));
+    .filter((item) => {
+      if (item.severity !== "error") return false;
+      const left = allowed.get(findingKey(item)) || 0;
+      allowed.set(findingKey(item), left - 1);
+      return left < 1;
+    });
   if (blocking.length) {
     const detail = blocking.slice(0, 3).map((item) => `${item.code}: ${item.message}`).join("; ");
     throw new Error(
