@@ -211,6 +211,11 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   share, naming the holders' titles and pointing to `reassign-id`. They used
   to act on the first holder, and `archive` and `restore` dropped the other
   holders from the file they moved out of.
+- On Codex, `codex-task.js start` and `check` refuse a duplicated id with the
+  same error, instead of dispatching or completing on the first holder's
+  status. On a duplicated id, Claude Code's task-close gate and Codex's opt-in
+  Stop gate count the check as open while any holder is open; they used to
+  read only the first holder and let an open second one close ungated.
 - `reassign-id` on a duplicated id that carries a hidden character renumbers
   the other holder to the id after the highest valid one, and its note names
   the old id by code point. It used to read `99` + U+200B + `0` as 99 when

@@ -9,7 +9,7 @@ const os = require("os");
 const path = require("path");
 const crypto = require("crypto");
 const { projectDir } = require("./lib");
-const { readEntries, cmdUpdateStatus, isValidId } = require("../scripts/roadmap");
+const { readEntries, cmdUpdateStatus, isValidId, soleHolder } = require("../scripts/roadmap");
 const { recordResumeRecovered } = require("../scripts/trial-log");
 const { discoveryEnabled, discoveryInstructions } = require("../scripts/discovery");
 const OPEN = new Set(["planned", "in_progress"]);
@@ -30,12 +30,14 @@ function currentScope(options = {}, env = process.env) {
 function checkpoint(action, options) {
   const root = path.resolve(options.root || projectDir({}));
   if (!isValidId(options.id)) throw new Error("--id must be a roadmap entry id");
-  let entry = readEntries(root).find((e) => e.id === options.id);
+  // [Foreman: 760] A duplicated id is refused, not read from its first holder.
+  const holderOf = () => soleHolder(readEntries(root), options.id, "ROADMAP.jsonl");
+  let entry = holderOf();
   if (!entry) throw new Error(`no entry with id ${options.id}`);
   let transition;
   if (action === "start" && entry.status === "planned") {
     transition = cmdUpdateStatus(root, { id: entry.id, status: "in_progress", expected_status: "planned", require_ready: true });
-    entry = readEntries(root).find((e) => e.id === options.id);
+    entry = holderOf();
   }
   const dispatchReady = action === "start" && entry.status === "in_progress";
   if (action === "start" && !dispatchReady) {

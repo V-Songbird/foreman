@@ -3201,6 +3201,9 @@ module.exports = {
   cmdCheckDuplicate,
   cmdDoctor,
   cmdMigrate,
+  // [Foreman: 760] The id lookup that refuses a duplicated id, for a hook
+  // that reads one entry by id and must not decide from the first holder.
+  soleHolder,
   // The roadmap's format version: the meta line's key, the version this
   // Foreman writes and accepts, and the shape test the doctor reuses so
   // there is one definition of "that line is the marker, not an entry".

@@ -198,6 +198,26 @@ test("subagent checkpoint uses explicit parent session and agent identity", () =
   assert.equal(hook("stop.js", { hook_event_name: "SubagentStop", agent_id: "worker" }).decision, "block");
 });
 
+// [Foreman: 760] A duplicated id names neither holder, so the checkpoint
+// refuses it the way every roadmap.js write does instead of reading the first.
+for (const action of ["start", "check"]) {
+  test(`${action} refuses a duplicated id and points to reassign-id`, () => {
+    writeRoadmap(root, [{ id: "001", title: "first twin", status: "in_progress" }, { id: "001", title: "second twin", status: "done" }]);
+    const result = task(action);
+    assert.equal(result.status, 1);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.ok, false);
+    assert.match(output.error, /held by 2 entries.*reassign-id/);
+  });
+}
+
+test("Stop blocks an armed check while any holder of a duplicated id is open", () => {
+  writeConfig(root, { taskCloseGate: "block" });
+  task("check");
+  writeRoadmap(root, [{ id: "001", title: "closed twin", status: "done" }, { id: "001", title: "open twin", status: "in_progress" }]);
+  assert.equal(hook("stop.js", { hook_event_name: "Stop" }).decision, "block");
+});
+
 test("native launcher passes stdin under Windows cmd and PowerShell", { skip: process.platform !== "win32" }, () => {
   const handler = require(CODEX_HOOKS).hooks.PreToolUse[0].hooks[0];
   const input = JSON.stringify({ cwd: root, tool_name: "apply_patch", tool_input: { command: "*** Begin Patch\n*** Delete File: ROADMAP.jsonl\n*** End Patch" } });

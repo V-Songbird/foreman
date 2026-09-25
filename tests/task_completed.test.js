@@ -91,6 +91,14 @@ describe('task-completed status matrix', () => {
     });
   }
 
+  // [Foreman: 760] Two holders of one id: the first one found must not decide
+  // for both, or an open second holder completes ungated.
+  test('a duplicated id is gated when any holder is open', () => {
+    writeRoadmap(project, [{ ...entry('001', 'done'), title: 'closed twin' }, { ...entry('001', 'planned'), title: 'open twin' }]);
+    writeConfig(project, { taskCloseGate: 'block' });
+    assert.equal(JSON.parse(run(payload(MARKER))).decision, 'block');
+  });
+
   test('missing entry id is silent', () => {
     writeRoadmap(project, [entry('002', 'planned')]);
     assert.equal(run(payload(MARKER)), ''); // names 001, which does not exist

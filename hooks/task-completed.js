@@ -142,8 +142,10 @@ function main(data = readInput()) {
   } catch {
     return; // corrupt file -- never block or complicate task completion
   }
-  const entry = entries.find((e) => e.id === id);
-  if (!entry) return;
+  // [Foreman: 760] Every holder of the id, so a duplicated id is not decided
+  // by whichever holder comes first.
+  const holders = entries.filter((e) => e.id === id);
+  if (!holders.length) return;
 
   const taskId = String(data.task_id || "");
   const baseLatch = taskId ? `${String(data.session_id || "")}:${taskId}` : "";
@@ -151,7 +153,7 @@ function main(data = readInput()) {
   // Existing open-entry gate -- keeps precedence. An open entry is fully
   // handled here; the trial-log record below is only reached for a closed
   // entry, so the two never both fire in one run.
-  if (OPEN_STATUSES.has(entry.status)) {
+  if (holders.some((entry) => OPEN_STATUSES.has(entry.status))) {
     if (readConfig(root) !== "block") return;
     if (baseLatch && !shouldGate(root, baseLatch)) return; // already gated once for this session's task_id
     // [Foreman: 208] The close was held and the decision handed back — an
@@ -169,7 +171,7 @@ function main(data = readInput()) {
   // whether the log already saw this project's work sitting un-recovered on
   // an earlier day. A task that ran start to finish in one go is not a
   // recovery and must not inflate the rate.
-  if ((entry.commits || []).length > 0 || (entry.observed_touches || []).length > 0) {
+  if (holders.some((entry) => (entry.commits || []).length > 0 || (entry.observed_touches || []).length > 0)) {
     recordResumeRecovered({ root });
   }
 

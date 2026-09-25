@@ -21,8 +21,8 @@ function main(data = readInput()) {
     if (!filename.endsWith(".json")) continue;
     const id = filename.slice(0, -5);
     if (!isValidId(id)) continue;
-    const entry = entries.find((e) => e.id === id);
-    if (entry && OPEN.has(entry.status)) open.push(id);
+    // [Foreman: 760] Any open holder of a duplicated id keeps the check open.
+    if (entries.some((e) => e.id === id && OPEN.has(e.status))) open.push(id);
     // Consume the attempted completion exactly once, including when another
     // tool already satisfied it. A future explicit check can re-arm it.
     try { fs.unlinkSync(path.join(scope, filename)); } catch { /* best effort */ }
