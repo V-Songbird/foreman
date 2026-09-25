@@ -293,7 +293,7 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js notes --paths <comma-joined paths>
 Skip the whole step when it returns no records — that one call answers both
 "is the feature on" and "is there anything here", and it costs nothing to ask.
 
-Two kinds of record are worth the user's attention, and no others:
+Three kinds of record are worth the user's attention, and no others:
 
 - **`staleness: "stale"` whose claim the step-2 evidence contradicts.** The
   files under it moved, and the investigators that just read those files
@@ -301,6 +301,9 @@ Two kinds of record are worth the user's attention, and no others:
 - **Any record the step-2 evidence contradicts outright**, whatever its label.
   A `fresh` label says the files have not changed since the claim was
   recorded. It never says the claim was right when it was written.
+- **Any record with `hidden_characters`.** `notes` withholds its lesson and
+  nothing serves it, so show its key and the code points it lists in place of
+  the lesson, label and evidence, and offer to retire it.
 
 **A stale label on its own is not a finding.** It is a prompt to look, and the
 looking already happened in step 2.

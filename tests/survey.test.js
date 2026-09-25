@@ -144,6 +144,18 @@ describe("survey skill contract", () => {
     assert.match(skill, /Show the count and ask once, unless the\s+user already explicitly asked to prune that set/);
   });
 
+  // [Foreman: 745] notes prints such a record as {key, area, hidden_characters,
+  // withheld}, with no lesson to show or contradict.
+  test("a record notes withholds for hidden characters is offered by its key", () => {
+    const step3b = skill.slice(skill.indexOf("## 3b."), skill.indexOf("## 4. Report"));
+    assert.match(step3b, /Three kinds of record are worth the user's attention, and no others/);
+    assert.match(step3b, /\*\*Any record with `hidden_characters`\.\*\* `notes` withholds its lesson/);
+    assert.match(
+      step3b,
+      /show its key and the code points it lists in place of\s+the lesson, label and evidence, and offer to retire it/
+    );
+  });
+
   test("reconcile and pick gets the results before it refreshes its menu", () => {
     assert.match(skill, /return these results to the pick flow before it\s+refreshes its menu/);
   });
