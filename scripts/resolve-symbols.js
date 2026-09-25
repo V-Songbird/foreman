@@ -29,7 +29,7 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 const { submodulePaths } = require("./roadmap.js");
 
-const { projectDir, parseFlags } = require("./runtime");
+const { projectDir, parseFlags, printHelp } = require("./runtime");
 
 // Column-0 anchoring is what keeps local variables out: an indented `const`
 // inside a function body never matches. Each entry maps an extension family
@@ -582,8 +582,23 @@ function readStdin() {
   }
 }
 
+const USAGE = `resolve-symbols.js -- craft-time symbol resolver. Prints one JSON line:
+{"ok":true,"files":[...],"unresolved":[...],"references":[...],"verification"?,"warnings":[...]}.
+Writes nothing; a missing or unreadable path is reported in files, never thrown.
+
+  node resolve-symbols.js --touches <path,path,...> [--what "<text>"] [--verify "<command>"]
+  echo '{"touches":["src/a.js"],"what":"...","verify":["npm test"]}' | node resolve-symbols.js
+
+  --touches  the paths to map, joined with commas; without it, stdin JSON is read.
+  --what     the entry's what prose; names no touched file defines go to unresolved.
+  --verify   a check command; verification says whether it resolves here, without
+             running it. On stdin, a list checks each command.
+`;
+
 function main() {
-  const flags = parseFlags("resolve-symbols.js", { touches: "list", what: "value", verify: "value" }, process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  if (printHelp(argv, USAGE)) return;
+  const flags = parseFlags("resolve-symbols.js", { touches: "list", what: "value", verify: "value" }, argv);
   const stdin = flags.touches ? {} : readStdin();
   const touches = flags.touches ? flags.touches.split(",") : stdin.touches;
   const what = flags.what !== undefined ? flags.what : stdin.what;

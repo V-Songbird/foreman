@@ -142,6 +142,37 @@ describe('Foreman CLIs refuse a flag they do not take', () => {
     }
   });
 
+  // [Foreman: 779] `--help` prints the CLI's usage and runs nothing, even
+  // beside a bad flag: it failed as an unknown flag everywhere but roadmap.js
+  // and the first argument of trial-log.js.
+  test('every CLI answers --help with its usage and writes nothing', () => {
+    const hooks = path.join(__dirname, '..', 'hooks', 'codex-hooks.json');
+    const hooksBefore = fs.readFileSync(hooks, 'utf-8');
+    const roadmap = path.join(project, 'ROADMAP.jsonl');
+    const cases = [
+      ['scripts/safe-commit.js', ['--help'], 'safe-commit.js -- the one task-owned commit path.'],
+      ['scripts/safe-commit.js', ['begin', '--help'], 'safe-commit.js -- the one task-owned commit path.'],
+      ['scripts/safe-commit.js', ['finish', '--no-comit', '--help'], 'safe-commit.js -- the one task-owned commit path.'],
+      ['scripts/resolve-symbols.js', ['--touches', 'src/a.js', '--touch', 'x', '--help'], 'resolve-symbols.js -- craft-time symbol resolver.'],
+      ['scripts/health/roadmap-health.js', ['--roadmap', roadmap, '--trial', 'x', '--help'], 'usage: roadmap-health.js --roadmap <ROADMAP.jsonl>'],
+      ['scripts/health/attention-cost.js', ['--help'], 'usage: attention-cost.js --roadmap <ROADMAP.jsonl>'],
+      ['hooks/codex-task.js', ['start', '--id', '001', '--help'], 'usage: codex-task.js start|check --id ID'],
+      ['hooks/codex-task.js', ['--help'], 'usage: codex-task.js start|check --id ID'],
+      ['scripts/craft-handoff.js', ['--host', 'codex', '--help'], 'craft-handoff.js -- assembles a gate-checked handoff prompt'],
+      ['scripts/render-sections.js', ['--help'], 'render-sections.js -- reads the project'],
+      ['scripts/build-windows-launchers.js', ['--write', '--help'], 'build-windows-launchers.js [--write] -- checks'],
+      ['scripts/trial-log.js', ['question_asked', '--help'], '{"ok":true,"usage":"trial-log.js <event>'],
+    ];
+    for (const [script, argv, usage] of cases) {
+      const before = snapshot();
+      const result = runNodeScript(path.join(__dirname, '..', script), argv, { id: '001', expected: ['src'] }, env);
+      assert.equal(result.status, 0, `${script} ${argv.join(' ')}: ${result.stdout}${result.stderr}`);
+      assert.ok(result.stdout.startsWith(usage), `${script} ${argv.join(' ')} printed: ${result.stdout}`);
+      assert.equal(snapshot(), before, `${script} ${argv.join(' ')} wrote nothing`);
+    }
+    assert.equal(fs.readFileSync(hooks, 'utf-8'), hooksBefore);
+  });
+
   test('build-windows-launchers.js refuses a mistyped --write and rewrites nothing', () => {
     const hooks = path.join(__dirname, '..', 'hooks', 'codex-hooks.json');
     const before = fs.readFileSync(hooks, 'utf-8');

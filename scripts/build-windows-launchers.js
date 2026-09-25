@@ -1,7 +1,7 @@
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
-const { parseFlags } = require("./runtime");
+const { parseFlags, printHelp } = require("./runtime");
 const root = path.resolve(__dirname, "..");
 
 function build(source, hook) {
@@ -24,5 +24,13 @@ function main(write = false) {
   if (write) fs.writeFileSync(file, JSON.stringify(config, null, 2) + "\n");
 }
 
+const USAGE = `build-windows-launchers.js [--write] -- checks that each commandWindows in
+hooks/codex-hooks.json is the one hooks/windows-launcher.ps1 builds, and fails
+naming the first stale hook. --write regenerates them in place.
+`;
+
 module.exports = { build, main };
-if (require.main === module) main(parseFlags("build-windows-launchers.js", { write: "switch" }, process.argv.slice(2)).write === true);
+if (require.main === module) {
+  const argv = process.argv.slice(2);
+  if (!printHelp(argv, USAGE)) main(parseFlags("build-windows-launchers.js", { write: "switch" }, argv).write === true);
+}

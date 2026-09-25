@@ -31,7 +31,7 @@ const {
   TERMINAL_STATUSES,
   CORRECTION_MARKER,
 } = require("../roadmap");
-const { parseFlags } = require("../runtime");
+const { parseFlags, printHelp } = require("../runtime");
 const { validateEntries, validateAcrossFiles } = require("../roadmap-doctor");
 
 // "more than 30 days before today" — the same threshold the roadmap skill's
@@ -292,18 +292,18 @@ function resolveExisting(value, label) {
   return absolute;
 }
 
+const USAGE = "usage: roadmap-health.js --roadmap <ROADMAP.jsonl> [--archive <archive.jsonl>] "
+  + "[--date YYYY-MM-DD] [--trial-log <trial-log.jsonl>]";
+
 function main() {
+  const argv = process.argv.slice(2);
+  if (printHelp(argv, USAGE)) return;
   const { roadmap, archive: archiveFlag, date, "trial-log": trialFlag } = parseFlags(
     "roadmap-health.js",
     { roadmap: "value", archive: "value", date: "value", "trial-log": "value" },
-    process.argv.slice(2)
+    argv
   );
-  if (!roadmap) {
-    throw new Error(
-      "usage: roadmap-health.js --roadmap <ROADMAP.jsonl> [--archive <archive.jsonl>] "
-        + "[--date YYYY-MM-DD] [--trial-log <trial-log.jsonl>]"
-    );
-  }
+  if (!roadmap) throw new Error(USAGE);
   const absolute = resolveExisting(roadmap, "roadmap");
   const root = path.dirname(absolute);
   if (date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {

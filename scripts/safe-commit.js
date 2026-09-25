@@ -39,7 +39,7 @@ const { record: recordTrial } = require("./trial-log");
 
 const ROADMAP_FILE = "ROADMAP.jsonl";
 
-const { projectDir, parseFlags } = require("./runtime");
+const { projectDir, parseFlags, printHelp } = require("./runtime");
 
 function git(root, args) {
   return execFileSync("git", args, {
@@ -554,6 +554,7 @@ const SUBCOMMAND_FLAGS = {
 
 function main() {
   const [, , subcommand, ...rest] = process.argv;
+  if (printHelp(process.argv.slice(2), USAGE)) return;
   if (!Object.hasOwn(SUBCOMMAND_FLAGS, subcommand || "")) throw new Error(USAGE);
   const flags = parseFlags(`safe-commit.js ${subcommand}`, SUBCOMMAND_FLAGS[subcommand], rest);
   const root = projectDir();

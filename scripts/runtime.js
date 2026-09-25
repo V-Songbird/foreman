@@ -79,4 +79,13 @@ function parseFlags(name, valid, argv) {
   return flags;
 }
 
-module.exports = { HOSTS, detectHost, projectDir, parseFlags };
+// [Foreman: 779] `--help` anywhere among a CLI's arguments prints its usage to
+// stdout and runs nothing, the way `roadmap.js <subcommand> --help` does. Call
+// it before parseFlags, so --help wins over every other flag, good or bad.
+function printHelp(argv, usage) {
+  if (!argv.includes("--help")) return false;
+  process.stdout.write(usage.endsWith("\n") ? usage : usage + "\n");
+  return true;
+}
+
+module.exports = { HOSTS, detectHost, projectDir, parseFlags, printHelp };

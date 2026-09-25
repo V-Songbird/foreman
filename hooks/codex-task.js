@@ -12,7 +12,7 @@ const { projectDir } = require("./lib");
 const { readEntries, cmdUpdateStatus, isValidId, soleHolder } = require("../scripts/roadmap");
 const { recordResumeRecovered } = require("../scripts/trial-log");
 const { discoveryEnabled, discoveryInstructions } = require("../scripts/discovery");
-const { parseFlags } = require("../scripts/runtime");
+const { parseFlags, printHelp } = require("../scripts/runtime");
 const OPEN = new Set(["planned", "in_progress"]);
 
 function scopePath(root, session, agent = "") {
@@ -66,9 +66,12 @@ function checkpoint(action, options) {
   return { id: entry.id, status: entry.status, complete, ...(action === "start" ? { dispatchReady, transition } : {}), stop_gate_scoped: Boolean(scope), ...(discovery ? { discovery } : {}) };
 }
 
+const USAGE = "usage: codex-task.js start|check --id ID [--root PATH] [--session ID] [--agent ID]";
+
 function main(argv = process.argv.slice(2)) {
+  if (printHelp(argv, USAGE)) return;
   const [action, ...args] = argv;
-  if (!["start", "check"].includes(action)) throw new Error("usage: codex-task.js start|check --id ID [--root PATH] [--session ID] [--agent ID]");
+  if (!["start", "check"].includes(action)) throw new Error(USAGE);
   // [Foreman: 771] The same flag parser as the scripts/ CLIs: a repeated
   // --id fails instead of starting the last one given.
   const options = parseFlags(`codex-task.js ${action}`, { id: "value", root: "value", session: "value", agent: "value" }, args);

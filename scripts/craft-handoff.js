@@ -30,7 +30,7 @@ const fs = require("fs");
 const path = require("path");
 const { discoveryInstructions } = require("./discovery");
 const { render, projectDir, readConfig } = require("./render-sections.js");
-const { parseFlags } = require("./runtime");
+const { parseFlags, printHelp } = require("./runtime");
 const { resolve: resolveSymbols, candidateIdentifiers } = require("./resolve-symbols.js");
 const {
   readEntries,
@@ -1762,8 +1762,19 @@ function readStdin() {
   return raw ? JSON.parse(raw) : {};
 }
 
+const USAGE = `craft-handoff.js -- assembles a gate-checked handoff prompt in one call.
+Takes no flags: stdin JSON in, one JSON line out:
+{ok, prompt, profile, signals, tasks?, gate, warnings}; exit 1 when ok is false.
+
+The input is {"entry":"<id>", ...} for a roadmap pick, or title, why and what
+given inline for an entry-less prompt, plus host, destination and judgment.
+skills/roadmap/pick.md step 3 and skills/craft-prompt/SKILL.md give the full payload.
+`;
+
 function main() {
-  parseFlags("craft-handoff.js", {}, process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  if (printHelp(argv, USAGE)) return;
+  parseFlags("craft-handoff.js", {}, argv);
   const input = readStdin();
   const result = assemble(projectDir(), input);
   process.stdout.write(JSON.stringify(result));

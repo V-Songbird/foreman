@@ -6,7 +6,7 @@
 const { readLedger } = require("./ledger-config");
 const { configPath, readConfigFile } = require("./foreman-config");
 
-const { projectDir, parseFlags } = require("./runtime");
+const { projectDir, parseFlags, printHelp } = require("./runtime");
 
 // Declaration, not detection: the project states whether crafted prompts
 // open task_context with a "You are a [role]" persona sentence (true,
@@ -118,8 +118,15 @@ function render(root) {
   };
 }
 
+const USAGE = `render-sections.js -- reads the project's Foreman config and prints one JSON line:
+{"ok":true,"usePersona","omit","requireVerification","ledger":{"enabled","dir"},"warnings"}.
+Takes no flags or input and writes nothing.
+`;
+
 function main() {
-  parseFlags("render-sections.js", {}, process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  if (printHelp(argv, USAGE)) return;
+  parseFlags("render-sections.js", {}, argv);
   const result = render(projectDir());
   process.stdout.write(JSON.stringify({ ok: true, ...result }));
 }

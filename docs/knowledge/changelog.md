@@ -305,6 +305,11 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   `roadmap-schema.md` and the message that blocks a direct roadmap edit now
   point to that form instead of the whole usage, which runs to about 400
   lines.
+- `--help` prints the usage and runs nothing in `safe-commit.js`,
+  `resolve-symbols.js`, `craft-handoff.js`, `render-sections.js`,
+  `build-windows-launchers.js`, the two `scripts/health` reports and
+  `hooks/codex-task.js`, and anywhere among `trial-log.js`'s arguments. It
+  wins over every other flag; it used to fail as an unknown flag.
 - The message that blocks a direct edit of `ROADMAP.jsonl`,
   `.foreman/archive.jsonl` or `.foreman/notes.jsonl` now names every
   `roadmap.js` subcommand, `note-supersede` and `note-prune` included.

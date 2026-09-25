@@ -35,7 +35,7 @@ const {
   touchesOverlap,
   TERMINAL_STATUSES,
 } = require("../roadmap");
-const { parseFlags } = require("../runtime");
+const { parseFlags, printHelp } = require("../runtime");
 const {
   readCanonical,
   CONCISE_TRUTH_SENTENCE,
@@ -413,18 +413,18 @@ function resolveExisting(value, label) {
   return absolute;
 }
 
+const USAGE = "usage: attention-cost.js --roadmap <ROADMAP.jsonl> [--archive <archive.jsonl>] "
+  + "[--date YYYY-MM-DD] [--trial-log <trial-log.jsonl>]";
+
 function main() {
+  const argv = process.argv.slice(2);
+  if (printHelp(argv, USAGE)) return;
   const { roadmap, archive: archiveFlag, date, "trial-log": trialFlag } = parseFlags(
     "attention-cost.js",
     { roadmap: "value", archive: "value", date: "value", "trial-log": "value" },
-    process.argv.slice(2)
+    argv
   );
-  if (!roadmap) {
-    throw new Error(
-      "usage: attention-cost.js --roadmap <ROADMAP.jsonl> [--archive <archive.jsonl>] "
-        + "[--date YYYY-MM-DD] [--trial-log <trial-log.jsonl>]"
-    );
-  }
+  if (!roadmap) throw new Error(USAGE);
   const absolute = resolveExisting(roadmap, "roadmap");
   const root = path.dirname(absolute);
   if (date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {

@@ -338,8 +338,10 @@ function startSession(options = {}) {
 }
 
 function main() {
-  const [event, ...rest] = process.argv.slice(2);
-  if (!event || event === "--help") {
+  const argv = process.argv.slice(2);
+  const [event, ...rest] = argv;
+  // [Foreman: 779] --help anywhere wins over the event and its fields.
+  if (!event || argv.includes("--help")) {
     process.stdout.write(
       JSON.stringify({
         ok: true,
