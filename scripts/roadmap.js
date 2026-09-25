@@ -23,6 +23,7 @@ const {
   validateEntries,
   validateHiddenCharacters,
   recordHiddenCharacters,
+  quoted,
   validateAcrossFiles,
   enrichDuplicates,
   validateConfig,
@@ -2511,10 +2512,11 @@ function cmdNotes(root, flags) {
   const resolved = noteStaleness.resolveAll(root, shown, budget);
 
   const result = {
-    areas: served,
+    // [Foreman: 728] An area is a path prefix, so it can carry a hidden character too.
+    areas: served.map((area) => quoted(area, area)),
     records: resolved.map(({ record, state, label: line }) => {
       const key = ledger.recordKey(record);
-      const area = record.area || ".";
+      const area = quoted(record.area || ".", record.area || ".");
       // [Foreman: 723] Survey hands this output to a model, and JSON.stringify
       // keeps a hidden character as it is. A record servedBody serves nowhere
       // prints what doctor names it by: its key and code points, not its text.

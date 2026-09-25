@@ -171,21 +171,21 @@ function checkEntry(entry, index, out) {
   if (entry.status === undefined || entry.status === null) {
     out.push(finding("missing_field", "error", ids, `${at} has no status`, { field: "status" }));
   } else if (!STATUSES.has(entry.status)) {
-    out.push(finding("unknown_status", "error", ids, `${at}: status ${JSON.stringify(entry.status)} is not one of ${[...STATUSES].join("|")}`, { field: "status" }));
+    out.push(finding("unknown_status", "error", ids, `${at}: status ${quoted(entry.status)} is not one of ${[...STATUSES].join("|")}`, { field: "status" }));
   }
 
   if (entry.source === undefined || entry.source === null) {
     out.push(finding("missing_field", "error", ids, `${at} has no source`, { field: "source" }));
   } else if (!SOURCES.has(entry.source)) {
     // Warning, not error: early entries were written before the set closed.
-    out.push(finding("unknown_source", "warning", ids, `${at}: source ${JSON.stringify(entry.source)} is not one of ${[...SOURCES].join("|")}`, { field: "source" }));
+    out.push(finding("unknown_source", "warning", ids, `${at}: source ${quoted(entry.source)} is not one of ${[...SOURCES].join("|")}`, { field: "source" }));
   }
 
   for (const field of ["created_at", "updated_at"]) {
     if (entry[field] === undefined || entry[field] === null) {
       out.push(finding("missing_field", "error", ids, `${at} has no ${field}`, { field }));
     } else if (!isValidDate(entry[field])) {
-      out.push(finding("invalid_date", "error", ids, `${at}: ${field} ${JSON.stringify(entry[field])} is not a real YYYY-MM-DD date`, { field }));
+      out.push(finding("invalid_date", "error", ids, `${at}: ${field} ${quoted(entry[field])} is not a real YYYY-MM-DD date`, { field }));
     }
   }
 
@@ -197,13 +197,13 @@ function checkEntry(entry, index, out) {
     }
   }
   if (entry.kind !== undefined && !KINDS.has(entry.kind)) {
-    out.push(finding("unknown_kind", "error", ids, `${at}: kind ${JSON.stringify(entry.kind)} is not one of ${[...KINDS].join("|")}`, { field: "kind" }));
+    out.push(finding("unknown_kind", "error", ids, `${at}: kind ${quoted(entry.kind)} is not one of ${[...KINDS].join("|")}`, { field: "kind" }));
   }
   if (entry.model !== undefined && !isValidModel(entry.model)) {
-    out.push(finding("unknown_model", "error", ids, `${at}: model ${JSON.stringify(entry.model)} is not a model identifier (1-128 letters, digits, dots, underscores, colons, slashes or hyphens, starting with a letter or digit)`, { field: "model" }));
+    out.push(finding("unknown_model", "error", ids, `${at}: model ${quoted(entry.model)} is not a model identifier (1-128 letters, digits, dots, underscores, colons, slashes or hyphens, starting with a letter or digit)`, { field: "model" }));
   }
   if (entry.effort !== undefined && !EFFORTS.has(entry.effort)) {
-    out.push(finding("unknown_effort", "error", ids, `${at}: effort ${JSON.stringify(entry.effort)} is not one of ${[...EFFORTS].join("|")}`, { field: "effort" }));
+    out.push(finding("unknown_effort", "error", ids, `${at}: effort ${quoted(entry.effort)} is not one of ${[...EFFORTS].join("|")}`, { field: "effort" }));
   }
 }
 
@@ -775,6 +775,7 @@ module.exports = {
   validateEntries,
   validateHiddenCharacters,
   recordHiddenCharacters,
+  quoted,
   validateAcrossFiles,
   enrichDuplicates,
   validateConfig,

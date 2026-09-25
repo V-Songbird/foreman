@@ -185,9 +185,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   handoff that quotes it is refused. A lesson in `.foreman/notes.jsonl` is a
   warning (`notes_hidden_characters`) naming the record's key for
   `note-supersede`. Each finding names the field, line or item and code point,
-  never the text. The `invalid_id` and `invalid_path` findings now do the same
-  for an id or planned file carrying such a character, and name an entry whose
-  id carries one by its line.
+  never the text. A finding that quotes an entry's id, planned file, status,
+  source, date, kind, model or effort now does the same when that value
+  carries such a character, and names an entry whose id carries one by its
+  line. `roadmap.js notes` prints such an area the same way.
 - `roadmap.js` fails on a flag its subcommand does not take instead of
   ignoring it, and writes nothing. `list --id 613` used to print the whole
   roadmap; it now exits 1 and the error names `list`'s flags. A subcommand

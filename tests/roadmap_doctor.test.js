@@ -266,7 +266,11 @@ describe('doctor field and type findings', () => {
   // [Foreman: 728] JSON.stringify keeps a hidden character as it is, so a
   // finding that quotes a value names its code points instead.
   test('invalid_id and invalid_path name a hidden character by code point, never the value', () => {
-    writeRoadmap(project, [base(`0${ZWSP}01`), base('002', { planned_touches: [`../${ZWSP}secrets.env`] })]);
+    writeRoadmap(project, [
+      base(`0${ZWSP}01`),
+      base('002', { planned_touches: [`../${ZWSP}secrets.env`] }),
+      base('003', { status: `done${ZWSP}`, source: `user${ZWSP}`, created_at: `2026-07-01${ZWSP}`, kind: `x${ZWSP}`, model: `m${ZWSP}`, effort: `high${ZWSP}` }),
+    ]);
     const { stdout } = runRoadmap(['doctor'], null, env);
     assert.ok(!stdout.includes(ZWSP), 'no finding carries the stored value');
     const report = JSON.parse(stdout);
@@ -274,6 +278,9 @@ describe('doctor field and type findings', () => {
     assert.match(id.message, /^line 1: id must be .*, not a value carrying characters a reader cannot see \(U\+200B\)$/);
     const touch = assertFinding(report, 'invalid_path', 'warning', ['002']);
     assert.match(touch.message, /^entry 002: planned_touches a value carrying characters a reader cannot see \(U\+200B\) is absolute/);
+    for (const code of ['unknown_status', 'unknown_source', 'invalid_date', 'unknown_kind', 'unknown_model', 'unknown_effort']) {
+      assert.match(assertFinding(report, code, null, ['003']).message, /^entry 003: \S+ a value carrying characters a reader cannot see \(U\+200B\) is not /, code);
+    }
   });
 
   // The file's format version lives on its own first line, not on an entry

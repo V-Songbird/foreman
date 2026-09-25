@@ -234,15 +234,20 @@ describe('the notes pull command', () => {
     const clean = record({ entry: '001', paths: ['src/auth/session.js'], date: today() });
     const badLesson = record({ entry: '002', lesson: `use the ${zwsp}cache`, date: today() });
     const badPath = record({ entry: '003', paths: ['src/auth/token.js', `src/auth/${rlo}x.js`], date: today() });
+    // [Foreman: 728] The area is a path prefix and prints on a withheld record too.
+    const badArea = record({ entry: '004', area: `src/${zwsp}auth`, paths: ['src/auth/token.js', `src/${zwsp}auth/y.js`], date: today() });
     fs.mkdirSync(path.join(root, '.foreman'), { recursive: true });
-    fs.writeFileSync(ledger.notesPath(root), [clean, badLesson, badPath].map((r) => `${JSON.stringify(r)}\n`).join(''), 'utf-8');
+    fs.writeFileSync(ledger.notesPath(root), [clean, badLesson, badPath, badArea].map((r) => `${JSON.stringify(r)}\n`).join(''), 'utf-8');
 
     const result = runRoadmap(['notes'], null, { CLAUDE_PROJECT_DIR: root });
     assert.doesNotMatch(result.stdout, /[\u200B\u202E]|\\u200b|\\u202e/i, 'no hidden character reaches the output, raw or escaped');
     const out = JSON.parse(result.stdout);
     const byKey = new Map(out.records.map((r) => [r.key, r]));
     assert.equal(byKey.get(ledger.recordKey(clean)).lesson, 'refresh() owns the token clock', 'a clean record still prints its text');
-    for (const [stored, hit] of [[badLesson, 'lesson line 1: U+200B'], [badPath, 'paths item 2: U+202E']]) {
+    const hiddenArea = 'a value carrying characters a reader cannot see (U+200B)';
+    assert.equal(byKey.get(ledger.recordKey(badArea)).area, hiddenArea);
+    assert.ok(out.areas.includes(hiddenArea) && out.areas.includes('src/auth'), JSON.stringify(out.areas));
+    for (const [stored, hit] of [[badLesson, 'lesson line 1: U+200B'], [badPath, 'paths item 2: U+202E'], [badArea, 'paths item 2: U+200B']]) {
       const shown = byKey.get(ledger.recordKey(stored));
       assert.ok(shown, `${stored.entry} is listed by the key note-supersede takes`);
       assert.deepEqual(shown.hidden_characters, [hit]);
