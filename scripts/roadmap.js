@@ -22,6 +22,7 @@ const noteStaleness = require("./note-staleness");
 const {
   validateEntries,
   validateHiddenCharacters,
+  hiddenIn,
   recordHiddenCharacters,
   quoted,
   validateAcrossFiles,
@@ -43,7 +44,6 @@ const {
 } = require("./commit-evidence");
 
 const { projectDir, parseFlags } = require("./runtime");
-const { hiddenCharacters } = require("./check-prompt");
 
 function roadmapPath(root) {
   return path.join(root, "ROADMAP.jsonl");
@@ -762,10 +762,13 @@ function refuseCredentials(command, payload, fields) {
 // note would fail every later handoff for its entry. A handoff quotes a field
 // mid-prompt, never at its start, so the field is checked behind a space and
 // a leading byte order mark is refused as the gate would refuse it there.
+// [Foreman: 724] The handoff also prints planned_touches and, through a
+// dependent's depends_on_docs, doc: the doctor's HANDOFF_FIELDS. hiddenIn
+// checks a list one item per line and names the item.
 function refuseHiddenCharacters(command, payload, fields) {
   for (const field of fields) {
     const value = (payload || {})[field];
-    const found = typeof value === "string" ? hiddenCharacters(` ${value}`) : [];
+    const found = hiddenIn(value);
     if (found.length) {
       throw new Error(
         `${command} refused: ${field} carries characters a reader cannot see (${found.join("; ")}). Nothing was written; remove them and send the call again`
@@ -776,7 +779,7 @@ function refuseHiddenCharacters(command, payload, fields) {
 
 function cmdAdd(root, payload) {
   refuseCredentials("add", payload, ["title", "why", "what", "notes", "planned_touches", "touches", "doc"]);
-  refuseHiddenCharacters("add", payload, ["title", "why", "what", "notes"]);
+  refuseHiddenCharacters("add", payload, ["title", "why", "what", "notes", "planned_touches", "touches", "doc"]);
   return withRoadmapLock(root, () => cmdAddUnlocked(root, payload));
 }
 
@@ -1155,7 +1158,7 @@ function soleHolder(entries, id, label) {
 
 function cmdUpdateStatus(root, payload) {
   refuseCredentials("update-status", payload, ["notes", "lesson", "add_touches", "doc", "model"]);
-  refuseHiddenCharacters("update-status", payload, ["notes", "lesson"]);
+  refuseHiddenCharacters("update-status", payload, ["notes", "lesson", "doc"]);
   return withRoadmapLock(root, () => cmdUpdateStatusUnlocked(root, payload));
 }
 
@@ -1557,7 +1560,7 @@ function cmdCorrect(root, payload) {
   // are checked: a correction that removes a credential or a hidden character
   // must still go through.
   refuseCredentials("correct", payload, [...CORRECTABLE_TEXT, "planned_touches", "touches"]);
-  refuseHiddenCharacters("correct", payload, CORRECTABLE_TEXT);
+  refuseHiddenCharacters("correct", payload, [...CORRECTABLE_TEXT, "planned_touches", "touches"]);
   return withRoadmapLock(root, () => cmdCorrectUnlocked(root, payload));
 }
 

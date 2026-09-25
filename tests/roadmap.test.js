@@ -1649,6 +1649,19 @@ describe('hidden characters in a title, why, what or notes are refused before an
     }
   });
 
+  // [Foreman: 724] The handoff prints planned_touches and, through a
+  // dependent's depends_on_docs, doc; each item of a list is named by number.
+  test('each write command refuses a hidden character in a planned path or doc', () => {
+    const paths = ['scripts/a.js', `scripts/b${ZWSP}.js`];
+    assertRefused('add', { title: 'b', why: 'b', what: 'b', source: 'user', planned_touches: paths }, 'planned_touches', 'item 2: U+200B');
+    assertRefused('add', { title: 'b', why: 'b', what: 'b', source: 'user', touches: paths }, 'touches', 'item 2: U+200B');
+    assertRefused('add', { title: 'b', why: 'b', what: 'b', source: 'user', doc: `docs/a${LRI}.md` }, 'doc', 'line 1: U+2066');
+    assertRefused('update-status', { id: '001', status: 'in_progress', doc: `docs/a${LRI}.md` }, 'doc', 'line 1: U+2066');
+    for (const field of ['planned_touches', 'touches']) {
+      assertRefused('correct', { id: '001', expected_updated_at: '2026-07-01', [field]: paths, expected: { [field]: [] } }, field, 'item 2: U+200B');
+    }
+  });
+
   test('a byte order mark is refused even at the start of a field, lesson included', () => {
     assertRefused('add', { title: `${BOM}Fix the parser`, why: 'b', what: 'b', source: 'user' }, 'title', 'line 1: U+FEFF');
     assertRefused('update-status', { id: '001', status: 'in_progress', lesson: `${BOM}scripts/a.js parses lazily` }, 'lesson', 'line 1: U+FEFF');

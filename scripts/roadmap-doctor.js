@@ -803,6 +803,7 @@ module.exports = {
   hookDependencies,
   validateEntries,
   validateHiddenCharacters,
+  hiddenIn,
   recordHiddenCharacters,
   quoted,
   validateAcrossFiles,
