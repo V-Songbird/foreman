@@ -26,7 +26,7 @@ const PROJECT_ARCHIVE = ".foreman/archive.jsonl";
 const PROJECT_NOTES = ".foreman/notes.jsonl";
 
 // Which CLI verbs to name when the deny message fires, per file — a generic
-// "use the CLI" leaves the caller to guess which of thirteen verbs applies.
+// "use the CLI" leaves the caller to guess which of the CLI's verbs applies.
 const SCOPED_HINT = {
   [PROJECT_NOTES]:
     'Record a lesson by passing `"lesson"` on that entry\'s `update-status` close, ' +
@@ -62,6 +62,10 @@ function main(data = readInput()) {
   if (!filePath) return;
   const guarded = guardedPath(filePath, root);
 
+  // [Foreman: 734] The verbs come from the dispatcher's own table, so a new
+  // subcommand is named here without a second copy. Required only on a deny:
+  // every other Edit and Write skips loading the CLI.
+  const { SUBCOMMAND_FLAGS } = require("../scripts/roadmap");
   const scoped = SCOPED_HINT[guarded];
   const payload = {
     hookSpecificOutput: {
@@ -70,9 +74,8 @@ function main(data = readInput()) {
       permissionDecisionReason:
         `Foreman: direct ${data.tool_name} of ` +
         `${path.basename(filePath)} is blocked. Use ` +
-        `node "${SCRIPT_PATH}" instead (add/update-status/annotate/update-deps/` +
-        "correct/reassign-id/archive/restore/list/next-candidates/notes/" +
-        "check-duplicate/doctor/migrate — run with --help for usage). " +
+        `node "${SCRIPT_PATH}" instead (${Object.keys(SUBCOMMAND_FLAGS).join("/")} ` +
+        "— run with --help for usage). " +
         (scoped ? `${scoped} ` : "") +
         "It enforces id computation and parse-before/after-write; a hand " +
         "edit bypasses both. If the file is corrupt and the CLI itself " +

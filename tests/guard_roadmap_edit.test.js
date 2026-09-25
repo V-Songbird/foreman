@@ -50,21 +50,16 @@ describe('blocks direct edits to ROADMAP.jsonl', () => {
     assert.equal(payload.hookSpecificOutput.permissionDecision, 'deny');
   });
 
-  // roadmap.js's dispatcher (see its `main` switch / "unknown subcommand"
-  // error) accepts: add, update-status, annotate, update-deps, correct,
-  // reassign-id, archive, restore, list, next-candidates, check-duplicate,
-  // doctor, migrate. A session blocked here has to be pointed at all of
-  // them, not a stale subset — a fix for a stale entry needs "correct" in
-  // this list to find its way there at all.
-  test('names every mutation command the CLI actually accepts', () => {
+  // roadmap.js's dispatcher accepts exactly the keys of SUBCOMMAND_FLAGS. A
+  // session blocked here has to be pointed at all of them, not a stale
+  // subset — a fix for a stale entry needs "correct" in this list to find
+  // its way there at all.
+  test('names every subcommand the CLI actually accepts', () => {
+    const { SUBCOMMAND_FLAGS } = require('../scripts/roadmap');
     const out = run({ tool_name: 'Edit', tool_input: { file_path: inProject('ROADMAP.jsonl') } });
     const { permissionDecisionReason } = JSON.parse(out).hookSpecificOutput;
-    for (const command of [
-      'add', 'update-status', 'annotate', 'update-deps', 'correct',
-      'reassign-id', 'archive', 'restore', 'list', 'next-candidates',
-      'check-duplicate', 'doctor', 'migrate',
-    ]) {
-      assert.match(permissionDecisionReason, new RegExp(`(^|\\W)${command}(\\W|$)`));
+    for (const command of Object.keys(SUBCOMMAND_FLAGS)) {
+      assert.match(permissionDecisionReason, new RegExp(`(^|\\W)${command}(\\W|$)`), command);
     }
   });
 

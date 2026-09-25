@@ -202,6 +202,9 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   as `list --ids`, `list --ids=` or `next-candidates --limit`, and a value on
   a switch, such as `--summary=yes`, fail the same way. A subcommand without
   flags, such as `update-status`, refuses any argument.
+- The message that blocks a direct edit of `ROADMAP.jsonl`,
+  `.foreman/archive.jsonl` or `.foreman/notes.jsonl` now names every
+  `roadmap.js` subcommand, `note-supersede` and `note-prune` included.
 - A direct parent's decision `doc` still reaches its dependent's
   `next-candidates` and `list --ids` rows after the parent is archived, so
   the handoff keeps pointing at the settled decision.
