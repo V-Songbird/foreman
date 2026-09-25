@@ -270,12 +270,12 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   `build-windows-launchers.js` and the two `scripts/health` reports.
   `safe-commit.js finish --no-comit` used to drop the typo and commit;
   `trial-log.js` refuses an argument after its event and JSON fields.
+  `resolve-symbols.js` and `render-sections.js` now report a failure as one
+  JSON line with `ok:false` instead of a stack trace.
 - `trial-log.js` refuses an event name outside its vocabulary even when the
   project has not turned the trial log on, so a misspelled event in a skill
   fails in every project. A known event still records nothing while the log
   is off.
-  `resolve-symbols.js` and `render-sections.js` now report a failure as one
-  JSON line with `ok:false` instead of a stack trace.
 - A value flag given twice fails and writes nothing, saying to give it once
   and join several values with commas. `roadmap.js list --ids 691 --ids 999`
   used to list 999 alone. The same holds for every other value flag:

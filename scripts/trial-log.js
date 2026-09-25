@@ -199,9 +199,9 @@ function validate(event, fields) {
  *
  * Returns {recorded: true, line} when it wrote, {recorded: false, reason}
  * otherwise — "invalid" with an `error` for an event name outside the
- * vocabulary whether or not the log is on, "disabled" when the project has not
- * opted in, "invalid" when a known event's fields fail the check, "write_failed" when
- * the filesystem refused. Callers may ignore all of it; the return exists so
+ * vocabulary whether or not the log is on, "disabled" when the project has
+ * not opted in, "invalid" when a known event's fields fail the check,
+ * "write_failed" when the filesystem refused. Callers may ignore all of it; the return exists so
  * the tests can see which happened.
  */
 function record(event, fields = {}, options = {}) {
