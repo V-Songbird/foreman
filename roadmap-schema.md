@@ -304,8 +304,9 @@ JSON line to stdout: `{"ok":true, ...}` on success, `{"ok":false,"error":
 "..."}` (exit code 1) on failure — parse it, don't scrape prose.
 
 **The CLI documents itself.** Run
-`node <plugin root>/scripts/roadmap.js --help` for every subcommand,
-its stdin shape, its flags, and what it returns. That output is generated
+`node <plugin root>/scripts/roadmap.js <subcommand> --help` for one
+subcommand's stdin shape, flags and result, or `--help` alone for every
+subcommand. That output is generated
 from the same dispatcher that runs the commands, so it cannot drift; a copy
 here could. This file stays the reference for what the *fields* mean — see
 [Fields](#fields) above.

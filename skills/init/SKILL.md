@@ -17,8 +17,9 @@ init writes both and commits neither (step 4 of the write phase). All
 reads/writes go through
 `${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js` (see "Write phase" below) — it
 enforces the write invariants (id computation, parse-before/after-write)
-mechanically, so you don't have to. Run it with `--help` for the command
-shapes; read the **Fields** section of [the schema](../../roadmap-schema.md)
+mechanically, so you don't have to. Run it as
+`roadmap.js <subcommand> --help` (for example `roadmap.js add --help`) for
+that subcommand's shape; read the **Fields** section of [the schema](../../roadmap-schema.md)
 (`${CLAUDE_PLUGIN_ROOT}/roadmap-schema.md`) if you need field semantics
 beyond what's obvious from the names (`why`/`what`/`depends_on`/`planned_touches`).
 

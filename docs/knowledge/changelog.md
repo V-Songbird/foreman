@@ -295,7 +295,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   fails on anything else. `--limit abc` used to return no candidates and
   `--limit -1` every candidate but the last, both as a success.
 - `roadmap.js <subcommand> --help` prints that subcommand's section of the
-  usage and runs nothing; it used to fail as an unknown flag.
+  usage and runs nothing; it used to fail as an unknown flag. The skills,
+  `roadmap-schema.md` and the message that blocks a direct roadmap edit now
+  point to that form instead of the whole usage, which runs to about 400
+  lines.
 - The message that blocks a direct edit of `ROADMAP.jsonl`,
   `.foreman/archive.jsonl` or `.foreman/notes.jsonl` now names every
   `roadmap.js` subcommand, `note-supersede` and `note-prune` included.

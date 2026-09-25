@@ -13,7 +13,8 @@ Foreman runs in Claude Code, Codex and Antigravity. Every step applies to every 
 All reads/writes to `ROADMAP.jsonl` at the project root go through
 `${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js` — never read or edit the file
 directly, the script enforces id computation and parse-before/after-write
-mechanically — run it with `--help` for the command shapes. Read the
+mechanically — run it as `roadmap.js <subcommand> --help` (for example
+`roadmap.js list --help`) for that subcommand's shape. Read the
 **Fields** section of [roadmap-schema.md](../../roadmap-schema.md)
 (`${CLAUDE_PLUGIN_ROOT}/roadmap-schema.md`) if you need field semantics beyond
 what's obvious from the names.

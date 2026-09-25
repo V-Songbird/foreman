@@ -75,7 +75,7 @@ function main(data = readInput()) {
         `Foreman: direct ${data.tool_name} of ` +
         `${path.basename(filePath)} is blocked. Use ` +
         `node "${SCRIPT_PATH}" instead (${Object.keys(SUBCOMMAND_FLAGS).join("/")} ` +
-        "— run with --help for usage). " +
+        "— run `<subcommand> --help` for one subcommand's usage). " +
         (scoped ? `${scoped} ` : "") +
         "It enforces id computation and parse-before/after-write; a hand " +
         "edit bypasses both. If the file is corrupt and the CLI itself " +

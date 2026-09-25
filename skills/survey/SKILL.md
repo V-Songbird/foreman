@@ -16,8 +16,9 @@ reads more code and costs more than ranking stored tasks, so it runs only when
 someone asks for it.
 
 Use `${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js` for all roadmap reads and
-mutations — never read or edit `ROADMAP.jsonl` directly — and run it with
-`--help` for the command shapes. Read the **Fields** section of
+mutations — never read or edit `ROADMAP.jsonl` directly — and run it as
+`roadmap.js <subcommand> --help` (for example `roadmap.js list --help`) for
+that subcommand's shape. Read the **Fields** section of
 [roadmap-schema.md](../../roadmap-schema.md)
 (`${CLAUDE_PLUGIN_ROOT}/roadmap-schema.md`) for field semantics.
 

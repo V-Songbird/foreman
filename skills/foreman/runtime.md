@@ -33,7 +33,8 @@ Every roadmap, archive, or lesson-store read and mutation goes through
 `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js <verb>`. The same CLI owns id
 allocation, validation, locking, migration, and compare-and-set guards. Read
 [the schema](../../roadmap-schema.md) only when a field needs explanation, and
-use `--help` for exact payloads. Do not edit those stores by hand.
+run `roadmap.js <verb> --help` for that verb's exact payload. Do not edit
+those stores by hand.
 
 ## Intent and questions
 
