@@ -242,7 +242,9 @@ function loadRecord(root, input) {
     title: input.title || "",
     why: input.why || "",
     what: input.what || "",
-    notes: input.notes || "",
+    // [Foreman: 787] No notes: craft-prompt never gathers any, and an
+    // entry-less handoff has no entry to read them from.
+    notes: "",
     planned_touches: input.planned_touches || input.touches || [],
     depends_on: input.depends_on || [],
     kind: input.kind,
@@ -968,9 +970,8 @@ function incrementResumeText(record, host = resolveHost()) {
   const refresh = record.id
     ? `Refresh the selected entry before recovery:\nCommand: \`${scriptCommand(host, "roadmap.js", "list --ids " + (host === "codex" ? shellQuote(record.id) : record.id))}\``
     : "No roadmap entry is attached; use the existing conversation or handoff evidence.";
-  // [Foreman: 786] The same cap as <context>; entry-less notes have no
-  // command to point at, so they pass whole.
-  const { kept, cut } = record.id ? cappedNotes(record.notes, "their") : { kept: record.notes, cut: "" };
+  // [Foreman: 786] The same cap as <context>.
+  const { kept, cut } = cappedNotes(record.notes, "their");
   const marker = cut ? `\nThe notes below are cut to fit this handoff: ${cut}; the refresh command above prints them all.` : "";
   return `<increment_resume>\n${protocol}\n\n${refresh}${marker}\n${recordedEvidence("recorded_increment_notes", kept)}\n</increment_resume>`;
 }
