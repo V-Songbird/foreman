@@ -37,7 +37,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const { makeTmpProject, writeConfig, runNodeScript, SCRIPTS_DIR } = require('./helpers.js');
+const { makeTmpProject, writeConfig, writeRoadmap, runNodeScript, SCRIPTS_DIR } = require('./helpers.js');
 const {
   readCanonical,
   detectProfile,
@@ -46,6 +46,7 @@ const {
   PLACEHOLDER_FRAGMENTS,
   PROFILES,
   CONCISE_TRUTH_SENTENCE,
+  CONCISE_TRUTH_EMITTED,
   CLOSURE_EVIDENCE_SENTENCE,
   APPROVAL_SOURCE_SENTENCE,
   IMPLEMENTATION_AUTHORIZATION_SENTENCE,
@@ -60,6 +61,7 @@ const {
 
 const HOSTS = ['claude', 'codex'];
 const CHECK = path.join(SCRIPTS_DIR, 'check-prompt.js');
+const CRAFT = path.join(SCRIPTS_DIR, 'craft-handoff.js');
 const AUTONOMY = 'You are operating autonomously. The user is not watching in real time and cannot answer questions mid-task. End your turn only when the task is complete or you are blocked on input only the user can provide.';
 const KEEP_GOING = `${KEEP_GOING_SENTENCE} do the reversible work it needs without asking. Pause only for a destructive action, a real scope change, or input only the user can provide.`;
 const PLUGIN_ROOT = '/plugins/foreman';
@@ -112,18 +114,21 @@ function fixtures(host) {
   // that closes them — and the closure-evidence rule. Nothing else.
   // [Foreman: 597, 773] Plus the <context> part craft-handoff.js emits on the
   // standard profile too, after </background> and joined like every other part.
+  // [Foreman: 782] In the order craft-handoff.js emits it: the request, the
+  // keep-going paragraph, then the closure-evidence rule; the truth line with
+  // its MISSING: carve-out.
   function standardPrompt(overrides = {}) {
     const parts = {
       codex_runtime: runtime,
       task_context: '<task_context>\nYou are a senior engineer.\nYour goal is to fix the retry bug so all tests pass.\n</task_context>',
-      truth_line: CONCISE_TRUTH_SENTENCE,
+      truth_line: CONCISE_TRUTH_EMITTED,
       approval: host === 'claude' ? APPROVAL_SOURCE_SENTENCE : IMPLEMENTATION_AUTHORIZATION_SENTENCE,
       background: '<background>\n<relevant_files>\nsrc/auth/middleware.ts — refreshToken (42), verifySession (77)\n</relevant_files>\n</background>',
       context: '<context>\nUses JWT tokens in httpOnly cookies. No third-party auth libs.\n</context>',
       task_rules: `<task_rules>\n- Fix the bug.\n\nConstraints:\n- Do not modify the public API.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\n${FIX_CEILING_LINE}\n</task_rules>`,
-      closure: CLOSURE_EVIDENCE_SENTENCE,
       request: 'Fix the token refresh bug in the auth middleware.',
       autonomy: userPresent,
+      closure: CLOSURE_EVIDENCE_SENTENCE,
       ...overrides,
     };
     return Object.values(parts).filter(Boolean).join('\n\n') + '\n';
@@ -708,6 +713,27 @@ for (const host of HOSTS) {
           assert.equal(status, 0, JSON.stringify(json));
           assert.equal(json.ok, true);
           assert.equal(json.profile, 'standard');
+        }
+      });
+
+      // [Foreman: 782] The standard tests prove something about Foreman's
+      // handoffs only while the fixture keeps the shape craft-handoff.js emits.
+      test('the standard fixture keeps the part order and truth line craft-handoff.js emits', () => {
+        const project = makeTmpProject();
+        fs.mkdirSync(path.join(project, 'src', 'auth'), { recursive: true });
+        fs.writeFileSync(path.join(project, 'src', 'auth', 'middleware.ts'), 'function refreshToken() {}\nfunction verifySession() {}\n', 'utf-8');
+        const day = new Date().toISOString().slice(0, 10);
+        writeRoadmap(project, [{ id: '001', title: 'Fix token refresh bug', why: 'Sessions expire mid-request.', what: 'Refresh the token before it expires.', status: 'planned', source: 'user', depends_on: [], planned_touches: ['src/auth/middleware.ts'], observed_touches: [], commits: [], created_at: day, updated_at: day, notes: '' }]);
+        const request = 'Fix the token refresh bug in the auth middleware.';
+        const judgment = { role: 'a senior engineer', goal: 'to fix the retry bug so all tests pass', context: 'Uses JWT tokens in httpOnly cookies. No third-party auth libs.', steps: ['Fix the bug.'], constraints: ['Do not modify the public API.'], verification: [{ run: 'npm test', expected: 'all tests pass' }] };
+        const result = runNodeScript(CRAFT, [], { entry: '001', destination: 'task', host, request, judgment }, { CLAUDE_PROJECT_DIR: project });
+        const emitted = JSON.parse(result.stdout);
+        assert.equal(emitted.profile, 'standard', result.stdout);
+        const approval = host === 'claude' ? APPROVAL_SOURCE_SENTENCE : IMPLEMENTATION_AUTHORIZATION_SENTENCE;
+        const marks = ['<task_context>', CONCISE_TRUTH_EMITTED, approval, '<background>', '<context>', '<task_rules>', request, host === 'claude' && KEEP_GOING_SENTENCE, CLOSURE_EVIDENCE_SENTENCE].filter(Boolean);
+        for (const [name, text] of [['emitted', emitted.prompt], ['fixture', standardPrompt()]]) {
+          const at = marks.map((mark) => text.indexOf(mark));
+          assert.ok(at.every((i, n) => i !== -1 && (n === 0 || i > at[n - 1])), `${name} parts out of order: ${JSON.stringify(at)}\n${text}`);
         }
       });
 
