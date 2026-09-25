@@ -35,6 +35,7 @@ const {
   touchesOverlap,
   TERMINAL_STATUSES,
 } = require("../roadmap");
+const { parseFlags } = require("../runtime");
 const {
   readCanonical,
   CONCISE_TRUTH_SENTENCE,
@@ -406,11 +407,6 @@ function attentionCost(root, options = {}) {
   };
 }
 
-function flag(argv, name) {
-  const index = argv.indexOf(`--${name}`);
-  return index >= 0 ? argv[index + 1] : undefined;
-}
-
 function resolveExisting(value, label) {
   const absolute = path.resolve(value);
   if (!fs.existsSync(absolute)) throw new Error(`${label} not found: ${absolute}`);
@@ -418,8 +414,11 @@ function resolveExisting(value, label) {
 }
 
 function main() {
-  const argv = process.argv.slice(2);
-  const roadmap = flag(argv, "roadmap");
+  const { roadmap, archive: archiveFlag, date, "trial-log": trialFlag } = parseFlags(
+    "attention-cost.js",
+    { roadmap: "value", archive: "value", date: "value", "trial-log": "value" },
+    process.argv.slice(2)
+  );
   if (!roadmap) {
     throw new Error(
       "usage: attention-cost.js --roadmap <ROADMAP.jsonl> [--archive <archive.jsonl>] "
@@ -428,9 +427,6 @@ function main() {
   }
   const absolute = resolveExisting(roadmap, "roadmap");
   const root = path.dirname(absolute);
-  const archiveFlag = flag(argv, "archive");
-  const trialFlag = flag(argv, "trial-log");
-  const date = flag(argv, "date");
   if (date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     throw new Error(`--date must be YYYY-MM-DD, got ${JSON.stringify(date)}`);
   }

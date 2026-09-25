@@ -348,6 +348,11 @@ function main() {
     );
     return;
   }
+  // [Foreman: 692] An extra argument or a flag fails instead of being dropped.
+  const extra = event.startsWith("--") ? event : rest[1];
+  if (extra !== undefined) {
+    throw new Error(`unexpected argument for trial-log.js: ${extra}. It takes <event> ['<json fields>'] and no flags but --help`);
+  }
   let fields = {};
   if (rest[0]) fields = JSON.parse(rest[0]);
   const result = record(event, fields);

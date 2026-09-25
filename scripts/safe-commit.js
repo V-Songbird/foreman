@@ -39,7 +39,7 @@ const { record: recordTrial } = require("./trial-log");
 
 const ROADMAP_FILE = "ROADMAP.jsonl";
 
-const { projectDir } = require("./runtime");
+const { projectDir, parseFlags } = require("./runtime");
 
 function git(root, args) {
   return execFileSync("git", args, {
@@ -488,23 +488,6 @@ function readStdinJSON() {
   return JSON.parse(raw);
 }
 
-function parseFlags(argv) {
-  const flags = {};
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    if (!arg.startsWith("--")) continue;
-    const key = arg.slice(2);
-    const next = argv[index + 1];
-    if (next !== undefined && !next.startsWith("--")) {
-      flags[key] = next;
-      index += 1;
-    } else {
-      flags[key] = true;
-    }
-  }
-  return flags;
-}
-
 const USAGE = `safe-commit.js -- the one task-owned commit path. Prints one
 JSON line to stdout: {"ok":true,...} or {"ok":false,...} (exit 1 on a usage
 error; a refusal is a successful call reporting ok:false).
@@ -563,22 +546,27 @@ function recordInterruption(result, root) {
   recordTrial("commit_interrupted", { hook: "safe-commit", reason_class: reasonClass }, { root });
 }
 
+// The flags each subcommand reads; parseFlags refuses any other.
+const SUBCOMMAND_FLAGS = {
+  begin: {},
+  finish: { baseline: "value", "no-commit": "switch", "allow-unexpected": "switch" },
+};
+
 function main() {
   const [, , subcommand, ...rest] = process.argv;
-  const flags = parseFlags(rest);
+  if (!Object.hasOwn(SUBCOMMAND_FLAGS, subcommand || "")) throw new Error(USAGE);
+  const flags = parseFlags(`safe-commit.js ${subcommand}`, SUBCOMMAND_FLAGS[subcommand], rest);
   const root = projectDir();
   let result;
   if (subcommand === "begin") {
     result = beginUnit(root);
-  } else if (subcommand === "finish") {
+  } else {
     result = finishUnit(root, {
       ...readStdinJSON(),
       baseline: flags.baseline,
       noCommit: flags["no-commit"] === true,
       allowUnexpected: flags["allow-unexpected"] === true,
     });
-  } else {
-    throw new Error(USAGE);
   }
   recordInterruption(result, root);
   process.stdout.write(JSON.stringify(result));

@@ -42,7 +42,7 @@ const {
   resolveSha,
 } = require("./commit-evidence");
 
-const { projectDir } = require("./runtime");
+const { projectDir, parseFlags } = require("./runtime");
 const { hiddenCharacters } = require("./check-prompt");
 
 function roadmapPath(root) {
@@ -3101,10 +3101,7 @@ Examples:
 // [Foreman: 640] The flags each subcommand reads; an empty object means it
 // takes none. Any other flag fails the call instead of being ignored: `list
 // --id 613` used to drop the filter and print the whole roadmap.
-// [Foreman: 691] Each flag is a switch or takes one value, given as `--flag
-// value` or `--flag=value`. An argument no flag claims, a value flag without
-// its value and a value on a switch fail too: `list 640` printed the whole
-// roadmap and `list --ids 640 641` dropped 641.
+// scripts/runtime.js parseFlags owns the flag syntax.
 const SUBCOMMAND_FLAGS = {
   add: {},
   "update-status": {},
@@ -3124,40 +3121,6 @@ const SUBCOMMAND_FLAGS = {
   migrate: {},
 };
 
-function parseFlags(sub, argv) {
-  const valid = SUBCOMMAND_FLAGS[sub];
-  const names = Object.keys(valid);
-  const validHelp = `Valid flags: ${names.map((f) => `--${f}`).join(", ")}`;
-  const flags = {};
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (!a.startsWith("--")) {
-      throw new Error(
-        `unexpected argument for ${sub}: ${a}. ` +
-          (names.length
-            ? `A value goes after its flag (--flag value or --flag=value); join several with commas and quote one that has spaces. ${validHelp}`
-            : `${sub} takes no arguments`)
-      );
-    }
-    const eq = a.indexOf("=");
-    const key = eq === -1 ? a.slice(2) : a.slice(2, eq);
-    if (!Object.hasOwn(valid, key)) {
-      throw new Error(`unknown flag for ${sub}: --${key}. ` + (names.length ? validHelp : `${sub} takes no flags`));
-    }
-    if (valid[key] === "switch") {
-      if (eq !== -1) throw new Error(`unexpected value for ${sub}: ${a}. --${key} is a switch and takes no value`);
-      flags[key] = true;
-      continue;
-    }
-    let value;
-    if (eq !== -1) value = a.slice(eq + 1);
-    else if (argv[i + 1] !== undefined && !argv[i + 1].startsWith("--")) value = argv[++i];
-    if (!value) throw new Error(`missing value for ${sub}: --${key}. Give it as --${key} <value> or --${key}=<value>`);
-    flags[key] = value;
-  }
-  return flags;
-}
-
 function main() {
   const [, , sub, ...rest] = process.argv;
   if (!sub || sub === "--help" || sub === "-h") {
@@ -3167,7 +3130,7 @@ function main() {
   if (!Object.hasOwn(SUBCOMMAND_FLAGS, sub)) {
     throw new Error(`unknown subcommand: ${sub}. Use ${Object.keys(SUBCOMMAND_FLAGS).join("|")}`);
   }
-  const flags = parseFlags(sub, rest);
+  const flags = parseFlags(sub, SUBCOMMAND_FLAGS[sub], rest);
   const root = projectDir();
   let result;
   switch (sub) {

@@ -6,7 +6,7 @@
 const { readLedger } = require("./ledger-config");
 const { configPath, readConfigFile } = require("./foreman-config");
 
-const { projectDir } = require("./runtime");
+const { projectDir, parseFlags } = require("./runtime");
 
 // Declaration, not detection: the project states whether crafted prompts
 // open task_context with a "You are a [role]" persona sentence (true,
@@ -119,12 +119,18 @@ function render(root) {
 }
 
 function main() {
+  parseFlags("render-sections.js", {}, process.argv.slice(2));
   const result = render(projectDir());
   process.stdout.write(JSON.stringify({ ok: true, ...result }));
 }
 
 if (require.main === module) {
-  main();
+  try {
+    main();
+  } catch (err) {
+    process.stdout.write(JSON.stringify({ ok: false, error: err.message }));
+    process.exit(1);
+  }
 }
 
 module.exports = {

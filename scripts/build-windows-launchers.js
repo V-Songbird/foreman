@@ -1,6 +1,7 @@
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
+const { parseFlags } = require("./runtime");
 const root = path.resolve(__dirname, "..");
 
 function build(source, hook) {
@@ -24,4 +25,4 @@ function main(write = false) {
 }
 
 module.exports = { build, main };
-if (require.main === module) main(process.argv[2] === "--write");
+if (require.main === module) main(parseFlags("build-windows-launchers.js", { write: "switch" }, process.argv.slice(2)).write === true);

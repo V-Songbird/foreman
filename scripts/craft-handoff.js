@@ -30,6 +30,7 @@ const fs = require("fs");
 const path = require("path");
 const { discoveryInstructions } = require("./discovery");
 const { render, projectDir, readConfig } = require("./render-sections.js");
+const { parseFlags } = require("./runtime");
 const { resolve: resolveSymbols, candidateIdentifiers } = require("./resolve-symbols.js");
 const {
   readEntries,
@@ -1696,6 +1697,7 @@ function readStdin() {
 }
 
 function main() {
+  parseFlags("craft-handoff.js", {}, process.argv.slice(2));
   const input = readStdin();
   const result = assemble(projectDir(), input);
   process.stdout.write(JSON.stringify(result));

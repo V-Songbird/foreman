@@ -29,7 +29,7 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 const { submodulePaths } = require("./roadmap.js");
 
-const { projectDir } = require("./runtime");
+const { projectDir, parseFlags } = require("./runtime");
 
 // Column-0 anchoring is what keeps local variables out: an indented `const`
 // inside a function body never matches. Each entry maps an extension family
@@ -577,27 +577,22 @@ function readStdin() {
   }
 }
 
-function parseArgv(argv) {
-  const out = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === "--touches" && argv[i + 1] !== undefined) out.touches = argv[i + 1].split(",");
-    if (argv[i] === "--what" && argv[i + 1] !== undefined) out.what = argv[i + 1];
-    if (argv[i] === "--verify" && argv[i + 1] !== undefined) out.verify = argv[i + 1];
-  }
-  return out;
-}
-
 function main() {
-  const flags = parseArgv(process.argv.slice(2));
+  const flags = parseFlags("resolve-symbols.js", { touches: "value", what: "value", verify: "value" }, process.argv.slice(2));
   const stdin = flags.touches ? {} : readStdin();
-  const touches = flags.touches || stdin.touches;
+  const touches = flags.touches ? flags.touches.split(",") : stdin.touches;
   const what = flags.what !== undefined ? flags.what : stdin.what;
   const verify = flags.verify !== undefined ? flags.verify : stdin.verify;
   process.stdout.write(JSON.stringify({ ok: true, ...resolve(projectDir(), touches, what, verify) }));
 }
 
 if (require.main === module) {
-  main();
+  try {
+    main();
+  } catch (err) {
+    process.stdout.write(JSON.stringify({ ok: false, error: err.message }));
+    process.exit(1);
+  }
 }
 
 module.exports = {

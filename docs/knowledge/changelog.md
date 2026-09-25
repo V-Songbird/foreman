@@ -250,6 +250,14 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   as `list --ids`, `list --ids=` or `next-candidates --limit`, and a value on
   a switch, such as `--summary=yes`, fail the same way. A subcommand without
   flags, such as `update-status`, refuses any argument.
+- The other Foreman CLIs parse their flags the same way and fail on one they
+  do not take, writing nothing: `safe-commit.js`, `resolve-symbols.js`,
+  `craft-handoff.js`, `render-sections.js`, `trial-log.js`,
+  `build-windows-launchers.js` and the two `scripts/health` reports.
+  `safe-commit.js finish --no-comit` used to drop the typo and commit;
+  `trial-log.js` refuses an argument after its event and JSON fields.
+  `resolve-symbols.js` and `render-sections.js` now report a failure as one
+  JSON line with `ok:false` instead of a stack trace.
 - The message that blocks a direct edit of `ROADMAP.jsonl`,
   `.foreman/archive.jsonl` or `.foreman/notes.jsonl` now names every
   `roadmap.js` subcommand, `note-supersede` and `note-prune` included.
