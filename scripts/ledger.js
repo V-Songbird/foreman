@@ -360,8 +360,9 @@ function prune(root, { dryRun = false } = {}) {
  *
  * So the anchor is demoted rather than rewritten. The lesson still serves, the
  * date and the entry it names stay as recorded — those are true history, and
- * `recordKey` hashes them, so an existing supersede marker keeps working — and
- * the staleness verdict falls to "unknown", which is the honest answer.
+ * `recordKey` hashes them, so an existing supersede marker keeps working. A
+ * sha the record kept still names one commit, so the verdict resolves through
+ * it; a record with no sha that resolves falls to "unknown", the honest answer.
  *
  * Rewrites the file, so the caller holds the roadmap lock. Returns how many
  * records it touched; a store with none is a no-op that writes nothing.
