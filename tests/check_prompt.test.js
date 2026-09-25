@@ -233,9 +233,19 @@ describe('host selection', () => {
       status: 1,
       json: {
         ok: false,
-        error: `unexpected argument for check-prompt.js: ${file}. A value goes after its flag (--flag value or --flag=value). Valid flags: --destination, --host, --profile, --entry, --resume, --research, --workflow-stage`,
+        error: `unexpected argument for check-prompt.js: ${file}. check-prompt.js takes one <file> and ${file} is already given; quote a path that has spaces. Valid flags: --destination, --host, --profile, --entry, --resume, --research, --workflow-stage`,
       },
     });
+  });
+
+  // [Foreman: 792] The usage names the help flags and the --flag=value form.
+  test('--help names -h and the --flag=value form', () => {
+    const result = runNodeScript(CHECK, ['--help'], null, { FOREMAN_PROJECT_DIR: makeTmpProject() });
+    assert.equal(result.status, 0);
+    assert.ok(
+      result.stdout.includes('--help or -h prints this and checks nothing; a value flag also takes --flag=value.'),
+      result.stdout
+    );
   });
 
   test('an unknown --host is refused', () => {

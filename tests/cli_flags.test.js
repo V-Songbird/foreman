@@ -175,6 +175,17 @@ describe('Foreman CLIs refuse a flag they do not take', () => {
     );
   });
 
+  // [Foreman: 792] A second prompt file was told about the flag before it
+  // ("--destination takes one value") or to put a value after its flag.
+  test('check-prompt.js names a second prompt file as one', () => {
+    const file = path.join(project, 'prompt.md');
+    fs.writeFileSync(file, 'x\n');
+    const valid = 'Valid flags: --destination, --host, --profile, --entry, --resume, --research, --workflow-stage';
+    const second = `unexpected argument for check-prompt.js: other.md. check-prompt.js takes one <file> and ${file} is already given; quote a path that has spaces. ${valid}`;
+    refuses('check-prompt.js', [file, '--destination', 'task', 'other.md'], null, second);
+    refuses('check-prompt.js', [file, 'other.md', '--destination', 'task'], null, second);
+  });
+
   // [Foreman: 790] A stray argument after a value flag names that flag, and
   // only a flag its command splits on commas suggests them.
   test('a stray argument after a value flag names the flag', () => {

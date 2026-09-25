@@ -320,7 +320,9 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   taken as the value of the one before it (`--destination --help` prints the
   usage), `--flag=value` works, and an unknown flag's error names the valid
   ones. The prompt file still goes anywhere among the flags, stdin still
-  stands in for it, and `-h` still prints the usage.
+  stands in for it, and `-h` still prints the usage. A second prompt file
+  fails as a second file, naming the first, instead of as a stray value of
+  the flag before it; the usage now names `--help`, `-h` and `--flag=value`.
 - The message that blocks a direct edit of `ROADMAP.jsonl`,
   `.foreman/archive.jsonl` or `.foreman/notes.jsonl` now names every
   `roadmap.js` subcommand, `note-supersede` and `note-prune` included.

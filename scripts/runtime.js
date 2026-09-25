@@ -46,6 +46,8 @@ function projectDir(env = process.env, cwd = process.cwd()) {
 // [Foreman: 791] `positional`, when given, names the one argument no flag
 // claims that the command takes, anywhere among the flags (check-prompt.js's
 // prompt file); the others leave it off and keep refusing every such argument.
+// [Foreman: 792] Once that slot is filled, a second such argument is named as
+// a second <positional>, not as the value of the flag before it.
 function parseFlags(name, valid, argv, positional) {
   const names = Object.keys(valid);
   const validHelp = `Valid flags: ${names.map((f) => `--${f}`).join(", ")}`;
@@ -59,7 +61,9 @@ function parseFlags(name, valid, argv, positional) {
         continue;
       }
       if (!names.length) throw new Error(`unexpected argument for ${name}: ${a}. ${name} takes no arguments`);
-      const advice = !prev
+      const advice = positional
+        ? `${name} takes one <${positional}> and ${flags[positional]} is already given; quote a path that has spaces`
+        : !prev
         ? "A value goes after its flag (--flag value or --flag=value)"
         : valid[prev] === "switch"
           ? `--${prev} is a switch and takes no value`
