@@ -24,7 +24,24 @@ const WATCHED_TOOLS = new Set(["Bash", "PowerShell"]);
 // closes is an ordinary character. A heredoc or here-string body is text, not
 // commands, and an apostrophe in it would pair with a later quote, so its body
 // is dropped first.
-const PART_RE = /(?:"[^"]*"|'[^']*'|(?<!&)&(?!&)|[^;&|\n])+/g;
+// [Foreman: 844] Inside double quotes Bash escapes with `\` and PowerShell
+// with a backtick, where `\` stays literal, as in "C:\dir\". Each shell reads
+// its own escapes when splitting commands and tokens, and drops them from a
+// quoted token.
+const SHELLS = {
+  bash: {
+    part: /(?:"(?:\\[\s\S]|[^"\\])*"|'[^']*'|(?<!&)&(?!&)|[^;&|\n])+/g,
+    token: /(?:"(?:\\[\s\S]|[^"\\])*"|'[^']*'|\S)+/g,
+    quoted: /"((?:\\[\s\S]|[^"\\])*)"|'([^']*)'/g,
+    escape: /\\(["\\$`])/g,
+  },
+  powershell: {
+    part: /(?:"(?:`[\s\S]|[^"`])*"|'[^']*'|(?<!&)&(?!&)|[^;&|\n])+/g,
+    token: /(?:"(?:`[\s\S]|[^"`])*"|'[^']*'|\S)+/g,
+    quoted: /"((?:`[\s\S]|[^"`])*)"|'([^']*)'/g,
+    escape: /`([\s\S])/g,
+  },
+};
 const HEREDOC_RE = /(<<-?\s*(["']?)(\w+)\2[^\n]*)\n[\s\S]*?\n\t*\3(?=\n|$)|@(["'])\n[\s\S]*?\n\4@/g;
 // `git` takes global options before the subcommand, and several of them
 // carry their value in a SEPARATE token. A flags-only skip missed
@@ -49,8 +66,11 @@ function projectDir(data) {
 const CD_COMMANDS = new Set(["cd", "chdir", "set-location", "sl"]);
 const PUSH_COMMANDS = new Set(["pushd", "push-location"]);
 const POP_COMMANDS = new Set(["popd", "pop-location"]);
-// A quoted path is one token, and its quotes are not part of it.
-const TOKEN_RE = /(?:"[^"]*"|'[^']*'|\S)+/g;
+// [Foreman: 844] Words that run the command after them: `env git`, `sudo -u
+// root git`, PowerShell's `& git`. Their own options are skipped up to the git.
+const WRAPPERS = new Set(["&", "command", "env", "exec", "nohup", "sudo", "time"]);
+const GIT_RE = /(?:^|[\\/])git(?:\.exe)?$/i;
+const ASSIGNMENT_RE = /^(\w+)=([\s\S]*)$/;
 
 // [Foreman: 827] The payload's cwd is the session's directory, not always the
 // commit's: `cd /elsewhere && git commit` or `git -C /elsewhere commit` lands
@@ -60,18 +80,32 @@ const TOKEN_RE = /(?:"[^"]*"|'[^']*'|\S)+/g;
 // returns every commit's directory in order, empty when nothing commits.
 // [Foreman: 831] A `cd` with more than one argument, such as cmd's `cd /d X`,
 // fails in Bash and PowerShell, so it leaves the directory where it was.
-function commitDirs(command, cwd) {
+// [Foreman: 844] Leading `NAME=value` assignments are skipped, and the
+// commit's GIT_DIR and GIT_WORK_TREE are read from them.
+function commitDirs(command, cwd, powershell = false) {
+  const shell = powershell ? SHELLS.powershell : SHELLS.bash;
   let dir = cwd;
   const pushed = [];
   const subshells = [];
   const targets = [];
   const text = command.replace(HEREDOC_RE, (match, heredoc) => heredoc ?? "''");
-  for (let part of text.match(PART_RE) || []) {
+  for (let part of text.match(shell.part) || []) {
     for (part = part.trim(); part.startsWith("("); part = part.slice(1).trimStart()) subshells.push(dir);
     let closes = 0;
     for (; part.endsWith(")"); part = part.slice(0, -1).trimEnd()) closes++;
-    const tokens = (part.match(TOKEN_RE) || []).map((t) => t.replace(/"([^"]*)"|'([^']*)'/g, "$1$2"));
-    const head = (tokens.shift() || "").toLowerCase();
+    const tokens = (part.match(shell.token) || []).map((t) =>
+      t.replace(shell.quoted, (match, double, single) => single ?? double.replace(shell.escape, "$1"))
+    );
+    const assigned = {};
+    let head = "";
+    while (tokens.length && !head) {
+      const token = tokens.shift();
+      const [, name, value] = token.match(ASSIGNMENT_RE) || [];
+      if (name) assigned[name] = value;
+      else if (WRAPPERS.has(token.toLowerCase())) {
+        while (tokens.length && !GIT_RE.test(tokens[0]) && !ASSIGNMENT_RE.test(tokens[0])) tokens.shift();
+      } else head = token.toLowerCase();
+    }
     // A bare `-` is `cd -`, the previous directory: an argument that names no
     // folder, so the shell reads as staying put.
     const args = tokens.filter((t) => t === "-" || !t.startsWith("-"));
@@ -81,10 +115,10 @@ function commitDirs(command, cwd) {
       if (args.length === 1) dir = moveTo(dir, args[0]);
     } else if (CD_COMMANDS.has(head)) {
       if (args.length < 2) dir = moveTo(dir, args[0]);
-    } else if (head === "git") {
+    } else if (GIT_RE.test(head)) {
       let gitDir = dir;
-      let workTree;
-      let repo;
+      let workTree = assigned.GIT_WORK_TREE;
+      let repo = assigned.GIT_DIR;
       while (tokens.length && tokens[0].startsWith("-")) {
         const [flag, inline] = tokens.shift().split(/=(.*)/s);
         const value = inline ?? (GIT_VALUE_FLAGS.has(flag) ? tokens.shift() : undefined);
@@ -530,7 +564,11 @@ function main() {
   if (!WATCHED_TOOLS.has(data.tool_name)) return;
 
   const command = (data.tool_input?.command || "").trim();
-  const dirs = command ? commitDirs(command, path.resolve(data.cwd || process.cwd())) : [];
+  // [Foreman: 844] Codex and Antigravity name every shell command Bash, even
+  // when PowerShell runs it on Windows, so there both readings count.
+  const readings = data.tool_name === "PowerShell" ? [true] : hostName() === "claude" ? [false] : [false, true];
+  const cwd = path.resolve(data.cwd || process.cwd());
+  const dirs = command ? readings.flatMap((powershell) => commitDirs(command, cwd, powershell)) : [];
   if (!dirs.length) return;
   if (commitFailed(data)) return;
 
