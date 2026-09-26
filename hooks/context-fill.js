@@ -182,7 +182,13 @@ function main(data = readInput()) {
   emit(message(reading));
 }
 
-if (require.main === module) main();
+if (require.main === module) {
+  try {
+    main();
+  } catch {
+    process.exit(0);
+  }
+}
 
 module.exports = {
   main,

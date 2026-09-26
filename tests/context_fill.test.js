@@ -224,6 +224,15 @@ describe('context-fill — end to end', () => {
     assert.equal(res.stdout.trim(), '');
   });
 
+  // [Foreman: 816] Hooks fail open: a JSON `null` payload makes main() throw
+  // on its first property read, and the entry point must swallow it.
+  test('a throw inside main exits 0 with no output', () => {
+    const res = runScriptRaw('context-fill.js', 'null', windowEnv());
+    assert.equal(res.status, 0);
+    assert.equal(res.stdout, '');
+    assert.equal(res.stderr, '');
+  });
+
   // Codex has no occupancy to read: its transcript is not Claude usage, and a
   // Claude compaction setting says nothing about a Codex window.
   test('silent on the Codex host, however full the session is', () => {
