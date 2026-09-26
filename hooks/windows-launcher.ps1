@@ -14,6 +14,8 @@ if ($LASTEXITCODE -ne 0) {
   if ($LASTEXITCODE -ne 0) { throw 'Foreman requires Node.js on PATH or a configured fnm default.' }
   fnm env --shell powershell | Out-String | Invoke-Expression
 }
+# The empty catch is intended: hooks fail open, so a Foreman error never
+# breaks the session. CONTRIBUTING.md states the rule.
 $hookScript = "try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','__FOREMAN_HOOK__')).main()}catch{}"
 & node -e $hookScript
 exit $LASTEXITCODE
