@@ -81,6 +81,14 @@ discovery instructions, and the roadmap skill's close and discovery steps
 follow the same rules. In Antigravity, the checkpoint does not know the
 session, so there the commit reminder and the skill steps carry it.
 
+A handoff that a listed session crafts to run itself, or to give its
+background agent, closes the same way: it records `awaiting_acceptance` and
+reports to the orchestrator instead of asking you. The handoff script finds
+the session in `CLAUDE_CODE_SESSION_ID` in Claude Code and in
+`CODEX_SESSION_ID` or `CODEX_THREAD_ID` in Codex. A handoff copied to the
+clipboard keeps the usual close, because the session that will paste it is
+not known yet.
+
 Every session the list does not name, including your own sessions in the same
 project, keeps the usual prompts. So does every session when the key is
 missing or malformed. The orchestrator writes the key with its own session id
