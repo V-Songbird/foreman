@@ -18,7 +18,14 @@ const PLUGIN_ROOT = pluginDir();
 const SCRIPT_PATH = path.join(PLUGIN_ROOT, "scripts", "roadmap.js");
 
 const WATCHED_TOOLS = new Set(["Bash", "PowerShell"]);
-const SEP = /\s*(?:&&|\|\||[;|\n])\s*/;
+// [Foreman: 831] One command of a chain: `&&`, `||`, `|`, `;` and newlines
+// separate commands only outside quotes, so a quoted `-m "a; b"` or a JSON
+// string holding `(cd x && git commit)` stays one command. A quote that never
+// closes is an ordinary character. A heredoc or here-string body is text, not
+// commands, and an apostrophe in it would pair with a later quote, so its body
+// is dropped first.
+const PART_RE = /(?:"[^"]*"|'[^']*'|(?<!&)&(?!&)|[^;&|\n])+/g;
+const HEREDOC_RE = /(<<-?\s*(["']?)(\w+)\2[^\n]*)\n[\s\S]*?\n\t*\3(?=\n|$)|@(["'])\n[\s\S]*?\n\4@/g;
 // `git` takes global options before the subcommand, and several of them
 // carry their value in a SEPARATE token. A flags-only skip missed
 // `git -C sub commit` outright, and any regex loose enough to catch it
@@ -39,34 +46,59 @@ function projectDir(data) {
   return hookProjectDir(data);
 }
 
-const CD_COMMANDS = new Set(["cd", "pushd", "set-location", "push-location", "sl"]);
+const CD_COMMANDS = new Set(["cd", "chdir", "set-location", "sl"]);
+const PUSH_COMMANDS = new Set(["pushd", "push-location"]);
+const POP_COMMANDS = new Set(["popd", "pop-location"]);
 // A quoted path is one token, and its quotes are not part of it.
 const TOKEN_RE = /(?:"[^"]*"|'[^']*'|\S)+/g;
 
 // [Foreman: 827] The payload's cwd is the session's directory, not always the
 // commit's: `cd /elsewhere && git commit` or `git -C /elsewhere commit` lands
 // in another repository and drew this project's nudges. This follows each
-// earlier `cd` in the chain and the commit's own `-C` options from that cwd,
-// and returns every commit's directory in order, empty when nothing commits.
+// earlier `cd`, `pushd` and `popd` in the chain, `( ... )` subshells, and the
+// commit's own `-C`, `--work-tree` and `--git-dir` options from that cwd, and
+// returns every commit's directory in order, empty when nothing commits.
+// [Foreman: 831] A `cd` with more than one argument, such as cmd's `cd /d X`,
+// fails in Bash and PowerShell, so it leaves the directory where it was.
 function commitDirs(command, cwd) {
   let dir = cwd;
+  const pushed = [];
+  const subshells = [];
   const targets = [];
-  for (const part of command.split(SEP)) {
-    const tokens = (part.trim().match(TOKEN_RE) || []).map((t) => t.replace(/["']/g, ""));
+  const text = command.replace(HEREDOC_RE, (match, heredoc) => heredoc ?? "''");
+  for (let part of text.match(PART_RE) || []) {
+    for (part = part.trim(); part.startsWith("("); part = part.slice(1).trimStart()) subshells.push(dir);
+    let closes = 0;
+    for (; part.endsWith(")"); part = part.slice(0, -1).trimEnd()) closes++;
+    const tokens = (part.match(TOKEN_RE) || []).map((t) => t.replace(/"([^"]*)"|'([^']*)'/g, "$1$2"));
     const head = (tokens.shift() || "").toLowerCase();
-    if (CD_COMMANDS.has(head)) {
-      dir = moveTo(dir, tokens.find((t) => !t.startsWith("-")));
-      continue;
+    // A bare `-` is `cd -`, the previous directory: an argument that names no
+    // folder, so the shell reads as staying put.
+    const args = tokens.filter((t) => t === "-" || !t.startsWith("-"));
+    if (POP_COMMANDS.has(head)) dir = pushed.pop() ?? dir;
+    else if (PUSH_COMMANDS.has(head)) {
+      pushed.push(dir);
+      if (args.length === 1) dir = moveTo(dir, args[0]);
+    } else if (CD_COMMANDS.has(head)) {
+      if (args.length < 2) dir = moveTo(dir, args[0]);
+    } else if (head === "git") {
+      let gitDir = dir;
+      let workTree;
+      let repo;
+      while (tokens.length && tokens[0].startsWith("-")) {
+        const [flag, inline] = tokens.shift().split(/=(.*)/s);
+        const value = inline ?? (GIT_VALUE_FLAGS.has(flag) ? tokens.shift() : undefined);
+        if (flag === "-C") gitDir = moveTo(gitDir, value);
+        else if (flag === "--work-tree") workTree = value;
+        else if (flag === "--git-dir") repo = value;
+      }
+      // A `--git-dir` outside the usual `<repo>/.git` layout names no work
+      // tree this can find, so the commit stays where the shell is.
+      if (workTree) gitDir = moveTo(gitDir, workTree);
+      else if (repo && path.basename(repo) === ".git") gitDir = moveTo(gitDir, path.dirname(repo));
+      if (tokens[0] === "commit") targets.push(gitDir);
     }
-    if (head !== "git") continue;
-    let gitDir = dir;
-    while (tokens.length && tokens[0].startsWith("-")) {
-      const flag = tokens.shift();
-      if (!GIT_VALUE_FLAGS.has(flag)) continue;
-      const value = tokens.shift();
-      if (flag === "-C") gitDir = moveTo(gitDir, value);
-    }
-    if (tokens[0] === "commit") targets.push(gitDir);
+    for (; closes && subshells.length; closes--) dir = subshells.pop();
   }
   return targets;
 }
@@ -75,13 +107,19 @@ function commitDirs(command, cwd) {
 // either stops an `&&` chain or leaves the shell where it was. The same
 // fallback covers a host whose payload cwd already reflects the `cd`, which
 // would otherwise apply a relative `cd` twice. `$NAME`, `${NAME}`, `$env:NAME`
-// and `~` expand from this process; Git Bash's `/d/...` reads as `d:/...`.
+// and `~` expand from this process; Git Bash's `/d/...` reads as `d:/...`, and
+// its `/tmp/...`, when no such folder sits on the drive, as this process's
+// temp directory, where Git for Windows mounts it. A variable assigned earlier
+// in the same command is not expanded.
 function moveTo(dir, arg = "~") {
   let value = arg
     .replace(/^~(?=$|[\\/])/, os.homedir())
     .replace(/\$(?:env:)?\{?(\w+)\}?/g, (match, name) => process.env[name] ?? match);
   if (process.platform === "win32") value = value.replace(/^\/([a-z])(?=\/|$)/i, "$1:/");
-  const next = path.resolve(dir, value);
+  let next = path.resolve(dir, value);
+  if (!fs.existsSync(next) && process.platform === "win32" && /^\/tmp(?=\/|$)/.test(value)) {
+    next = path.join(os.tmpdir(), value.slice(4));
+  }
   return fs.existsSync(next) ? next : dir;
 }
 

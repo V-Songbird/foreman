@@ -206,6 +206,15 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   that is not one of its submodules, gets no reminder. A commit in a
   submodule, such as `git -C <submodule> commit` from the project root, still
   gets one, and it now reads that submodule's own `Foreman:` trailer and files.
+- The commit reminder reads more commands correctly. It no longer fires for
+  text that only quotes a commit, such as `git commit` inside an `echo`
+  string, a heredoc or a commit message. It now follows `popd` and
+  `Pop-Location`, a subshell such as `(cd <path> && git commit)`, and
+  `git --work-tree` or `git --git-dir=<repo>/.git`. A quoted path keeps its
+  apostrophes, and on Windows a Git Bash `/tmp/...` path reads as the temp
+  folder. A `cd` given two arguments, such as `cd /d <path>`, fails in Bash
+  and PowerShell, so the reminder treats the commit as made where the shell
+  was. When the reminder cannot tell where a commit ran, it still fires.
 - `FOREMAN_HOST=antigravity` pins the host, and `ANTIGRAVITY_CONVERSATION_ID`
   or `ANTIGRAVITY_AGENT` in the environment selects it when nothing is pinned.
   Codex's own markers still win when both are present.
