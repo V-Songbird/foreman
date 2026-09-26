@@ -32,7 +32,7 @@ beforeEach(() => {
 // [Foreman: 470] The entrypoint gives each child hook 4 s. A loaded machine can
 // spend that on starting node alone, so these runs raise the budget to stay
 // inside runNodeScript's own limit and assert the outcome, not the speed.
-// [Foreman: 544] The budget follows that limit, 5 s below it: 25 s by default,
+// [Foreman: 544] The budget follows that limit, 5 s below it: 85 s by default,
 // and more when FOREMAN_TEST_SPAWN_TIMEOUT_MS raises the limit.
 const SLOW_MACHINE = { FOREMAN_HOOK_TIMEOUT_MS: String(SPAWN_TIMEOUT_MS - 5000) };
 

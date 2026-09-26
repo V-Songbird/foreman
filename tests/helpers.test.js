@@ -1,6 +1,6 @@
 'use strict';
 
-// [Foreman: 499] runNodeScript's spawn limit is 30 s unless the suite runs
+// [Foreman: 499] runNodeScript's spawn limit is 90 s unless the suite runs
 // with FOREMAN_TEST_SPAWN_TIMEOUT_MS set higher; a lower value never applies.
 
 const { test } = require('node:test');
@@ -23,10 +23,10 @@ function limit(value) {
   return Number(probe.stdout);
 }
 
-test('runNodeScript waits 30 s unless the environment raises it', () => {
-  assert.equal(limit(undefined), 30000);
-  assert.equal(limit('5000'), 30000);
-  assert.equal(limit('not a number'), 30000);
+test('runNodeScript waits 90 s unless the environment raises it', () => {
+  assert.equal(limit(undefined), 90000);
+  assert.equal(limit('30000'), 90000);
+  assert.equal(limit('not a number'), 90000);
   assert.equal(limit('120000'), 120000);
 });
 

@@ -7,10 +7,11 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-// [Foreman: 499] How long runNodeScript lets a child run. 30 s by default; a
-// loaded machine can raise it with FOREMAN_TEST_SPAWN_TIMEOUT_MS, which can
-// never lower it. Read before the loop below clears every FOREMAN_ variable.
-const SPAWN_TIMEOUT_MS = Math.max(30000, Number.parseInt(process.env.FOREMAN_TEST_SPAWN_TIMEOUT_MS, 10) || 0);
+// [Foreman: 499] How long runNodeScript lets a child run. 90 s by default, so
+// a machine running several suites at once still passes while a hung child
+// fails; FOREMAN_TEST_SPAWN_TIMEOUT_MS can raise it, never lower it. Read
+// before the loop below clears every FOREMAN_ variable.
+const SPAWN_TIMEOUT_MS = Math.max(90000, Number.parseInt(process.env.FOREMAN_TEST_SPAWN_TIMEOUT_MS, 10) || 0);
 
 // Host detection, project resolution and several switches read these
 // variables. A suite started from inside Claude Code, Codex or a git hook must
@@ -23,9 +24,10 @@ for (const key of Object.keys(process.env)) {
 }
 
 // [Foreman: 566] The same slack for every other time bound a test sets or a
-// test-driven script keeps: 1 by default, and larger as the spawn limit rises,
-// never smaller. Scripts read it as FOREMAN_TEST_TIME_SCALE, a test-only
-// variable, so a child and an in-process call see the same scale.
+// test-driven script keeps, measured against the 30 s those bounds were set
+// for: 3 by default, and larger as the spawn limit rises, never smaller.
+// Scripts read it as FOREMAN_TEST_TIME_SCALE, a test-only variable, so a child
+// and an in-process call see the same scale.
 const TIME_SCALE = SPAWN_TIMEOUT_MS / 30000;
 if (TIME_SCALE > 1) process.env.FOREMAN_TEST_TIME_SCALE = String(TIME_SCALE);
 

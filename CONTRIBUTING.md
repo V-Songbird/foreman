@@ -81,10 +81,12 @@ node --test tests/*.test.js
 node scripts/git-hooks/check-readme-nav.js
 ```
 
-Tests give each script or hook they spawn 30 seconds. On a heavily loaded
-machine, set `FOREMAN_TEST_SPAWN_TIMEOUT_MS` to a larger number of
-milliseconds to raise that limit; a smaller value is ignored. The test
-helpers stretch the suite's other time bounds by the same factor, and pass it
+Tests give each script or hook they spawn 90 seconds, so the suite still
+passes while other suites run on the same machine, and a hung script still
+fails. To allow more, set `FOREMAN_TEST_SPAWN_TIMEOUT_MS` to a larger number of
+milliseconds; a smaller value is ignored. The suite's other time bounds are
+set for 30 seconds, so the test helpers stretch them by the limit divided by
+30 seconds, which is 3 by default. The helpers pass that factor
 to the scripts they run as `FOREMAN_TEST_TIME_SCALE`, a test-only variable
 that lengthens the symbol chain's time budget and never shortens it. Leave it
 unset outside the suite.
