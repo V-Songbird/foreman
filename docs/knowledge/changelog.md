@@ -484,6 +484,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   written earlier with a doubled date read right everywhere a stamp is read:
   the recall excerpt, the handoff's notes cap, the health report's correction
   count and the commit reminder's dispatch marker.
+- For contributors: the pre-commit hook now prints only the test suite's
+  summary when the tests pass, and the summary with the failing tests when one
+  fails. It still blocks the commit on a failure. Before, it printed the whole
+  suite's output.
 
 ## 3.1.0 — 2026-09-15
 
