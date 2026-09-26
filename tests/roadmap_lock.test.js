@@ -11,8 +11,8 @@ const path = require("node:path");
 const { TIME_SCALE } = require("./helpers");
 
 // [Foreman: 566] Every time bound below stretches with the suite's spawn limit
-// (TIME_SCALE is 1 by default), so a loaded machine slows these tests instead
-// of failing them. The lock's own defaults are untouched.
+// (TIME_SCALE is 3 by default), so a loaded machine slows these tests instead
+// of failing them. Each bound is a ceiling, so a passing test takes no longer. The lock's own defaults are untouched.
 const TEST_TIMEOUT_MS = 10000 * TIME_SCALE;
 const CHILD_WAIT_MS = 2000 * TIME_SCALE;
 
