@@ -301,7 +301,8 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
           "If it does, record the work now: run `git rev-parse --short HEAD` for the SHA, then: " +
           `echo '{"id":"<id>","status":"awaiting_acceptance","commit":"<sha>"}' | node "${SCRIPT_PATH}" update-status ` +
           "(observed_touches auto-folds from the commit's diff). " +
-          `Acceptance for this session belongs to the orchestrator ${delegatedTo}: don't ask the user and don't close it yourself.` +
+          `Acceptance for this session belongs to the orchestrator ${delegatedTo}; don't ask the user. ` +
+          "Unless this session is that orchestrator, don't close it yourself." +
           caveat
       );
     } else if (requireVerification) {
@@ -352,7 +353,7 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
     parts.push(
       `This commit might also be a follow-up fix for a task that recently ` +
         `finished its work — marked done earlier today, or still waiting on ` +
-        `your acceptance (${list}) — a bugfix right after finishing a task is ` +
+        `${delegatedTo ? `the orchestrator ${delegatedTo}'s` : "your"} acceptance (${list}) — a bugfix right after finishing a task is ` +
         "easy to lose track of, since nothing else nudges about a task once it " +
         "leaves in_progress. If this commit actually relates to one of those, " +
         "append its SHA rather than letting it go unrecorded: run " +

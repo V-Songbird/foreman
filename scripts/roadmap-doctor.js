@@ -564,6 +564,14 @@ const CONFIG_SPEC = {
   // `decisionLog.gate` did. init has always written `{}`, so only a project
   // that hand-set it sees the warning.
   taskCloseGate: oneOf(VALID_GATES),
+  // [Foreman: 825] Read by hooks/post-commit.js, which treats any other
+  // shape as off; one rule, since neither half means anything alone.
+  delegatedAcceptance: {
+    ok: (value) =>
+      isObject(value) && STRING.ok(value.orchestrator) &&
+      Array.isArray(value.sessions) && value.sessions.every((id) => typeof id === "string"),
+    expected: '{"orchestrator": a non-empty string, "sessions": an array of strings}',
+  },
   omitSections: {
     ok: (value) => Array.isArray(value) && value.every((tag) => OMITTABLE_TAGS.has(tag)),
     expected: `an array of ${[...OMITTABLE_TAGS].join(" | ")}`,

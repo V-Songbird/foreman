@@ -400,6 +400,26 @@ describe('delegatedAcceptance', () => {
     });
   }
 
+  // The orchestrator lists its own session too, so the line must not tell
+  // it to leave its own acceptance to itself.
+  test('the acceptance line leaves the orchestrator its close', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    writeConfig(project, delegated);
+    const out = context(bashPayload('git commit -m "finish task"', { session_id: 'orch-self' }));
+    assert.match(out, /Unless this session is that orchestrator, don't close it yourself/);
+  });
+
+  // The follow-up branch names the orchestrator as the acceptor too, and
+  // keeps the entry's status.
+  test('a follow-up commit on an awaiting entry names the orchestrator', () => {
+    writeRoadmap(project, [{ id: '001', title: 'ship it', status: 'awaiting_acceptance' }]);
+    writeConfig(project, { ...delegated, discoverySuggestions: false });
+    const out = context(bashPayload('git commit -m "fix after"', { session_id: 'worker-a' }));
+    assert.match(out, /waiting on the orchestrator orch-1's acceptance/);
+    assert.match(out, /"status":"<its status above>","commit":"<sha>"/);
+    assert.doesNotMatch(out, /your acceptance|AskUserQuestion/);
+  });
+
   // The delegated wording already routes findings, so the dispatch-marker
   // block would only repeat it.
   test('a listed session gets no separate dispatch-marker block', () => {
