@@ -659,9 +659,9 @@ const CHAIN_TITLE = 40;
 const CHAIN_MAX_CHARS = 900;
 const CHAIN_TIME_BUDGET_MS = 6000;
 // [Foreman: 566] Test-only: the suite's helpers set FOREMAN_TEST_TIME_SCALE
-// when a loaded machine raises FOREMAN_TEST_SPAWN_TIMEOUT_MS. It can only
-// stretch the budget and each call's timeout, never shorten them, and a user's
-// session never sets it.
+// on every run, 3 by default and more when FOREMAN_TEST_SPAWN_TIMEOUT_MS
+// raises the suite's spawn limit. It can only stretch the budget and each
+// call's timeout, never shorten them, and a user's session never sets it.
 function chainTimeScale() {
   return Math.max(1, Number(process.env.FOREMAN_TEST_TIME_SCALE) || 1);
 }

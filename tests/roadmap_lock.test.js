@@ -12,7 +12,8 @@ const { TIME_SCALE } = require("./helpers");
 
 // [Foreman: 566] Every time bound below stretches with the suite's spawn limit
 // (TIME_SCALE is 3 by default), so a loaded machine slows these tests instead
-// of failing them. Each bound is a ceiling, so a passing test takes no longer. The lock's own defaults are untouched.
+// of failing them. Each bound is a ceiling, so a passing test takes no longer.
+// The lock's own defaults are untouched.
 const TEST_TIMEOUT_MS = 10000 * TIME_SCALE;
 const CHILD_WAIT_MS = 2000 * TIME_SCALE;
 
@@ -494,6 +495,8 @@ describe("withRoadmapLock", () => {
 
     const elapsed = Date.now() - startedAt;
     assert.ok(elapsed >= 50, `wait returned too early after ${elapsed}ms`);
-    assert.ok(elapsed < 500 * TIME_SCALE, `wait exceeded its short bound: ${elapsed}ms`);
+    // Kept below the lock's 2000 ms default wait at any scale, so a wait that
+    // ignored waitMs still fails here.
+    assert.ok(elapsed < Math.min(500 * TIME_SCALE, 1500), `wait exceeded its short bound: ${elapsed}ms`);
   });
 });
