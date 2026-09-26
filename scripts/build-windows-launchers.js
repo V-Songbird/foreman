@@ -7,7 +7,7 @@ const root = path.resolve(__dirname, "..");
 function build(source, hook) {
   if (!/^[a-z-]+\.js$/.test(hook)) throw Error("Invalid hook entry point");
   const script = source.replace(/\r\n/g, "\n").replaceAll("__FOREMAN_HOOK__", hook);
-  return "powershell.exe -NoProfile -NonInteractive -EncodedCommand " + Buffer.from(script, "utf16le").toString("base64");
+  return "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand " + Buffer.from(script, "utf16le").toString("base64");
 }
 
 function main(write = false) {

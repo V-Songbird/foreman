@@ -4,8 +4,10 @@
 # It does not change execution policy or hook trust settings.
 # PATH is probed with where.exe rather than Get-Command: a lookup that misses
 # makes Windows PowerShell consult its module analysis cache, which can take
-# tens of seconds while that cache is cold.
+# tens of seconds while that cache is cold. Progress records are silenced
+# because Windows PowerShell writes them to a redirected stderr as CLIXML.
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 where.exe /q '$PATH:node'
 if ($LASTEXITCODE -ne 0) {
   where.exe /q '$PATH:fnm'

@@ -34,6 +34,31 @@ test("Windows commands match their readable source without changing policy", () 
   assert.doesNotMatch(decoded, /Set-ExecutionPolicy|ExecutionPolicy\s+Bypass/);
 });
 
+// [Foreman: 809] Codex may start commandWindows from a PowerShell parent, and
+// Windows PowerShell writes progress records to a redirected stderr as CLIXML.
+// A preload logs one line per Node start, which proves every hook ran.
+const onPath = exe => (process.env.PATH || "").split(path.delimiter).some(dir => fs.existsSync(path.join(dir, exe)));
+for (const parent of ["powershell.exe", "pwsh.exe"]) {
+  test(`every Codex hook leaves stderr empty under ${parent}`, { skip: process.platform !== "win32" || !onPath(parent) }, () => {
+    const root = makeTmpProject();
+    writeRoadmap(root, [{ id: "001", title: "launcher fixture", status: "planned", depends_on: [] }]);
+    const log = path.join(root, "starts.log"), preload = path.join(root, "log-start.cjs");
+    fs.writeFileSync(preload, `require("fs").appendFileSync(${JSON.stringify(log)}, "start\\n");\n`);
+    const env = { ...process.env, PLUGIN_ROOT: path.resolve(__dirname, ".."), FOREMAN_PROJECT_DIR: root,
+      NODE_OPTIONS: `--require "${preload.replace(/\\/g, "/")}"` };
+    const events = Object.entries(require(CODEX_HOOKS).hooks).flatMap(([event, groups]) => groups.flatMap(group => group.hooks.map(handler => [event, handler])));
+    const timeout = Math.max(120000, SPAWN_TIMEOUT_MS);
+    for (const [event, handler] of events) {
+      const result = unlessTimedOut(cp.spawnSync(parent, ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", handler.commandWindows], {
+        env, input: JSON.stringify({ hook_event_name: event, cwd: root }), encoding: "utf8", windowsHide: true, timeout,
+      }), `${event} under ${parent}`, timeout);
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.stderr, "", `${event} under ${parent}`);
+    }
+    assert.equal(fs.readFileSync(log, "utf8").split("\n").filter(Boolean).length, events.length);
+  });
+}
+
 test("fnm fallback works without a Node PATH entry", { skip: process.platform !== "win32" }, t => {
   const paths = (process.env.PATH || "").split(path.delimiter);
   const fnmDir = paths.find(dir => fs.existsSync(path.join(dir, "fnm.exe")));
@@ -43,6 +68,9 @@ test("fnm fallback works without a Node PATH entry", { skip: process.platform !=
   const env = { ...process.env, PLUGIN_ROOT: path.resolve(__dirname, ".."), FOREMAN_PROJECT_DIR: root };
   env.PATH = paths.filter(dir => !fs.existsSync(path.join(dir, "node.exe"))).join(path.delimiter);
   delete env.FNM_MULTISHELL_PATH;
+  // [Foreman: 809] A cold module analysis cache makes the fnm fallback write
+  // "Preparing modules for first use" progress records unless they are silenced.
+  env.PSModuleAnalysisCachePath = path.join(root, "module-analysis-cache");
   const handler = require(CODEX_HOOKS).hooks.PreToolUse[0].hooks[0];
   const input = JSON.stringify({ cwd: root, tool_name: "apply_patch", tool_input: { command: "*** Begin Patch\n*** Delete File: ROADMAP.jsonl\n*** End Patch" } });
   // [Foreman: 470] cmd.exe, PowerShell and fnm take seconds to start on a
@@ -52,5 +80,6 @@ test("fnm fallback works without a Node PATH entry", { skip: process.platform !=
     env, input, encoding: "utf8", windowsVerbatimArguments: true, windowsHide: true, timeout,
   }), "the Codex Windows launcher", timeout);
   assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, "");
   assert.equal(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision, "deny");
 });

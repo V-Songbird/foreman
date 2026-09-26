@@ -176,6 +176,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   and writes nothing: `start --id 999 --id 001` used to start 001. `--id=001`
   now works, an empty value such as `--agent ""` fails, and every flag error
   names the four flags.
+- On Windows, a Codex hook that finds Node.js only through fnm no longer
+  writes PowerShell progress records ("Preparing modules for first use") to
+  stderr as CLIXML the first time PowerShell loads its modules. The launcher
+  silences progress output and starts `powershell.exe` with `-NoLogo`.
 
 ### Every host
 
