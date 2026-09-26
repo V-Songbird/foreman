@@ -1,8 +1,8 @@
 "use strict";
 
 // The two helpers every Foreman hook shares. Hook stdin is the harness's
-// one delivery channel and a hook must never die on bad input, so both
-// read failures collapse to {}; projectDir resolves the same way in every
+// one delivery channel and a hook must never die on bad input, so read
+// failures and non-object payloads collapse to {}; projectDir resolves the same way in every
 // hook so all of them agree on which project a payload belongs to. The
 // tmpdir latches deliberately stay local to each hook — their key
 // semantics differ per hook, so there is nothing shared to extract there.
@@ -19,7 +19,10 @@ function readInput() {
     return {};
   }
   try {
-    return JSON.parse(raw || "{}");
+    // A payload that is not a plain object (null, a number, a string, an
+    // array) takes the same empty-payload path as unreadable stdin.
+    const data = JSON.parse(raw || "{}");
+    return data && typeof data === "object" && !Array.isArray(data) ? data : {};
   } catch {
     return {};
   }
