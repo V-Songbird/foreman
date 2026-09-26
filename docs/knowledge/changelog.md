@@ -193,6 +193,13 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   checks for duplicates and leaves both to the orchestrator. Sessions the
   setting does not list, including your own, get the same prompts as before.
   See [settings.md](../../settings.md).
+- The commit reminder no longer fires for a commit made in another
+  repository. The reminder now reads where the commit ran from the command
+  itself: an earlier `cd`, `pushd` or `Set-Location` in the same command, and
+  `git -C <path>`. A commit outside the project, or in a nested repository
+  that is not one of its submodules, gets no reminder. A commit in a
+  submodule, such as `git -C <submodule> commit` from the project root, still
+  gets one, and it now reads that submodule's own `Foreman:` trailer and files.
 - `FOREMAN_HOST=antigravity` pins the host, and `ANTIGRAVITY_CONVERSATION_ID`
   or `ANTIGRAVITY_AGENT` in the environment selects it when nothing is pinned.
   Codex's own markers still win when both are present.

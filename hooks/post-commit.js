@@ -39,15 +39,50 @@ function projectDir(data) {
   return hookProjectDir(data);
 }
 
-function isGitCommit(command) {
-  return command.split(SEP).some((part) => {
-    const tokens = part.trim().split(/\s+/);
-    if (tokens.shift().toLowerCase() !== "git") return false;
-    while (tokens.length && tokens[0].startsWith("-")) {
-      if (GIT_VALUE_FLAGS.has(tokens.shift())) tokens.shift();
+const CD_COMMANDS = new Set(["cd", "pushd", "set-location", "push-location", "sl"]);
+// A quoted path is one token, and its quotes are not part of it.
+const TOKEN_RE = /(?:"[^"]*"|'[^']*'|\S)+/g;
+
+// [Foreman: 827] The payload's cwd is the session's directory, not always the
+// commit's: `cd /elsewhere && git commit` or `git -C /elsewhere commit` lands
+// in another repository and drew this project's nudges. This follows each
+// earlier `cd` in the chain and the commit's own `-C` options from that cwd,
+// and returns the last commit's directory, or null when nothing commits.
+function commitDir(command, cwd) {
+  let dir = cwd;
+  let target = null;
+  for (const part of command.split(SEP)) {
+    const tokens = (part.trim().match(TOKEN_RE) || []).map((t) => t.replace(/["']/g, ""));
+    const head = (tokens.shift() || "").toLowerCase();
+    if (CD_COMMANDS.has(head)) {
+      dir = moveTo(dir, tokens.find((t) => !t.startsWith("-")));
+      continue;
     }
-    return tokens[0] === "commit";
-  });
+    if (head !== "git") continue;
+    let gitDir = dir;
+    while (tokens.length && tokens[0].startsWith("-")) {
+      const flag = tokens.shift();
+      if (!GIT_VALUE_FLAGS.has(flag)) continue;
+      const value = tokens.shift();
+      if (flag === "-C") gitDir = moveTo(gitDir, value);
+    }
+    if (tokens[0] === "commit") target = gitDir;
+  }
+  return target;
+}
+
+// A directory that does not exist is not where the commit ran: a failed `cd`
+// either stops an `&&` chain or leaves the shell where it was. The same
+// fallback covers a host whose payload cwd already reflects the `cd`, which
+// would otherwise apply a relative `cd` twice. `$NAME`, `${NAME}`, `$env:NAME`
+// and `~` expand from this process; Git Bash's `/d/...` reads as `d:/...`.
+function moveTo(dir, arg = "~") {
+  let value = arg
+    .replace(/^~(?=$|[\\/])/, os.homedir())
+    .replace(/\$(?:env:)?\{?(\w+)\}?/g, (match, name) => process.env[name] ?? match);
+  if (process.platform === "win32") value = value.replace(/^\/([a-z])(?=\/|$)/i, "$1:/");
+  const next = path.resolve(dir, value);
+  return fs.existsSync(next) ? next : dir;
 }
 
 // Confirmed against code.claude.com/docs/en/hooks.md: PostToolUse's Bash
@@ -491,7 +526,8 @@ function main() {
   if (!WATCHED_TOOLS.has(data.tool_name)) return;
 
   const command = (data.tool_input?.command || "").trim();
-  if (!command || !isGitCommit(command)) return;
+  const dir = command && commitDir(command, path.resolve(data.cwd || process.cwd()));
+  if (!dir) return;
   if (commitFailed(data)) return;
 
   const root = projectDir(data);
@@ -500,7 +536,7 @@ function main() {
   // elsewhere on disk) neither. Only the first two are this hook's
   // business; a commit fired from an unrelated repo must not read or
   // annotate this project's roadmap.
-  const scope = resolveHookScope(root, path.resolve(data.cwd || process.cwd()));
+  const scope = resolveHookScope(root, dir);
   if (!scope) return;
 
   if (!fs.existsSync(path.join(root, "ROADMAP.jsonl"))) return;
@@ -582,7 +618,7 @@ if (require.main === module) {
 
 module.exports = {
   main,
-  isGitCommit,
+  commitDir,
   commitFailed,
   wrappedExitCode,
   freshlyDoneStatePath,

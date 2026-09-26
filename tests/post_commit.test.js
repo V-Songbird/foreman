@@ -822,6 +822,56 @@ describe('commit scope resolution', () => {
     assert.equal(out, '');
   });
 
+  // [Foreman: 827] The payload cwd is the project, but the command commits in
+  // an unrelated repository it names itself.
+  for (const [label, command] of [
+    ['a leading cd', (dir) => `cd "${dir}" && git commit -m "wip"`],
+    ['git -C', (dir) => `git -C "${dir}" commit -m "wip"`],
+    ['PowerShell Set-Location', (dir) => `Set-Location -Path '${dir}'; git commit -m "wip"`],
+  ]) {
+    test(`a commit in an unrelated repository named by ${label} produces no output`, () => {
+      const outsideRepo = makeTmpProject();
+      initGitRepo(outsideRepo);
+      commitFile(outsideRepo, 'unrelated.js', 'unrelated');
+      commitFile(project, 'root.js', 'root');
+      writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+      assert.equal(run(bashPayload(command(outsideRepo))), '');
+    });
+  }
+
+  test('a Git Bash drive path names the same repository on Windows', { skip: process.platform !== 'win32' }, () => {
+    const outsideRepo = makeTmpProject();
+    initGitRepo(outsideRepo);
+    commitFile(outsideRepo, 'unrelated.js', 'unrelated');
+    commitFile(project, 'root.js', 'root');
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    const msys = `/${outsideRepo[0].toLowerCase()}${outsideRepo.slice(2).replace(/\\/g, '/')}`;
+    assert.equal(run(bashPayload(`cd ${msys} && git commit -m "wip"`)), '');
+  });
+
+  test('a cd that fails leaves the commit in the project, which keeps its nudge', () => {
+    commitFile(project, 'root.js', 'root');
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    const missing = path.join(path.dirname(project), 'missing');
+    assert.match(run(bashPayload(`cd "${missing}"; git commit -m "wip"`)), /may complete an in-progress/i);
+  });
+
+  for (const [label, command] of [
+    ['git -C', 'git -C lib commit -m "work in submodule"'],
+    ['a relative cd', 'cd lib && git commit -m "work in submodule"'],
+    ['a cd through an environment variable', 'cd "$CLAUDE_PROJECT_DIR/lib" && git commit -m "work in submodule"'],
+  ]) {
+    test(`${label} into a submodule from the project root keeps the submodule's nudge`, () => {
+      commitFile(project, 'root.js', 'root content');
+      const sub = addSubmodule(project, 'lib');
+      commitWithMessage(sub, 'inner.js', 'inner content', 'work in submodule\n\nForeman: 001');
+      writeRoadmap(project, [
+        { id: '001', title: 'the submodule task', status: 'in_progress', planned_touches: ['lib/inner.js'] },
+      ]);
+      assert.match(run(bashPayload(command)), /named in this commit's Foreman: trailer/);
+    });
+  }
+
   test('a commit inside a submodule reads that submodule\'s own files and trailer, not the parent\'s', () => {
     commitFile(project, 'root.js', 'root content');
     const sub = addSubmodule(project, 'lib');
