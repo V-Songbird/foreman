@@ -59,27 +59,37 @@ for (const parent of ["powershell.exe", "pwsh.exe"]) {
   });
 }
 
-test("fnm fallback works without a Node PATH entry", { skip: process.platform !== "win32" }, t => {
-  const paths = (process.env.PATH || "").split(path.delimiter);
-  const fnmDir = paths.find(dir => fs.existsSync(path.join(dir, "fnm.exe")));
-  if (!fnmDir) return t.skip("fnm is not installed on this runner");
-  const root = makeTmpProject();
-  writeRoadmap(root, [{ id: "001", title: "launcher fixture", status: "planned", depends_on: [] }]);
-  const env = { ...process.env, PLUGIN_ROOT: path.resolve(__dirname, ".."), FOREMAN_PROJECT_DIR: root };
-  env.PATH = paths.filter(dir => !fs.existsSync(path.join(dir, "node.exe"))).join(path.delimiter);
-  delete env.FNM_MULTISHELL_PATH;
-  // [Foreman: 809] A cold module analysis cache makes the fnm fallback write
-  // "Preparing modules for first use" progress records unless they are silenced.
-  env.PSModuleAnalysisCachePath = path.join(root, "module-analysis-cache");
-  const handler = require(CODEX_HOOKS).hooks.PreToolUse[0].hooks[0];
-  const input = JSON.stringify({ cwd: root, tool_name: "apply_patch", tool_input: { command: "*** Begin Patch\n*** Delete File: ROADMAP.jsonl\n*** End Patch" } });
-  // [Foreman: 470] cmd.exe, PowerShell and fnm take seconds to start on a
-  // loaded machine, so the bound only catches a hang; the assertions are the test.
-  const timeout = Math.max(120000, SPAWN_TIMEOUT_MS);
-  const result = unlessTimedOut(cp.spawnSync("cmd.exe", ["/d", "/s", "/c", `"${handler.commandWindows}"`], {
-    env, input, encoding: "utf8", windowsVerbatimArguments: true, windowsHide: true, timeout,
-  }), "the Codex Windows launcher", timeout);
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stderr, "");
-  assert.equal(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision, "deny");
-});
+// [Foreman: 814] The PowerShell-parent tests above find Node on PATH, which
+// never writes progress records; only the fnm fallback does, so it runs under
+// both parents.
+const launchers = {
+  "cmd.exe": command => [["/d", "/s", "/c", `"${command}"`], { windowsVerbatimArguments: true }],
+  "powershell.exe": command => [["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command], {}],
+};
+for (const [parent, launch] of Object.entries(launchers)) {
+  test(`fnm fallback works without a Node PATH entry under ${parent}`, { skip: process.platform !== "win32" || !onPath(parent) }, t => {
+    const paths = (process.env.PATH || "").split(path.delimiter);
+    const fnmDir = paths.find(dir => fs.existsSync(path.join(dir, "fnm.exe")));
+    if (!fnmDir) return t.skip("fnm is not installed on this runner");
+    const root = makeTmpProject();
+    writeRoadmap(root, [{ id: "001", title: "launcher fixture", status: "planned", depends_on: [] }]);
+    const env = { ...process.env, PLUGIN_ROOT: path.resolve(__dirname, ".."), FOREMAN_PROJECT_DIR: root };
+    env.PATH = paths.filter(dir => !fs.existsSync(path.join(dir, "node.exe"))).join(path.delimiter);
+    delete env.FNM_MULTISHELL_PATH;
+    // [Foreman: 809] A cold module analysis cache makes the fnm fallback write
+    // "Preparing modules for first use" progress records unless they are silenced.
+    env.PSModuleAnalysisCachePath = path.join(root, "module-analysis-cache");
+    const handler = require(CODEX_HOOKS).hooks.PreToolUse[0].hooks[0];
+    const input = JSON.stringify({ cwd: root, tool_name: "apply_patch", tool_input: { command: "*** Begin Patch\n*** Delete File: ROADMAP.jsonl\n*** End Patch" } });
+    // [Foreman: 470] cmd.exe, PowerShell and fnm take seconds to start on a
+    // loaded machine, so the bound only catches a hang; the assertions are the test.
+    const timeout = Math.max(120000, SPAWN_TIMEOUT_MS);
+    const [args, options] = launch(handler.commandWindows);
+    const result = unlessTimedOut(cp.spawnSync(parent, args, {
+      ...options, env, input, encoding: "utf8", windowsHide: true, timeout,
+    }), `the Codex Windows launcher under ${parent}`, timeout);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, "");
+    assert.equal(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision, "deny");
+  });
+}
