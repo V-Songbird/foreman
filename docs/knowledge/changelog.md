@@ -52,6 +52,12 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
 - Suggestions an Antigravity session records carry
   `source: "antigravity-suggested"`; an older Foreman reports that value as
   `unknown_source` until it is upgraded.
+- A conversation that `delegatedAcceptance` lists is told once, at its next
+  model call, which `--session` value to pass to `hooks/codex-task.js start`
+  and `check`. With it, the checkpoints return the orchestrator's name as
+  `delegatedTo`, as they do in Codex. Conversations the setting does not list
+  see no change. A `check` in Antigravity no longer leaves a stop-reminder
+  file behind, since that host has no stop event to read it.
 - Not available there: the `taskCloseGate` reminder, which needs a task or
   stop event, the session-fullness advice, and review between increments.
 

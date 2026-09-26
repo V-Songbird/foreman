@@ -47,7 +47,8 @@ function checkpoint(action, options) {
   }
   const complete = !OPEN.has(entry.status);
   const { session, agent } = currentScope(options);
-  const scope = scopePath(root, session, agent);
+  // Antigravity has no stop event to read the file, so its checks arm nothing.
+  const scope = hostName() === "antigravity" ? null : scopePath(root, session, agent);
   // A filename per entry keeps concurrent checkpoints from losing each other.
   // Only explicit check attempts arm Stop; asking the user a question after
   // start must never become an implicit demand to finish the task.
@@ -65,7 +66,8 @@ function checkpoint(action, options) {
   }
   // [Foreman: 828] A session delegatedAcceptance lists hears who accepts for
   // it, and gets discovery wording that reports to that orchestrator instead
-  // of asking the user. Antigravity passes no session here unless --session.
+  // of asking the user. Antigravity passes no session here unless --session;
+  // its hook names that value once the conversation is listed (838).
   // A background subagent keeps the shared policy: it returns its candidates
   // to its coordinator, which is the listed session.
   const delegatedTo = agent ? null : delegatedOrchestrator(readConfigFile(root).config, session);

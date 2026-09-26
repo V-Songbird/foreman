@@ -78,8 +78,10 @@ After a commit in a listed session:
 In Codex, the `codex-task.js start` and `check` checkpoints of a listed
 session return the orchestrator's name as `delegatedTo` and give the same
 discovery instructions, and the roadmap skill's close and discovery steps
-follow the same rules. In Antigravity, the checkpoint does not know the
-session, so there the commit reminder and the skill steps carry it.
+follow the same rules. In Antigravity, only the hook knows the conversation
+id, so the first model call after the list names a conversation tells it which
+`--session` value to pass to `start` and `check`; with it, the checkpoints
+behave as in Codex.
 
 Every session the list does not name, including your own sessions in the same
 project, keeps the usual prompts. So does every session when the key is

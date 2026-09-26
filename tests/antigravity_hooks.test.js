@@ -157,6 +157,30 @@ describe("PreInvocation carries the session notice once, in this host's words", 
     assert.deepEqual(run("PreInvocation", { invocationNum: 1 }), {});
   });
 
+  // [Foreman: 838] Only the hook sees conversationId, so a listed conversation
+  // is told once which --session makes its checkpoint return delegatedTo.
+  test("a conversation delegatedAcceptance lists hears its --session once, and its checkpoint defers", () => {
+    writeRoadmap(project, [{ id: "001", title: "Ship the thing", status: "planned" }]);
+    assert.deepEqual(run("PreInvocation", { invocationNum: 0 }), {}, "unlisted: nothing new");
+    writeConfig(project, { delegatedAcceptance: { orchestrator: "orch-1", sessions: [conversation] } });
+    const line = injected(run("PreInvocation", { invocationNum: 1 }))[0].ephemeralMessage;
+    assert.match(line, /acceptance belongs to the orchestrator orch-1/);
+    const command = line.match(/node "([^"]+)" start --id <id> --session (\S+),/);
+    assert.ok(command, line);
+    assert.equal(command[2], conversation);
+    assert.deepEqual(run("PreInvocation", { invocationNum: 2 }), {}, "said once");
+    const env = { FOREMAN_HOST: "antigravity", FOREMAN_PROJECT_DIR: project };
+    const checkpoint = runNodeScript(command[1], ["start", "--id", "001", "--session", command[2]], null, env);
+    assert.equal(checkpoint.status, 0, checkpoint.stdout);
+    assert.equal(JSON.parse(checkpoint.stdout).delegatedTo, "orch-1");
+    const check = JSON.parse(runNodeScript(command[1], ["check", "--id", "001", "--session", command[2]], null, env).stdout);
+    assert.equal(check.delegatedTo, "orch-1");
+    assert.equal(check.stop_gate_scoped, false, "no stop event reads a checkpoint file here");
+    const without = JSON.parse(runNodeScript(command[1], ["check", "--id", "001"], null, env).stdout);
+    assert.equal(without.delegatedTo, undefined, "no --session, today's output");
+    assert.equal(without.discovery, discoveryInstructions());
+  });
+
   test("a project with nothing open, or no roadmap, injects nothing", () => {
     assert.deepEqual(run("PreInvocation", { invocationNum: 0 }), {});
     writeRoadmap(project, [{ id: "001", title: "a", status: "planned" }]);
@@ -234,7 +258,9 @@ describe("PostToolUse answers nothing and queues context for the next model call
     writeConfig(project, { delegatedAcceptance: { orchestrator: "orch-1", sessions: [conversation] } });
     commitFile(project, "src/a.js", "one\n");
     assert.deepEqual(run("PostToolUse", call("run_command", { CommandLine: "git commit -m 'ship'", Cwd: project })), {});
-    const text = injected(run("PreInvocation", { invocationNum: 3 }))[0].ephemeralMessage;
+    const steps = injected(run("PreInvocation", { invocationNum: 3 }));
+    assert.equal(steps.length, 2, "the --session line (838), then the commit reminder");
+    const text = steps[1].ephemeralMessage;
     assert.match(text, /"status":"awaiting_acceptance","commit":"<sha>"/);
     assert.match(text, /belongs to the orchestrator orch-1/);
     assert.match(text, /"source":"antigravity-suggested","status":"planned"/);
