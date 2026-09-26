@@ -193,6 +193,12 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   checks for duplicates and leaves both to the orchestrator. Sessions the
   setting does not list, including your own, get the same prompts as before.
   See [settings.md](../../settings.md).
+- `delegatedAcceptance` now also covers the task checkpoints and the roadmap
+  skill's steps, not only the commit reminder. In Codex, `codex-task.js start`
+  and `check` in a listed session return the orchestrator's name as
+  `delegatedTo`, and their discovery text says to report new work to the
+  orchestrator instead of asking you. The roadmap skill's close, acceptance
+  and discovery steps say the same.
 - The commit reminder no longer fires for a commit made in another
   repository. The reminder now reads where the commit ran from the command
   itself: an earlier `cd`, `pushd` or `Set-Location` in the same command, and

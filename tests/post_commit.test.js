@@ -33,7 +33,8 @@ const {
   initGitRepo,
   commitFile,
 } = require('./helpers');
-const { discoveryInstructions } = require('../scripts/discovery');
+const { discoveryInstructions, duplicateCheckStep } = require('../scripts/discovery');
+const { discoveryBlock, SCRIPT_PATH } = require('../hooks/post-commit');
 
 let project;
 let env;
@@ -418,6 +419,14 @@ describe('delegatedAcceptance', () => {
     assert.match(out, /waiting on the orchestrator orch-1's acceptance/);
     assert.match(out, /"status":"<its status above>","commit":"<sha>"/);
     assert.doesNotMatch(out, /your acceptance|AskUserQuestion/);
+  });
+
+  // [Foreman: 828] Claude Code's wording and the delegated one carry the
+  // same duplicate check.
+  test('both commit-time wordings share the duplicate check', () => {
+    const step = duplicateCheckStep(SCRIPT_PATH);
+    assert.ok(discoveryBlock('claude').includes(step));
+    assert.ok(discoveryBlock('claude', true, 'orch-1').includes(step));
   });
 
   // The delegated wording already routes findings, so the dispatch-marker

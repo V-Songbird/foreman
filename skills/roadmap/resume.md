@@ -23,7 +23,8 @@ what it verified before relaying that, as
 each `Run:`/`Expected:` result it reports, and the entry's status and its
 `unverified:` lines (`roadmap.js list --ids <id>`). Call a check it skipped
 or could not run unverified, never passed; acceptance still comes only from
-the user in this session. Then stop here; the worker's session closes its
+the user in this session, or from the orchestrator `delegatedAcceptance`
+names for it. Then stop here; the worker's session closes its
 entry the same as any other handoff (in Codex, through the coordinator). On any failure, a marker the other host
 wrote, or no marker at all, fall back **silently** to pick.md's flow exactly as
 if there were no marker — go on to its Q2 and craft the re-crafted prompt (the

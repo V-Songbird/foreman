@@ -13,7 +13,7 @@ const os = require("node:os");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { spawnSync } = require("node:child_process");
-const { makeTmpProject, writeRoadmap, initGitRepo, commitFile, runNodeScript, HOOKS_DIR, SPAWN_TIMEOUT_MS } = require("./helpers");
+const { makeTmpProject, writeRoadmap, writeConfig, initGitRepo, commitFile, runNodeScript, HOOKS_DIR, SPAWN_TIMEOUT_MS } = require("./helpers");
 const { HOSTS, detectHost } = require("../scripts/runtime");
 const { resolveHost, readCanonical } = require("../scripts/check-prompt");
 const { discoveryInstructions } = require("../scripts/discovery");
@@ -226,6 +226,20 @@ describe("PostToolUse answers nothing and queues context for the next model call
     assert.doesNotMatch(text, /AskUserQuestion/);
     assert.ok(text.includes(discoveryInstructions()), "Antigravity reads the discovery policy Codex reads");
     assert.deepEqual(run("PreInvocation", { invocationNum: 4 }), {}, "the queue drains once");
+  });
+
+  // [Foreman: 828] The shared hook reads the session from conversationId, so
+  // delegatedAcceptance lists an Antigravity conversation by that id.
+  test("a commit in a conversation delegatedAcceptance lists defers to the orchestrator", () => {
+    writeConfig(project, { delegatedAcceptance: { orchestrator: "orch-1", sessions: [conversation] } });
+    commitFile(project, "src/a.js", "one\n");
+    assert.deepEqual(run("PostToolUse", call("run_command", { CommandLine: "git commit -m 'ship'", Cwd: project })), {});
+    const text = injected(run("PreInvocation", { invocationNum: 3 }))[0].ephemeralMessage;
+    assert.match(text, /"status":"awaiting_acceptance","commit":"<sha>"/);
+    assert.match(text, /belongs to the orchestrator orch-1/);
+    assert.match(text, /"source":"antigravity-suggested","status":"planned"/);
+    assert.doesNotMatch(text, /(?<!don't )ask the user|"status":"done"/i);
+    assert.ok(!text.includes(discoveryInstructions()));
   });
 
   test("a failed command and a command that is not a commit queue nothing", () => {

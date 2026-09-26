@@ -75,6 +75,12 @@ After a commit in a listed session:
   worker lists that work in its report, and the orchestrator adds it with
   the host's own source, such as `claude-suggested`, without asking you.
 
+In Codex, the `codex-task.js start` and `check` checkpoints of a listed
+session return the orchestrator's name as `delegatedTo` and give the same
+discovery instructions, and the roadmap skill's close and discovery steps
+follow the same rules. In Antigravity, the checkpoint does not know the
+session, so there the commit reminder and the skill steps carry it.
+
 Every session the list does not name, including your own sessions in the same
 project, keeps the usual prompts. So does every session when the key is
 missing or malformed. The orchestrator writes the key with its own session id

@@ -8,10 +8,11 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const crypto = require("crypto");
-const { projectDir } = require("./lib");
+const { projectDir, hostName, pluginDir } = require("./lib");
 const { readEntries, cmdUpdateStatus, isValidId, soleHolder } = require("../scripts/roadmap");
 const { recordResumeRecovered } = require("../scripts/trial-log");
-const { discoveryEnabled, discoveryInstructions } = require("../scripts/discovery");
+const { discoveryEnabled, discoveryInstructions, delegatedDiscoveryInstructions } = require("../scripts/discovery");
+const { readConfigFile, delegatedOrchestrator } = require("../scripts/foreman-config");
 const { parseFlags, printHelp } = require("../scripts/runtime");
 const OPEN = new Set(["planned", "in_progress"]);
 
@@ -62,8 +63,16 @@ function checkpoint(action, options) {
   if (action === "check" && complete && ((entry.commits || []).length || (entry.observed_touches || []).length)) {
     recordResumeRecovered({ root });
   }
-  const discovery = discoveryEnabled(root) ? discoveryInstructions() : undefined;
-  return { id: entry.id, status: entry.status, complete, ...(action === "start" ? { dispatchReady, transition } : {}), stop_gate_scoped: Boolean(scope), ...(discovery ? { discovery } : {}) };
+  // [Foreman: 828] A session delegatedAcceptance lists hears who accepts for
+  // it, and gets discovery wording that reports to that orchestrator instead
+  // of asking the user. Antigravity passes no session here unless --session.
+  // A background subagent keeps the shared policy: it returns its candidates
+  // to its coordinator, which is the listed session.
+  const delegatedTo = agent ? null : delegatedOrchestrator(readConfigFile(root).config, session);
+  const discovery = !discoveryEnabled(root) ? undefined
+    : delegatedTo ? delegatedDiscoveryInstructions(delegatedTo, hostName(), path.join(pluginDir(), "scripts", "roadmap.js"))
+    : discoveryInstructions();
+  return { id: entry.id, status: entry.status, complete, ...(action === "start" ? { dispatchReady, transition } : {}), stop_gate_scoped: Boolean(scope), ...(delegatedTo ? { delegatedTo } : {}), ...(discovery ? { discovery } : {}) };
 }
 
 const USAGE = "usage: codex-task.js start|check --id ID [--root PATH] [--session ID] [--agent ID]";

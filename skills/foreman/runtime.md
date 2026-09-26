@@ -60,7 +60,9 @@ not treat an unanswered question as approval.
 Acceptance is distinct from implementation completion: `requireVerification`
 defaults to true, so finished work records `awaiting_acceptance` until the user
 accepts it. Never interpret a test passing, a subagent finishing, or a new pick
-request as that acceptance.
+request as that acceptance. Under `delegatedAcceptance`, the orchestrator it
+names accepts for the sessions it lists instead
+([Close and acceptance](../roadmap/delivery.md#close-and-acceptance)).
 
 ## Work and delegation
 
