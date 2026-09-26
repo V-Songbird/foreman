@@ -58,6 +58,26 @@ never reads Claude Code settings for a Codex session and never treats an
 unknown size as an empty one; Codex's own context indicator, or a fresh
 session, is the way to judge it there.
 
+`delegatedAcceptance` hands acceptance to an orchestrator session while it
+runs other sessions on the roadmap for you. Its value is
+`{"orchestrator": "<name>", "sessions": ["<session id>", ...]}`. The session id
+is the one each host passes to its hooks; in Claude Code it is the name of the
+session's transcript file, without `.jsonl`. After a commit in a listed
+session:
+
+- The session still records the commit and moves the entry to
+  `awaiting_acceptance`, even when `requireVerification` is off.
+- It is not told to ask you before closing the entry. It is told that
+  acceptance belongs to the named orchestrator.
+- It still checks new work it noticed against the roadmap for duplicates. A
+  worker lists that work in its report, and the orchestrator adds it with
+  the host's own source, such as `claude-suggested`, without asking you.
+
+Every session the list does not name, including your own sessions in the same
+project, keeps the usual prompts. So does every session when the key is
+missing or malformed. The orchestrator adds each session when it starts and
+removes the key when its run ends. Off by default.
+
 `trialLog` keeps a local log of how Foreman is used, so its own health
 numbers can be measured. Off by default. It records counts, booleans, ranks,
 elapsed seconds and names from a closed list — never a task title, a file

@@ -381,6 +381,52 @@ describe('requireVerification gate', () => {
   });
 });
 
+// [Foreman: 825] delegatedAcceptance names an orchestrator and the sessions
+// it accepts for. A listed session records the sha and is never told to ask
+// the user; any other session, the owner's own included, keeps today's text.
+describe('delegatedAcceptance', () => {
+  const delegated = { delegatedAcceptance: { orchestrator: 'orch-1', sessions: ['worker-a', 'orch-self'] } };
+
+  for (const host of ['claude', 'codex']) {
+    test(`a listed session records the sha and gets no question (${host})`, () => {
+      writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+      writeConfig(project, delegated);
+      const out = context(bashPayload('git commit -m "finish task"', { session_id: 'worker-a' }), host);
+      assert.match(out, /"id":"<id>","status":"awaiting_acceptance","commit":"<sha>"/);
+      assert.match(out, /belongs to the orchestrator orch-1/);
+      assert.match(out, /check-duplicate/);
+      assert.match(out, new RegExp(`"source":"${host}-suggested","status":"planned"`));
+      assert.doesNotMatch(out, /AskUserQuestion|(?<!don't )ask the user|"status":"done"/i);
+    });
+  }
+
+  // The session's own wording does not depend on requireVerification: the
+  // orchestrator accepts even where the project lets sessions close directly.
+  test('a listed session still records awaiting_acceptance with requireVerification off', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    writeConfig(project, { ...delegated, requireVerification: false });
+    const out = context(bashPayload('git commit -m "finish task"', { session_id: 'orch-self' }));
+    assert.match(out, /"status":"awaiting_acceptance","commit":"<sha>"/);
+    assert.doesNotMatch(out, /"status":"done"/);
+  });
+
+  // Unlisted, missing or malformed all read as the key being absent.
+  for (const [label, config, sessionId] of [
+    ['an unlisted session', delegated, 'owner-session'],
+    ['a payload with no session_id', delegated, undefined],
+    ['a malformed key', { delegatedAcceptance: { orchestrator: 'orch-1', sessions: 'worker-a' } }, 'worker-a'],
+  ]) {
+    test(`${label} keeps today's prompts`, () => {
+      writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+      writeConfig(project, config);
+      const out = context(bashPayload('git commit -m "finish task"', { session_id: sessionId }));
+      assert.match(out, /requireVerification is on/);
+      assert.match(out, /AskUserQuestion/);
+      assert.doesNotMatch(out, /orchestrator orch-1/);
+    });
+  }
+});
+
 describe('discovery block', () => {
   test('fires when discoverySuggestions is true', () => {
     writeRoadmap(project, [{ id: '001', status: 'planned' }]);

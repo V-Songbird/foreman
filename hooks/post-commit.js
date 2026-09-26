@@ -135,14 +135,28 @@ function filterUnnudged(root, ids, todayStr) {
 // prevent, and a project that never opened its config is exactly the one
 // losing that work. Opting out is an explicit `false`, and an unreadable
 // config lands on the default like every other key here.
-function readConfig(root) {
+//
+// [Foreman: 825] delegatedAcceptance scopes by session, not by project or
+// entry: `{"orchestrator": "<name>", "sessions": ["<session_id>", ...]}`
+// names the orchestrator that accepts for the listed sessions (the hook
+// input's session_id, which is the transcript file's name in Claude Code).
+// Every session it does not list, the owner's own included, keeps today's
+// prompts. Anything malformed reads as off, which is today's behavior.
+function readConfig(root, sessionId) {
   // Corrupt config reads as {} — silent here, deliberately: SessionStart/
   // PostToolUse have no user-visible channel for a warning, and {} lands on
   // every safe default above (render-sections.js owns the visible warning).
   const { config } = readConfigFile(root);
+  const delegated = config.delegatedAcceptance;
+  const orchestrator = delegated?.orchestrator;
   return {
     discoverySuggestions: config.discoverySuggestions !== false,
     requireVerification: config.requireVerification !== false,
+    delegatedTo:
+      typeof orchestrator === "string" && orchestrator && sessionId &&
+      Array.isArray(delegated.sessions) && delegated.sessions.includes(sessionId)
+        ? orchestrator
+        : null,
   };
 }
 
@@ -261,7 +275,11 @@ function dispatchedIds(entries) {
 // committed, checked, waiting on the user. The question mechanics are
 // unchanged — confirm still closes to `done`, "not ready" sends it back to
 // `in_progress` — only the status the roadmap holds meanwhile is honest.
-function statusSyncBlock(inProgress, freshlyDone, requireVerification, committedFiles, trailerIds, host = hostName()) {
+//
+// [Foreman: 825] Under delegatedAcceptance the record step stays and the
+// question goes: the named orchestrator accepts, whatever requireVerification
+// says, since a session that closes its own work would skip it.
+function statusSyncBlock(inProgress, freshlyDone, requireVerification, committedFiles, trailerIds, host = hostName(), delegatedTo = null) {
   const parts = [];
   const trailerSet = new Set(trailerIds || []);
   if (inProgress.length) {
@@ -277,7 +295,16 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
     const list = inProgress.map((e, i) => `${e.id} ("${e.title}")${tags[i]}`).join(", ");
     const caveat = tags.some(Boolean) ? " " + OVERLAP_CAVEAT : "";
     const dispatched = dispatchedIds(inProgress);
-    if (requireVerification) {
+    if (delegatedTo) {
+      parts.push(
+        `This commit may complete an in-progress ROADMAP.jsonl task (${list}). ` +
+          "If it does, record the work now: run `git rev-parse --short HEAD` for the SHA, then: " +
+          `echo '{"id":"<id>","status":"awaiting_acceptance","commit":"<sha>"}' | node "${SCRIPT_PATH}" update-status ` +
+          "(observed_touches auto-folds from the commit's diff). " +
+          `Acceptance for this session belongs to the orchestrator ${delegatedTo}: don't ask the user and don't close it yourself.` +
+          caveat
+      );
+    } else if (requireVerification) {
       parts.push(
         `This commit may complete an in-progress ROADMAP.jsonl task (${list}), ` +
           "but requireVerification is on for this project — record the work now, " +
@@ -352,7 +379,11 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
 // checkpoints also carry (skills/foreman/discovery.md). Claude Code keeps its
 // own commit-time wording below, which names its own question and
 // background-Agent tools.
-function discoveryBlock(host = hostName(), requireVerification = true) {
+//
+// [Foreman: 825] A delegated session gets one host-neutral wording instead:
+// the duplicate check stays, and nobody asks the user.
+function discoveryBlock(host = hostName(), requireVerification = true, delegatedTo = null) {
+  if (delegatedTo) return delegatedDiscoveryBlock(delegatedTo, host);
   return host === "claude"
     ? claudeDiscoveryBlock(requireVerification)
     : "[Foreman] Roadmap discovery is enabled for this project.\n" + discoveryInstructions();
@@ -405,6 +436,23 @@ function claudeDiscoveryBlock(requireVerification = true) {
     "session has no user to ask (a background agent), return each candidate and " +
     "its evidence in your final report to the session that started you, which " +
     "handles them. Don't discard them, ask the user or add entries yourself. " +
+    "Say nothing if nothing is confirmed."
+  );
+}
+
+function delegatedDiscoveryBlock(orchestrator, host) {
+  return (
+    "[Foreman] Roadmap discovery is enabled for this project. Scan this " +
+    "commit's work for CONFIRMED opportunities, bugs, or ideas — not vague " +
+    "hunches — and for work it already did beyond its entry's `what`. Run each " +
+    "candidate through the duplicate check first: " +
+    `echo '{"title":"...","why":"..."}' | node "${SCRIPT_PATH}" check-duplicate ` +
+    "— a rejected match was already declined: skip it; any other match is " +
+    "already tracked: skip it, or mention that id if this adds something. " +
+    `Acceptance for this session belongs to the orchestrator ${orchestrator}, so ` +
+    "don't ask the user. A worker lists each unmatched candidate, with its " +
+    `evidence, in its report to ${orchestrator}; the orchestrator adds it itself: ` +
+    `echo '{"title":"...","why":"...","what":"...","source":"${host}-suggested","status":"planned"}' | node "${SCRIPT_PATH}" add. ` +
     "Say nothing if nothing is confirmed."
   );
 }
@@ -489,7 +537,7 @@ function main() {
     ? filterUnnudged(root, followUpUntagged.map((e) => e.id), todayStr)
     : new Set();
   const freshlyDone = followUpUntagged.filter((e) => unnudged.has(e.id));
-  const config = readConfig(root);
+  const config = readConfig(root, data.session_id);
 
   // The just-created commit is HEAD (this hook fires after `git commit`).
   // Best-effort — [] when git can't name the files — so the tag degrades to
@@ -499,10 +547,10 @@ function main() {
 
   const blocks = [];
   if (inProgress.length || freshlyDone.length) {
-    blocks.push(statusSyncBlock(inProgress, freshlyDone, config.requireVerification, committedFiles, trailerIds));
+    blocks.push(statusSyncBlock(inProgress, freshlyDone, config.requireVerification, committedFiles, trailerIds, hostName(), config.delegatedTo));
   }
   if (config.discoverySuggestions) {
-    blocks.push(discoveryBlock(hostName(), config.requireVerification));
+    blocks.push(discoveryBlock(hostName(), config.requireVerification, config.delegatedTo));
     const dispatched = dispatchedIds([...inProgress, ...followUpAll]);
     if (dispatched.length) {
       blocks.push(

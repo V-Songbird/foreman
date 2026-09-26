@@ -186,6 +186,13 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
 
 ### Every host
 
+- A new `delegatedAcceptance` setting names an orchestrator session and the
+  sessions it accepts work for. After a commit, a listed session still records
+  the commit and moves the entry to `awaiting_acceptance`, but it is not told
+  to ask you, before closing the entry or before adding work it noticed; it
+  checks for duplicates and leaves both to the orchestrator. Sessions the
+  setting does not list, including your own, get the same prompts as before.
+  See [settings.md](../../settings.md).
 - `FOREMAN_HOST=antigravity` pins the host, and `ANTIGRAVITY_CONVERSATION_ID`
   or `ANTIGRAVITY_AGENT` in the environment selects it when nothing is pinned.
   Codex's own markers still win when both are present.
