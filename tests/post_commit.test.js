@@ -1040,6 +1040,40 @@ describe('commit directory edge cases', () => {
     assert.deepEqual(commitDirs(command, project), []);
   });
 
+  // [Foreman: 851]
+  test('env -C, env --chdir and sudo -D name the commit\'s directory', () => {
+    assert.deepEqual(commitDirs(`env -C "${other}" git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`env --chdir="${other}" HUSKY=0 git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`sudo -u root -D "${other}" git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`sudo --chdir "${other}" git commit -m x`, project), [other]);
+    // the move is the wrapped command's alone, and a missing folder stays put
+    assert.deepEqual(commitDirs(`env -C "${other}" git status; git commit -m x`, project), [project]);
+    assert.deepEqual(commitDirs(`env -C "${path.join(other, 'missing')}" git commit -m x`, project), [project]);
+    // -C is env's and -D is sudo's
+    assert.deepEqual(commitDirs(`sudo -C 3 git commit -m x`, project), [project]);
+  });
+
+  test('a wrapper before a cd, pushd or popd keeps it', () => {
+    assert.deepEqual(commitDirs(`command cd "${other}" && git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`command pushd "${other}"; command popd; git commit -m x`, project), [project]);
+  });
+
+  test('Bash reads a line continuation and an escaped character outside quotes', () => {
+    assert.deepEqual(commitDirs('git \\\n  commit -m x', project), [project]);
+    assert.deepEqual(commitDirs(`cd \\\n  "${other}" && git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs('echo \\"; git commit -m x', project), [project]);
+    assert.deepEqual(commitDirs('echo a\\; git commit -m x', project), []);
+    const spaced = path.join(other, 'my dir');
+    fs.mkdirSync(spaced);
+    assert.deepEqual(commitDirs(`cd ${spaced.replace(/\\/g, '/').replace(/ /g, '\\ ')} && git commit -m x`, project), [spaced]);
+  });
+
+  test('PowerShell reads a doubled apostrophe inside single quotes', () => {
+    const quoted = path.join(other, "it's");
+    fs.mkdirSync(quoted);
+    assert.deepEqual(commitDirs(`Set-Location '${quoted.replace(/'/g, "''")}'; git commit -m x`, project, true), [quoted]);
+  });
+
   // Codex names a PowerShell command Bash on Windows, so its hook reads both shells.
   test('outside Claude Code a Bash-named command also gets the PowerShell reading', () => {
     writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);

@@ -238,6 +238,12 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   no longer hides or invents a commit. Codex and Antigravity report every
   shell command as Bash, even when PowerShell runs it, so on those hosts the
   reminder reads the command both ways and fires if either reading commits.
+- The commit reminder now follows the folder given to `env -C` or `sudo -D`,
+  or `--chdir` for either, and keeps a `cd`, `pushd` or `popd` run through a
+  command such as `command cd <path>`. In Bash it reads a `\` at the end of a
+  line as a continued command and `\` before any other character as that
+  character. In PowerShell it reads `''` inside single quotes as one
+  apostrophe.
 - `FOREMAN_HOST=antigravity` pins the host, and `ANTIGRAVITY_CONVERSATION_ID`
   or `ANTIGRAVITY_AGENT` in the environment selects it when nothing is pinned.
   Codex's own markers still win when both are present.

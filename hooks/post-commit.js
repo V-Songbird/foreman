@@ -28,17 +28,20 @@ const WATCHED_TOOLS = new Set(["Bash", "PowerShell"]);
 // with a backtick, where `\` stays literal, as in "C:\dir\". Each shell reads
 // its own escapes when splitting commands and tokens, and drops them from a
 // quoted token.
+// [Foreman: 851] Outside quotes Bash reads `\X` as the one character X and a
+// `\` before a newline as a line continuation, which separates tokens here.
+// PowerShell writes an apostrophe inside single quotes as `''`.
 const SHELLS = {
   bash: {
-    part: /(?:"(?:\\[\s\S]|[^"\\])*"|'[^']*'|(?<!&)&(?!&)|[^;&|\n])+/g,
-    token: /(?:"(?:\\[\s\S]|[^"\\])*"|'[^']*'|\S)+/g,
-    quoted: /"((?:\\[\s\S]|[^"\\])*)"|'([^']*)'/g,
+    part: /(?:"(?:\\[\s\S]|[^"\\])*"|'[^']*'|\\[\s\S]|(?<!&)&(?!&)|[^;&|\n])+/g,
+    token: /(?:"(?:\\[\s\S]|[^"\\])*"|'[^']*'|\\[^\n]|[^\s\\])+/g,
+    quoted: /"((?:\\[\s\S]|[^"\\])*)"|'([^']*)'|\\([\s\S])/g,
     escape: /\\(["\\$`])/g,
   },
   powershell: {
     part: /(?:"(?:`[\s\S]|[^"`])*"|'[^']*'|(?<!&)&(?!&)|[^;&|\n])+/g,
     token: /(?:"(?:`[\s\S]|[^"`])*"|'[^']*'|\S)+/g,
-    quoted: /"((?:`[\s\S]|[^"`])*)"|'([^']*)'/g,
+    quoted: /"((?:`[\s\S]|[^"`])*)"|'((?:[^']|'')*)'/g,
     escape: /`([\s\S])/g,
   },
 };
@@ -68,7 +71,11 @@ const PUSH_COMMANDS = new Set(["pushd", "push-location"]);
 const POP_COMMANDS = new Set(["popd", "pop-location"]);
 // [Foreman: 844] Words that run the command after them: `env git`, `sudo -u
 // root git`, PowerShell's `& git`. Their own options are skipped up to the git.
+// [Foreman: 851] The skip also stops at a `cd`, `pushd` or `popd`, as in
+// `command cd dir`, and follows the directory option of `env -C dir` and
+// `sudo -D dir`, `--chdir` in both.
 const WRAPPERS = new Set(["&", "command", "env", "exec", "nohup", "sudo", "time"]);
+const WRAPPER_CHDIR = { env: /^(?:-C|--chdir(?:=|$))/, sudo: /^(?:-D|--chdir(?:=|$))/ };
 const GIT_RE = /(?:^|[\\/])git(?:\.exe)?$/i;
 const ASSIGNMENT_RE = /^(\w+)=([\s\S]*)$/;
 
@@ -94,17 +101,26 @@ function commitDirs(command, cwd, powershell = false) {
     let closes = 0;
     for (; part.endsWith(")"); part = part.slice(0, -1).trimEnd()) closes++;
     const tokens = (part.match(shell.token) || []).map((t) =>
-      t.replace(shell.quoted, (match, double, single) => single ?? double.replace(shell.escape, "$1"))
+      t.replace(shell.quoted, (match, double, single, escaped) =>
+        double !== undefined ? double.replace(shell.escape, "$1") : single !== undefined ? single.replace(/''/g, "'") : escaped
+      )
     );
     const assigned = {};
     let head = "";
+    let here = dir;
     while (tokens.length && !head) {
       const token = tokens.shift();
+      const word = token.toLowerCase();
       const [, name, value] = token.match(ASSIGNMENT_RE) || [];
       if (name) assigned[name] = value;
-      else if (WRAPPERS.has(token.toLowerCase())) {
-        while (tokens.length && !GIT_RE.test(tokens[0]) && !ASSIGNMENT_RE.test(tokens[0])) tokens.shift();
-      } else head = token.toLowerCase();
+      else if (WRAPPERS.has(word)) {
+        const stop = (t) => GIT_RE.test(t) || ASSIGNMENT_RE.test(t) || [CD_COMMANDS, PUSH_COMMANDS, POP_COMMANDS].some((s) => s.has(t.toLowerCase()));
+        while (tokens.length && !stop(tokens[0])) {
+          const option = tokens.shift();
+          const chdir = WRAPPER_CHDIR[word]?.exec(option);
+          if (chdir) here = moveTo(here, option.slice(chdir[0].length) || tokens.shift() || "");
+        }
+      } else head = word;
     }
     // A bare `-` is `cd -`, the previous directory: an argument that names no
     // folder, so the shell reads as staying put.
@@ -116,7 +132,7 @@ function commitDirs(command, cwd, powershell = false) {
     } else if (CD_COMMANDS.has(head)) {
       if (args.length < 2) dir = moveTo(dir, args[0]);
     } else if (GIT_RE.test(head)) {
-      let gitDir = dir;
+      let gitDir = here;
       let workTree = assigned.GIT_WORK_TREE;
       let repo = assigned.GIT_DIR;
       while (tokens.length && tokens[0].startsWith("-")) {
