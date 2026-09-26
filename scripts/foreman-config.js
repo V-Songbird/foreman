@@ -30,4 +30,19 @@ function readConfigFile(root) {
   }
 }
 
-module.exports = { configPath, readConfigFile };
+// [Foreman: 825, 828] delegatedAcceptance scopes by session, not by project
+// or entry: `{"orchestrator": "<name>", "sessions": ["<session_id>", ...]}`
+// names the orchestrator that accepts for the listed sessions (the hook
+// input's session_id, which is the transcript file's name in Claude Code).
+// Every session it does not list, the owner's own included, keeps today's
+// prompts. Anything malformed reads as off (null), which is today's behavior.
+function delegatedOrchestrator(config, sessionId) {
+  const delegated = config.delegatedAcceptance;
+  const orchestrator = delegated?.orchestrator;
+  return typeof orchestrator === "string" && orchestrator && sessionId &&
+    Array.isArray(delegated.sessions) && delegated.sessions.includes(sessionId)
+    ? orchestrator
+    : null;
+}
+
+module.exports = { configPath, readConfigFile, delegatedOrchestrator };

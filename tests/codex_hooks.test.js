@@ -16,6 +16,7 @@ const { makeTmpProject, writeRoadmap, writeConfig, runScriptRaw, runNodeScript, 
 const { patchPaths, projectDir } = require("../hooks/lib");
 const { commitFailed } = require("../hooks/post-commit");
 const { currentScope } = require("../hooks/codex-task");
+const { discoveryInstructions } = require("../scripts/discovery");
 
 const CODEX_HOOKS = path.join(HOOKS_DIR, "codex-hooks.json");
 
@@ -54,6 +55,26 @@ test("discovery is disabled at execution time by the project setting", () => {
   writeConfig(root, { discoverySuggestions: false });
   assert.equal(JSON.parse(task("start").stdout).discovery, undefined);
   assert.equal(JSON.parse(task("check").stdout).discovery, undefined);
+});
+
+// [Foreman: 828] A checkpoint in a session delegatedAcceptance lists names the
+// orchestrator and never tells the session to ask the user; another session
+// keeps the shared policy.
+test("a listed session's checkpoint defers to the orchestrator; an unlisted one is unchanged", () => {
+  writeConfig(root, { delegatedAcceptance: { orchestrator: "orch-1", sessions: [session] } });
+  for (const result of [JSON.parse(task("start").stdout), JSON.parse(task("check").stdout)]) {
+    assert.equal(result.delegatedTo, "orch-1");
+    assert.match(result.discovery, /belongs to the orchestrator orch-1/);
+    assert.match(result.discovery, /check-duplicate/);
+    assert.match(result.discovery, /"source":"codex-suggested","status":"planned"/);
+    assert.doesNotMatch(result.discovery, /(?<!don't )ask the user|Wait for a decision/i);
+  }
+  const other = JSON.parse(runNodeScript(path.join(HOOKS_DIR, "codex-task.js"), ["check", "--id", "002", "--root", root, "--session", "someone-else"], null, { FOREMAN_HOST: "codex" }).stdout);
+  assert.equal(other.delegatedTo, undefined);
+  assert.equal(other.discovery, discoveryInstructions());
+  const subagent = JSON.parse(task("check", "002", ["--agent", "worker"]).stdout);
+  assert.equal(subagent.delegatedTo, undefined);
+  assert.match(subagent.discovery, /returns candidates and evidence to its coordinator/);
 });
 
 test("background checkpoint returns candidates to the coordinator instead of discarding them", () => {

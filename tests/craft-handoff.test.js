@@ -96,6 +96,57 @@ beforeEach(() => {
   writeSourceFile(project);
 });
 
+// [Foreman: 837] A session delegatedAcceptance lists gets a close that reports
+// to its orchestrator; every other session, and any clipboard prompt, gets
+// exactly today's text.
+describe('delegatedAcceptance close', () => {
+  const delegated = { delegatedAcceptance: { orchestrator: 'orch-1', sessions: ['worker-a'] } };
+  const claudeSession = (id) => ({ CLAUDE_CODE_SESSION_ID: id, CODEX_SESSION_ID: '', CODEX_THREAD_ID: '' });
+  const codexSession = (id) => ({ CLAUDE_CODE_SESSION_ID: '', CODEX_SESSION_ID: '', CODEX_THREAD_ID: id });
+  const craft = (destination, host, env) => {
+    const { status, json } = run(project, { entry: '001', destination, host, judgment: goodJudgment() }, env);
+    assert.equal(status, 0, JSON.stringify(json));
+    return json.prompt;
+  };
+
+  beforeEach(() => writeRoadmap(project, [entryFields()]));
+
+  test('a listed Claude Code session reports to the orchestrator and asks the user nothing', () => {
+    writeConfig(project, { ...delegated, requireVerification: false });
+    const prompt = craft('task', 'claude', claudeSession('worker-a'));
+    assert.match(prompt, /write `awaiting_acceptance` instead — this project holds finished work for the orchestrator orch-1's acceptance/);
+    assert.match(prompt, /belongs to the orchestrator orch-1, so don't ask the user: report the evidence/);
+    assert.doesNotMatch(prompt, /AskUserQuestion|the user's acceptance/);
+    assert.match(craft('agent', 'claude', claudeSession('worker-a')), /needs the orchestrator orch-1's acceptance, not the user's/);
+  });
+
+  test('a listed Codex session reports to the orchestrator in its close, checkpoint and discovery', () => {
+    writeConfig(project, delegated);
+    const prompt = craft('task', 'codex', codexSession('worker-a'));
+    assert.match(prompt, /belongs to the orchestrator orch-1, so do not ask the user\. Report the concrete result/);
+    assert.match(prompt, /still awaits the orchestrator orch-1's acceptance/);
+    assert.match(prompt, /in its report to orch-1/);
+    assert.doesNotMatch(prompt, /final user acceptance|the user's acceptance/);
+    const agent = craft('agent', 'codex', codexSession('worker-a'));
+    assert.match(agent, /Return the result to the coordinator, which reports it to orch-1\./);
+    assert.match(agent, /returns candidates and evidence to its coordinator/);
+  });
+
+  for (const host of ['claude', 'codex']) {
+    test(`an unlisted session and a clipboard prompt keep today's text (${host})`, () => {
+      const session = host === 'claude' ? claudeSession : codexSession;
+      const before = {};
+      for (const destination of ['task', 'agent', 'clipboard']) before[destination] = craft(destination, host, session('worker-a'));
+      writeConfig(project, delegated);
+      for (const destination of ['task', 'agent']) assert.equal(craft(destination, host, session('owner')), before[destination]);
+      assert.equal(craft('clipboard', host, session('worker-a')), before.clipboard);
+      // A listed id inherited from the other host's environment is not this session's.
+      const other = host === 'claude' ? codexSession : claudeSession;
+      assert.equal(craft('task', host, other('worker-a')), before.task);
+    });
+  }
+});
+
 // Codex carries the one discovery policy (skills/foreman/discovery.md) into
 // every handoff; Claude Code raises discovery from its commit hook instead.
 describe('discovery in Codex handoffs', () => {

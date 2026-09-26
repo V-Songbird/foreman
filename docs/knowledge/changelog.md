@@ -52,6 +52,12 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
 - Suggestions an Antigravity session records carry
   `source: "antigravity-suggested"`; an older Foreman reports that value as
   `unknown_source` until it is upgraded.
+- A conversation that `delegatedAcceptance` lists is told once, at its next
+  model call, which `--session` value to pass to `hooks/codex-task.js start`
+  and `check`. With it, the checkpoints return the orchestrator's name as
+  `delegatedTo`, as they do in Codex. Conversations the setting does not list
+  see no change. A `check` in Antigravity no longer leaves a stop-reminder
+  file behind, since that host has no stop event to read it.
 - Not available there: the `taskCloseGate` reminder, which needs a task or
   stop event, the session-fullness advice, and review between increments.
 
@@ -69,6 +75,9 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   through an `if` rule on each of its two registrations, so other shell calls
   no longer start a Node process for it. The session-fullness hook still runs
   on every shell call.
+- The session-fullness hook now fails open like Foreman's other hooks: an
+  error inside it exits cleanly and prints nothing, instead of reporting a
+  hook error after a shell call.
 - The session-start hook, which mentions open entries, may take 10 seconds
   instead of 5, so a slow first session after boot on Windows no longer cuts
   it off.
@@ -176,9 +185,71 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   and writes nothing: `start --id 999 --id 001` used to start 001. `--id=001`
   now works, an empty value such as `--agent ""` fails, and every flag error
   names the four flags.
+- On Windows, a Codex hook that finds Node.js only through fnm no longer
+  writes PowerShell progress records ("Preparing modules for first use") to
+  stderr as CLIXML the first time PowerShell loads its modules. The launcher
+  silences progress output and starts `powershell.exe` with `-NoLogo`.
 
 ### Every host
 
+- A new `delegatedAcceptance` setting names an orchestrator session and the
+  sessions it accepts work for. After a commit, a listed session still records
+  the commit and moves the entry to `awaiting_acceptance`, but it is not told
+  to ask you, before closing the entry or before adding work it noticed; it
+  checks for duplicates and leaves both to the orchestrator. Sessions the
+  setting does not list, including your own, get the same prompts as before.
+  See [settings.md](../../settings.md).
+- `delegatedAcceptance` now also covers the task checkpoints and the roadmap
+  skill's steps, not only the commit reminder. In Codex, `codex-task.js start`
+  and `check` in a listed session return the orchestrator's name as
+  `delegatedTo`, and their discovery text says to report new work to the
+  orchestrator instead of asking you. The roadmap skill's close, acceptance
+  and discovery steps say the same.
+- `delegatedAcceptance` now also reaches handoffs. When a listed session
+  crafts a handoff to run itself or to give its background agent, the close
+  says to report the result to the orchestrator and to leave the entry
+  `awaiting_acceptance`, instead of asking you. In Codex, the handoff's
+  discovery text reports new work to the orchestrator too. A handoff copied to
+  the clipboard, and any handoff from a session the setting does not list,
+  reads as before. The pick menu's accept step says that the orchestrator's
+  decision replaces yours for the sessions it lists.
+- The commit reminder no longer fires for a commit made in another
+  repository. The reminder now reads where the commit ran from the command
+  itself: an earlier `cd`, `pushd` or `Set-Location` in the same command, and
+  `git -C <path>`. A commit outside the project, or in a nested repository
+  that is not one of its submodules, gets no reminder. A commit in a
+  submodule, such as `git -C <submodule> commit` from the project root, still
+  gets one, and it now reads that submodule's own `Foreman:` trailer and files.
+- The commit reminder reads more commands correctly. It no longer fires for
+  text that only quotes a commit, such as `git commit` inside an `echo`
+  string, a heredoc or a commit message. It now follows `popd` and
+  `Pop-Location`, a subshell such as `(cd <path> && git commit)`, and
+  `git --work-tree` or `git --git-dir=<repo>/.git`. A quoted path keeps its
+  apostrophes, and on Windows a Git Bash `/tmp/...` path reads as the temp
+  folder. A `cd` given two arguments, such as `cd /d <path>`, fails in Bash
+  and PowerShell, so the reminder treats the commit as made where the shell
+  was. When the reminder cannot tell where a commit ran, it still fires.
+- The commit reminder now also fires for a commit that starts with a variable
+  assignment, such as `HUSKY=0 git commit`, and follows `GIT_DIR` and
+  `GIT_WORK_TREE` set that way. It also fires for `git.exe` or a full path to
+  Git, and for Git run through `command`, `env`, `exec`, `nohup`, `sudo`,
+  `time` or PowerShell's `&`. Inside double quotes it reads Bash's `\"` and
+  PowerShell's `` ` ``-escaped quote as part of the text, so a quoted message
+  no longer hides or invents a commit. Codex and Antigravity report every
+  shell command as Bash, even when PowerShell runs it, so on those hosts the
+  reminder reads the command both ways and fires if either reading commits.
+- The commit reminder now follows the folder given to `env -C` or `sudo -D`,
+  or `--chdir` for either, and keeps a `cd`, `pushd` or `popd` run through a
+  command such as `command cd <path>`. In Bash it reads a `\` at the end of a
+  line as a continued command and `\` before any other character as that
+  character. In PowerShell it reads `''` inside single quotes as one
+  apostrophe.
+- In PowerShell the commit reminder now reads a backtick at the end of a line
+  as a continued command, and a backtick before another character as that
+  character, inside or outside double quotes. PowerShell's own escapes keep
+  their meaning: `` `t `` is a tab and `` `u{41} `` is `A`. The reminder also
+  follows the folder of `env -C` or `sudo -D` when the option is grouped with
+  others, as in `env -iC <path>`.
 - `FOREMAN_HOST=antigravity` pins the host, and `ANTIGRAVITY_CONVERSATION_ID`
   or `ANTIGRAVITY_AGENT` in the environment selects it when nothing is pinned.
   Codex's own markers still win when both are present.
@@ -470,6 +541,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   written earlier with a doubled date read right everywhere a stamp is read:
   the recall excerpt, the handoff's notes cap, the health report's correction
   count and the commit reminder's dispatch marker.
+- For contributors: the pre-commit hook now prints only the test suite's
+  summary when the tests pass, and the summary with the failing tests when one
+  fails. It still blocks the commit on a failure. Before, it printed the whole
+  suite's output.
 
 ## 3.1.0 — 2026-09-15
 

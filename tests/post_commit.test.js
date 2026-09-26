@@ -33,7 +33,8 @@ const {
   initGitRepo,
   commitFile,
 } = require('./helpers');
-const { discoveryInstructions } = require('../scripts/discovery');
+const { discoveryInstructions, duplicateCheckStep } = require('../scripts/discovery');
+const { discoveryBlock, SCRIPT_PATH } = require('../hooks/post-commit');
 
 let project;
 let env;
@@ -379,6 +380,89 @@ describe('requireVerification gate', () => {
     const out = run(bashPayload('git commit -m "finish task"'));
     assert.match(out, /requireVerification is on/);
   });
+});
+
+// [Foreman: 825] delegatedAcceptance names an orchestrator and the sessions
+// it accepts for. A listed session records the sha and is never told to ask
+// the user; any other session, the owner's own included, keeps today's text.
+describe('delegatedAcceptance', () => {
+  const delegated = { delegatedAcceptance: { orchestrator: 'orch-1', sessions: ['worker-a', 'orch-self'] } };
+
+  for (const host of ['claude', 'codex']) {
+    test(`a listed session records the sha and gets no question (${host})`, () => {
+      writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+      writeConfig(project, delegated);
+      const out = context(bashPayload('git commit -m "finish task"', { session_id: 'worker-a' }), host);
+      assert.match(out, /"id":"<id>","status":"awaiting_acceptance","commit":"<sha>"/);
+      assert.match(out, /belongs to the orchestrator orch-1/);
+      assert.match(out, /check-duplicate/);
+      assert.match(out, new RegExp(`"source":"${host}-suggested","status":"planned"`));
+      assert.doesNotMatch(out, /AskUserQuestion|(?<!don't )ask the user|"status":"done"/i);
+    });
+  }
+
+  // The orchestrator lists its own session too, so the line must not tell
+  // it to leave its own acceptance to itself.
+  test('the acceptance line leaves the orchestrator its close', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    writeConfig(project, delegated);
+    const out = context(bashPayload('git commit -m "finish task"', { session_id: 'orch-self' }));
+    assert.match(out, /Unless this session is that orchestrator, don't close it yourself/);
+  });
+
+  // The follow-up branch names the orchestrator as the acceptor too, and
+  // keeps the entry's status.
+  test('a follow-up commit on an awaiting entry names the orchestrator', () => {
+    writeRoadmap(project, [{ id: '001', title: 'ship it', status: 'awaiting_acceptance' }]);
+    writeConfig(project, { ...delegated, discoverySuggestions: false });
+    const out = context(bashPayload('git commit -m "fix after"', { session_id: 'worker-a' }));
+    assert.match(out, /waiting on the orchestrator orch-1's acceptance/);
+    assert.match(out, /"status":"<its status above>","commit":"<sha>"/);
+    assert.doesNotMatch(out, /your acceptance|AskUserQuestion/);
+  });
+
+  // [Foreman: 828] Claude Code's wording and the delegated one carry the
+  // same duplicate check.
+  test('both commit-time wordings share the duplicate check', () => {
+    const step = duplicateCheckStep(SCRIPT_PATH);
+    assert.ok(discoveryBlock('claude').includes(step));
+    assert.ok(discoveryBlock('claude', true, 'orch-1').includes(step));
+  });
+
+  // The delegated wording already routes findings, so the dispatch-marker
+  // block would only repeat it.
+  test('a listed session gets no separate dispatch-marker block', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress', notes: 'dispatched to background agent `a1`' }]);
+    writeConfig(project, delegated);
+    const out = context(bashPayload('git commit -m "finish task"', { session_id: 'worker-a' }));
+    assert.doesNotMatch(out, /carry a dispatch marker/);
+  });
+
+  // The session's own wording does not depend on requireVerification: the
+  // orchestrator accepts even where the project lets sessions close directly.
+  test('a listed session still records awaiting_acceptance with requireVerification off', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    writeConfig(project, { ...delegated, requireVerification: false });
+    const out = context(bashPayload('git commit -m "finish task"', { session_id: 'orch-self' }));
+    assert.match(out, /"status":"awaiting_acceptance","commit":"<sha>"/);
+    assert.doesNotMatch(out, /"status":"done"/);
+  });
+
+  // Unlisted, missing or malformed all read as the key being absent.
+  for (const [label, config, sessionId] of [
+    ['an unlisted session', delegated, 'owner-session'],
+    ['a payload with no session_id', delegated, undefined],
+    ['a malformed key', { delegatedAcceptance: { orchestrator: 'orch-1', sessions: 'worker-a' } }, 'worker-a'],
+  ]) {
+    test(`${label} keeps today's prompts`, () => {
+      writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+      writeConfig(project, config);
+      const out = context(bashPayload('git commit -m "finish task"', { session_id: sessionId }));
+      assert.match(out, /requireVerification is on/);
+      assert.match(out, /AskUserQuestion/);
+      assert.doesNotMatch(out, /orchestrator orch-1/);
+    });
+  }
 });
 
 describe('discovery block', () => {
@@ -747,6 +831,70 @@ describe('commit scope resolution', () => {
     assert.equal(out, '');
   });
 
+  // [Foreman: 827] The payload cwd is the project, but the command commits in
+  // an unrelated repository it names itself.
+  for (const [label, command] of [
+    ['a leading cd', (dir) => `cd "${dir}" && git commit -m "wip"`],
+    ['git -C', (dir) => `git -C "${dir}" commit -m "wip"`],
+    ['PowerShell Set-Location', (dir) => `Set-Location -Path '${dir}'; git commit -m "wip"`],
+  ]) {
+    test(`a commit in an unrelated repository named by ${label} produces no output`, () => {
+      const outsideRepo = makeTmpProject();
+      initGitRepo(outsideRepo);
+      commitFile(outsideRepo, 'unrelated.js', 'unrelated');
+      commitFile(project, 'root.js', 'root');
+      writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+      assert.equal(run(bashPayload(command(outsideRepo))), '');
+    });
+  }
+
+  test('a chain that commits in the project and then elsewhere keeps the project nudge', () => {
+    const outsideRepo = makeTmpProject();
+    initGitRepo(outsideRepo);
+    commitFile(outsideRepo, 'unrelated.js', 'unrelated');
+    commitFile(project, 'src/a.js', 'content');
+    writeRoadmap(project, [
+      { id: '001', title: 'root work', status: 'in_progress', planned_touches: ['src/a.js'] },
+    ]);
+    const out = run(bashPayload(`git commit -m "a" && git -C "${outsideRepo}" commit -m "b"`));
+    assert.match(out, /may complete an in-progress/i);
+    // the project's own commit is the one read, not the other repository's
+    assert.match(out, /\[files overlap its planned files\]/);
+  });
+
+  test('a Git Bash drive path names the same repository on Windows', { skip: process.platform !== 'win32' }, () => {
+    const outsideRepo = makeTmpProject();
+    initGitRepo(outsideRepo);
+    commitFile(outsideRepo, 'unrelated.js', 'unrelated');
+    commitFile(project, 'root.js', 'root');
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    const msys = `/${outsideRepo[0].toLowerCase()}${outsideRepo.slice(2).replace(/\\/g, '/')}`;
+    assert.equal(run(bashPayload(`cd ${msys} && git commit -m "wip"`)), '');
+  });
+
+  test('a cd that fails leaves the commit in the project, which keeps its nudge', () => {
+    commitFile(project, 'root.js', 'root');
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    const missing = path.join(path.dirname(project), 'missing');
+    assert.match(run(bashPayload(`cd "${missing}"; git commit -m "wip"`)), /may complete an in-progress/i);
+  });
+
+  for (const [label, command] of [
+    ['git -C', 'git -C lib commit -m "work in submodule"'],
+    ['a relative cd', 'cd lib && git commit -m "work in submodule"'],
+    ['a cd through an environment variable', 'cd "$CLAUDE_PROJECT_DIR/lib" && git commit -m "work in submodule"'],
+  ]) {
+    test(`${label} into a submodule from the project root keeps the submodule's nudge`, () => {
+      commitFile(project, 'root.js', 'root content');
+      const sub = addSubmodule(project, 'lib');
+      commitWithMessage(sub, 'inner.js', 'inner content', 'work in submodule\n\nForeman: 001');
+      writeRoadmap(project, [
+        { id: '001', title: 'the submodule task', status: 'in_progress', planned_touches: ['lib/inner.js'] },
+      ]);
+      assert.match(run(bashPayload(command)), /named in this commit's Foreman: trailer/);
+    });
+  }
+
   test('a commit inside a submodule reads that submodule\'s own files and trailer, not the parent\'s', () => {
     commitFile(project, 'root.js', 'root content');
     const sub = addSubmodule(project, 'lib');
@@ -789,6 +937,177 @@ describe('commit scope resolution', () => {
     assert.match(legacy.stdout, /named in this commit's Foreman: trailer/);
     // Without that root the cwd names the submodule, which holds no roadmap.
     assert.equal(run(payload, 'codex'), '');
+  });
+});
+
+// [Foreman: 831] How the shell reaches the commit's directory. commitDirs only
+// checks that each directory exists, so plain folders stand in for repositories.
+describe('commit directory edge cases', () => {
+  const os = require('os');
+  const { commitDirs } = require('../hooks/post-commit');
+  let other;
+  beforeEach(() => {
+    other = makeTmpProject();
+  });
+
+  test('a separator inside quotes does not start a command', () => {
+    assert.deepEqual(commitDirs(`echo '{"why":"(cd x && git commit -m y)"}' | node roadmap.js add`, project), []);
+    assert.deepEqual(commitDirs(`node roadmap.js add <<'EOF'\n{"why":"x; git commit -m y"}\nEOF`, project), []);
+    assert.deepEqual(commitDirs(`git status -m "a; cd ${other} && b" && git commit -m x`, project), [project]);
+  });
+
+  test('an apostrophe in a heredoc or here-string body does not hide a later commit', () => {
+    assert.deepEqual(commitDirs(`cat > n.md <<'EOF'\nIt's done\nEOF\ngit add n.md && git commit -m 'notes'`, project), [project]);
+    assert.deepEqual(commitDirs(`$m = @'\nIt's done\n'@\ngit commit -m 'notes'`, project), [project]);
+    assert.deepEqual(commitDirs(`cat <<EOF\ngit commit -m y\nEOF`, project), []);
+  });
+
+  test('cd - and a bare Push-Location leave the directory where it was', () => {
+    assert.deepEqual(commitDirs('cd - && git commit -m x', project), [project]);
+    assert.deepEqual(commitDirs('Push-Location; git commit -m x', project), [project]);
+  });
+
+  test('popd and Pop-Location return to the directory pushd left', () => {
+    assert.deepEqual(commitDirs(`pushd "${other}"; popd; git commit -m x`, project), [project]);
+    assert.deepEqual(commitDirs(`Push-Location '${other}'; Pop-Location; git commit -m x`, project), [project]);
+    assert.deepEqual(commitDirs(`pushd "${other}" && git commit -m x`, project), [other]);
+  });
+
+  test('a subshell commits where it moved, and the shell returns after it', () => {
+    assert.deepEqual(commitDirs(`(cd "${other}" && git commit -m x)`, project), [other]);
+    assert.deepEqual(commitDirs(`(cd "${other}" && git status); git commit -m x`, project), [project]);
+  });
+
+  test('a cd with two arguments, such as cmd\'s cd /d, stays where it was', () => {
+    assert.deepEqual(commitDirs(`cd /d "${other}" && git commit -m x`, project), [project]);
+  });
+
+  test('an apostrophe inside a quoted path stays part of it', () => {
+    const quoted = path.join(other, "it's");
+    fs.mkdirSync(quoted);
+    assert.deepEqual(commitDirs(`cd "${quoted}" && git commit -m x`, project), [quoted]);
+  });
+
+  test('--work-tree and a <repo>/.git --git-dir name the commit\'s repository', () => {
+    const gitDir = path.join(other, '.git');
+    assert.deepEqual(commitDirs(`git --work-tree="${other}" commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`git --git-dir="${gitDir}" commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`git --git-dir "${gitDir}" --work-tree "${other}" commit -m x`, project), [other]);
+    // any other --git-dir layout names no work tree, so the shell's directory stands
+    assert.deepEqual(commitDirs(`git --git-dir="${path.join(other, 'bare')}" commit -m x`, project), [project]);
+  });
+
+  test('Git Bash /tmp reads as the temp directory on Windows', { skip: process.platform !== 'win32' }, () => {
+    const rel = path.relative(os.tmpdir(), other).replace(/\\/g, '/');
+    assert.deepEqual(commitDirs(`cd /tmp/${rel} && git commit -m x`, project), [other]);
+  });
+
+  // [Foreman: 844]
+  test('leading NAME=value assignments are skipped, and GIT_DIR and GIT_WORK_TREE are followed', () => {
+    assert.deepEqual(commitDirs('HUSKY=0 git commit -m x', project), [project]);
+    assert.deepEqual(commitDirs('GIT_AUTHOR_DATE="2026-01-01 00:00" GIT_COMMITTER_DATE=x git commit -m x', project), [project]);
+    assert.deepEqual(commitDirs(`GIT_DIR="${path.join(other, '.git')}" git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`GIT_WORK_TREE='${other}' git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`GIT_WORK_TREE='${other}' git --work-tree=. commit -m x`, project), [project]);
+    assert.deepEqual(commitDirs('HUSKY=0 git log --grep commit', project), []);
+  });
+
+  test('git.exe, a path to git and the common wrappers still read as git', () => {
+    for (const command of [
+      'git.exe commit -m x',
+      '/usr/bin/git commit -m x',
+      'command git commit -m x',
+      'env HUSKY=0 git commit -m x',
+      'sudo -u root git commit -m x',
+      'nohup time git commit -m x',
+    ]) {
+      assert.deepEqual(commitDirs(command, project), [project], command);
+    }
+    assert.deepEqual(commitDirs('& "C:\\Program Files\\Git\\cmd\\git.exe" commit -m x', project, true), [project]);
+    assert.deepEqual(commitDirs(`env GIT_WORK_TREE="${other}" git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs('command -v git', project), []);
+    assert.deepEqual(commitDirs('env git log', project), []);
+  });
+
+  test('each shell reads its own escaped quote inside double quotes', () => {
+    assert.deepEqual(commitDirs('echo "a \\" b" && git commit -m "c"', project), [project]);
+    assert.deepEqual(commitDirs('echo "\\"; git commit -m x; echo \\""', project), []);
+    assert.deepEqual(commitDirs('echo "a `" b" ; git commit -m "c"', project, true), [project]);
+    // PowerShell keeps \ literal, so "C:\dir\" closes at its last quote;
+    // Bash reads \" as an escaped quote and the string runs on to "x"
+    const command = 'echo "C:\\dir\\" ; git commit -m "x"';
+    assert.deepEqual(commitDirs(command, project, true), [project]);
+    assert.deepEqual(commitDirs(command, project), []);
+  });
+
+  // [Foreman: 851]
+  test('env -C, env --chdir and sudo -D name the commit\'s directory', () => {
+    assert.deepEqual(commitDirs(`env -C "${other}" git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`env --chdir="${other}" HUSKY=0 git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`sudo -u root -D "${other}" git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`sudo --chdir "${other}" git commit -m x`, project), [other]);
+    // the move is the wrapped command's alone, and a missing folder stays put
+    assert.deepEqual(commitDirs(`env -C "${other}" git status; git commit -m x`, project), [project]);
+    assert.deepEqual(commitDirs(`env -C "${path.join(other, 'missing')}" git commit -m x`, project), [project]);
+    // -C is env's and -D is sudo's
+    assert.deepEqual(commitDirs(`sudo -C 3 git commit -m x`, project), [project]);
+  });
+
+  test('a wrapper before a cd, pushd or popd keeps it', () => {
+    assert.deepEqual(commitDirs(`command cd "${other}" && git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`command pushd "${other}"; command popd; git commit -m x`, project), [project]);
+  });
+
+  test('Bash reads a line continuation and an escaped character outside quotes', () => {
+    assert.deepEqual(commitDirs('git \\\n  commit -m x', project), [project]);
+    assert.deepEqual(commitDirs(`cd \\\n  "${other}" && git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs('echo \\"; git commit -m x', project), [project]);
+    assert.deepEqual(commitDirs('echo a\\; git commit -m x', project), []);
+    const spaced = path.join(other, 'my dir');
+    fs.mkdirSync(spaced);
+    assert.deepEqual(commitDirs(`cd ${spaced.replace(/\\/g, '/').replace(/ /g, '\\ ')} && git commit -m x`, project), [spaced]);
+  });
+
+  test('PowerShell reads a doubled apostrophe inside single quotes', () => {
+    const quoted = path.join(other, "it's");
+    fs.mkdirSync(quoted);
+    assert.deepEqual(commitDirs(`Set-Location '${quoted.replace(/'/g, "''")}'; git commit -m x`, project, true), [quoted]);
+  });
+
+  // [Foreman: 854]
+  test('PowerShell reads a backtick continuation and a backtick escape outside quotes', () => {
+    assert.deepEqual(commitDirs('git `\n  commit -m x', project, true), [project]);
+    assert.deepEqual(commitDirs('git `\r\n  commit -m x', project, true), [project]);
+    assert.deepEqual(commitDirs(`Set-Location \`\n  "${other}"; git commit -m x`, project, true), [other]);
+    assert.deepEqual(commitDirs('echo a`; git commit -m x', project, true), []);
+    const spaced = path.join(other, 'my dir');
+    fs.mkdirSync(spaced);
+    assert.deepEqual(commitDirs(`cd ${spaced.replace(/ /g, '` ')}; git commit -m x`, project, true), [spaced]);
+    // PowerShell's own escapes: `u{41} is A and `q is q, but `t is a tab, not t
+    const odd = path.join(other, 'aAq');
+    fs.mkdirSync(odd);
+    fs.mkdirSync(path.join(other, 'atb'));
+    assert.deepEqual(commitDirs(`cd "${other}\\a\`u{41}\`q"; git commit -m x`, project, true), [odd]);
+    assert.deepEqual(commitDirs(`cd ${other}\\a\`u{41}\`q; git commit -m x`, project, true), [odd]);
+    assert.deepEqual(commitDirs(`cd ${other}\\a\`tb; git commit -m x`, project, true), [project]);
+    // an escape out of range stays put instead of throwing
+    assert.deepEqual(commitDirs('cd a`u{110000}; git commit -m x', project, true), [project]);
+  });
+
+  test('env and sudo read their directory option inside a group of short options', () => {
+    assert.deepEqual(commitDirs(`env -iC "${other}" git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`env -iC"${other}" git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`sudo -ED "${other}" git commit -m x`, project), [other]);
+    // -u takes the rest of the group as its value, so -uC unsets C
+    assert.deepEqual(commitDirs(`env -uC "${other}" git commit -m x`, project), [project]);
+  });
+
+  // Codex names a PowerShell command Bash on Windows, so its hook reads both shells.
+  test('outside Claude Code a Bash-named command also gets the PowerShell reading', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    const command = 'echo "C:\\dir\\" ; git commit -m "x"';
+    assert.match(context(bashPayload(command), 'codex'), /in-progress ROADMAP\.jsonl task/);
+    assert.equal(run(bashPayload(command)), '');
   });
 });
 

@@ -524,6 +524,20 @@ describe('doctor config findings', () => {
     assert.deepEqual(fields.sort(), ['checkpoints.onFinish', 'decisionLog.dir']);
   });
 
+  // [Foreman: 825] Anything the post-commit hook would read as off is an
+  // error here, so a typo does not silently leave the owner's prompts on.
+  test('delegatedAcceptance: a valid value is known and a malformed one is an error', () => {
+    writeRoadmap(project, [base('001')]);
+    writeConfig(project, { delegatedAcceptance: { orchestrator: 'orch-1', sessions: ['a', 'b'] } });
+    const ok = doctor();
+    assert.deepEqual(withCode(ok, 'unknown_config_key'), []);
+    assert.deepEqual(withCode(ok, 'invalid_config_value'), []);
+    for (const bad of [{ orchestrator: '', sessions: [] }, { orchestrator: 'o', sessions: 'a' }, { orchestrator: 'o', sessions: [1] }, 'o']) {
+      writeConfig(project, { delegatedAcceptance: bad });
+      assert.equal(assertFinding(doctor(), 'invalid_config_value', 'error').field, 'delegatedAcceptance');
+    }
+  });
+
   test('unknown_config_key reaches nested groups', () => {
     writeRoadmap(project, [base('001')]);
     writeConfig(project, { decisionLog: { push: true } });

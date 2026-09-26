@@ -11,14 +11,50 @@ const { execFileSync } = require("child_process");
 
 const { readEntries, today, trailerIdsIn } = require("../scripts/roadmap");
 const { resolveHookScope } = require("../scripts/commit-evidence");
-const { readConfigFile } = require("../scripts/foreman-config");
-const { discoveryInstructions } = require("../scripts/discovery");
+const { readConfigFile, delegatedOrchestrator } = require("../scripts/foreman-config");
+const { discoveryInstructions, duplicateCheckStep, delegatedDiscoveryInstructions } = require("../scripts/discovery");
 
 const PLUGIN_ROOT = pluginDir();
 const SCRIPT_PATH = path.join(PLUGIN_ROOT, "scripts", "roadmap.js");
 
 const WATCHED_TOOLS = new Set(["Bash", "PowerShell"]);
-const SEP = /\s*(?:&&|\|\||[;|\n])\s*/;
+// [Foreman: 831] One command of a chain: `&&`, `||`, `|`, `;` and newlines
+// separate commands only outside quotes, so a quoted `-m "a; b"` or a JSON
+// string holding `(cd x && git commit)` stays one command. A quote that never
+// closes is an ordinary character. A heredoc or here-string body is text, not
+// commands, and an apostrophe in it would pair with a later quote, so its body
+// is dropped first.
+// [Foreman: 844] Inside double quotes Bash escapes with `\` and PowerShell
+// with a backtick, where `\` stays literal, as in "C:\dir\". Each shell reads
+// its own escapes when splitting commands and tokens, and drops them from a
+// quoted token.
+// [Foreman: 851] Outside quotes Bash reads `\X` as the one character X and a
+// `\` before a newline as a line continuation, which separates tokens here.
+// PowerShell writes an apostrophe inside single quotes as `''`.
+// [Foreman: 854] PowerShell reads its backtick the same way outside quotes,
+// a backtick before a newline included, and in both places `n, `t, `u{41}
+// and the like stand for their own characters.
+const PS_ESCAPES = { 0: "\0", a: "\x07", b: "\b", e: "\x1b", f: "\f", n: "\n", r: "\r", t: "\t", v: "\v" };
+const SHELLS = {
+  bash: {
+    part: /(?:"(?:\\[\s\S]|[^"\\])*"|'[^']*'|\\[\s\S]|(?<!&)&(?!&)|[^;&|\n])+/g,
+    token: /(?:"(?:\\[\s\S]|[^"\\])*"|'[^']*'|\\[^\n]|[^\s\\])+/g,
+    quoted: /"((?:\\[\s\S]|[^"\\])*)"|'([^']*)'|\\([\s\S])/g,
+    escape: /\\(["\\$`])/g,
+    unescape: (c) => c,
+  },
+  powershell: {
+    part: /(?:"(?:`[\s\S]|[^"`])*"|'[^']*'|`\r?\n|`[\s\S]|(?<!&)&(?!&)|[^;&|\n])+/g,
+    token: /(?:"(?:`[\s\S]|[^"`])*"|'[^']*'|`[^\r\n]|[^\s`])+/g,
+    quoted: /"((?:`[\s\S]|[^"`])*)"|'((?:[^']|'')*)'|`(u\{[0-9a-fA-F]{1,6}\}|[\s\S])/g,
+    escape: /`(u\{[0-9a-fA-F]{1,6}\}|[\s\S])/g,
+    unescape: (c) => {
+      const code = c.length > 1 ? parseInt(c.slice(2, -1), 16) : -1;
+      return code > 0x10ffff ? c : code >= 0 ? String.fromCodePoint(code) : PS_ESCAPES[c] ?? c;
+    },
+  },
+};
+const HEREDOC_RE = /(<<-?\s*(["']?)(\w+)\2[^\n]*)\n[\s\S]*?\n\t*\3(?=\n|$)|@(["'])\n[\s\S]*?\n\4@/g;
 // `git` takes global options before the subcommand, and several of them
 // carry their value in a SEPARATE token. A flags-only skip missed
 // `git -C sub commit` outright, and any regex loose enough to catch it
@@ -39,15 +75,113 @@ function projectDir(data) {
   return hookProjectDir(data);
 }
 
-function isGitCommit(command) {
-  return command.split(SEP).some((part) => {
-    const tokens = part.trim().split(/\s+/);
-    if (tokens.shift().toLowerCase() !== "git") return false;
-    while (tokens.length && tokens[0].startsWith("-")) {
-      if (GIT_VALUE_FLAGS.has(tokens.shift())) tokens.shift();
+const CD_COMMANDS = new Set(["cd", "chdir", "set-location", "sl"]);
+const PUSH_COMMANDS = new Set(["pushd", "push-location"]);
+const POP_COMMANDS = new Set(["popd", "pop-location"]);
+// [Foreman: 844] Words that run the command after them: `env git`, `sudo -u
+// root git`, PowerShell's `& git`. Their own options are skipped up to the git.
+// [Foreman: 851] The skip also stops at a `cd`, `pushd` or `popd`, as in
+// `command cd dir`, and follows the directory option of `env -C dir` and
+// `sudo -D dir`, `--chdir` in both.
+// [Foreman: 854] It also reads them in a group of short options, `env -iC dir`,
+// unless an option earlier in the group takes the rest as its value.
+const WRAPPERS = new Set(["&", "command", "env", "exec", "nohup", "sudo", "time"]);
+const WRAPPER_CHDIR = { env: /^(?:-[^-CSu]*C|--chdir(?:=|$))/, sudo: /^(?:-[^-aCcDghpRrTtUu]*D|--chdir(?:=|$))/ };
+const GIT_RE = /(?:^|[\\/])git(?:\.exe)?$/i;
+const ASSIGNMENT_RE = /^(\w+)=([\s\S]*)$/;
+
+// [Foreman: 827] The payload's cwd is the session's directory, not always the
+// commit's: `cd /elsewhere && git commit` or `git -C /elsewhere commit` lands
+// in another repository and drew this project's nudges. This follows each
+// earlier `cd`, `pushd` and `popd` in the chain, `( ... )` subshells, and the
+// commit's own `-C`, `--work-tree` and `--git-dir` options from that cwd, and
+// returns every commit's directory in order, empty when nothing commits.
+// [Foreman: 831] A `cd` with more than one argument, such as cmd's `cd /d X`,
+// fails in Bash and PowerShell, so it leaves the directory where it was.
+// [Foreman: 844] Leading `NAME=value` assignments are skipped, and the
+// commit's GIT_DIR and GIT_WORK_TREE are read from them.
+function commitDirs(command, cwd, powershell = false) {
+  const shell = powershell ? SHELLS.powershell : SHELLS.bash;
+  let dir = cwd;
+  const pushed = [];
+  const subshells = [];
+  const targets = [];
+  const text = command.replace(HEREDOC_RE, (match, heredoc) => heredoc ?? "''");
+  for (let part of text.match(shell.part) || []) {
+    for (part = part.trim(); part.startsWith("("); part = part.slice(1).trimStart()) subshells.push(dir);
+    let closes = 0;
+    for (; part.endsWith(")"); part = part.slice(0, -1).trimEnd()) closes++;
+    const tokens = (part.match(shell.token) || []).map((t) =>
+      t.replace(shell.quoted, (match, double, single, escaped) =>
+        double !== undefined ? double.replace(shell.escape, (m, c) => shell.unescape(c)) : single !== undefined ? single.replace(/''/g, "'") : shell.unescape(escaped)
+      )
+    );
+    const assigned = {};
+    let head = "";
+    let here = dir;
+    while (tokens.length && !head) {
+      const token = tokens.shift();
+      const word = token.toLowerCase();
+      const [, name, value] = token.match(ASSIGNMENT_RE) || [];
+      if (name) assigned[name] = value;
+      else if (WRAPPERS.has(word)) {
+        const stop = (t) => GIT_RE.test(t) || ASSIGNMENT_RE.test(t) || [CD_COMMANDS, PUSH_COMMANDS, POP_COMMANDS].some((s) => s.has(t.toLowerCase()));
+        while (tokens.length && !stop(tokens[0])) {
+          const option = tokens.shift();
+          const chdir = WRAPPER_CHDIR[word]?.exec(option);
+          if (chdir) here = moveTo(here, option.slice(chdir[0].length) || tokens.shift() || "");
+        }
+      } else head = word;
     }
-    return tokens[0] === "commit";
-  });
+    // A bare `-` is `cd -`, the previous directory: an argument that names no
+    // folder, so the shell reads as staying put.
+    const args = tokens.filter((t) => t === "-" || !t.startsWith("-"));
+    if (POP_COMMANDS.has(head)) dir = pushed.pop() ?? dir;
+    else if (PUSH_COMMANDS.has(head)) {
+      pushed.push(dir);
+      if (args.length === 1) dir = moveTo(dir, args[0]);
+    } else if (CD_COMMANDS.has(head)) {
+      if (args.length < 2) dir = moveTo(dir, args[0]);
+    } else if (GIT_RE.test(head)) {
+      let gitDir = here;
+      let workTree = assigned.GIT_WORK_TREE;
+      let repo = assigned.GIT_DIR;
+      while (tokens.length && tokens[0].startsWith("-")) {
+        const [flag, inline] = tokens.shift().split(/=(.*)/s);
+        const value = inline ?? (GIT_VALUE_FLAGS.has(flag) ? tokens.shift() : undefined);
+        if (flag === "-C") gitDir = moveTo(gitDir, value);
+        else if (flag === "--work-tree") workTree = value;
+        else if (flag === "--git-dir") repo = value;
+      }
+      // A `--git-dir` outside the usual `<repo>/.git` layout names no work
+      // tree this can find, so the commit stays where the shell is.
+      if (workTree) gitDir = moveTo(gitDir, workTree);
+      else if (repo && path.basename(repo) === ".git") gitDir = moveTo(gitDir, path.dirname(repo));
+      if (tokens[0] === "commit") targets.push(gitDir);
+    }
+    for (; closes && subshells.length; closes--) dir = subshells.pop();
+  }
+  return targets;
+}
+
+// A directory that does not exist is not where the commit ran: a failed `cd`
+// either stops an `&&` chain or leaves the shell where it was. The same
+// fallback covers a host whose payload cwd already reflects the `cd`, which
+// would otherwise apply a relative `cd` twice. `$NAME`, `${NAME}`, `$env:NAME`
+// and `~` expand from this process; Git Bash's `/d/...` reads as `d:/...`, and
+// its `/tmp/...`, when no such folder sits on the drive, as this process's
+// temp directory, where Git for Windows mounts it. A variable assigned earlier
+// in the same command is not expanded.
+function moveTo(dir, arg = "~") {
+  let value = arg
+    .replace(/^~(?=$|[\\/])/, os.homedir())
+    .replace(/\$(?:env:)?\{?(\w+)\}?/g, (match, name) => process.env[name] ?? match);
+  if (process.platform === "win32") value = value.replace(/^\/([a-z])(?=\/|$)/i, "$1:/");
+  let next = path.resolve(dir, value);
+  if (!fs.existsSync(next) && process.platform === "win32" && /^\/tmp(?=\/|$)/.test(value)) {
+    next = path.join(os.tmpdir(), value.slice(4));
+  }
+  return fs.existsSync(next) ? next : dir;
 }
 
 // Confirmed against code.claude.com/docs/en/hooks.md: PostToolUse's Bash
@@ -135,7 +269,10 @@ function filterUnnudged(root, ids, todayStr) {
 // prevent, and a project that never opened its config is exactly the one
 // losing that work. Opting out is an explicit `false`, and an unreadable
 // config lands on the default like every other key here.
-function readConfig(root) {
+//
+// [Foreman: 825] delegatedAcceptance: see delegatedOrchestrator in
+// scripts/foreman-config.js, which codex-task.js reads too.
+function readConfig(root, sessionId) {
   // Corrupt config reads as {} — silent here, deliberately: SessionStart/
   // PostToolUse have no user-visible channel for a warning, and {} lands on
   // every safe default above (render-sections.js owns the visible warning).
@@ -143,6 +280,7 @@ function readConfig(root) {
   return {
     discoverySuggestions: config.discoverySuggestions !== false,
     requireVerification: config.requireVerification !== false,
+    delegatedTo: delegatedOrchestrator(config, sessionId),
   };
 }
 
@@ -261,7 +399,11 @@ function dispatchedIds(entries) {
 // committed, checked, waiting on the user. The question mechanics are
 // unchanged — confirm still closes to `done`, "not ready" sends it back to
 // `in_progress` — only the status the roadmap holds meanwhile is honest.
-function statusSyncBlock(inProgress, freshlyDone, requireVerification, committedFiles, trailerIds, host = hostName()) {
+//
+// [Foreman: 825] Under delegatedAcceptance the record step stays and the
+// question goes: the named orchestrator accepts, whatever requireVerification
+// says, since a session that closes its own work would skip it.
+function statusSyncBlock(inProgress, freshlyDone, requireVerification, committedFiles, trailerIds, host = hostName(), delegatedTo = null) {
   const parts = [];
   const trailerSet = new Set(trailerIds || []);
   if (inProgress.length) {
@@ -277,7 +419,17 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
     const list = inProgress.map((e, i) => `${e.id} ("${e.title}")${tags[i]}`).join(", ");
     const caveat = tags.some(Boolean) ? " " + OVERLAP_CAVEAT : "";
     const dispatched = dispatchedIds(inProgress);
-    if (requireVerification) {
+    if (delegatedTo) {
+      parts.push(
+        `This commit may complete an in-progress ROADMAP.jsonl task (${list}). ` +
+          "If it does, record the work now: run `git rev-parse --short HEAD` for the SHA, then: " +
+          `echo '{"id":"<id>","status":"awaiting_acceptance","commit":"<sha>"}' | node "${SCRIPT_PATH}" update-status ` +
+          "(observed_touches auto-folds from the commit's diff). " +
+          `Acceptance for this session belongs to the orchestrator ${delegatedTo}; don't ask the user. ` +
+          "Unless this session is that orchestrator, don't close it yourself." +
+          caveat
+      );
+    } else if (requireVerification) {
       parts.push(
         `This commit may complete an in-progress ROADMAP.jsonl task (${list}), ` +
           "but requireVerification is on for this project — record the work now, " +
@@ -325,7 +477,7 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
     parts.push(
       `This commit might also be a follow-up fix for a task that recently ` +
         `finished its work — marked done earlier today, or still waiting on ` +
-        `your acceptance (${list}) — a bugfix right after finishing a task is ` +
+        `${delegatedTo ? `the orchestrator ${delegatedTo}'s` : "your"} acceptance (${list}) — a bugfix right after finishing a task is ` +
         "easy to lose track of, since nothing else nudges about a task once it " +
         "leaves in_progress. If this commit actually relates to one of those, " +
         "append its SHA rather than letting it go unrecorded: run " +
@@ -352,7 +504,11 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
 // checkpoints also carry (skills/foreman/discovery.md). Claude Code keeps its
 // own commit-time wording below, which names its own question and
 // background-Agent tools.
-function discoveryBlock(host = hostName(), requireVerification = true) {
+//
+// [Foreman: 825] A delegated session gets one host-neutral wording instead:
+// the duplicate check stays, and nobody asks the user.
+function discoveryBlock(host = hostName(), requireVerification = true, delegatedTo = null) {
+  if (delegatedTo) return delegatedDiscoveryInstructions(delegatedTo, host, SCRIPT_PATH);
   return host === "claude"
     ? claudeDiscoveryBlock(requireVerification)
     : "[Foreman] Roadmap discovery is enabled for this project.\n" + discoveryInstructions();
@@ -372,16 +528,9 @@ function claudeDiscoveryBlock(requireVerification = true) {
     "what's already in this session's context (exact paths, line ranges, " +
     "symbol names, the specific behavior observed) — do NOT run extra " +
     "Read/Grep/Bash calls just to enrich the entry, that spends tokens now " +
-    "instead of saving them for whoever picks it up later. Every candidate " +
-    "MUST go through the duplicate check before you offer it — the roadmap's " +
-    "existing entries are deliberately not in your context, so this call is " +
-    "the only thing between a suggestion and a duplicate: " +
-    `echo '{"title":"...","why":"..."}' | node "${SCRIPT_PATH}" check-duplicate ` +
-    "— matches carry each entry's status. A rejected match means the user " +
-    "already declined it: skip silently. Any other status (planned/" +
-    "in_progress/done/...) means it's already tracked: skip it, or mention " +
-    "the existing entry's id if the new observation adds something. Only " +
-    "when there's no match, ask the user " +
+    "instead of saving them for whoever picks it up later. " +
+    duplicateCheckStep(SCRIPT_PATH) +
+    " Only when there's no match, ask the user " +
     "(AskUserQuestion) what to do with it: Add to roadmap / Execute here " +
     "(work it now in this session) / Execute with a " +
     "background Agent (run_in_background: true) / Reject — both Add and " +
@@ -442,7 +591,12 @@ function main() {
   if (!WATCHED_TOOLS.has(data.tool_name)) return;
 
   const command = (data.tool_input?.command || "").trim();
-  if (!command || !isGitCommit(command)) return;
+  // [Foreman: 844] Codex and Antigravity name every shell command Bash, even
+  // when PowerShell runs it on Windows, so there both readings count.
+  const readings = data.tool_name === "PowerShell" ? [true] : hostName() === "claude" ? [false] : [false, true];
+  const cwd = path.resolve(data.cwd || process.cwd());
+  const dirs = command ? readings.flatMap((powershell) => commitDirs(command, cwd, powershell)) : [];
+  if (!dirs.length) return;
   if (commitFailed(data)) return;
 
   const root = projectDir(data);
@@ -451,7 +605,10 @@ function main() {
   // elsewhere on disk) neither. Only the first two are this hook's
   // business; a commit fired from an unrelated repo must not read or
   // annotate this project's roadmap.
-  const scope = resolveHookScope(root, path.resolve(data.cwd || process.cwd()));
+  // A chain can commit in several repositories: the first one in scope is
+  // the commit this hook reads, so a project commit keeps its nudge.
+  let scope = null;
+  for (const dir of dirs) if ((scope = resolveHookScope(root, dir))) break;
   if (!scope) return;
 
   if (!fs.existsSync(path.join(root, "ROADMAP.jsonl"))) return;
@@ -489,7 +646,7 @@ function main() {
     ? filterUnnudged(root, followUpUntagged.map((e) => e.id), todayStr)
     : new Set();
   const freshlyDone = followUpUntagged.filter((e) => unnudged.has(e.id));
-  const config = readConfig(root);
+  const config = readConfig(root, data.session_id);
 
   // The just-created commit is HEAD (this hook fires after `git commit`).
   // Best-effort — [] when git can't name the files — so the tag degrades to
@@ -499,11 +656,11 @@ function main() {
 
   const blocks = [];
   if (inProgress.length || freshlyDone.length) {
-    blocks.push(statusSyncBlock(inProgress, freshlyDone, config.requireVerification, committedFiles, trailerIds));
+    blocks.push(statusSyncBlock(inProgress, freshlyDone, config.requireVerification, committedFiles, trailerIds, hostName(), config.delegatedTo));
   }
   if (config.discoverySuggestions) {
-    blocks.push(discoveryBlock(hostName(), config.requireVerification));
-    const dispatched = dispatchedIds([...inProgress, ...followUpAll]);
+    blocks.push(discoveryBlock(hostName(), config.requireVerification, config.delegatedTo));
+    const dispatched = config.delegatedTo ? [] : dispatchedIds([...inProgress, ...followUpAll]);
     if (dispatched.length) {
       blocks.push(
         `[Foreman] Entries whose notes carry a dispatch marker: ${dispatched.join(", ")}. ` +
@@ -533,7 +690,7 @@ if (require.main === module) {
 
 module.exports = {
   main,
-  isGitCommit,
+  commitDirs,
   commitFailed,
   wrappedExitCode,
   freshlyDoneStatePath,

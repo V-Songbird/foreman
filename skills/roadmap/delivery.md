@@ -65,7 +65,12 @@ review. When checks remain unverified after that evidence comparison, offer
 testing those checks first and keep the entry awaiting. An explicit acceptance
 closes it; feedback that the work is not ready returns it to `in_progress`
 with the feedback recorded. A background worker leaves acceptance to its
-coordinator. No new task starts while a required acceptance decision is
+coordinator. When `.foreman/config.json`'s `delegatedAcceptance` lists this
+session (a Foreman commit reminder, or `codex-task.js`'s `delegatedTo`, names
+its orchestrator), record `awaiting_acceptance` whatever `requireVerification`
+says and don't ask the user: a worker reports the evidence to that
+orchestrator and leaves the entry for it, and the orchestrator's own session
+accepts and closes it. No new task starts while a required acceptance decision is
 pending unless the user explicitly chooses separate work.
 
 In Codex, an explicitly reviewed run records intermediate decisions with

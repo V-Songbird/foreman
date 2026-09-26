@@ -224,6 +224,21 @@ describe('context-fill — end to end', () => {
     assert.equal(res.stdout.trim(), '');
   });
 
+  // [Foreman: 816] Hooks fail open: when a dependency throws inside main(),
+  // the entry point must swallow it. [Foreman: 818] readInput now turns a
+  // JSON `null` payload into {}, so a preload makes hostName() throw instead.
+  test('a throw inside main exits 0 with no output', () => {
+    const preload = path.join(__dirname, 'fixtures', 'throwing-host.js');
+    const res = runScriptRaw('context-fill.js', { tool_name: 'Bash' }, {
+      ...windowEnv(),
+      // NODE_OPTIONS reads backslash escapes inside quotes, as JSON writes them.
+      NODE_OPTIONS: `--require ${JSON.stringify(preload)}`,
+    });
+    assert.equal(res.status, 0);
+    assert.equal(res.stdout, '');
+    assert.equal(res.stderr, '');
+  });
+
   // Codex has no occupancy to read: its transcript is not Claude usage, and a
   // Claude compaction setting says nothing about a Codex window.
   test('silent on the Codex host, however full the session is', () => {

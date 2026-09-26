@@ -20,6 +20,7 @@ const os = require("os");
 const path = require("path");
 const { spawnSync } = require("child_process");
 const { readInput } = require("./lib");
+const { readConfigFile, delegatedOrchestrator } = require("../scripts/foreman-config");
 
 const TOOLS = {
   run_command: (args) => ({ tool_name: "Bash", tool_input: { command: args.CommandLine || "" } }),
@@ -80,7 +81,8 @@ function hookOutput(script, payload, workspace) {
   }
 }
 
-// The queue and the session-notice latch, one file per conversation.
+// The queue and the session-notice and delegation latches, one file per
+// conversation.
 function statePath(conversationId) {
   const safe = String(conversationId).replace(/[^a-zA-Z0-9-]/g, "_").slice(0, 80);
   return path.join(os.tmpdir(), `foreman-antigravity-${safe}.json`);
@@ -90,7 +92,7 @@ function readState(conversationId) {
   try {
     const parsed = JSON.parse(fs.readFileSync(statePath(conversationId), "utf-8"));
     if (parsed && typeof parsed === "object") {
-      return { started: parsed.started === true, pending: Array.isArray(parsed.pending) ? parsed.pending : [] };
+      return { started: parsed.started === true, pending: Array.isArray(parsed.pending) ? parsed.pending : [], ...(parsed.delegated === true ? { delegated: true } : {}) };
     }
   } catch {
     // missing or corrupt: a conversation nothing has been said in yet
@@ -137,10 +139,28 @@ function answer(value) {
   process.stdout.write(JSON.stringify(value));
 }
 
+// [Foreman: 838] A command the model runs is no child of this hook, so the
+// checkpoint in hooks/codex-task.js cannot learn the conversation id; only
+// this payload has it. The first call after delegatedAcceptance lists the
+// conversation says which --session to pass, once. Unlisted conversations
+// hear nothing new.
+function delegationLine(conversationId, root) {
+  const orchestrator = root && delegatedOrchestrator(readConfigFile(root).config, conversationId);
+  if (!orchestrator) return "";
+  const script = path.join(__dirname, "codex-task.js").replace(/\\/g, "/");
+  return `[Foreman] delegatedAcceptance lists this conversation: acceptance belongs to the orchestrator ${orchestrator}. ` +
+    `Pass --session ${conversationId} to every checkpoint, as in node "${script}" start --id <id> --session ${conversationId}, and the same for check.`;
+}
+
 function preInvocation(data, { payload, workspace }) {
   pruneQueues(data.conversationId);
   const state = readState(data.conversationId);
   const messages = state.pending.splice(0);
+  const delegation = state.delegated ? "" : delegationLine(data.conversationId, process.env.FOREMAN_PROJECT_DIR || workspace || payload.cwd);
+  if (delegation) {
+    state.delegated = true;
+    messages.unshift(delegation);
+  }
   if (!state.started) {
     state.started = true;
     const notice = runHook("session-start.js", { ...payload, source: "startup" }, workspace).trim();

@@ -58,6 +58,46 @@ never reads Claude Code settings for a Codex session and never treats an
 unknown size as an empty one; Codex's own context indicator, or a fresh
 session, is the way to judge it there.
 
+`delegatedAcceptance` hands acceptance to an orchestrator session while it
+runs other sessions on the roadmap for you. Its value is
+`{"orchestrator": "<name>", "sessions": ["<session id>", ...]}`. The session id
+is the one each host passes to its hooks; in Claude Code it is the name of the
+session's transcript file, without `.jsonl`. The list holds the
+orchestrator's own session id and the id of each worker session it starts.
+After a commit in a listed session:
+
+- The session still records the commit and moves the entry to
+  `awaiting_acceptance`, even when `requireVerification` is off.
+- It is not told to ask you before closing the entry. It is told that
+  acceptance belongs to the named orchestrator. A worker leaves the entry for
+  the orchestrator to close; the orchestrator's own session closes it.
+- It still checks new work it noticed against the roadmap for duplicates. A
+  worker lists that work in its report, and the orchestrator adds it with
+  the host's own source, such as `claude-suggested`, without asking you.
+
+In Codex, the `codex-task.js start` and `check` checkpoints of a listed
+session return the orchestrator's name as `delegatedTo` and give the same
+discovery instructions, and the roadmap skill's close and discovery steps
+follow the same rules. In Antigravity, only the hook knows the conversation
+id, so the first model call after the list names a conversation tells it which
+`--session` value to pass to `start` and `check`; with it, the checkpoints
+behave as in Codex.
+
+A handoff that a listed session crafts to run itself, or to give its
+background agent, closes the same way: it records `awaiting_acceptance` and
+reports to the orchestrator instead of asking you. The handoff script finds
+the session in `CLAUDE_CODE_SESSION_ID` in Claude Code and in
+`CODEX_SESSION_ID` or `CODEX_THREAD_ID` in Codex. A handoff copied to the
+clipboard keeps the usual close, because the session that will paste it is
+not known yet.
+
+Every session the list does not name, including your own sessions in the same
+project, keeps the usual prompts. So does every session when the key is
+missing or malformed. The orchestrator writes the key with its own session id
+when its run starts, adds each worker's session id when that worker starts,
+and removes the key when the run ends. `roadmap.js doctor` reports a
+malformed value as an error. Off by default.
+
 `trialLog` keeps a local log of how Foreman is used, so its own health
 numbers can be measured. Off by default. It records counts, booleans, ranks,
 elapsed seconds and names from a closed list — never a task title, a file

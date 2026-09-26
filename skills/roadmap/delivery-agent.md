@@ -24,7 +24,8 @@ model — never pass one.
   it reports and, for a roadmap entry, the entry's status and its
   `unverified:` lines (`roadmap.js list --ids <id>`). Call a check it
   skipped or could not run unverified, never passed. Acceptance comes
-  only from the user in this session, as
+  only from the user in this session, or from the orchestrator
+  `delegatedAcceptance` names for it, as
   [Close and acceptance](delivery.md#close-and-acceptance) says; the
   agent's report never gives it.
 - In Codex, use the available collaboration tools for a bounded task, passing

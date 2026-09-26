@@ -64,7 +64,7 @@ Foreman keeps one README for every host, plain-language sections first and techn
 
 **Skills are instruction files every host follows.** A change to a `SKILL.md` or one of its reference files changes how Claude Code, Codex and Antigravity carry out that skill — be precise, and try the affected skill in a real session on each host you can before submitting. Label a step that applies to only one host.
 
-**Hooks are scripts that run on every tool call or session event.** Keep them fast (no network, no blocking I/O), tolerant of missing host data, and test them on both Unix and Windows. Register Claude Code events in `hooks/hooks.json`, Codex events in `hooks/codex-hooks.json` and Antigravity events in the root `hooks.json`, never two hosts in one file. Antigravity's registration runs `hooks/antigravity-hook.js`, which translates the event and runs the shared hook scripts as child processes; a new shared hook reaches that host only when the entrypoint learns its event. After changing a Codex hook command or `hooks/windows-launcher.ps1`, regenerate the Windows commands with `node scripts/build-windows-launchers.js --write`; without `--write`, the script only checks that they are current.
+**Hooks are scripts that run on every tool call or session event.** Keep them fast (no network, no blocking I/O), tolerant of missing host data, and test them on both Unix and Windows. Hooks fail open, so a Foreman error never breaks a session: a hook's entry point catches every error and exits 0 without reporting it, and the Codex commands, on Unix and in `hooks/windows-launcher.ps1`, wrap the hook in the same empty catch. To see an error a hook would hide, run it from the plugin root without the catch, with the event's JSON on stdin, for example in Bash or cmd: `node -e "require('./hooks/session-start.js').main()" < payload.json`. Register Claude Code events in `hooks/hooks.json`, Codex events in `hooks/codex-hooks.json` and Antigravity events in the root `hooks.json`, never two hosts in one file. Antigravity's registration runs `hooks/antigravity-hook.js`, which translates the event and runs the shared hook scripts as child processes; a new shared hook reaches that host only when the entrypoint learns its event. After changing a Codex hook command or `hooks/windows-launcher.ps1`, regenerate the Windows commands with `node scripts/build-windows-launchers.js --write`; without `--write`, the script only checks that they are current.
 
 **Host differences live in one place each.** Scripts ask `scripts/runtime.js` which host is running (`FOREMAN_HOST`, then Codex's own environment markers, then Antigravity's, otherwise Claude Code). Handoff wording that differs by host is a tagged block in `prompt-template.md`; `craft-handoff.js` takes a `host` input and `check-prompt.js` takes `--host`, and both give an Antigravity handoff the Codex form.
 
@@ -81,10 +81,12 @@ node --test tests/*.test.js
 node scripts/git-hooks/check-readme-nav.js
 ```
 
-Tests give each script or hook they spawn 30 seconds. On a heavily loaded
-machine, set `FOREMAN_TEST_SPAWN_TIMEOUT_MS` to a larger number of
-milliseconds to raise that limit; a smaller value is ignored. The test
-helpers stretch the suite's other time bounds by the same factor, and pass it
+Tests give each script or hook they spawn 90 seconds, so the suite still
+passes while other suites run on the same machine, and a hung script still
+fails. To allow more, set `FOREMAN_TEST_SPAWN_TIMEOUT_MS` to a larger number of
+milliseconds; a smaller value is ignored. The suite's other time bounds are
+set for 30 seconds, so the test helpers stretch them by the limit divided by
+30 seconds, which is 3 by default. The helpers pass that factor
 to the scripts they run as `FOREMAN_TEST_TIME_SCALE`, a test-only variable
 that lengthens the symbol chain's time budget and never shortens it. Leave it
 unset outside the suite.

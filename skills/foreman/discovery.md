@@ -13,8 +13,13 @@ In the executing project, require `ROADMAP.jsonl` and honor
 to enabled. If disabled or no roadmap exists, skip this discovery workflow.
 
 A background subagent returns candidates and evidence to its coordinator;
-it must not discard them, ask the user, or add entries itself. The coordinator
-or user-facing executor handles the following steps:
+it must not discard them, ask the user, or add entries itself. When
+`.foreman/config.json`'s `delegatedAcceptance` lists this session (a Foreman
+commit reminder or checkpoint names its orchestrator), nobody asks the user
+either: after step 1, a worker lists each unmatched candidate and any inline
+work, with its evidence, in its report to that orchestrator, and the
+orchestrator adds it with step 3's call. Otherwise the coordinator or
+user-facing executor handles the following steps:
 
 1. Run `roadmap.js check-duplicate` with each candidate's title and why before
    offering it. Suppress rejected matches; for other existing matches, reference

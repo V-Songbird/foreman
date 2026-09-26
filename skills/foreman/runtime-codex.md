@@ -63,7 +63,8 @@ assume the shell defines a plugin-root variable.
   completed entry. No hook opens or closes an entry there and no stop reminder
   exists, so those explicit calls are the whole lifecycle. The session notice
   and a commit's reminders reach the model at its next call, not at the moment
-  of the command.
+  of the command. When a Foreman message names a `--session` value for this
+  conversation, pass it to every `start` and `check`.
 
 ## Discovery
 
