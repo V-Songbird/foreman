@@ -940,6 +940,69 @@ describe('commit scope resolution', () => {
   });
 });
 
+// [Foreman: 831] How the shell reaches the commit's directory. commitDirs only
+// checks that each directory exists, so plain folders stand in for repositories.
+describe('commit directory edge cases', () => {
+  const os = require('os');
+  const { commitDirs } = require('../hooks/post-commit');
+  let other;
+  beforeEach(() => {
+    other = makeTmpProject();
+  });
+
+  test('a separator inside quotes does not start a command', () => {
+    assert.deepEqual(commitDirs(`echo '{"why":"(cd x && git commit -m y)"}' | node roadmap.js add`, project), []);
+    assert.deepEqual(commitDirs(`node roadmap.js add <<'EOF'\n{"why":"x; git commit -m y"}\nEOF`, project), []);
+    assert.deepEqual(commitDirs(`git status -m "a; cd ${other} && b" && git commit -m x`, project), [project]);
+  });
+
+  test('an apostrophe in a heredoc or here-string body does not hide a later commit', () => {
+    assert.deepEqual(commitDirs(`cat > n.md <<'EOF'\nIt's done\nEOF\ngit add n.md && git commit -m 'notes'`, project), [project]);
+    assert.deepEqual(commitDirs(`$m = @'\nIt's done\n'@\ngit commit -m 'notes'`, project), [project]);
+    assert.deepEqual(commitDirs(`cat <<EOF\ngit commit -m y\nEOF`, project), []);
+  });
+
+  test('cd - and a bare Push-Location leave the directory where it was', () => {
+    assert.deepEqual(commitDirs('cd - && git commit -m x', project), [project]);
+    assert.deepEqual(commitDirs('Push-Location; git commit -m x', project), [project]);
+  });
+
+  test('popd and Pop-Location return to the directory pushd left', () => {
+    assert.deepEqual(commitDirs(`pushd "${other}"; popd; git commit -m x`, project), [project]);
+    assert.deepEqual(commitDirs(`Push-Location '${other}'; Pop-Location; git commit -m x`, project), [project]);
+    assert.deepEqual(commitDirs(`pushd "${other}" && git commit -m x`, project), [other]);
+  });
+
+  test('a subshell commits where it moved, and the shell returns after it', () => {
+    assert.deepEqual(commitDirs(`(cd "${other}" && git commit -m x)`, project), [other]);
+    assert.deepEqual(commitDirs(`(cd "${other}" && git status); git commit -m x`, project), [project]);
+  });
+
+  test('a cd with two arguments, such as cmd\'s cd /d, stays where it was', () => {
+    assert.deepEqual(commitDirs(`cd /d "${other}" && git commit -m x`, project), [project]);
+  });
+
+  test('an apostrophe inside a quoted path stays part of it', () => {
+    const quoted = path.join(other, "it's");
+    fs.mkdirSync(quoted);
+    assert.deepEqual(commitDirs(`cd "${quoted}" && git commit -m x`, project), [quoted]);
+  });
+
+  test('--work-tree and a <repo>/.git --git-dir name the commit\'s repository', () => {
+    const gitDir = path.join(other, '.git');
+    assert.deepEqual(commitDirs(`git --work-tree="${other}" commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`git --git-dir="${gitDir}" commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`git --git-dir "${gitDir}" --work-tree "${other}" commit -m x`, project), [other]);
+    // any other --git-dir layout names no work tree, so the shell's directory stands
+    assert.deepEqual(commitDirs(`git --git-dir="${path.join(other, 'bare')}" commit -m x`, project), [project]);
+  });
+
+  test('Git Bash /tmp reads as the temp directory on Windows', { skip: process.platform !== 'win32' }, () => {
+    const rel = path.relative(os.tmpdir(), other).replace(/\\/g, '/');
+    assert.deepEqual(commitDirs(`cd /tmp/${rel} && git commit -m x`, project), [other]);
+  });
+});
+
 // Claude Code's discovery block opens and closes on one inclusion bar:
 // "CONFIRMED ... not vague hunches" going in, "Say nothing if nothing is
 // confirmed" where it binds hardest. [Foreman: 444] A measured alternative
