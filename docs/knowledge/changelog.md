@@ -205,6 +205,14 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   `delegatedTo`, and their discovery text says to report new work to the
   orchestrator instead of asking you. The roadmap skill's close, acceptance
   and discovery steps say the same.
+- `delegatedAcceptance` now also reaches handoffs. When a listed session
+  crafts a handoff to run itself or to give its background agent, the close
+  says to report the result to the orchestrator and to leave the entry
+  `awaiting_acceptance`, instead of asking you. In Codex, the handoff's
+  discovery text reports new work to the orchestrator too. A handoff copied to
+  the clipboard, and any handoff from a session the setting does not list,
+  reads as before. The pick menu's accept step says that the orchestrator's
+  decision replaces yours for the sessions it lists.
 - The commit reminder no longer fires for a commit made in another
   repository. The reminder now reads where the commit ran from the command
   itself: an earlier `cd`, `pushd` or `Set-Location` in the same command, and

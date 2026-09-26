@@ -28,7 +28,8 @@
 
 const fs = require("fs");
 const path = require("path");
-const { discoveryInstructions } = require("./discovery");
+const { discoveryEnabled, discoveryInstructions, delegatedDiscoveryInstructions } = require("./discovery");
+const { readConfigFile, delegatedOrchestrator } = require("./foreman-config");
 const { render, projectDir, readConfig } = require("./render-sections.js");
 const { parseFlags, printHelp } = require("./runtime");
 const { resolve: resolveSymbols, candidateIdentifiers } = require("./resolve-symbols.js");
@@ -1179,7 +1180,7 @@ function resumeNotesText(notesPlace, refresh) {
     : ` It had no recorded notes when this handoff was written; check for newer ones before re-deriving anything:\n${refresh}`;
 }
 
-function claudeEntryParagraphText({ id, resume, notesPlace = null, requireVerification, askLesson, destination, investigation, reviewEachIncrement = false, submodule = null, privateRoadmap = false }) {
+function claudeEntryParagraphText({ id, resume, notesPlace = null, requireVerification, askLesson, destination, investigation, reviewEachIncrement = false, submodule = null, privateRoadmap = false, delegatedTo = null }) {
   const opening = resume
     ? `This task is ROADMAP.jsonl entry \`${id}\`, already marked \`in_progress\` by an earlier session — don't re-mark it.` + resumeNotesText(notesPlace, listIdsCommand("claude", id))
     : `This task is ROADMAP.jsonl entry \`${id}\`. Mark it \`in_progress\` before doing anything else — Foreman's picking flow deliberately leaves it \`planned\` until you do:\n\`echo '{"id":"${id}","status":"in_progress"}' | node ${CLAUDE_ROOT}/scripts/roadmap.js update-status\``;
@@ -1191,8 +1192,13 @@ function claudeEntryParagraphText({ id, resume, notesPlace = null, requireVerifi
   // and that session puts the accept/review choice in front of them rather
   // than leaving it for the next pick to raise days later.
   const acceptCall = `\`echo '{"id":"${id}","status":"done"}' | node ${CLAUDE_ROOT}/scripts/roadmap.js update-status\``;
-  const askSentence =
-    destination === "agent"
+  // [Foreman: 837] A session delegatedAcceptance lists reports to the
+  // orchestrator it names instead of asking the user.
+  const askSentence = delegatedTo
+    ? destination === "agent"
+      ? ` Say so in your final message too — name the entry and say it now needs the orchestrator ${delegatedTo}'s acceptance, not the user's, before you start anything new.`
+      : ` Acceptance for this session belongs to the orchestrator ${delegatedTo}, so don't ask the user: ${reviewEachIncrement ? "reconcile recorded omissions with later evidence for the same result using the embedded close protocol, then " : ""}report the evidence and any \`unverified:\` lines to ${delegatedTo} and leave the entry awaiting for it to accept. Unless this session is that orchestrator, don't close it yourself, and start nothing new until it answers.`
+    : destination === "agent"
       ? ` Say so in your final message too — name the entry and say it now needs the user's accept or decline before you start anything new.`
       : reviewEachIncrement
         ? ` Then reconcile recorded omissions with later evidence for the same result using the embedded close protocol, and put the final choice to them in the same turn, with AskUserQuestion: offer Test first only for checks still unverified. Accepting the integrated result closes it — ${acceptCall}. Start nothing new until they answer.`
@@ -1216,7 +1222,7 @@ function claudeEntryParagraphText({ id, resume, notesPlace = null, requireVerifi
       : "";
 
   const holdSentence = requireVerification
-    ? ` When that earned status is \`done\`, write \`awaiting_acceptance\` instead — this project holds finished work for the user's acceptance, and their confirmation makes it \`done\`; \`dropped\` and \`rejected\` close as themselves.${askSentence}`
+    ? ` When that earned status is \`done\`, write \`awaiting_acceptance\` instead — this project holds finished work for ${delegatedTo ? `the orchestrator ${delegatedTo}'s acceptance, and its confirmation` : "the user's acceptance, and their confirmation"} makes it \`done\`; \`dropped\` and \`rejected\` close as themselves.${askSentence}`
     : "";
   const closeIntro = `When the work concludes, close the entry the same way — the status it actually earned (\`done\`, \`dropped\`, \`rejected\`) and your full findings in \`notes\`.${holdSentence}`;
 
@@ -1265,7 +1271,7 @@ function claudeEntryParagraphText({ id, resume, notesPlace = null, requireVerifi
   return steps.filter(Boolean).join("\n");
 }
 
-function codexEntryParagraphText({ id, resume, notesPlace = null, requireVerification, askLesson, destination, investigation, reviewEachIncrement = false, submodule = null, privateRoadmap = false }) {
+function codexEntryParagraphText({ id, resume, notesPlace = null, requireVerification, askLesson, destination, investigation, reviewEachIncrement = false, submodule = null, privateRoadmap = false, delegatedTo = null }) {
   const code = (value) => "`" + value + "`";
   const opening = resume
     ? "This task is ROADMAP.jsonl entry " + code(id) + ", already marked " + code("in_progress") + " by an earlier session." + resumeNotesText(notesPlace, listIdsCommand("codex", id))
@@ -1280,14 +1286,19 @@ function codexEntryParagraphText({ id, resume, notesPlace = null, requireVerific
     : requireVerification
     ? "Run the required checks using available commands, skills, or UI tools. Add checks only when justified by the actual change or unresolved evidence. Record a human-only check only if it is answerable now and beyond those tools. Use one annotate call per check, and none when every required check ran:\n" + jsonCommand("roadmap.js", "annotate", { id, notes: "unverified: <the check and what to look for>" })
     : "";
-  const holdSentence = requireVerification
-    ? " For earned " + code("done") + ", record " + code("awaiting_acceptance") + " and present the concrete result for final user acceptance. "
+  const holdSentence = !requireVerification ? ""
+    : delegatedTo
+    ? " For earned " + code("done") + ", record " + code("awaiting_acceptance") + ". Acceptance for this session belongs to the orchestrator " + delegatedTo + ", so do not ask the user. "
+      + (destination === "agent"
+        ? "Return the result to the coordinator, which reports it to " + delegatedTo + "."
+        : (reviewEachIncrement ? "Reconcile recorded omissions with later evidence for the same result using the embedded close protocol, then report" : "Report")
+          + " the concrete result and any recorded " + code("unverified:") + " checks to " + delegatedTo + " and leave the entry awaiting for it to accept; unless this session is that orchestrator, do not close it yourself.")
+    : " For earned " + code("done") + ", record " + code("awaiting_acceptance") + " and present the concrete result for final user acceptance. "
       + (destination === "agent"
         ? "Return the result to the coordinator so they can request the user's acceptance."
         : (reviewEachIncrement
           ? "Reconcile recorded omissions with later evidence for the same result using the embedded close protocol. Offer Test first only for checks still unverified; do not treat resolved historical notes as pending or unrelated acceptance as resolution. On explicit acceptance of the integrated result, close with:\n"
-          : "If recorded " + code("unverified:") + " checks remain, offer Test first and describe those checks; otherwise offer acceptance or review. On acceptance, close with:\n") + jsonCommand("roadmap.js", "update-status", { id, status: "done" }))
-    : "";
+          : "If recorded " + code("unverified:") + " checks remain, offer Test first and describe those checks; otherwise offer acceptance or review. On acceptance, close with:\n") + jsonCommand("roadmap.js", "update-status", { id, status: "done" }));
   const closeIntro = "Close with the status actually earned (" + code("done") + ", " + code("dropped") + ", or " + code("rejected") + ") and observed findings in " + code("notes") + "." + holdSentence;
   const stageStep = submodule
     ? "When committing is authorized and the baseline was clean, commit inside the submodule " + code(submodule) + " that holds the planned files, not at the project root; never stage its gitlink or use " + code("git add -A") + ":\n"
@@ -1309,7 +1320,7 @@ function codexEntryParagraphText({ id, resume, notesPlace = null, requireVerific
   const checkStep = "After recording the close, verify the lifecycle checkpoint:\nCommand: "
     + code(pluginCommand("../hooks/codex-task.js", "check --id " + shellQuote(id)))
     + "\nA failure means the entry is still open; resolve it before claiming closure. Read and act on the returned discovery policy before reporting completion; a successful checkpoint does not mean that observed out-of-scope findings have been reviewed."
-    + (requireVerification ? " awaiting_acceptance passes this recorded-work check and still awaits the user's acceptance." : "");
+    + (requireVerification ? ` awaiting_acceptance passes this recorded-work check and still awaits ${delegatedTo ? `the orchestrator ${delegatedTo}'s` : "the user's"} acceptance.` : "");
   const modelEffortNote = "Also add " + code("model") + " and " + code("effort") + " to that close call — what actually ran this task. Omit either one you do not know rather than guessing.";
   const lessonAsk = askLesson
     ? "If this task taught one durable fact about the code area, add " + code('"lesson":"one sentence, naming the file or symbol it concerns"') + " to that close call. If nothing generalizes, omit it. If you record one, quote it verbatim in the final report and say whether the close stored it."
@@ -1487,6 +1498,13 @@ function assemble(root, input) {
   const isDecision = record.kind === "decision";
 
   const entryId = record.id;
+  // [Foreman: 837] The crafting session runs a task handoff and coordinates an
+  // agent's, so delegatedAcceptance is read for its own session; a clipboard
+  // prompt runs in a session nobody knows yet and keeps today's close.
+  const delegatedTo = destination === "clipboard" ? null
+    : delegatedOrchestrator(readConfigFile(root).config, host === "codex"
+      ? process.env.CODEX_SESSION_ID || process.env.CODEX_THREAD_ID
+      : process.env.CLAUDE_CODE_SESSION_ID);
 
   const checkCount = hasVerification ? judgment.verification.length : 0;
   const wantsClipboardEmbed = destination === "clipboard" && checkCount >= 2 && !judgment.question;
@@ -1511,7 +1529,8 @@ function assemble(root, input) {
         // Where this handoff quotes the entry's notes: the same choice ctxText
         // and recoveryBlock make below.
         notesPlace: reviewEachIncrement && input.resume ? "increment_resume" : record.notes ? "context" : null,
-        requireVerification: config.requireVerification,
+        requireVerification: config.requireVerification || Boolean(delegatedTo),
+        delegatedTo,
         reviewEachIncrement,
         destination,
         investigation: Boolean(judgment.question),
@@ -1592,7 +1611,14 @@ function assemble(root, input) {
     if (recoveryBlock) parts.push(recoveryBlock);
     // Codex carries the one discovery policy into every handoff; Claude Code
     // raises discovery from its commit hook instead.
-    if (host === "codex") parts.push(`<foreman_discovery>\n${discoveryInstructions()}\n</foreman_discovery>`);
+    // A delegated task session reports its candidates to the orchestrator; a
+    // background subagent returns them to its coordinator either way.
+    if (host === "codex") {
+      const discovery = delegatedTo && destination === "task" && discoveryEnabled(root)
+        ? delegatedDiscoveryInstructions(delegatedTo, host, path.join(PLUGIN_ROOT, "scripts", "roadmap.js").replace(/\\/g, "/"))
+        : discoveryInstructions();
+      parts.push(`<foreman_discovery>\n${discovery}\n</foreman_discovery>`);
+    }
     parts.push(taskContextBlock);
     if (reinforced) {
       parts.push(`<truth_grounding>\n${canonical.truthGrounding}\n</truth_grounding>`);

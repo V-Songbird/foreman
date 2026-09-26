@@ -18,7 +18,7 @@ function discoveryInstructions() {
 // Code's and a delegated session's.
 function duplicateCheckStep(scriptPath) {
   return (
-    "Every candidate MUST go through the duplicate check before you offer it — the roadmap's " +
+    "Every candidate MUST go through the duplicate check before you offer or report it — the roadmap's " +
     "existing entries are deliberately not in your context, so this call is " +
     "the only thing between a suggestion and a duplicate: " +
     `echo '{"title":"...","why":"..."}' | node "${scriptPath}" check-duplicate ` +
