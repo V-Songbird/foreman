@@ -400,6 +400,15 @@ describe('delegatedAcceptance', () => {
     });
   }
 
+  // The delegated wording already routes findings, so the dispatch-marker
+  // block would only repeat it.
+  test('a listed session gets no separate dispatch-marker block', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress', notes: 'dispatched to background agent `a1`' }]);
+    writeConfig(project, delegated);
+    const out = context(bashPayload('git commit -m "finish task"', { session_id: 'worker-a' }));
+    assert.doesNotMatch(out, /carry a dispatch marker/);
+  });
+
   // The session's own wording does not depend on requireVerification: the
   // orchestrator accepts even where the project lets sessions close directly.
   test('a listed session still records awaiting_acceptance with requireVerification off', () => {

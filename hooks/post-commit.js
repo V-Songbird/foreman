@@ -551,7 +551,7 @@ function main() {
   }
   if (config.discoverySuggestions) {
     blocks.push(discoveryBlock(hostName(), config.requireVerification, config.delegatedTo));
-    const dispatched = dispatchedIds([...inProgress, ...followUpAll]);
+    const dispatched = config.delegatedTo ? [] : dispatchedIds([...inProgress, ...followUpAll]);
     if (dispatched.length) {
       blocks.push(
         `[Foreman] Entries whose notes carry a dispatch marker: ${dispatched.join(", ")}. ` +
