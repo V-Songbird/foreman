@@ -190,6 +190,25 @@ presented as Codex evidence. After a local installation, a new-session smoke
 test should cover init, pick and export, start, commit evidence, acceptance,
 and enabled hooks in a disposable project.
 
+Installed-package smoke test, 2026-09-25, Codex CLI 0.157.1 on Windows 11, from
+`main` at 9a25851 (the 3.2.0 content; its manifests still read 3.1.0), in a
+disposable Codex home and project. The steps below the install ran the
+installed cache's scripts, and each hook through the exact command its
+`hooks/codex-hooks.json` registers; they did not run inside a Codex session.
+
+| Step | Result |
+| --- | --- |
+| `codex plugin marketplace add`, `codex plugin add` from a local marketplace | Pass |
+| Installed files against the source commit (SHA-256) | Pass: 166 of 166 identical |
+| Init, pick and export, start | Pass |
+| Commit with a `Foreman:` trailer, evidence, `check`, acceptance | Pass |
+| Archive and restore | Pass |
+| Edit guard on `apply_patch` of `ROADMAP.jsonl` | Pass: denied |
+| Session notice with an open entry | Pass |
+| `codex plugin remove` | Pass: cache removed |
+| Hook trust with `/hooks`, and the same steps in a live Codex session | Not run |
+| Windows `commandWindows` launcher as Codex invokes it | Not run |
+
 The 2026-09-08 validation of reviewed increments — automated tests plus
 controlled headless cases covering waiting, feedback, pause, recovery, final
 acceptance, omissions and a failed required check — is recorded with its
