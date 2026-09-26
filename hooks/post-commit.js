@@ -47,10 +47,10 @@ const TOKEN_RE = /(?:"[^"]*"|'[^']*'|\S)+/g;
 // commit's: `cd /elsewhere && git commit` or `git -C /elsewhere commit` lands
 // in another repository and drew this project's nudges. This follows each
 // earlier `cd` in the chain and the commit's own `-C` options from that cwd,
-// and returns the last commit's directory, or null when nothing commits.
-function commitDir(command, cwd) {
+// and returns every commit's directory in order, empty when nothing commits.
+function commitDirs(command, cwd) {
   let dir = cwd;
-  let target = null;
+  const targets = [];
   for (const part of command.split(SEP)) {
     const tokens = (part.trim().match(TOKEN_RE) || []).map((t) => t.replace(/["']/g, ""));
     const head = (tokens.shift() || "").toLowerCase();
@@ -66,9 +66,9 @@ function commitDir(command, cwd) {
       const value = tokens.shift();
       if (flag === "-C") gitDir = moveTo(gitDir, value);
     }
-    if (tokens[0] === "commit") target = gitDir;
+    if (tokens[0] === "commit") targets.push(gitDir);
   }
-  return target;
+  return targets;
 }
 
 // A directory that does not exist is not where the commit ran: a failed `cd`
@@ -526,8 +526,8 @@ function main() {
   if (!WATCHED_TOOLS.has(data.tool_name)) return;
 
   const command = (data.tool_input?.command || "").trim();
-  const dir = command && commitDir(command, path.resolve(data.cwd || process.cwd()));
-  if (!dir) return;
+  const dirs = command ? commitDirs(command, path.resolve(data.cwd || process.cwd())) : [];
+  if (!dirs.length) return;
   if (commitFailed(data)) return;
 
   const root = projectDir(data);
@@ -536,7 +536,10 @@ function main() {
   // elsewhere on disk) neither. Only the first two are this hook's
   // business; a commit fired from an unrelated repo must not read or
   // annotate this project's roadmap.
-  const scope = resolveHookScope(root, dir);
+  // A chain can commit in several repositories: the first one in scope is
+  // the commit this hook reads, so a project commit keeps its nudge.
+  let scope = null;
+  for (const dir of dirs) if ((scope = resolveHookScope(root, dir))) break;
   if (!scope) return;
 
   if (!fs.existsSync(path.join(root, "ROADMAP.jsonl"))) return;
@@ -618,7 +621,7 @@ if (require.main === module) {
 
 module.exports = {
   main,
-  commitDir,
+  commitDirs,
   commitFailed,
   wrappedExitCode,
   freshlyDoneStatePath,

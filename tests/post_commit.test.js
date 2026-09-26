@@ -839,6 +839,20 @@ describe('commit scope resolution', () => {
     });
   }
 
+  test('a chain that commits in the project and then elsewhere keeps the project nudge', () => {
+    const outsideRepo = makeTmpProject();
+    initGitRepo(outsideRepo);
+    commitFile(outsideRepo, 'unrelated.js', 'unrelated');
+    commitFile(project, 'src/a.js', 'content');
+    writeRoadmap(project, [
+      { id: '001', title: 'root work', status: 'in_progress', planned_touches: ['src/a.js'] },
+    ]);
+    const out = run(bashPayload(`git commit -m "a" && git -C "${outsideRepo}" commit -m "b"`));
+    assert.match(out, /may complete an in-progress/i);
+    // the project's own commit is the one read, not the other repository's
+    assert.match(out, /\[files overlap its planned files\]/);
+  });
+
   test('a Git Bash drive path names the same repository on Windows', { skip: process.platform !== 'win32' }, () => {
     const outsideRepo = makeTmpProject();
     initGitRepo(outsideRepo);
