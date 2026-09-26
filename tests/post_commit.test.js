@@ -1001,6 +1001,52 @@ describe('commit directory edge cases', () => {
     const rel = path.relative(os.tmpdir(), other).replace(/\\/g, '/');
     assert.deepEqual(commitDirs(`cd /tmp/${rel} && git commit -m x`, project), [other]);
   });
+
+  // [Foreman: 844]
+  test('leading NAME=value assignments are skipped, and GIT_DIR and GIT_WORK_TREE are followed', () => {
+    assert.deepEqual(commitDirs('HUSKY=0 git commit -m x', project), [project]);
+    assert.deepEqual(commitDirs('GIT_AUTHOR_DATE="2026-01-01 00:00" GIT_COMMITTER_DATE=x git commit -m x', project), [project]);
+    assert.deepEqual(commitDirs(`GIT_DIR="${path.join(other, '.git')}" git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`GIT_WORK_TREE='${other}' git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`GIT_WORK_TREE='${other}' git --work-tree=. commit -m x`, project), [project]);
+    assert.deepEqual(commitDirs('HUSKY=0 git log --grep commit', project), []);
+  });
+
+  test('git.exe, a path to git and the common wrappers still read as git', () => {
+    for (const command of [
+      'git.exe commit -m x',
+      '/usr/bin/git commit -m x',
+      'command git commit -m x',
+      'env HUSKY=0 git commit -m x',
+      'sudo -u root git commit -m x',
+      'nohup time git commit -m x',
+    ]) {
+      assert.deepEqual(commitDirs(command, project), [project], command);
+    }
+    assert.deepEqual(commitDirs('& "C:\\Program Files\\Git\\cmd\\git.exe" commit -m x', project, true), [project]);
+    assert.deepEqual(commitDirs(`env GIT_WORK_TREE="${other}" git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs('command -v git', project), []);
+    assert.deepEqual(commitDirs('env git log', project), []);
+  });
+
+  test('each shell reads its own escaped quote inside double quotes', () => {
+    assert.deepEqual(commitDirs('echo "a \\" b" && git commit -m "c"', project), [project]);
+    assert.deepEqual(commitDirs('echo "\\"; git commit -m x; echo \\""', project), []);
+    assert.deepEqual(commitDirs('echo "a `" b" ; git commit -m "c"', project, true), [project]);
+    // PowerShell keeps \ literal, so "C:\dir\" closes at its last quote;
+    // Bash reads \" as an escaped quote and the string runs on to "x"
+    const command = 'echo "C:\\dir\\" ; git commit -m "x"';
+    assert.deepEqual(commitDirs(command, project, true), [project]);
+    assert.deepEqual(commitDirs(command, project), []);
+  });
+
+  // Codex names a PowerShell command Bash on Windows, so its hook reads both shells.
+  test('outside Claude Code a Bash-named command also gets the PowerShell reading', () => {
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    const command = 'echo "C:\\dir\\" ; git commit -m "x"';
+    assert.match(context(bashPayload(command), 'codex'), /in-progress ROADMAP\.jsonl task/);
+    assert.equal(run(bashPayload(command)), '');
+  });
 });
 
 // Claude Code's discovery block opens and closes on one inclusion bar:

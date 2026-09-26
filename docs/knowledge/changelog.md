@@ -229,6 +229,15 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   folder. A `cd` given two arguments, such as `cd /d <path>`, fails in Bash
   and PowerShell, so the reminder treats the commit as made where the shell
   was. When the reminder cannot tell where a commit ran, it still fires.
+- The commit reminder now also fires for a commit that starts with a variable
+  assignment, such as `HUSKY=0 git commit`, and follows `GIT_DIR` and
+  `GIT_WORK_TREE` set that way. It also fires for `git.exe` or a full path to
+  Git, and for Git run through `command`, `env`, `exec`, `nohup`, `sudo`,
+  `time` or PowerShell's `&`. Inside double quotes it reads Bash's `\"` and
+  PowerShell's `` ` ``-escaped quote as part of the text, so a quoted message
+  no longer hides or invents a commit. Codex and Antigravity report every
+  shell command as Bash, even when PowerShell runs it, so on those hosts the
+  reminder reads the command both ways and fires if either reading commits.
 - `FOREMAN_HOST=antigravity` pins the host, and `ANTIGRAVITY_CONVERSATION_ID`
   or `ANTIGRAVITY_AGENT` in the environment selects it when nothing is pinned.
   Codex's own markers still win when both are present.
