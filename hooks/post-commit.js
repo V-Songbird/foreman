@@ -31,18 +31,27 @@ const WATCHED_TOOLS = new Set(["Bash", "PowerShell"]);
 // [Foreman: 851] Outside quotes Bash reads `\X` as the one character X and a
 // `\` before a newline as a line continuation, which separates tokens here.
 // PowerShell writes an apostrophe inside single quotes as `''`.
+// [Foreman: 854] PowerShell reads its backtick the same way outside quotes,
+// a backtick before a newline included, and in both places `n, `t, `u{41}
+// and the like stand for their own characters.
+const PS_ESCAPES = { 0: "\0", a: "\x07", b: "\b", e: "\x1b", f: "\f", n: "\n", r: "\r", t: "\t", v: "\v" };
 const SHELLS = {
   bash: {
     part: /(?:"(?:\\[\s\S]|[^"\\])*"|'[^']*'|\\[\s\S]|(?<!&)&(?!&)|[^;&|\n])+/g,
     token: /(?:"(?:\\[\s\S]|[^"\\])*"|'[^']*'|\\[^\n]|[^\s\\])+/g,
     quoted: /"((?:\\[\s\S]|[^"\\])*)"|'([^']*)'|\\([\s\S])/g,
     escape: /\\(["\\$`])/g,
+    unescape: (c) => c,
   },
   powershell: {
-    part: /(?:"(?:`[\s\S]|[^"`])*"|'[^']*'|(?<!&)&(?!&)|[^;&|\n])+/g,
-    token: /(?:"(?:`[\s\S]|[^"`])*"|'[^']*'|\S)+/g,
-    quoted: /"((?:`[\s\S]|[^"`])*)"|'((?:[^']|'')*)'/g,
-    escape: /`([\s\S])/g,
+    part: /(?:"(?:`[\s\S]|[^"`])*"|'[^']*'|`\r?\n|`[\s\S]|(?<!&)&(?!&)|[^;&|\n])+/g,
+    token: /(?:"(?:`[\s\S]|[^"`])*"|'[^']*'|`[^\r\n]|[^\s`])+/g,
+    quoted: /"((?:`[\s\S]|[^"`])*)"|'((?:[^']|'')*)'|`(u\{[0-9a-fA-F]{1,6}\}|[\s\S])/g,
+    escape: /`(u\{[0-9a-fA-F]{1,6}\}|[\s\S])/g,
+    unescape: (c) => {
+      const code = c.length > 1 ? parseInt(c.slice(2, -1), 16) : -1;
+      return code > 0x10ffff ? c : code >= 0 ? String.fromCodePoint(code) : PS_ESCAPES[c] ?? c;
+    },
   },
 };
 const HEREDOC_RE = /(<<-?\s*(["']?)(\w+)\2[^\n]*)\n[\s\S]*?\n\t*\3(?=\n|$)|@(["'])\n[\s\S]*?\n\4@/g;
@@ -74,8 +83,10 @@ const POP_COMMANDS = new Set(["popd", "pop-location"]);
 // [Foreman: 851] The skip also stops at a `cd`, `pushd` or `popd`, as in
 // `command cd dir`, and follows the directory option of `env -C dir` and
 // `sudo -D dir`, `--chdir` in both.
+// [Foreman: 854] It also reads them in a group of short options, `env -iC dir`,
+// unless an option earlier in the group takes the rest as its value.
 const WRAPPERS = new Set(["&", "command", "env", "exec", "nohup", "sudo", "time"]);
-const WRAPPER_CHDIR = { env: /^(?:-C|--chdir(?:=|$))/, sudo: /^(?:-D|--chdir(?:=|$))/ };
+const WRAPPER_CHDIR = { env: /^(?:-[^-CSu]*C|--chdir(?:=|$))/, sudo: /^(?:-[^-aCcDghpRrTtUu]*D|--chdir(?:=|$))/ };
 const GIT_RE = /(?:^|[\\/])git(?:\.exe)?$/i;
 const ASSIGNMENT_RE = /^(\w+)=([\s\S]*)$/;
 
@@ -102,7 +113,7 @@ function commitDirs(command, cwd, powershell = false) {
     for (; part.endsWith(")"); part = part.slice(0, -1).trimEnd()) closes++;
     const tokens = (part.match(shell.token) || []).map((t) =>
       t.replace(shell.quoted, (match, double, single, escaped) =>
-        double !== undefined ? double.replace(shell.escape, "$1") : single !== undefined ? single.replace(/''/g, "'") : escaped
+        double !== undefined ? double.replace(shell.escape, (m, c) => shell.unescape(c)) : single !== undefined ? single.replace(/''/g, "'") : shell.unescape(escaped)
       )
     );
     const assigned = {};

@@ -1074,6 +1074,34 @@ describe('commit directory edge cases', () => {
     assert.deepEqual(commitDirs(`Set-Location '${quoted.replace(/'/g, "''")}'; git commit -m x`, project, true), [quoted]);
   });
 
+  // [Foreman: 854]
+  test('PowerShell reads a backtick continuation and a backtick escape outside quotes', () => {
+    assert.deepEqual(commitDirs('git `\n  commit -m x', project, true), [project]);
+    assert.deepEqual(commitDirs('git `\r\n  commit -m x', project, true), [project]);
+    assert.deepEqual(commitDirs(`Set-Location \`\n  "${other}"; git commit -m x`, project, true), [other]);
+    assert.deepEqual(commitDirs('echo a`; git commit -m x', project, true), []);
+    const spaced = path.join(other, 'my dir');
+    fs.mkdirSync(spaced);
+    assert.deepEqual(commitDirs(`cd ${spaced.replace(/ /g, '` ')}; git commit -m x`, project, true), [spaced]);
+    // PowerShell's own escapes: `u{41} is A and `q is q, but `t is a tab, not t
+    const odd = path.join(other, 'aAq');
+    fs.mkdirSync(odd);
+    fs.mkdirSync(path.join(other, 'atb'));
+    assert.deepEqual(commitDirs(`cd "${other}\\a\`u{41}\`q"; git commit -m x`, project, true), [odd]);
+    assert.deepEqual(commitDirs(`cd ${other}\\a\`u{41}\`q; git commit -m x`, project, true), [odd]);
+    assert.deepEqual(commitDirs(`cd ${other}\\a\`tb; git commit -m x`, project, true), [project]);
+    // an escape out of range stays put instead of throwing
+    assert.deepEqual(commitDirs('cd a`u{110000}; git commit -m x', project, true), [project]);
+  });
+
+  test('env and sudo read their directory option inside a group of short options', () => {
+    assert.deepEqual(commitDirs(`env -iC "${other}" git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`env -iC"${other}" git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`sudo -ED "${other}" git commit -m x`, project), [other]);
+    // -u takes the rest of the group as its value, so -uC unsets C
+    assert.deepEqual(commitDirs(`env -uC "${other}" git commit -m x`, project), [project]);
+  });
+
   // Codex names a PowerShell command Bash on Windows, so its hook reads both shells.
   test('outside Claude Code a Bash-named command also gets the PowerShell reading', () => {
     writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);

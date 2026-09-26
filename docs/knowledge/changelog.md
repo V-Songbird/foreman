@@ -244,6 +244,12 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   line as a continued command and `\` before any other character as that
   character. In PowerShell it reads `''` inside single quotes as one
   apostrophe.
+- In PowerShell the commit reminder now reads a backtick at the end of a line
+  as a continued command, and a backtick before another character as that
+  character, inside or outside double quotes. PowerShell's own escapes keep
+  their meaning: `` `t `` is a tab and `` `u{41} `` is `A`. The reminder also
+  follows the folder of `env -C` or `sudo -D` when the option is grouped with
+  others, as in `env -iC <path>`.
 - `FOREMAN_HOST=antigravity` pins the host, and `ANTIGRAVITY_CONVERSATION_ID`
   or `ANTIGRAVITY_AGENT` in the environment selects it when nothing is pinned.
   Codex's own markers still win when both are present.
