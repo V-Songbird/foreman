@@ -27,9 +27,21 @@ instead.
 
 ## 3.2.0 — 2026-09-26
 
-Foreman now runs on Antigravity from the same package, installed from a clone
-with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
-`/survey` and `/craft-prompt` there.
+This release adds Antigravity as a third host and a `delegatedAcceptance`
+setting for sessions that an orchestrator session runs. On Claude Code,
+Foreman now needs version 2.1.147 or later. A prompt you assemble by hand
+fails `check-prompt.js` until it carries the lines Foreman's own handoffs now
+carry: in Claude Code, the keep-going paragraph of a task or clipboard prompt
+and the sentence on where an approval comes from; in Codex and Antigravity,
+the line "Implementation requires authorization in the task itself."
+Foreman's command-line scripts, such as `roadmap.js`, now fail and write
+nothing on a flag or argument they do not take or a value flag given twice,
+where they used to ignore it or guess. The sections below list every change.
+
+Foreman now runs on Antigravity from the same package, installed with
+`agy plugin install` from the `foreman` folder of a clone of Foundry. Its
+skills answer to `/foreman`, `/init`, `/roadmap`, `/survey` and
+`/craft-prompt` there.
 
 ### Antigravity
 
