@@ -254,6 +254,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   their meaning: `` `t `` is a tab and `` `u{41} `` is `A`. The reminder also
   follows the folder of `env -C` or `sudo -D` when the option is grouped with
   others, as in `env -iC <path>`.
+- Closing an entry with a commit sha no longer adds `ROADMAP.jsonl` or
+  `.foreman/notes.jsonl` to its `observed_touches` when that commit contains
+  them, so the scope-drift note no longer lists them as unplanned files. A
+  staged close already left both files out.
 - `FOREMAN_HOST=antigravity` pins the host, and `ANTIGRAVITY_CONVERSATION_ID`
   or `ANTIGRAVITY_AGENT` in the environment selects it when nothing is pinned.
   Codex's own markers still win when both are present.
