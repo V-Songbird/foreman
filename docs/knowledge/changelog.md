@@ -198,6 +198,9 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
 
 ### Every host
 
+- On Windows PowerShell 5.1, Foreman now sends a payload file to its scripts
+  through a `cmd /c` redirect. Before, a pipe there stored every non-ASCII
+  character, such as an accented letter, as `?`.
 - A new `delegatedAcceptance` setting names an orchestrator session and the
   sessions it accepts work for. After a commit, a listed session still records
   the commit and moves the entry to `awaiting_acceptance`, but it is not told
