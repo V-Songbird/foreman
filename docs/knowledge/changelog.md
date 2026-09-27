@@ -220,6 +220,10 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   that is not one of its submodules, gets no reminder. A commit in a
   submodule, such as `git -C <submodule> commit` from the project root, still
   gets one, and it now reads that submodule's own `Foreman:` trailer and files.
+- After a commit in a submodule, the commit reminder no longer lists entries
+  whose planned files all sit in another repository. It still lists entries
+  with no planned files and entries the commit's `Foreman:` trailer names. A
+  commit in the project root lists every entry, as before.
 - The commit reminder reads more commands correctly. It no longer fires for
   text that only quotes a commit, such as `git commit` inside an `echo`
   string, a heredoc or a commit message. It now follows `popd` and

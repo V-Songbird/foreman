@@ -9,7 +9,7 @@ const crypto = require("crypto");
 
 const { execFileSync } = require("child_process");
 
-const { readEntries, today, trailerIdsIn } = require("../scripts/roadmap");
+const { readEntries, today, touchesOverlap, trailerIdsIn } = require("../scripts/roadmap");
 const { resolveHookScope } = require("../scripts/commit-evidence");
 const { readConfigFile, delegatedOrchestrator } = require("../scripts/foreman-config");
 const { discoveryInstructions, duplicateCheckStep, delegatedDiscoveryInstructions } = require("../scripts/discovery");
@@ -288,8 +288,9 @@ function readConfig(root, sessionId) {
 // changed files intersect the task's PREDICTED file surface. This is the
 // signal the hook otherwise lacks: under concurrent sessions sharing one
 // working tree, a commit from one workstream surfaces every other
-// workstream's in_progress task with no way to tell them apart. Never
-// suppresses — the tag ranks, it does not filter:
+// workstream's in_progress task with no way to tell them apart. Within the
+// commit's repository the tag ranks, it does not filter (inCommitRepo below
+// is the one filter, and it works across repositories):
 //   - no committed files resolvable (git absent / non-git project) -> no tag
 //   - a task with no predicted surface yet -> no tag (nothing to compare)
 // [Foreman: 130] `planned_touches`, deliberately. The question is "is this
@@ -311,6 +312,18 @@ function touchesTag(entry, committedSet) {
   return planned.some((t) => committedSet.has(t))
     ? " [files overlap its planned files]"
     : " [no overlap with its planned files]";
+}
+
+// [Foreman: 832] A commit inside a submodule cannot be another repository's
+// work, so the status reminders leave out an entry whose planned files all sit
+// outside that submodule: a foreman commit no longer lists a hush benchmark.
+// An entry with no planned files, one the commit's trailer names, and every
+// entry after a root commit (a gitlink move can be any submodule's work) stay.
+// An area hint that holds the whole submodule counts as inside it.
+function inCommitRepo(entry, prefix, trailerIds) {
+  const planned = entry.planned_touches || [];
+  return !prefix || !planned.length || trailerIds.includes(entry.id) ||
+    planned.some((t) => touchesOverlap(t, prefix));
 }
 
 // HEAD's commit message, for `Foreman: <id>` trailer detection -- read from
@@ -624,7 +637,7 @@ function main() {
   }
 
   const todayStr = today();
-  const inProgress = entries.filter((e) => e.status === "in_progress");
+  const inProgressAll = entries.filter((e) => e.status === "in_progress");
   // A `Foreman: <id>` trailer in the just-landed commit's message is a
   // staged close's link. An entry it names needs no follow-up nudge — this
   // commit IS its closing (or acceptance-recording) commit, and appending
@@ -639,8 +652,10 @@ function main() {
   // done-today, an entry can sit awaiting acceptance for days.
   const doneTodayAll = entries.filter((e) => e.status === "done" && e.updated_at === todayStr);
   const awaitingAll = entries.filter((e) => e.status === "awaiting_acceptance");
-  const followUpAll = [...doneTodayAll, ...awaitingAll];
-  const trailerIds = inProgress.length || followUpAll.length ? headTrailerIds(scope.cwd) : [];
+  const trailerIds = inProgressAll.length || doneTodayAll.length || awaitingAll.length ? headTrailerIds(scope.cwd) : [];
+  const inRepo = (e) => inCommitRepo(e, scope.prefix, trailerIds);
+  const inProgress = inProgressAll.filter(inRepo);
+  const followUpAll = [...doneTodayAll, ...awaitingAll].filter(inRepo);
   const followUpUntagged = followUpAll.filter((e) => !trailerIds.includes(e.id));
   const unnudged = followUpUntagged.length
     ? filterUnnudged(root, followUpUntagged.map((e) => e.id), todayStr)

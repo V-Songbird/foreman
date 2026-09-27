@@ -911,6 +911,42 @@ describe('commit scope resolution', () => {
     assert.doesNotMatch(out, /\[no overlap with its planned files\]/);
   });
 
+  // [Foreman: 832] A submodule commit lists only entries that could be its work.
+  test('a submodule commit leaves out entries whose planned files all sit in another repository', () => {
+    commitFile(project, 'root.js', 'root content');
+    const sub = addSubmodule(project, 'lib');
+    commitWithMessage(sub, 'inner.js', 'inner content', 'work in submodule\n\nForeman: 004');
+    writeRoadmap(project, [
+      { id: '001', title: 'lib work', status: 'in_progress', planned_touches: ['lib/inner.js', 'docs/lib.md'] },
+      { id: '002', title: 'other repo work', status: 'in_progress', planned_touches: ['other/bench.js', 'README.md'] },
+      { id: '003', title: 'unplanned work', status: 'in_progress', planned_touches: [] },
+      { id: '004', title: 'named work', status: 'in_progress', planned_touches: ['other/named.js'] },
+      { id: '005', title: 'other repo awaiting', status: 'awaiting_acceptance', planned_touches: ['other/x.js'] },
+      { id: '006', title: 'lib awaiting', status: 'awaiting_acceptance', planned_touches: ['lib/'] },
+      { id: '007', title: 'typed path work', status: 'in_progress', planned_touches: ['./Lib\\inner.js'] },
+    ]);
+    const out = context(bashPayload('git commit -m "work in submodule"', { cwd: sub }));
+    assert.match(out, /001 \("lib work"\)/);
+    assert.match(out, /003 \("unplanned work"\)/);
+    assert.match(out, /004 \("named work"\) \[named in this commit's Foreman: trailer/);
+    assert.match(out, /006 \("lib awaiting"/);
+    assert.match(out, /007 \("typed path work"\)/);
+    assert.doesNotMatch(out, /other repo/);
+  });
+
+  test('a root commit still lists entries whose planned files all sit in a submodule', () => {
+    commitFile(project, 'root.js', 'root content');
+    addSubmodule(project, 'lib');
+    commitFile(project, 'src/a.js', 'content');
+    writeRoadmap(project, [
+      { id: '001', title: 'lib work', status: 'in_progress', planned_touches: ['lib/inner.js'] },
+      { id: '002', title: 'lib awaiting', status: 'awaiting_acceptance', planned_touches: ['lib/x.js'] },
+    ]);
+    const out = context(bashPayload('git commit -m "move the pin"'));
+    assert.match(out, /001 \("lib work"\) \[no overlap with its planned files\]/);
+    assert.match(out, /002 \("lib awaiting"/);
+  });
+
   test('a root-repo commit resolves to the root scope and behaves exactly as before', () => {
     commitFile(project, 'src/a.js', 'content');
     writeRoadmap(project, [
