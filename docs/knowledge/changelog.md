@@ -25,7 +25,7 @@ listings pin a release commit and carry no version of their own. Claude Code
 releases up to 2.7.0 kept their number in the foundry marketplace listing
 instead.
 
-## 3.2.0 — Unreleased
+## 3.2.0 — 2026-09-26
 
 Foreman now runs on Antigravity from the same package, installed from a clone
 with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
@@ -198,17 +198,23 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
 
 ### Every host
 
-- On Windows PowerShell 5.1, Foreman now sets `$OutputEncoding` to UTF-8 and
-  reads a payload file as UTF-8 before it pipes the file to its scripts.
-  Before, a pipe there stored every non-ASCII character, such as an accented
-  letter, as `?`.
+- On Windows PowerShell 5.1, the skills now tell the session to set
+  `$OutputEncoding` to UTF-8 and to read a payload file as UTF-8 before it
+  pipes the file to Foreman's scripts. Before, a pipe there stored every
+  non-ASCII character, such as an accented letter, as `?`.
+- The skills now tell a session that sends JSON to a Foreman script through a
+  payload file to write that file in the project's `tmp/` folder, under a
+  name no other session uses, and to delete it after the call. They named no
+  place before, so a payload file could land outside the project, and a
+  leftover one could make `safe-commit.js` report the tree as dirty.
 - A new `delegatedAcceptance` setting names an orchestrator session and the
   sessions it accepts work for. After a commit, a listed session still records
   the commit and moves the entry to `awaiting_acceptance`, but it is not told
   to ask you, before closing the entry or before adding work it noticed; it
   checks for duplicates and leaves both to the orchestrator. Sessions the
   setting does not list, including your own, get the same prompts as before.
-  See [settings.md](../../settings.md).
+  `roadmap.js doctor` reports a malformed value as an error. See
+  [settings.md](../../settings.md).
 - `delegatedAcceptance` now also covers the task checkpoints and the roadmap
   skill's steps, not only the commit reminder. In Codex, `codex-task.js start`
   and `check` in a listed session return the orchestrator's name as
