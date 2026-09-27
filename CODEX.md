@@ -190,24 +190,39 @@ presented as Codex evidence. After a local installation, a new-session smoke
 test should cover init, pick and export, start, commit evidence, acceptance,
 and enabled hooks in a disposable project.
 
-Installed-package smoke test, 2026-09-25, Codex CLI 0.157.1 on Windows 11, from
-`main` at 9a25851 (the 3.2.0 content; its manifests still read 3.1.0), in a
-disposable Codex home and project. The steps below the install ran the
-installed cache's scripts, and each hook through the exact command its
-`hooks/codex-hooks.json` registers; they did not run inside a Codex session.
+An installed-package smoke test on 2026-09-26 installed the Foreman 3.2.0
+content from a local marketplace and exercised it in live `codex exec`
+sessions. Its manifests still read 3.1.0. The run used Codex CLI 0.157.1 on
+Windows 11 with a disposable Codex home and project. The six Foreman hooks were trusted through `/hooks`,
+without a trust bypass. On Windows, Codex ran each hook through its
+`commandWindows` launcher.
 
 | Step | Result |
 | --- | --- |
-| `codex plugin marketplace add`, `codex plugin add` from a local marketplace | Pass |
-| Installed files against the source commit (SHA-256) | Pass: 166 of 166 identical |
-| Init, pick and export, start | Pass |
-| Commit with a `Foreman:` trailer, evidence, `check`, acceptance | Pass |
-| Archive and restore | Pass |
-| Edit guard on `apply_patch` of `ROADMAP.jsonl` | Pass: denied |
-| Session notice with an open entry | Pass |
-| `codex plugin remove` | Pass: cache removed |
-| Hook trust with `/hooks`, and the same steps in a live Codex session | Not run |
-| Windows `commandWindows` launcher as Codex invokes it | Not run |
+| `codex plugin marketplace add`, then `codex plugin add` | Pass |
+| Installed files compared with the source commit (SHA-256) | Pass: 169 of 169 identical |
+| Init: two entries, then a commit | Pass |
+| Pick and export to the clipboard | Pass: the entry stays `planned` |
+| Start, change, commit with a `Foreman:` trailer, evidence, close check | Pass: `awaiting_acceptance`, check complete |
+| Acceptance, then archive and restore | Pass |
+| Edit guard: `apply_patch` of `ROADMAP.jsonl` | Pass: denied with the `roadmap.js` route |
+| Session notice with an open entry | Fail: the hook printed the notice, but the model did not receive it |
+| `codex plugin remove` | Pass: the plugin cache is removed; the hook trust entries stay in `config.toml` |
+
+In the `workspace-write` sandbox on Windows, Codex could not write to `.git`,
+so `git commit` failed. The init, start and acceptance sessions therefore ran
+with `danger-full-access`; pick and export and the edit guard ran in
+`workspace-write`.
+
+The session notice is plain text. Hooks that return JSON, such as the commit
+notice and the edit guard, reached the model in the same sessions.
+
+For comparison, the same package passed in headless Claude Code 2.1.283
+sessions (`claude -p`). The installed files were 169 of 169 identical. Init,
+pick and export, a commit with evidence, acceptance, archive and restore, the
+edit guard, the session notice and uninstall all passed. Headless Claude Code
+has no task tools, so the session opened the entry with `roadmap.js`, and the
+`TaskCreated` and `TaskCompleted` hooks were not exercised.
 
 The 2026-09-08 validation of reviewed increments — automated tests plus
 controlled headless cases covering waiting, feedback, pause, recovery, final
