@@ -143,9 +143,15 @@ function main(data = readInput()) {
   if (fs.existsSync(path.join(root, "ROADMAP.jsonl"))) parts.push(...roadmapParts(root));
   if (!parts.length) return;
 
-  // SessionStart accepts raw stdout as context — no JSON envelope needed.
+  // [Foreman: 868] Claude Code and Antigravity take raw stdout as context.
+  // Codex reads stdout that starts with "[" or "{" as JSON and drops it as
+  // invalid when it does not parse, and every line here starts with
+  // "[Foreman]", so Codex gets the JSON envelope instead.
+  const text = parts.join("\n");
   try {
-    process.stdout.write(parts.join("\n"));
+    process.stdout.write(hostName() === "codex"
+      ? JSON.stringify({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: text } })
+      : text);
   } catch {
     // ignore
   }

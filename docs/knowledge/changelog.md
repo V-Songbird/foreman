@@ -189,6 +189,12 @@ with `agy plugin install`. Its skills answer to `/foreman`, `/init`, `/roadmap`,
   writes PowerShell progress records ("Preparing modules for first use") to
   stderr as CLIXML the first time PowerShell loads its modules. The launcher
   silences progress output and starts `powershell.exe` with `-NoLogo`.
+- The session-start notice, which names roadmap entries still open and offers
+  to archive finished ones, now reaches the model in Codex. Codex reads hook
+  output that starts with `[` as JSON, so it dropped the notice, which starts
+  with `[Foreman]`. Foreman now sends the same text to Codex inside
+  `hookSpecificOutput.additionalContext`. Claude Code and Antigravity get the
+  plain text as before.
 
 ### Every host
 

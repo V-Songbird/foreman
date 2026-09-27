@@ -1,7 +1,8 @@
 'use strict';
 
 // hooks/session-start.js — dangling in_progress surfacing:
-//   - fires (raw stdout, no JSON envelope) when in_progress entries exist
+//   - fires when in_progress entries exist: raw stdout for Claude Code, the
+//     SessionStart JSON envelope for Codex
 //   - stays silent with no ROADMAP.jsonl, no in_progress entries, a corrupt
 //     file, or a resume/compact source
 //   - annotates entries with no recent activity with their last-touched date
@@ -198,5 +199,35 @@ describe('session-start plugin root line', () => {
     assert.equal(run({ source: 'startup' }), '');
     const codex = runScriptRaw('session-start.js', { source: 'startup' }, { CLAUDE_PROJECT_DIR: project, CLAUDE_PLUGIN_ROOT: path.join(os.tmpdir(), 'foreman-checkout'), FOREMAN_HOST: 'codex' }).stdout;
     assert.doesNotMatch(codex, /Plugin root:/);
+  });
+});
+
+describe('session-start on Codex', () => {
+  // [Foreman: 868] Codex reads stdout that starts with "[" as JSON and drops
+  // it when it does not parse, so a Codex session gets the notice inside the
+  // SessionStart JSON envelope; Claude Code keeps the raw line.
+  test('a Codex session gets the notice as SessionStart additionalContext JSON', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'Ship the thing', status: 'in_progress', updated_at: localToday() },
+    ]);
+    const raw = run({ source: 'startup' });
+    const codex = runScriptRaw('session-start.js', { source: 'startup' }, { ...env, FOREMAN_HOST: 'codex' });
+    assert.equal(codex.status, 0, codex.stderr);
+    const parsed = JSON.parse(codex.stdout);
+    assert.deepEqual(Object.keys(parsed), ['hookSpecificOutput']);
+    assert.equal(parsed.hookSpecificOutput.hookEventName, 'SessionStart');
+    assert.match(parsed.hookSpecificOutput.additionalContext, /^\[Foreman\] Roadmap entries still open: 001 \("Ship the thing"\)/);
+    assert.match(parsed.hookSpecificOutput.additionalContext, /ask Foreman to resume, accept, or review\.$/);
+    assert.match(raw, /^\[Foreman\] Roadmap entries still open: 001/);
+    assert.equal(
+      parsed.hookSpecificOutput.additionalContext,
+      raw.replace('/foreman:roadmap offers to resume, accept, or review.', 'ask Foreman to resume, accept, or review.')
+    );
+  });
+
+  test('a Codex session with nothing to say stays silent, not an empty envelope', () => {
+    writeRoadmap(project, [{ id: '001', title: 'a', status: 'planned' }]);
+    const codex = runScriptRaw('session-start.js', { source: 'startup' }, { ...env, FOREMAN_HOST: 'codex' });
+    assert.equal(codex.stdout, '');
   });
 });
