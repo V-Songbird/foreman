@@ -25,6 +25,16 @@ listings pin a release commit and carry no version of their own. Claude Code
 releases up to 2.7.0 kept their number in the foundry marketplace listing
 instead.
 
+## Unreleased
+
+### Claude Code
+
+- On Linux and macOS, the commit reminder now reads `\` as a folder separator
+  when the PowerShell tool runs `cd`, `Set-Location` or `Push-Location`, as
+  PowerShell does there. A command such as `cd ..\other-repo; git commit` now
+  counts as a commit in `other-repo`. Commands from the Bash tool still read
+  `\` as an escape.
+
 ## 3.2.0 — 2026-09-26
 
 This release adds Antigravity as a third host and a `delegatedAcceptance`
