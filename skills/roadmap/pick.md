@@ -279,8 +279,8 @@ this session's model, and a pasted prompt runs wherever the user pastes it.
    the variable already resolved to a version-pinned cache path — type
    `${CLAUDE_PLUGIN_ROOT}` back literally in the stdin JSON above and in
    the delivery calls below; the gate errors on a resolved plugins-cache
-   path. In Codex and Antigravity, send the JSON through a payload file or
-   here-string as the runtime describes.
+   path. In Codex and Antigravity, send the JSON through a payload file in
+   the project's `tmp/` or a here-string, as the runtime describes.
 
    Returns one JSON line: `{ok, prompt, profile, signals, tasks?,
    ledger_ask?, gate, warnings}`. `profile` and `signals` are internal

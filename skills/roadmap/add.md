@@ -28,7 +28,7 @@
    task that shouldn't exist is not.
 3. `echo '{"title":"...","why":"...","what":"...","source":"user","depends_on":[...],"planned_touches":[...]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js add`
    — send user-written text through a heredoc, here-string, or payload file
-   as the runtime describes. The script computes the id, validates required
+   in the project's `tmp/`, as the runtime describes. The script computes the id, validates required
    fields (including that every `depends_on` id already exists), and confirms
    the file is still well-formed after writing. An exact replay safely
    returns the existing entry with `deduped: true` instead of adding another

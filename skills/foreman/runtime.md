@@ -24,8 +24,10 @@ commands in the user's project.
 Commands show their JSON after `echo` for readability. Never interpolate
 user-written text into a shell command: send that JSON through a quoted heredoc
 (`<<'EOF'`), a PowerShell literal here-string (`@'...'@`), or a UTF-8 payload
-file piped to the script. Use the execution and patch tools the host actually
-provides rather than tools named for the other host.
+file piped to the script. Write a payload file in the project's `tmp/`
+directory, never outside the project, and delete it after the call: a leftover
+file can dirty the tree for `safe-commit.js`. Use the execution and patch tools
+the host actually provides rather than tools named for the other host.
 
 ## Roadmap stores
 

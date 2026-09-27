@@ -19,5 +19,5 @@ Accepting closes it —
 `echo '{"id":"<id>","status":"done"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
 — and declining sends it back with what they said:
 `echo '{"id":"<id>","status":"in_progress","notes":"<what they said>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
-(their words go through a heredoc, here-string, or payload file, as the
-runtime describes). Either way, say what changed and stop; no prompt is crafted for an accept.
+(their words go through a heredoc, here-string, or payload file in the
+project's `tmp/`, as the runtime describes). Either way, say what changed and stop; no prompt is crafted for an accept.

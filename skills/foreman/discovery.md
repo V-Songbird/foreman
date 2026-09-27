@@ -38,7 +38,8 @@ user-facing executor handles the following steps:
 
 Use the currently installed Foreman `scripts/roadmap.js`, resolving its location
 from the loaded Foreman skill. Supply JSON safely through a UTF-8 payload file
-or safely quoted stdin. Write dense why/what from existing evidence.
+in the project's `tmp/`, deleted after the call, or safely quoted stdin. Write
+dense why/what from existing evidence.
 
 For separate authorized work already implemented inline, offer **Log it / Skip**.
 Only on Log it, add and record its actual completion and evidence, honoring
