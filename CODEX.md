@@ -61,7 +61,7 @@ for the source mapping, the Foreman policies kept, and the validation limits.
 | Background agents and split task rows | Background `Agent`; `TaskCreate` tasks | Native Codex subagents with bounded ownership and coordinator verification | Shared-tree bookkeeping is serialized; a separate sidebar task needs an explicit request |
 | Opening a task | `TaskCreated` hook | `hooks/codex-task.js start` with readiness and status guards | Exporting a prompt never starts the task |
 | Optional close gate | `TaskCompleted` hook | Explicit `check` plus a scoped `Stop`/`SubagentStop` reminder | A normal turn ending or a clarification does not count as task completion |
-| Fresh-session reminders | `SessionStart` on startup and clear | The same | Hooks must be trusted and enabled |
+| Fresh-session reminders | `SessionStart` on startup and clear | The same | Hooks must be trusted and enabled. In the 2026-09-26 `codex exec` smoke test, the notice did not reach the model (see [Validation and limits](#validation-and-limits)) |
 | Direct roadmap write guard | `PreToolUse` on `Edit` and `Write` | `PreToolUse` on `apply_patch`, `Edit` and `Write` | Covers add, update, delete and move destinations; shell writes are outside this guard on both hosts |
 | Successful-commit bookkeeping | `PostToolUse` on `Bash` and `PowerShell` | `PostToolUse` on canonical `Bash` (including Codex shell execution) and compatibility `PowerShell` | Native payloads may omit the exit status; confirm the command succeeded before using the hint. Reminders never write the roadmap |
 | File, decision and lesson recall | Prompt-time recall plus `PostToolUse` on `Read`, `Edit` and `Write` | Prompt-time recall plus `PostToolUse` on `apply_patch`, `Read`, `Edit` and `Write` | Shell commands such as `rg`, `cat` or `Get-Content` are not parsed into reliable file-read events, on either host |
@@ -186,16 +186,14 @@ and implementation briefs in disposable projects: the research task reported an
 existing failing check without editing files; the implementation changed only
 its authorized source and passed the existing check. These are behavioral smoke
 checks, not a performance benchmark. No Claude Code benchmark result is
-presented as Codex evidence. After a local installation, a new-session smoke
-test should cover init, pick and export, start, commit evidence, acceptance,
-and enabled hooks in a disposable project.
+presented as Codex evidence.
 
-An installed-package smoke test on 2026-09-26 installed the Foreman 3.2.0
-content from a local marketplace and exercised it in live `codex exec`
-sessions. Its manifests still read 3.1.0. The run used Codex CLI 0.157.1 on
-Windows 11 with a disposable Codex home and project. The six Foreman hooks were trusted through `/hooks`,
-without a trust bypass. On Windows, Codex ran each hook through its
-`commandWindows` launcher.
+An installed-package smoke test on 2026-09-26 installed a 3.2.0 pre-release
+build, at commit 05bc91a, from a local marketplace and exercised it in live
+`codex exec` sessions. Its manifests still read 3.1.0. The run used Codex CLI
+0.157.1 on Windows 11 with a disposable Codex home and project. The six
+Foreman hooks were trusted through `/hooks`, without a trust bypass. On
+Windows, Codex ran each hook through its `commandWindows` launcher.
 
 | Step | Result |
 | --- | --- |
