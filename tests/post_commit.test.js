@@ -1123,9 +1123,9 @@ describe('commit directory edge cases', () => {
     const odd = path.join(other, 'aAq');
     fs.mkdirSync(odd);
     fs.mkdirSync(path.join(other, 'atb'));
-    assert.deepEqual(commitDirs(`cd "${other}\\a\`u{41}\`q"; git commit -m x`, project, true), [odd]);
-    assert.deepEqual(commitDirs(`cd ${other}\\a\`u{41}\`q; git commit -m x`, project, true), [odd]);
-    assert.deepEqual(commitDirs(`cd ${other}\\a\`tb; git commit -m x`, project, true), [project]);
+    assert.deepEqual(commitDirs(`cd "${other}${path.sep}a\`u{41}\`q"; git commit -m x`, project, true), [odd]);
+    assert.deepEqual(commitDirs(`cd ${other}${path.sep}a\`u{41}\`q; git commit -m x`, project, true), [odd]);
+    assert.deepEqual(commitDirs(`cd ${other}${path.sep}a\`tb; git commit -m x`, project, true), [project]);
     // an escape out of range stays put instead of throwing
     assert.deepEqual(commitDirs('cd a`u{110000}; git commit -m x', project, true), [project]);
   });
