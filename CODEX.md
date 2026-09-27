@@ -61,7 +61,7 @@ for the source mapping, the Foreman policies kept, and the validation limits.
 | Background agents and split task rows | Background `Agent`; `TaskCreate` tasks | Native Codex subagents with bounded ownership and coordinator verification | Shared-tree bookkeeping is serialized; a separate sidebar task needs an explicit request |
 | Opening a task | `TaskCreated` hook | `hooks/codex-task.js start` with readiness and status guards | Exporting a prompt never starts the task |
 | Optional close gate | `TaskCompleted` hook | Explicit `check` plus a scoped `Stop`/`SubagentStop` reminder | A normal turn ending or a clarification does not count as task completion |
-| Fresh-session reminders | `SessionStart` on startup and clear | The same | Hooks must be trusted and enabled. In the 2026-09-26 `codex exec` smoke test, the notice did not reach the model (see [Validation and limits](#validation-and-limits)) |
+| Fresh-session reminders | `SessionStart` on startup and clear, as plain text | `SessionStart` on startup and clear, as JSON `additionalContext` | Hooks must be trusted and enabled. Codex drops plain hook output that starts with `[`, so the notice goes to Codex as JSON (see [Validation and limits](#validation-and-limits)) |
 | Direct roadmap write guard | `PreToolUse` on `Edit` and `Write` | `PreToolUse` on `apply_patch`, `Edit` and `Write` | Covers add, update, delete and move destinations; shell writes are outside this guard on both hosts |
 | Successful-commit bookkeeping | `PostToolUse` on `Bash` and `PowerShell` | `PostToolUse` on canonical `Bash` (including Codex shell execution) and compatibility `PowerShell` | Native payloads may omit the exit status; confirm the command succeeded before using the hint. Reminders never write the roadmap |
 | File, decision and lesson recall | Prompt-time recall plus `PostToolUse` on `Read`, `Edit` and `Write` | Prompt-time recall plus `PostToolUse` on `apply_patch`, `Read`, `Edit` and `Write` | Shell commands such as `rg`, `cat` or `Get-Content` are not parsed into reliable file-read events, on either host |
@@ -204,7 +204,7 @@ Windows, Codex ran each hook through its `commandWindows` launcher.
 | Start, change, commit with a `Foreman:` trailer, evidence, close check | Pass: `awaiting_acceptance`, check complete |
 | Acceptance, then archive and restore | Pass |
 | Edit guard: `apply_patch` of `ROADMAP.jsonl` | Pass: denied with the `roadmap.js` route |
-| Session notice with an open entry | Fail: the hook printed the notice, but the model did not receive it |
+| Session notice with an open entry | Fail: the hook printed the notice, but the model did not receive it. Pass in a rerun with the fix described below: the model named the open entry |
 | `codex plugin remove` | Pass: the plugin cache is removed; the hook trust entries stay in `config.toml` |
 
 In the `workspace-write` sandbox on Windows, Codex could not write to `.git`,
@@ -212,8 +212,13 @@ so `git commit` failed. The init, start and acceptance sessions therefore ran
 with `danger-full-access`; pick and export and the edit guard ran in
 `workspace-write`.
 
-The session notice is plain text. Hooks that return JSON, such as the commit
-notice and the edit guard, reached the model in the same sessions.
+In that build the session notice was plain text that starts with `[Foreman]`.
+Codex reads hook output that starts with `[` or `{` as JSON and discards it
+when it does not parse. Hooks that return JSON, such as the commit notice and
+the edit guard, reached the model in the same sessions. Foreman now sends the
+notice to Codex as JSON `additionalContext`. A rerun on 2026-09-26 with that
+change, in the same Codex home and project, delivered the notice to the model
+as a developer message, and the model named the open entry.
 
 For comparison, the same package passed in headless Claude Code 2.1.283
 sessions (`claude -p`). The installed files were 169 of 169 identical. Init,
