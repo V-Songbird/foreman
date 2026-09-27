@@ -28,6 +28,7 @@ const { test, describe, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
 const {
   runRoadmap,
@@ -331,6 +332,22 @@ describe('a close records the observed surface only', () => {
 
     assert.equal(json.scope_drift, undefined);
     assert.deepEqual(json.entry.observed_touches, ['src/auth/session.ts']);
+  });
+
+  // [Foreman: 869] A commit-sha close whose commit carries the roadmap and the
+  // notes file records only the task's own files, as a staged close does.
+  test('the roadmap and the notes file in the landed commit are not observed', () => {
+    seed(['src/work.ts']);
+    fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
+    fs.writeFileSync(path.join(project, '.foreman', 'notes.jsonl'), '', 'utf-8');
+    spawnSync('git', ['add', 'ROADMAP.jsonl', '.foreman/notes.jsonl'], { cwd: project });
+    const sha = commitFile(project, 'src/work.ts', 'export const x = 1;\n');
+
+    const { json } = run(['update-status'], { id: '001', status: 'done', commit: sha });
+
+    assert.deepEqual(json.entry.observed_touches, ['src/work.ts']);
+    assert.deepEqual(json.derived_touches, ['src/work.ts']);
+    assert.equal(json.scope_drift, undefined);
   });
 
   test('a second close does not re-append the same drift line', () => {

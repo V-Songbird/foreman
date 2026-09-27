@@ -928,8 +928,14 @@ function gitFilesIn(root, args, keep) {
   return filesFromGit(root, args, keep);
 }
 
+// [Foreman: 869] Foreman's own records are never task footprint, whether a
+// close reads them from the index or from a landed commit that carries them.
+function isTaskFootprint(file) {
+  return Boolean(file) && file !== "ROADMAP.jsonl" && file !== ledger.NOTES_RELATIVE;
+}
+
 function filesTouchedByCommit(root, sha) {
-  return gitFilesIn(root, ["show", "--pretty=format:", "--name-only", "--relative", sha], Boolean);
+  return gitFilesIn(root, ["show", "--pretty=format:", "--name-only", "--relative", sha], isTaskFootprint);
 }
 
 // [Foreman: 569] The message of a commit a close records, read in the repo
@@ -959,11 +965,7 @@ function commitMessageFor(root, sha) {
 // in the index, where the NEXT close would fold it into observed_touches and
 // keep it there permanently.
 function filesStagedIn(root) {
-  return gitFilesIn(
-    root,
-    ["diff", "--cached", "--name-only", "--relative"],
-    (f) => f && f !== "ROADMAP.jsonl" && f !== ledger.NOTES_RELATIVE
-  );
+  return gitFilesIn(root, ["diff", "--cached", "--name-only", "--relative"], isTaskFootprint);
 }
 
 // [Foreman: 110]

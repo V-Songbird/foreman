@@ -246,6 +246,11 @@ able to relay the review, and a copied prompt carries the protocol even for a
 single row.
 
 Inspect the active package with `codex plugin list --marketplace foundry --json`.
+That command lists only installed plugins under `installed`, and `available`
+stays empty unless you add `--available`. An empty list before
+`codex plugin add` therefore means nothing is installed yet, not that the
+marketplace failed to load; `codex plugin list --marketplace foundry` shows
+every plugin in the catalog with its status.
 A fresh-session evaluation by the user is a separate step from installing the
 package. To try the workflow from a source checkout without installing
 anything, see
