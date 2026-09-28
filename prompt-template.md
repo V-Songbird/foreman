@@ -836,7 +836,8 @@ keeps the roadmap, integration and commits.
 **Background agent** — Claude Code: call `Agent` with `prompt` = the
 assembled XML prompt, `description` = a 3-5 word summary,
 `run_in_background: true`. Codex: use an available collaboration spawn tool
-with the complete prompt, and report a real blocker to the coordinator
+with the complete prompt, naming the subagent `task_name` `foreman_<id>`
+when the prompt carries a roadmap entry, and report a real blocker to the coordinator
 through collaboration messaging.
 Checkpoint branches and commits stay with this crafting session — a
 background agent shares this working tree and must not switch branches or

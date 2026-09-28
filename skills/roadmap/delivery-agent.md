@@ -29,7 +29,9 @@ model — never pass one.
   [Close and acceptance](delivery.md#close-and-acceptance) says; the
   agent's report never gives it.
 - In Codex, use the available collaboration tools for a bounded task, passing
-  the returned prompt and the shared-tree ownership restriction. If delegation
+  the returned prompt and the shared-tree ownership restriction. Name a
+  roadmap entry's subagent `task_name` `foreman_<id>`, so its finish maps to
+  that entry. If delegation
   is unavailable, keep the handoff ready and explain that constraint; never
   silently replace a requested background run with a new app task. For a
   roadmap entry, append the returned agent id with `roadmap.js annotate` as

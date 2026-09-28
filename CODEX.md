@@ -52,14 +52,15 @@ References checked for this implementation:
 
 Three capabilities were deferred because an earlier probe, on Codex CLI
 0.144.6, found no event that could support them. A probe on 2026-09-28 with
-Codex CLI 0.157.1 on Windows 11 found that each one can now be built. None of
-them is built yet, so Foreman's behavior in Codex is unchanged. The probe used
-`codex exec` in a disposable repository with one logging hook on every event,
-trusted through `/hooks`.
+Codex CLI 0.157.1 on Windows 11 found that each one can now be built. The
+third, tying a subagent's finish to its roadmap entry, is now built: see
+[Subagent finish and its entry](#subagent-finish-and-its-entry). The two
+below are not built yet, so Foreman's behavior for them is unchanged. The
+probe used `codex exec` in a disposable repository with one logging hook on
+every event, trusted through `/hooks`.
 
 | Capability | Status on Codex CLI 0.157.1 | What the probe showed |
 | --- | --- | --- |
-| Task-close-to-entry mapping: tie a subagent's finish to its roadmap entry | Can be built; not built | `PreToolUse` on `collaborationspawn_agent` shows the subagent's `task_name` and assignment `message`, and a hook can deny the spawn. `SubagentStart` and `SubagentStop` carry `agent_id` and the subagent's transcript path: `transcript_path` in `SubagentStart`, `agent_transcript_path` in `SubagentStop`, where `transcript_path` is the parent's. That transcript's first record names the same `task_name`. That record is an internal file format, not a documented hook field |
 | Detached resume: continue a session and its subagent from a new process | Can be built; not built | `codex exec resume <session id>` kept the session id, and `SessionStart` reported `source` `resume`. `collaborationfollowup_task` reached the same subagent, with the same `agent_id`. `SubagentStart` did not fire again for it |
 | Decision-anchor hook: recall the decisions a file's `[Foreman: <id>]` anchors name when Codex reads it | Can be built; not built | Codex read files through `Bash`, not a file-read tool. `PostToolUse` on `Bash` carries the command output in `tool_response`, where the anchor text appears. The file path is not a separate field, so lessons recalled by path stay out of reach |
 
@@ -82,7 +83,7 @@ for the source mapping, the Foreman policies kept, and the validation limits.
 | Interactive choices | `AskUserQuestion` | The available Codex question tool, with a plain-text fallback | A pending question is not an answer; explicit scope and acceptance are preserved |
 | Background agents and split task rows | Background `Agent`; `TaskCreate` tasks | Native Codex subagents with bounded ownership and coordinator verification | Shared-tree bookkeeping is serialized; a separate sidebar task needs an explicit request |
 | Opening a task | `TaskCreated` hook | `hooks/codex-task.js start` with readiness and status guards | Exporting a prompt never starts the task |
-| Optional close gate | `TaskCompleted` hook | Explicit `check` plus a scoped `Stop`/`SubagentStop` reminder | A normal turn ending or a clarification does not count as task completion |
+| Optional close gate | `TaskCompleted` hook | Explicit `check`, or the finish of a `foreman_<id>` subagent, plus a scoped `Stop`/`SubagentStop` reminder | A normal turn ending or a clarification does not count as task completion |
 | Fresh-session reminders | `SessionStart` on startup and clear, as plain text | `SessionStart` on startup and clear, as JSON `additionalContext` | Hooks must be trusted and enabled. Codex drops plain hook output that starts with `[`, so the notice goes to Codex as JSON (see [Validation and limits](#validation-and-limits)) |
 | Direct roadmap write guard | `PreToolUse` on `Edit` and `Write` | `PreToolUse` on `apply_patch`, `Edit` and `Write` | Covers add, update, delete and move destinations; shell writes are outside this guard on both hosts |
 | Successful-commit bookkeeping | `PostToolUse` on `Bash` and `PowerShell` | `PostToolUse` on canonical `Bash` (including Codex shell execution) and compatibility `PowerShell` | Native payloads may omit the exit status; confirm the command succeeded before using the hint. Reminders never write the roadmap |
@@ -145,6 +146,43 @@ that explicit attempt arms the optional `taskCloseGate: "block"` reminder. The
 hook consumes the attempt once, honors `stop_hook_active`, and leaves
 acceptance decisions to the user. A completed implementation awaiting
 acceptance passes the close check.
+
+### Subagent finish and its entry
+
+A subagent that carries a roadmap entry's handoff is named with the
+`task_name` `foreman_<id>`, for example `foreman_042`. Foreman's handoff
+wording tells the spawning session to use that name. The name lets Foreman
+tie the subagent's finish to its entry:
+
+1. When the subagent stops, the `SubagentStop` hook reads the entry id from
+   the subagent's name.
+2. With `taskCloseGate: "block"`, the hook arms the close check for that entry
+   only, in the scope of the session or subagent that spawned it. The
+   coordinator owns the entry's close, so the subagent itself is not blocked.
+3. The coordinator's next `Stop` blocks once while the entry is still
+   `planned` or `in_progress`, as after an explicit `check`. An entry awaiting
+   acceptance, or already closed, passes.
+
+The `PreToolUse` hook on `collaborationspawn_agent` guards the name. A
+`task_name` that starts with `foreman` must be exactly `foreman_<id>` and name
+an entry in `ROADMAP.jsonl`, or the spawn is denied with the reason. For
+example, `foreman_042_review` and a `foreman_<id>` with no such entry are
+denied. Every other name passes.
+
+Limits, observed with Codex CLI 0.157.1 on Windows 11:
+
+- Codex hands the hook the spawn message encrypted, so the hook cannot tell a
+  handoff from an ordinary helper. It checks only names that start with
+  `foreman`. A handoff spawned under another name runs normally, and its
+  finish is not tied to its entry.
+- Hook events after the spawn carry no `task_name`. The name is read from the
+  first record of the subagent's transcript file, where Codex writes its
+  `agent_path`, such as `/root/foreman_042`. That record is an internal Codex
+  format, not a documented hook field. When it is missing or changes shape,
+  nothing is mapped, and only explicit `check` calls arm the close check.
+- Live runs confirmed the denied name, the mapping and the single block for a
+  subagent spawned by the main session. A subagent spawned by another
+  subagent is covered by tests only.
 
 ## Existing projects
 

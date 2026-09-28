@@ -7,11 +7,26 @@ const { readInput, projectDir } = require("./lib");
 const { readEntries, isValidId } = require("../scripts/roadmap");
 const { readConfigFile } = require("../scripts/foreman-config");
 const { scopePath, OPEN } = require("./codex-task");
+const { subagentEntry } = require("./codex-spawn");
+
+// [Foreman: 926] A foreman_<id> subagent's finish arms the check for that
+// entry in the scope of the thread that spawned it, as an explicit check there
+// would: the coordinator owns the entry's close, so its next Stop reads it.
+function armSpawner(root, data) {
+  try {
+    const mapped = subagentEntry(data);
+    const scope = mapped && scopePath(root, data.session_id, mapped.agent);
+    if (!scope) return;
+    fs.mkdirSync(scope, { recursive: true });
+    fs.writeFileSync(path.join(scope, `${mapped.id}.json`), JSON.stringify({ id: mapped.id }), "utf-8");
+  } catch { /* best effort */ }
+}
 
 function main(data = readInput()) {
   if (!["Stop", "SubagentStop"].includes(data.hook_event_name) || data.stop_hook_active) return;
   const root = projectDir(data);
   if (readConfigFile(root).config.taskCloseGate !== "block") return;
+  if (data.hook_event_name === "SubagentStop") armSpawner(root, data);
   const scope = scopePath(root, data.session_id, data.agent_id || "");
   if (!scope || !fs.existsSync(scope)) return;
   let entries;
@@ -30,7 +45,7 @@ function main(data = readInput()) {
   if (!open.length) return;
   process.stdout.write(JSON.stringify({
     decision: "block",
-    reason: `[Foreman] The explicit completion check for ROADMAP.jsonl ${open.join(", ")} is unresolved. Record the actual result through roadmap.js, preserving awaiting_acceptance when acceptance is required, then run codex-task.js check again. If user input or an external change is required, explain that blocker and leave the entry in_progress; do not invent a completion or perform unapproved work.`,
+    reason: `[Foreman] The completion check for ROADMAP.jsonl ${open.join(", ")} is unresolved: an explicit check or the finish of its foreman_<id> subagent armed it. Record the actual result through roadmap.js, preserving awaiting_acceptance when acceptance is required, then run codex-task.js check again. If user input or an external change is required, explain that blocker and leave the entry in_progress; do not invent a completion or perform unapproved work.`,
   }));
 }
 

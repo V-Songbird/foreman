@@ -275,6 +275,71 @@ test("Stop blocks an armed check while any holder of a duplicated id is open", (
   assert.equal(hook("stop.js", { hook_event_name: "Stop" }).decision, "block");
 });
 
+// [Foreman: 926] Payloads shaped like Codex 0.157.1's (probe 328): the spawn's
+// tool_input is {task_name, message}, the message an opaque token; SubagentStop
+// names the subagent's rollout, whose first record is session_meta with agent_path.
+function spawn(taskName) {
+  return hook("codex-spawn.js", { hook_event_name: "PreToolUse", turn_id: "turn", tool_name: "collaborationspawn_agent", tool_input: { task_name: taskName, message: "gAAAAAopaque" } });
+}
+function subagentStop(agentPath, parent = session, extra = {}) {
+  const rollout = path.join(root, `rollout-${crypto.randomUUID()}.jsonl`);
+  // The real first record carries the base instructions; keep it past one read chunk.
+  const meta = { timestamp: "2026-09-28T00:00:00Z", type: "session_meta", payload: { id: "sub", agent_path: agentPath, parent_thread_id: parent, forked_from_id: parent, thread_source: "subagent", base_instructions: { text: "x".repeat(100 * 1024) } } };
+  fs.writeFileSync(rollout, JSON.stringify(meta) + "\n" + JSON.stringify({ type: "response_item" }) + "\n");
+  return hook("stop.js", { hook_event_name: "SubagentStop", agent_id: "worker", agent_type: "default", agent_transcript_path: rollout, transcript_path: path.join(root, "parent.jsonl"), last_assistant_message: "done", stop_hook_active: false, ...extra });
+}
+
+test("a spawn named foreman* must be exactly foreman_<id> for an existing entry", () => {
+  for (const name of ["foreman_001_mark", "foreman_999", "foreman", "foreman_1"]) {
+    const denied = spawn(name);
+    assert.equal(denied.hookSpecificOutput.permissionDecision, "deny", name);
+    assert.match(denied.hookSpecificOutput.permissionDecisionReason, /foreman_<id>/);
+  }
+});
+
+test("a spawn named foreman_<id> for an entry, or not foreman* at all, passes", () => {
+  for (const name of ["foreman_001", "foreman_002", "helper", undefined]) assert.equal(spawn(name), null, String(name));
+  assert.equal(hook("codex-spawn.js", { hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { task_name: "foreman_999" } }), null);
+  fs.unlinkSync(path.join(root, "ROADMAP.jsonl"));
+  assert.equal(spawn("foreman_999"), null);
+});
+
+test("a foreman_<id> subagent's finish arms its coordinator's Stop for that entry only, once", () => {
+  writeConfig(root, { taskCloseGate: "block" });
+  assert.equal(subagentStop("/root/foreman_001"), null);
+  const output = hook("stop.js", { hook_event_name: "Stop" });
+  assert.equal(output.decision, "block");
+  assert.match(output.reason, /001/);
+  assert.doesNotMatch(output.reason, /002/);
+  assert.equal(hook("stop.js", { hook_event_name: "Stop" }), null);
+});
+
+test("a nested foreman_<id> subagent arms the subagent that spawned it", () => {
+  writeConfig(root, { taskCloseGate: "block" });
+  subagentStop("/root/lead/foreman_001", "lead-agent");
+  assert.equal(hook("stop.js", { hook_event_name: "Stop" }), null);
+  assert.equal(hook("stop.js", { hook_event_name: "SubagentStop", agent_id: "lead-agent" }).decision, "block");
+});
+
+test("an unmapped, closed or ungated subagent finish arms nothing", () => {
+  subagentStop("/root/foreman_001");
+  writeConfig(root, { taskCloseGate: "block" });
+  assert.equal(hook("stop.js", { hook_event_name: "Stop" }), null);
+  for (const agentPath of ["/root/helper", "/root/foreman_001_mark", ""]) subagentStop(agentPath);
+  hook("stop.js", { hook_event_name: "SubagentStop", agent_id: "worker", agent_transcript_path: path.join(root, "missing.jsonl") });
+  assert.equal(hook("stop.js", { hook_event_name: "Stop" }), null);
+  writeRoadmap(root, [{ id: "001", title: "first", status: "awaiting_acceptance" }]);
+  subagentStop("/root/foreman_001");
+  assert.equal(hook("stop.js", { hook_event_name: "Stop" }), null);
+});
+
+test("Codex registers the spawn guard on the spawn tool only", () => {
+  const groups = require(CODEX_HOOKS).hooks.PreToolUse.filter((group) => group.hooks.some((h) => h.command.includes("'codex-spawn.js'")));
+  assert.equal(groups.length, 1);
+  assert.ok(new RegExp(groups[0].matcher).test("collaborationspawn_agent"));
+  for (const tool of ["collaborationwait_agent", "collaborationfollowup_task", "apply_patch", "Bash"]) assert.ok(!new RegExp(groups[0].matcher).test(tool), tool);
+});
+
 test("native launcher passes stdin under Windows cmd and PowerShell", { skip: process.platform !== "win32" }, () => {
   const handler = require(CODEX_HOOKS).hooks.PreToolUse[0].hooks[0];
   const input = JSON.stringify({ cwd: root, tool_name: "apply_patch", tool_input: { command: "*** Begin Patch\n*** Delete File: ROADMAP.jsonl\n*** End Patch" } });
