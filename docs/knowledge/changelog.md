@@ -51,6 +51,10 @@ instead.
   because `CLAUDECODE` outranks Antigravity's variables. Before, it counted as
   Antigravity unless `FOREMAN_HOST=claude` was set, so its handoffs took the
   Codex form and its checkpoints read the inherited conversation id.
+- Antigravity started from a Claude Code shell still counts as Claude Code,
+  because it inherits `CLAUDECODE`. The settings reference now says to remove
+  `CLAUDECODE` before starting `agy` there, or to start it with
+  `FOREMAN_HOST=antigravity`.
 
 ### Claude Code
 

@@ -159,6 +159,16 @@ Antigravity, and anything else — including running a script by hand in a
 terminal — counts as Claude Code. The first match in that order wins, so
 Claude Code started from an Antigravity terminal still counts as Claude Code.
 
+The reverse case needs one step from you. Antigravity started from a Claude
+Code shell inherits `CLAUDECODE`, so Foreman counts it as Claude Code too.
+Its checkpoints then name no Antigravity conversation. Foreman cannot fix this
+on its own: Antigravity inside Claude Code and Claude Code inside Antigravity
+carry the same variables. Remove `CLAUDECODE`
+before you start `agy` there, for example with `env -u CLAUDECODE agy` in
+Bash or `Remove-Item Env:CLAUDECODE` in PowerShell. If you cannot remove it,
+start `agy` with `FOREMAN_HOST=antigravity` instead. Any Claude Code you
+start inside that Antigravity session then counts as Antigravity too.
+
 ## Using more than one host on one project
 
 Claude Code, Codex and Antigravity read this same file, and every setting means

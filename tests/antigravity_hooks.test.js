@@ -117,6 +117,18 @@ describe("host detection and the prompt form", () => {
     assert.equal(sessionId({ CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: "claude", ANTIGRAVITY_CONVERSATION_ID: "conversation" }), "claude");
   });
 
+  // [Foreman: 894] Antigravity started from a Claude Code shell carries the
+  // same names as Claude Code started from Antigravity, so it reads as Claude
+  // Code; settings.md tells the user to remove CLAUDECODE before starting agy.
+  test("both nestings read as Claude Code until CLAUDECODE is removed", () => {
+    const nested = { CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: "claude", ANTIGRAVITY_CONVERSATION_ID: "conversation", ANTIGRAVITY_AGENT: "1" };
+    assert.equal(detectHost(nested), "claude");
+    const { CLAUDECODE, ...stripped } = nested;
+    assert.equal(detectHost(stripped), "antigravity");
+    assert.equal(sessionId(stripped), "conversation");
+    assert.equal(sessionId({ ...nested, FOREMAN_HOST: "antigravity" }), "conversation");
+  });
+
   test("a handoff for Antigravity takes the Codex form", () => {
     assert.equal(resolveHost("antigravity"), "codex");
     assert.equal(readCanonical("antigravity").host, "codex");
