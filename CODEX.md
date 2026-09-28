@@ -48,6 +48,28 @@ References checked for this implementation:
 - [Codex 0.145.0 hook types](https://github.com/openai/codex/blob/rust-v0.145.0/codex-rs/hooks/src/lib.rs)
 - [Codex 0.145.0 hook discovery](https://github.com/openai/codex/blob/rust-v0.145.0/codex-rs/hooks/src/engine/discovery.rs)
 
+### Capabilities not built yet
+
+Three capabilities were deferred because an earlier probe, on Codex CLI
+0.144.6, found no event that could support them. A probe on 2026-09-28 with
+Codex CLI 0.157.1 on Windows 11 found that each one can now be built. None of
+them is built yet, so Foreman's behavior in Codex is unchanged. The probe used
+`codex exec` in a disposable repository with one logging hook on every event,
+trusted through `/hooks`.
+
+| Capability | Status on Codex CLI 0.157.1 | What the probe showed |
+| --- | --- | --- |
+| Task-close-to-entry mapping: tie a subagent's finish to its roadmap entry | Can be built; not built | `PreToolUse` on `collaborationspawn_agent` shows the subagent's `task_name` and assignment `message`, and a hook can deny the spawn. `SubagentStart` and `SubagentStop` carry `agent_id` and the subagent's transcript path: `transcript_path` in `SubagentStart`, `agent_transcript_path` in `SubagentStop`, where `transcript_path` is the parent's. That transcript's first record names the same `task_name`. That record is an internal file format, not a documented hook field |
+| Detached resume: continue a session and its subagent from a new process | Can be built; not built | `codex exec resume <session id>` kept the session id, and `SessionStart` reported `source` `resume`. `collaborationfollowup_task` reached the same subagent, with the same `agent_id`. `SubagentStart` did not fire again for it |
+| Decision-anchor hook: recall the decisions a file's `[Foreman: <id>]` anchors name when Codex reads it | Can be built; not built | Codex read files through `Bash`, not a file-read tool. `PostToolUse` on `Bash` carries the command output in `tool_response`, where the anchor text appears. The file path is not a separate field, so lessons recalled by path stay out of reach |
+
+Tool names in Codex 0.157.1 events join the namespace and the tool:
+`collaborationspawn_agent`, `collaborationwait_agent` and
+`collaborationfollowup_task`. Hook processes received no `CODEX_THREAD_ID`
+environment variable; the ids arrive in the event itself. The probe did not
+check the environment of the model's shell commands, where `codex-task.js`
+reads that variable.
+
 ## Feature mapping
 
 Handoff wording is checked against official prompting guidance and the shipped
@@ -233,7 +255,9 @@ acceptance, omissions and a failed required check — is recorded with its
 limits in the maintainer's validation records, which are kept outside this
 repository.
 Separate ephemeral executions recovered from notes and files; this does not
-establish `codex exec resume` against a persisted session.
+establish Foreman's recovery through `codex exec resume` against a persisted
+session. The CLI's own resume is described under
+[capabilities not built yet](#capabilities-not-built-yet).
 
 ## Use reviewed increments after installing
 
