@@ -101,8 +101,10 @@ beforeEach(() => {
 // exactly today's text.
 describe('delegatedAcceptance close', () => {
   const delegated = { delegatedAcceptance: { orchestrator: 'orch-1', sessions: ['worker-a'] } };
-  const claudeSession = (id) => ({ CLAUDE_CODE_SESSION_ID: id, CODEX_SESSION_ID: '', CODEX_THREAD_ID: '' });
-  const codexSession = (id) => ({ CLAUDE_CODE_SESSION_ID: '', CODEX_SESSION_ID: '', CODEX_THREAD_ID: id });
+  const claudeSession = (id) => ({ CLAUDE_CODE_SESSION_ID: id, CODEX_SESSION_ID: '', CODEX_THREAD_ID: '', ANTIGRAVITY_CONVERSATION_ID: '' });
+  const codexSession = (id) => ({ CLAUDE_CODE_SESSION_ID: '', CODEX_SESSION_ID: '', CODEX_THREAD_ID: id, ANTIGRAVITY_CONVERSATION_ID: '' });
+  const antigravitySession = (id) => ({ CLAUDE_CODE_SESSION_ID: '', CODEX_SESSION_ID: '', CODEX_THREAD_ID: '', ANTIGRAVITY_CONVERSATION_ID: id });
+  const sessions = { claude: claudeSession, codex: codexSession, antigravity: antigravitySession };
   const craft = (destination, host, env) => {
     const { status, json } = run(project, { entry: '001', destination, host, judgment: goodJudgment() }, env);
     assert.equal(status, 0, JSON.stringify(json));
@@ -132,9 +134,18 @@ describe('delegatedAcceptance close', () => {
     assert.match(agent, /returns candidates and evidence to its coordinator/);
   });
 
-  for (const host of ['claude', 'codex']) {
+  // [Foreman: 850] Antigravity names its conversation in
+  // ANTIGRAVITY_CONVERSATION_ID, so its handoffs honor the list too.
+  test('a listed Antigravity conversation reports to the orchestrator', () => {
+    writeConfig(project, delegated);
+    const prompt = craft('task', 'antigravity', antigravitySession('worker-a'));
+    assert.match(prompt, /belongs to the orchestrator orch-1, so do not ask the user\. Report the concrete result/);
+    assert.doesNotMatch(prompt, /final user acceptance|the user's acceptance/);
+  });
+
+  for (const host of ['claude', 'codex', 'antigravity']) {
     test(`an unlisted session and a clipboard prompt keep today's text (${host})`, () => {
-      const session = host === 'claude' ? claudeSession : codexSession;
+      const session = sessions[host];
       const before = {};
       for (const destination of ['task', 'agent', 'clipboard']) before[destination] = craft(destination, host, session('worker-a'));
       writeConfig(project, delegated);

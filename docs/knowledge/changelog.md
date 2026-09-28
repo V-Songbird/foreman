@@ -27,6 +27,17 @@ instead.
 
 ## Unreleased
 
+### Antigravity
+
+- In a conversation that `delegatedAcceptance` lists, `hooks/codex-task.js
+  start` and `check` and the handoffs Foreman writes now read the
+  conversation's id from `ANTIGRAVITY_CONVERSATION_ID`, which Antigravity
+  sets for the commands its agent runs. A checkpoint run without `--session`
+  therefore still returns the orchestrator's name as `delegatedTo`, and the
+  handoff tells the session to report to that orchestrator instead of asking
+  you. The notice at the next model call now comes again when the setting
+  names a different orchestrator for the conversation.
+
 ### Claude Code
 
 - On Linux and macOS, the commit reminder now reads `\` as a folder separator
