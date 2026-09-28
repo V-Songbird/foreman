@@ -27,10 +27,10 @@ instead.
 
 ## 3.2.1 — 2026-09-28
 
-This release fixes three things: how Foreman on Antigravity finds the
-orchestrator a conversation reports to, which host Foreman detects when one
-host starts another, and how the Claude Code commit reminder reads PowerShell
-paths on Linux and macOS.
+This release fixes how Foreman on Antigravity finds the orchestrator a
+conversation reports to, which host Foreman detects when one host starts
+another, and how the Claude Code commit reminder reads PowerShell paths on
+Linux and macOS. The sections below list every change.
 
 ### Antigravity
 
