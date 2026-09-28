@@ -13,7 +13,7 @@ const { readEntries, cmdUpdateStatus, isValidId, soleHolder } = require("../scri
 const { recordResumeRecovered } = require("../scripts/trial-log");
 const { discoveryEnabled, discoveryInstructions, delegatedDiscoveryInstructions } = require("../scripts/discovery");
 const { readConfigFile, delegatedOrchestrator } = require("../scripts/foreman-config");
-const { detectHost, parseFlags, printHelp } = require("../scripts/runtime");
+const { detectHost, sessionId, parseFlags, printHelp } = require("../scripts/runtime");
 const OPEN = new Set(["planned", "in_progress"]);
 
 function scopePath(root, session, agent = "") {
@@ -27,8 +27,9 @@ function currentScope(options = {}, env = process.env) {
   // conversation's id, the one its hook payloads name. [Foreman: 880] Only
   // there: a Codex or Claude Code process inherits it from an Antigravity
   // terminal, and a scope armed under it is one no Stop of theirs reads.
-  const antigravity = detectHost(env) === "antigravity" ? env.ANTIGRAVITY_CONVERSATION_ID : "";
-  const session = options.session ?? (env.CODEX_SESSION_ID || env.CODEX_THREAD_ID || antigravity || "");
+  // Claude Code closes through its own task hooks, so it names no session here.
+  const host = detectHost(env);
+  const session = options.session ?? (host === "claude" ? "" : sessionId(env, host));
   const thread = env.CODEX_THREAD_ID || "";
   const agent = options.agent ?? (options.session === undefined && env.CODEX_SESSION_ID && thread !== session ? thread : "");
   return { session, agent };

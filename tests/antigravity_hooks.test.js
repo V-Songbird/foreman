@@ -14,7 +14,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { spawnSync } = require("node:child_process");
 const { makeTmpProject, writeRoadmap, writeConfig, initGitRepo, commitFile, runNodeScript, HOOKS_DIR, SPAWN_TIMEOUT_MS } = require("./helpers");
-const { HOSTS, detectHost } = require("../scripts/runtime");
+const { HOSTS, detectHost, sessionId } = require("../scripts/runtime");
 const { currentScope } = require("../hooks/codex-task");
 const { resolveHost, readCanonical } = require("../scripts/check-prompt");
 const { discoveryInstructions } = require("../scripts/discovery");
@@ -98,6 +98,23 @@ describe("host detection and the prompt form", () => {
     assert.equal(detectHost({ ANTIGRAVITY_AGENT: "1", CODEX_THREAD_ID: "t" }), "codex");
     assert.equal(detectHost({ FOREMAN_HOST: "antigravity", CODEX_THREAD_ID: "t" }), "antigravity");
     assert.equal(detectHost({}), "claude");
+  });
+
+  // [Foreman: 891] Claude Code's shell sets CLAUDECODE; Codex opened from that
+  // shell inherits it and stays Codex.
+  test("Claude Code's marker outranks Antigravity's, and Codex's outranks it", () => {
+    assert.equal(detectHost({ CLAUDECODE: "1", ANTIGRAVITY_CONVERSATION_ID: "c", ANTIGRAVITY_AGENT: "1" }), "claude");
+    assert.equal(detectHost({ CLAUDECODE: "1", CODEX_THREAD_ID: "t" }), "codex");
+    assert.equal(detectHost({ CLAUDECODE: "1", FOREMAN_HOST: "antigravity" }), "antigravity");
+  });
+
+  test("the session id comes from the running host's own variable", () => {
+    const env = { CLAUDE_CODE_SESSION_ID: "claude", CODEX_SESSION_ID: "", CODEX_THREAD_ID: "thread", ANTIGRAVITY_CONVERSATION_ID: "conversation" };
+    assert.equal(sessionId(env, "claude"), "claude");
+    assert.equal(sessionId(env, "codex"), "thread");
+    assert.equal(sessionId(env, "antigravity"), "conversation");
+    assert.equal(sessionId({ ANTIGRAVITY_CONVERSATION_ID: "conversation" }, "codex"), "");
+    assert.equal(sessionId({ CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: "claude", ANTIGRAVITY_CONVERSATION_ID: "conversation" }), "claude");
   });
 
   test("a handoff for Antigravity takes the Codex form", () => {
@@ -200,7 +217,7 @@ describe("PreInvocation carries the session notice once, in this host's words", 
     writeRoadmap(project, [{ id: "001", title: "Ship the thing", status: "planned" }]);
     writeConfig(project, { delegatedAcceptance: { orchestrator: "orch-1", sessions: [conversation] } });
     const script = path.join(HOOKS_DIR, "codex-task.js");
-    for (const host of [{ FOREMAN_HOST: "codex" }, { FOREMAN_HOST: "claude" }, { PLUGIN_ROOT: ROOT }]) {
+    for (const host of [{ FOREMAN_HOST: "codex" }, { FOREMAN_HOST: "claude" }, { PLUGIN_ROOT: ROOT }, { CLAUDECODE: "1" }]) {
       assert.deepEqual(currentScope({}, { ...host, ANTIGRAVITY_CONVERSATION_ID: conversation }), { session: "", agent: "" }, JSON.stringify(host));
       const check = JSON.parse(runNodeScript(script, ["check", "--id", "001"], null, { ...host, FOREMAN_PROJECT_DIR: project, ANTIGRAVITY_CONVERSATION_ID: conversation }).stdout);
       assert.equal(check.stop_gate_scoped, false, "no scope armed under the Antigravity id");

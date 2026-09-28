@@ -44,6 +44,13 @@ instead.
 - When Foreman detects Codex or Claude Code, `hooks/codex-task.js` no longer
   reads an inherited `ANTIGRAVITY_CONVERSATION_ID`. A `check` there no longer
   arms a stop reminder under an id that no stop event reads.
+- A handoff crafted in Codex no longer reads an inherited
+  `ANTIGRAVITY_CONVERSATION_ID` as its session, so it no longer reports to an
+  orchestrator that lists only the Antigravity conversation.
+- Claude Code started from an Antigravity terminal now counts as Claude Code,
+  because `CLAUDECODE` outranks Antigravity's variables. Before, it counted as
+  Antigravity unless `FOREMAN_HOST=claude` was set, so its handoffs took the
+  Codex form and its checkpoints read the inherited conversation id.
 
 ### Claude Code
 

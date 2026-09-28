@@ -31,7 +31,7 @@ const path = require("path");
 const { discoveryEnabled, discoveryInstructions, delegatedDiscoveryInstructions } = require("./discovery");
 const { readConfigFile, delegatedOrchestrator } = require("./foreman-config");
 const { render, projectDir, readConfig } = require("./render-sections.js");
-const { parseFlags, printHelp } = require("./runtime");
+const { detectHost, sessionId, parseFlags, printHelp } = require("./runtime");
 const { resolve: resolveSymbols, candidateIdentifiers } = require("./resolve-symbols.js");
 const {
   readEntries,
@@ -1502,11 +1502,10 @@ function assemble(root, input) {
   // agent's, so delegatedAcceptance is read for its own session; a clipboard
   // prompt runs in a session nobody knows yet and keeps today's close.
   // [Foreman: 850] Antigravity, which resolves to the codex host here, names
-  // its conversation in ANTIGRAVITY_CONVERSATION_ID.
+  // its conversation in ANTIGRAVITY_CONVERSATION_ID. [Foreman: 891] The id
+  // follows the host the session runs on, not the resolved form.
   const delegatedTo = destination === "clipboard" ? null
-    : delegatedOrchestrator(readConfigFile(root).config, host === "codex"
-      ? process.env.CODEX_SESSION_ID || process.env.CODEX_THREAD_ID || process.env.ANTIGRAVITY_CONVERSATION_ID
-      : process.env.CLAUDE_CODE_SESSION_ID);
+    : delegatedOrchestrator(readConfigFile(root).config, sessionId(process.env, input.host || detectHost()));
 
   const checkCount = hasVerification ? judgment.verification.length : 0;
   const wantsClipboardEmbed = destination === "clipboard" && checkCount >= 2 && !judgment.question;

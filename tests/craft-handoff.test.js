@@ -143,6 +143,19 @@ describe('delegatedAcceptance close', () => {
     assert.doesNotMatch(prompt, /final user acceptance|the user's acceptance/);
   });
 
+  // [Foreman: 891] Codex or Claude Code started from an Antigravity terminal
+  // inherits the conversation id; neither reads it as its own session.
+  test('an inherited Antigravity id never makes another host a listed session', () => {
+    writeConfig(project, delegated);
+    const inherited = { ANTIGRAVITY_CONVERSATION_ID: 'worker-a' };
+    assert.doesNotMatch(craft('task', 'codex', { ...codexSession(''), ...inherited }), /orch-1/);
+    const claude = craft('task', undefined, { ...claudeSession('owner'), ...inherited, CLAUDECODE: '1' });
+    assert.doesNotMatch(claude, /orch-1/);
+    assert.match(claude, /AskUserQuestion/, 'the Claude Code form');
+    const listed = craft('task', undefined, { ...claudeSession('worker-a'), ANTIGRAVITY_CONVERSATION_ID: 'conversation', CLAUDECODE: '1' });
+    assert.match(listed, /write `awaiting_acceptance` instead — this project holds finished work for the orchestrator orch-1's acceptance/);
+  });
+
   for (const host of ['claude', 'codex', 'antigravity']) {
     test(`an unlisted session and a clipboard prompt keep today's text (${host})`, () => {
       const session = sessions[host];

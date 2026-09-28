@@ -92,7 +92,9 @@ background agent, closes the same way: it records `awaiting_acceptance` and
 reports to the orchestrator instead of asking you. The handoff script finds
 the session in `CLAUDE_CODE_SESSION_ID` in Claude Code and in
 `CODEX_SESSION_ID` or `CODEX_THREAD_ID` in Codex, and in
-`ANTIGRAVITY_CONVERSATION_ID` in Antigravity. A handoff copied to the
+`ANTIGRAVITY_CONVERSATION_ID` in Antigravity. It reads only the variable of
+the host it detects, so an id that a session inherited from another host's
+terminal never makes that session a listed one. A handoff copied to the
 clipboard keeps the usual close, because the session that will paste it is
 not known yet.
 
@@ -151,9 +153,11 @@ yourself, set `FOREMAN_PROJECT_DIR`; it wins everywhere.
 Foreman tells the hosts apart the same way everywhere: `FOREMAN_HOST`
 (`claude`, `codex` or `antigravity`) wins when it is set; otherwise
 `PLUGIN_ROOT`, `CODEX_THREAD_ID` or `CODEX_SESSION_ID` means Codex,
-`ANTIGRAVITY_CONVERSATION_ID` or `ANTIGRAVITY_AGENT` means Antigravity, and
-anything else — including running a script by hand in a terminal — counts as
-Claude Code.
+`CLAUDECODE`, which Claude Code sets in the shell its commands run in, means
+Claude Code, `ANTIGRAVITY_CONVERSATION_ID` or `ANTIGRAVITY_AGENT` means
+Antigravity, and anything else — including running a script by hand in a
+terminal — counts as Claude Code. The first match in that order wins, so
+Claude Code started from an Antigravity terminal still counts as Claude Code.
 
 ## Using more than one host on one project
 

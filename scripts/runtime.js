@@ -13,12 +13,22 @@ const HOSTS = new Set(["claude", "codex", "antigravity"]);
 // CLAUDE_PLUGIN_ROOT, which Codex also sets for compatibility), so everything
 // else is Claude Code, including plain terminal use of these scripts. Codex's
 // markers are read first: a Codex session opened from Antigravity's terminal
-// inherits that editor's variables.
+// inherits that editor's variables. [Foreman: 891] Claude Code sets CLAUDECODE
+// in its shell, which outranks Antigravity's markers for the same reason.
 function detectHost(env = process.env) {
   const forced = String(env.FOREMAN_HOST || "").trim().toLowerCase();
   if (HOSTS.has(forced)) return forced;
   if (env.PLUGIN_ROOT || env.CODEX_THREAD_ID || env.CODEX_SESSION_ID) return "codex";
+  if (env.CLAUDECODE) return "claude";
   return env.ANTIGRAVITY_CONVERSATION_ID || env.ANTIGRAVITY_AGENT ? "antigravity" : "claude";
+}
+
+// [Foreman: 891] The running session's id, read only from its own host's
+// variable: an id inherited from another host's terminal names a session
+// this process is not.
+function sessionId(env = process.env, host = detectHost(env)) {
+  if (host === "codex") return env.CODEX_SESSION_ID || env.CODEX_THREAD_ID || "";
+  return (host === "antigravity" ? env.ANTIGRAVITY_CONVERSATION_ID : env.CLAUDE_CODE_SESSION_ID) || "";
 }
 
 // Explicit project selection wins. Codex hosts need not provide CODEX_CWD;
@@ -105,4 +115,4 @@ function printHelp(argv, usage) {
   return true;
 }
 
-module.exports = { HOSTS, detectHost, projectDir, parseFlags, printHelp };
+module.exports = { HOSTS, detectHost, sessionId, projectDir, parseFlags, printHelp };
