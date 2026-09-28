@@ -100,8 +100,12 @@ const ASSIGNMENT_RE = /^(\w+)=([\s\S]*)$/;
 // fails in Bash and PowerShell, so it leaves the directory where it was.
 // [Foreman: 844] Leading `NAME=value` assignments are skipped, and the
 // commit's GIT_DIR and GIT_WORK_TREE are read from them.
-function commitDirs(command, cwd, powershell = false) {
+// [Foreman: 874] PowerShell on Linux and macOS also reads `\` as a separator
+// in a Set-Location or Push-Location path, so a PowerShell-named tool's target
+// takes `/` there. Bash reads `\` as an escape, so a Bash-named command keeps it.
+function commitDirs(command, cwd, powershell = false, powershellTool = false) {
   const shell = powershell ? SHELLS.powershell : SHELLS.bash;
+  const target = (arg) => (powershellTool && process.platform !== "win32" && arg ? arg.replace(/\\/g, "/") : arg);
   let dir = cwd;
   const pushed = [];
   const subshells = [];
@@ -139,9 +143,9 @@ function commitDirs(command, cwd, powershell = false) {
     if (POP_COMMANDS.has(head)) dir = pushed.pop() ?? dir;
     else if (PUSH_COMMANDS.has(head)) {
       pushed.push(dir);
-      if (args.length === 1) dir = moveTo(dir, args[0]);
+      if (args.length === 1) dir = moveTo(dir, target(args[0]));
     } else if (CD_COMMANDS.has(head)) {
-      if (args.length < 2) dir = moveTo(dir, args[0]);
+      if (args.length < 2) dir = moveTo(dir, target(args[0]));
     } else if (GIT_RE.test(head)) {
       let gitDir = here;
       let workTree = assigned.GIT_WORK_TREE;
@@ -608,7 +612,7 @@ function main() {
   // when PowerShell runs it on Windows, so there both readings count.
   const readings = data.tool_name === "PowerShell" ? [true] : hostName() === "claude" ? [false] : [false, true];
   const cwd = path.resolve(data.cwd || process.cwd());
-  const dirs = command ? readings.flatMap((powershell) => commitDirs(command, cwd, powershell)) : [];
+  const dirs = command ? readings.flatMap((powershell) => commitDirs(command, cwd, powershell, data.tool_name === "PowerShell")) : [];
   if (!dirs.length) return;
   if (commitFailed(data)) return;
 

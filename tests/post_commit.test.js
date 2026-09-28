@@ -872,6 +872,19 @@ describe('commit scope resolution', () => {
     assert.equal(run(bashPayload(`cd ${msys} && git commit -m "wip"`)), '');
   });
 
+  // [Foreman: 874] PowerShell on Linux and macOS reads `\` as a separator too.
+  test('a PowerShell-tool cd with backslashes names the other repository on Linux and macOS', { skip: process.platform === 'win32' }, () => {
+    const outsideRepo = makeTmpProject();
+    initGitRepo(outsideRepo);
+    commitFile(outsideRepo, 'unrelated.js', 'unrelated');
+    commitFile(project, 'root.js', 'root');
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    const relative = path.relative(project, outsideRepo).replace(/\//g, '\\');
+    const command = `cd '${relative}'; git commit -m "wip"`;
+    assert.equal(run({ tool_name: 'PowerShell', tool_input: { command }, cwd: project }), '');
+    assert.match(run(bashPayload(command)), /may complete an in-progress/i);
+  });
+
   test('a cd that fails leaves the commit in the project, which keeps its nudge', () => {
     commitFile(project, 'root.js', 'root');
     writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
@@ -1136,6 +1149,40 @@ describe('commit directory edge cases', () => {
     assert.deepEqual(commitDirs(`sudo -ED "${other}" git commit -m x`, project), [other]);
     // -u takes the rest of the group as its value, so -uC unsets C
     assert.deepEqual(commitDirs(`env -uC "${other}" git commit -m x`, project), [project]);
+  });
+
+  // [Foreman: 874] Linux and macOS, simulated on any machine: POSIX paths and
+  // a platform other than win32, with plain paths standing in for folders.
+  function onPosix(folders, fn) {
+    const { platform } = process;
+    const { resolve } = path;
+    const { existsSync } = fs;
+    Object.defineProperty(process, 'platform', { value: 'linux' });
+    path.resolve = path.posix.resolve;
+    fs.existsSync = (p) => folders.includes(p);
+    try {
+      fn();
+    } finally {
+      Object.defineProperty(process, 'platform', { value: platform });
+      path.resolve = resolve;
+      fs.existsSync = existsSync;
+    }
+  }
+
+  test('a PowerShell-named Set-Location reads \\ as a separator on Linux and macOS', () => {
+    onPosix(['/repo/project', '/repo/other', '/repo/other/sub'], () => {
+      assert.deepEqual(commitDirs('Set-Location ..\\other; git commit -m x', '/repo/project', true, true), ['/repo/other']);
+      assert.deepEqual(commitDirs("cd '..\\other\\sub'; git commit -m x", '/repo/project', true, true), ['/repo/other/sub']);
+      assert.deepEqual(commitDirs('Push-Location ..\\other; git commit -m x', '/repo/project', true, true), ['/repo/other']);
+    });
+  });
+
+  test('a Bash-named command keeps \\ literal on Linux and macOS in both readings', () => {
+    onPosix(['/repo/project', '/repo/other', '/repo/project/a\\b'], () => {
+      assert.deepEqual(commitDirs('cd ..\\other && git commit -m x', '/repo/project'), ['/repo/project']);
+      assert.deepEqual(commitDirs('cd ..\\other; git commit -m x', '/repo/project', true), ['/repo/project']);
+      assert.deepEqual(commitDirs("cd 'a\\b' && git commit -m x", '/repo/project'), ['/repo/project/a\\b']);
+    });
   });
 
   // Codex names a PowerShell command Bash on Windows, so its hook reads both shells.
