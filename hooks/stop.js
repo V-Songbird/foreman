@@ -23,10 +23,13 @@ function armSpawner(root, data) {
 }
 
 function main(data = readInput()) {
-  if (!["Stop", "SubagentStop"].includes(data.hook_event_name) || data.stop_hook_active) return;
+  if (!["Stop", "SubagentStop"].includes(data.hook_event_name)) return;
   const root = projectDir(data);
   if (readConfigFile(root).config.taskCloseGate !== "block") return;
+  // A subagent its own check blocked stops again with stop_hook_active; that
+  // finish still arms its spawner. Only the block below honors the flag.
   if (data.hook_event_name === "SubagentStop") armSpawner(root, data);
+  if (data.stop_hook_active) return;
   const scope = scopePath(root, data.session_id, data.agent_id || "");
   if (!scope || !fs.existsSync(scope)) return;
   let entries;

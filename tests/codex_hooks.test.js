@@ -289,7 +289,7 @@ function subagentStop(agentPath, parent = session, extra = {}) {
   return hook("stop.js", { hook_event_name: "SubagentStop", agent_id: "worker", agent_type: "default", agent_transcript_path: rollout, transcript_path: path.join(root, "parent.jsonl"), last_assistant_message: "done", stop_hook_active: false, ...extra });
 }
 
-test("a spawn named foreman* must be exactly foreman_<id> for an existing entry", () => {
+test("a spawn named foreman or foreman_* must be exactly foreman_<id> for an existing entry", () => {
   for (const name of ["foreman_001_mark", "foreman_999", "foreman", "foreman_1"]) {
     const denied = spawn(name);
     assert.equal(denied.hookSpecificOutput.permissionDecision, "deny", name);
@@ -297,8 +297,8 @@ test("a spawn named foreman* must be exactly foreman_<id> for an existing entry"
   }
 });
 
-test("a spawn named foreman_<id> for an entry, or not foreman* at all, passes", () => {
-  for (const name of ["foreman_001", "foreman_002", "helper", undefined]) assert.equal(spawn(name), null, String(name));
+test("a spawn named foreman_<id> for an entry, or outside foreman and foreman_*, passes", () => {
+  for (const name of ["foreman_001", "foreman_002", "helper", "foremanship_x", undefined]) assert.equal(spawn(name), null, String(name));
   assert.equal(hook("codex-spawn.js", { hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { task_name: "foreman_999" } }), null);
   fs.unlinkSync(path.join(root, "ROADMAP.jsonl"));
   assert.equal(spawn("foreman_999"), null);
@@ -312,6 +312,13 @@ test("a foreman_<id> subagent's finish arms its coordinator's Stop for that entr
   assert.match(output.reason, /001/);
   assert.doesNotMatch(output.reason, /002/);
   assert.equal(hook("stop.js", { hook_event_name: "Stop" }), null);
+});
+
+test("a foreman_<id> subagent's continued finish still arms its coordinator", () => {
+  writeConfig(root, { taskCloseGate: "block" });
+  // Its own check blocked the first SubagentStop, so the second one carries the flag.
+  assert.equal(subagentStop("/root/foreman_001", session, { stop_hook_active: true }), null);
+  assert.equal(hook("stop.js", { hook_event_name: "Stop" }).decision, "block");
 });
 
 test("a nested foreman_<id> subagent arms the subagent that spawned it", () => {

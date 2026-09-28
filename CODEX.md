@@ -164,16 +164,17 @@ tie the subagent's finish to its entry:
    acceptance, or already closed, passes.
 
 The `PreToolUse` hook on `collaborationspawn_agent` guards the name. A
-`task_name` that starts with `foreman` must be exactly `foreman_<id>` and name
-an entry in `ROADMAP.jsonl`, or the spawn is denied with the reason. For
-example, `foreman_042_review` and a `foreman_<id>` with no such entry are
-denied. Every other name passes.
+`task_name` that is `foreman` or starts with `foreman_` must be exactly
+`foreman_<id>` and name an entry in `ROADMAP.jsonl`, or the spawn is denied
+with the reason. For example, `foreman_042_review` and a `foreman_<id>` with
+no such entry are denied. Every other name passes, including
+`foremanship_review`.
 
 Limits, observed with Codex CLI 0.157.1 on Windows 11:
 
 - Codex hands the hook the spawn message encrypted, so the hook cannot tell a
-  handoff from an ordinary helper. It checks only names that start with
-  `foreman`. A handoff spawned under another name runs normally, and its
+  handoff from an ordinary helper. It checks only `foreman` and names that
+  start with `foreman_`. A handoff spawned under another name runs normally, and its
   finish is not tied to its entry.
 - Hook events after the spawn carry no `task_name`. The name is read from the
   first record of the subagent's transcript file, where Codex writes its

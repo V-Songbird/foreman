@@ -22,14 +22,14 @@ const TASK_NAME_RE = new RegExp(`^foreman_(${ID_PATTERN})$`);
 // kilobytes; a first line longer than this is not a record this reads.
 const MAX_META_BYTES = 4 * 1024 * 1024;
 
-// PreToolUse: a task_name that starts with "foreman" must be exactly
-// foreman_<id> for an entry in this roadmap. Codex 0.157.1 hands the hook the
+// PreToolUse: a task_name that is "foreman" or starts with "foreman_" must be
+// exactly foreman_<id> for an entry in this roadmap. Codex 0.157.1 hands the hook the
 // spawn message encrypted, so a handoff cannot be told from a helper: every
 // other name passes, and the handoff wording carries the naming rule.
 function main(data = readInput()) {
   if (data.tool_name !== SPAWN_TOOL) return;
   const name = String((data.tool_input || {}).task_name || "");
-  if (!name.startsWith("foreman")) return;
+  if (name !== "foreman" && !name.startsWith("foreman_")) return;
   const root = projectDir(data);
   // A project that never ran init has no entries to reserve names for.
   if (!fs.existsSync(path.join(root, "ROADMAP.jsonl"))) return;
@@ -41,7 +41,7 @@ function main(data = readInput()) {
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "deny",
-      permissionDecisionReason: `Foreman: task_name "${name}" is reserved for roadmap handoffs and must be exactly foreman_<id>, naming an entry in ROADMAP.jsonl. Spawn again with the handed-off entry's name, or with a name that does not start with "foreman".`,
+      permissionDecisionReason: `Foreman: task_name "${name}" is reserved for roadmap handoffs and must be exactly foreman_<id>, naming an entry in ROADMAP.jsonl. Spawn again with the handed-off entry's name, or with a name that does not start with "foreman_".`,
     },
   }));
 }
