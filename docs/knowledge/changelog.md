@@ -37,6 +37,13 @@ instead.
   handoff tells the session to report to that orchestrator instead of asking
   you. The notice at the next model call now comes again when the setting
   names a different orchestrator for the conversation.
+- That notice now names only the orchestrator and no longer asks for
+  `--session`, which `start` and `check` still accept. It also comes when
+  the config changes size but keeps its modification time, or when the
+  project changes.
+- When Foreman detects Codex or Claude Code, `hooks/codex-task.js` no longer
+  reads an inherited `ANTIGRAVITY_CONVERSATION_ID`. A `check` there no longer
+  arms a stop reminder under an id that no stop event reads.
 
 ### Claude Code
 

@@ -82,8 +82,10 @@ follow the same rules. In Antigravity, the checkpoints read the conversation
 id from `ANTIGRAVITY_CONVERSATION_ID`, which Antigravity sets for the commands
 its agent runs, and then behave as in Codex. The first model call after the
 list names a conversation, or names a different orchestrator for it, also
-tells it the orchestrator and the `--session` value that `start` and `check`
-accept.
+tells it the orchestrator's name. When the host rules in
+[Which project Foreman works on](#which-project-foreman-works-on) name Codex
+or Claude Code instead, the checkpoints ignore
+`ANTIGRAVITY_CONVERSATION_ID`.
 
 A handoff that a listed session crafts to run itself, or to give its
 background agent, closes the same way: it records `awaiting_acceptance` and

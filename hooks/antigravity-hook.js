@@ -96,7 +96,7 @@ function readState(conversationId) {
         started: parsed.started === true,
         pending: Array.isArray(parsed.pending) ? parsed.pending : [],
         ...(typeof parsed.delegated === "string" ? { delegated: parsed.delegated } : {}),
-        ...(typeof parsed.configMtime === "number" || parsed.configMtime === null ? { configMtime: parsed.configMtime } : {}),
+        ...(typeof parsed.config === "string" || parsed.config === null ? { config: parsed.config } : {}),
       };
     }
   } catch {
@@ -144,30 +144,31 @@ function answer(value) {
   process.stdout.write(JSON.stringify(value));
 }
 
-// [Foreman: 838] A command the model runs is no child of this hook, so the
-// checkpoint in hooks/codex-task.js cannot learn the conversation id from
-// it. The first call after delegatedAcceptance lists the conversation says
-// which --session to pass. Unlisted conversations hear nothing new.
+// [Foreman: 838] The first call after delegatedAcceptance lists the
+// conversation names its orchestrator. Unlisted conversations hear nothing new.
 // [Foreman: 850] The latch is the orchestrator's name, so a new orchestrator
-// is announced too. The config is read again only when its mtime moves, so an
+// is announced too. The config is read again only when its stat moves, so an
 // unlisted conversation costs one stat per invocation, not a read.
+// [Foreman: 880] The stat key is the config's path, mtime and size: another
+// project, or an edit inside one mtime tick that changes the size, is reread.
+// The checkpoints read ANTIGRAVITY_CONVERSATION_ID, so no --session is named.
 function delegationLine(conversationId, root, state) {
-  let mtime = null;
+  let key = null;
   try {
-    mtime = root ? fs.statSync(configPath(root)).mtimeMs : null;
+    const file = root ? configPath(root) : null;
+    const stat = file && fs.statSync(file);
+    if (stat) key = JSON.stringify([file, stat.mtimeMs, stat.size]);
   } catch {
     // no config: nothing is delegated
   }
-  if (mtime === state.configMtime) return "";
-  state.configMtime = mtime;
-  const orchestrator = mtime === null ? null : delegatedOrchestrator(readConfigFile(root).config, conversationId);
+  if (key === state.config) return "";
+  state.config = key;
+  const orchestrator = key === null ? null : delegatedOrchestrator(readConfigFile(root).config, conversationId);
   const said = state.delegated;
   if (orchestrator) state.delegated = orchestrator;
   else delete state.delegated;
   if (!orchestrator || orchestrator === said) return "";
-  const script = path.join(__dirname, "codex-task.js").replace(/\\/g, "/");
-  return `[Foreman] delegatedAcceptance lists this conversation: acceptance belongs to the orchestrator ${orchestrator}. ` +
-    `Pass --session ${conversationId} to every checkpoint, as in node "${script}" start --id <id> --session ${conversationId}, and the same for check.`;
+  return `[Foreman] delegatedAcceptance lists this conversation: acceptance belongs to the orchestrator ${orchestrator}.`;
 }
 
 function preInvocation(data, { payload, workspace }) {

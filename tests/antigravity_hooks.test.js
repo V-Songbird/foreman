@@ -15,6 +15,7 @@ const crypto = require("node:crypto");
 const { spawnSync } = require("node:child_process");
 const { makeTmpProject, writeRoadmap, writeConfig, initGitRepo, commitFile, runNodeScript, HOOKS_DIR, SPAWN_TIMEOUT_MS } = require("./helpers");
 const { HOSTS, detectHost } = require("../scripts/runtime");
+const { currentScope } = require("../hooks/codex-task");
 const { resolveHost, readCanonical } = require("../scripts/check-prompt");
 const { discoveryInstructions } = require("../scripts/discovery");
 
@@ -157,26 +158,25 @@ describe("PreInvocation carries the session notice once, in this host's words", 
     assert.deepEqual(run("PreInvocation", { invocationNum: 1 }), {});
   });
 
-  // [Foreman: 838] Only the hook sees conversationId, so a listed conversation
-  // is told once which --session makes its checkpoint return delegatedTo.
-  test("a conversation delegatedAcceptance lists hears its --session once, and its checkpoint defers", () => {
+  // [Foreman: 838] A listed conversation is told its orchestrator once.
+  // [Foreman: 880] The checkpoints read ANTIGRAVITY_CONVERSATION_ID, so the
+  // line names no --session; the flag still works when passed.
+  test("a conversation delegatedAcceptance lists hears its orchestrator once, and its checkpoint defers", () => {
     writeRoadmap(project, [{ id: "001", title: "Ship the thing", status: "planned" }]);
     assert.deepEqual(run("PreInvocation", { invocationNum: 0 }), {}, "unlisted: nothing new");
     writeConfig(project, { delegatedAcceptance: { orchestrator: "orch-1", sessions: [conversation] } });
     const line = injected(run("PreInvocation", { invocationNum: 1 }))[0].ephemeralMessage;
-    assert.match(line, /acceptance belongs to the orchestrator orch-1/);
-    const command = line.match(/node "([^"]+)" start --id <id> --session (\S+),/);
-    assert.ok(command, line);
-    assert.equal(command[2], conversation);
+    assert.equal(line, "[Foreman] delegatedAcceptance lists this conversation: acceptance belongs to the orchestrator orch-1.");
     assert.deepEqual(run("PreInvocation", { invocationNum: 2 }), {}, "said once");
+    const script = path.join(HOOKS_DIR, "codex-task.js");
     const env = { FOREMAN_HOST: "antigravity", FOREMAN_PROJECT_DIR: project };
-    const checkpoint = runNodeScript(command[1], ["start", "--id", "001", "--session", command[2]], null, env);
+    const checkpoint = runNodeScript(script, ["start", "--id", "001", "--session", conversation], null, env);
     assert.equal(checkpoint.status, 0, checkpoint.stdout);
     assert.equal(JSON.parse(checkpoint.stdout).delegatedTo, "orch-1");
-    const check = JSON.parse(runNodeScript(command[1], ["check", "--id", "001", "--session", command[2]], null, env).stdout);
+    const check = JSON.parse(runNodeScript(script, ["check", "--id", "001", "--session", conversation], null, env).stdout);
     assert.equal(check.delegatedTo, "orch-1");
     assert.equal(check.stop_gate_scoped, false, "no stop event reads a checkpoint file here");
-    const without = JSON.parse(runNodeScript(command[1], ["check", "--id", "001"], null, { ...env, ANTIGRAVITY_CONVERSATION_ID: "" }).stdout);
+    const without = JSON.parse(runNodeScript(script, ["check", "--id", "001"], null, { ...env, ANTIGRAVITY_CONVERSATION_ID: "" }).stdout);
     assert.equal(without.delegatedTo, undefined, "no --session, today's output");
     assert.equal(without.discovery, discoveryInstructions());
   });
@@ -194,24 +194,62 @@ describe("PreInvocation carries the session notice once, in this host's words", 
     assert.equal(other.delegatedTo, undefined);
   });
 
+  // [Foreman: 880] Codex or Claude Code started from an Antigravity terminal
+  // inherits the conversation id; their checkpoints never read it.
+  test("another host's checkpoint ignores an inherited ANTIGRAVITY_CONVERSATION_ID", () => {
+    writeRoadmap(project, [{ id: "001", title: "Ship the thing", status: "planned" }]);
+    writeConfig(project, { delegatedAcceptance: { orchestrator: "orch-1", sessions: [conversation] } });
+    const script = path.join(HOOKS_DIR, "codex-task.js");
+    for (const host of [{ FOREMAN_HOST: "codex" }, { FOREMAN_HOST: "claude" }, { PLUGIN_ROOT: ROOT }]) {
+      assert.deepEqual(currentScope({}, { ...host, ANTIGRAVITY_CONVERSATION_ID: conversation }), { session: "", agent: "" }, JSON.stringify(host));
+      const check = JSON.parse(runNodeScript(script, ["check", "--id", "001"], null, { ...host, FOREMAN_PROJECT_DIR: project, ANTIGRAVITY_CONVERSATION_ID: conversation }).stdout);
+      assert.equal(check.stop_gate_scoped, false, "no scope armed under the Antigravity id");
+      assert.equal(check.delegatedTo, undefined);
+    }
+    assert.deepEqual(currentScope({}, { ANTIGRAVITY_CONVERSATION_ID: conversation }), { session: conversation, agent: "" });
+  });
+
   // [Foreman: 850] The notice latches on the orchestrator's name, and the
-  // config is read again only when its mtime moves.
+  // config is read again only when its stat moves.
   test("a new orchestrator is announced, and an unchanged config is not read again", () => {
     const file = path.join(project, ".foreman", "config.json");
     const config = (orchestrator, sessions) => {
       writeConfig(project, { delegatedAcceptance: { orchestrator, sessions } });
       fs.utimesSync(file, 1_700_000_000, 1_700_000_000);
     };
-    config("orch-1", ["someone-else"]);
+    config("orch-1", [crypto.randomUUID()]);
     assert.deepEqual(run("PreInvocation", { invocationNum: 0 }), {}, "unlisted");
     config("orch-1", [conversation]);
-    assert.deepEqual(run("PreInvocation", { invocationNum: 1 }), {}, "same mtime: not read again");
+    assert.deepEqual(run("PreInvocation", { invocationNum: 1 }), {}, "same mtime and size: not read again");
     fs.utimesSync(file, 1_700_000_100, 1_700_000_100);
     assert.match(injected(run("PreInvocation", { invocationNum: 2 }))[0].ephemeralMessage, /orchestrator orch-1\./);
     writeConfig(project, { delegatedAcceptance: { orchestrator: "orch-1", sessions: [conversation, "x"] } });
     assert.deepEqual(run("PreInvocation", { invocationNum: 3 }), {}, "same orchestrator: said once");
     writeConfig(project, { delegatedAcceptance: { orchestrator: "orch-2", sessions: [conversation] } });
     assert.match(injected(run("PreInvocation", { invocationNum: 4 }))[0].ephemeralMessage, /orchestrator orch-2\./);
+  });
+
+  // [Foreman: 880] The latch keys on the config's path and size as well as
+  // its mtime: an edit inside one mtime tick, or another project, is reread.
+  // Both configs carry one UUID session, so only the path tells them apart.
+  const stamp = (dir, sessions) => {
+    writeConfig(dir, { delegatedAcceptance: { orchestrator: "orch-1", sessions } });
+    fs.utimesSync(path.join(dir, ".foreman", "config.json"), 1_700_000_000, 1_700_000_000);
+  };
+
+  test("a config rewritten with the same mtime and a new size is read again", () => {
+    stamp(project, ["x"]);
+    assert.deepEqual(run("PreInvocation", { invocationNum: 0 }), {}, "unlisted");
+    stamp(project, [conversation]);
+    assert.match(injected(run("PreInvocation", { invocationNum: 1 }))[0].ephemeralMessage, /orchestrator orch-1\./);
+  });
+
+  test("another project's config with the same mtime and size is read", () => {
+    const other = makeTmpProject();
+    stamp(project, [crypto.randomUUID()]);
+    stamp(other, [conversation]);
+    assert.deepEqual(run("PreInvocation", { invocationNum: 0 }, { FOREMAN_PROJECT_DIR: project }), {}, "unlisted here");
+    assert.match(injected(run("PreInvocation", { invocationNum: 1 }, { FOREMAN_PROJECT_DIR: other }))[0].ephemeralMessage, /orchestrator orch-1\./);
   });
 
   test("a project with nothing open, or no roadmap, injects nothing", () => {
@@ -292,7 +330,7 @@ describe("PostToolUse answers nothing and queues context for the next model call
     commitFile(project, "src/a.js", "one\n");
     assert.deepEqual(run("PostToolUse", call("run_command", { CommandLine: "git commit -m 'ship'", Cwd: project })), {});
     const steps = injected(run("PreInvocation", { invocationNum: 3 }));
-    assert.equal(steps.length, 2, "the --session line (838), then the commit reminder");
+    assert.equal(steps.length, 2, "the orchestrator line (838), then the commit reminder");
     const text = steps[1].ephemeralMessage;
     assert.match(text, /"status":"awaiting_acceptance","commit":"<sha>"/);
     assert.match(text, /belongs to the orchestrator orch-1/);
