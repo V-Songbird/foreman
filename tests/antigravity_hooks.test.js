@@ -176,9 +176,42 @@ describe("PreInvocation carries the session notice once, in this host's words", 
     const check = JSON.parse(runNodeScript(command[1], ["check", "--id", "001", "--session", command[2]], null, env).stdout);
     assert.equal(check.delegatedTo, "orch-1");
     assert.equal(check.stop_gate_scoped, false, "no stop event reads a checkpoint file here");
-    const without = JSON.parse(runNodeScript(command[1], ["check", "--id", "001"], null, env).stdout);
+    const without = JSON.parse(runNodeScript(command[1], ["check", "--id", "001"], null, { ...env, ANTIGRAVITY_CONVERSATION_ID: "" }).stdout);
     assert.equal(without.delegatedTo, undefined, "no --session, today's output");
     assert.equal(without.discovery, discoveryInstructions());
+  });
+
+  // [Foreman: 850] A run_command's environment carries
+  // ANTIGRAVITY_CONVERSATION_ID, equal to the payload's conversationId (live
+  // agy 1.2.10 probe), so a checkpoint that forgot --session still defers.
+  test("a listed conversation's checkpoint reads its session from ANTIGRAVITY_CONVERSATION_ID", () => {
+    writeRoadmap(project, [{ id: "001", title: "Ship the thing", status: "planned" }]);
+    writeConfig(project, { delegatedAcceptance: { orchestrator: "orch-1", sessions: [conversation] } });
+    const env = { FOREMAN_HOST: "antigravity", FOREMAN_PROJECT_DIR: project, ANTIGRAVITY_CONVERSATION_ID: conversation };
+    const script = path.join(HOOKS_DIR, "codex-task.js");
+    assert.equal(JSON.parse(runNodeScript(script, ["start", "--id", "001"], null, env).stdout).delegatedTo, "orch-1");
+    const other = JSON.parse(runNodeScript(script, ["check", "--id", "001"], null, { ...env, ANTIGRAVITY_CONVERSATION_ID: "someone-else" }).stdout);
+    assert.equal(other.delegatedTo, undefined);
+  });
+
+  // [Foreman: 850] The notice latches on the orchestrator's name, and the
+  // config is read again only when its mtime moves.
+  test("a new orchestrator is announced, and an unchanged config is not read again", () => {
+    const file = path.join(project, ".foreman", "config.json");
+    const config = (orchestrator, sessions) => {
+      writeConfig(project, { delegatedAcceptance: { orchestrator, sessions } });
+      fs.utimesSync(file, 1_700_000_000, 1_700_000_000);
+    };
+    config("orch-1", ["someone-else"]);
+    assert.deepEqual(run("PreInvocation", { invocationNum: 0 }), {}, "unlisted");
+    config("orch-1", [conversation]);
+    assert.deepEqual(run("PreInvocation", { invocationNum: 1 }), {}, "same mtime: not read again");
+    fs.utimesSync(file, 1_700_000_100, 1_700_000_100);
+    assert.match(injected(run("PreInvocation", { invocationNum: 2 }))[0].ephemeralMessage, /orchestrator orch-1\./);
+    writeConfig(project, { delegatedAcceptance: { orchestrator: "orch-1", sessions: [conversation, "x"] } });
+    assert.deepEqual(run("PreInvocation", { invocationNum: 3 }), {}, "same orchestrator: said once");
+    writeConfig(project, { delegatedAcceptance: { orchestrator: "orch-2", sessions: [conversation] } });
+    assert.match(injected(run("PreInvocation", { invocationNum: 4 }))[0].ephemeralMessage, /orchestrator orch-2\./);
   });
 
   test("a project with nothing open, or no roadmap, injects nothing", () => {

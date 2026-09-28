@@ -23,7 +23,9 @@ function scopePath(root, session, agent = "") {
 }
 
 function currentScope(options = {}, env = process.env) {
-  const session = options.session ?? (env.CODEX_SESSION_ID || env.CODEX_THREAD_ID || "");
+  // [Foreman: 850] Antigravity's run_command environment carries the
+  // conversation's id, the one its hook payloads name.
+  const session = options.session ?? (env.CODEX_SESSION_ID || env.CODEX_THREAD_ID || env.ANTIGRAVITY_CONVERSATION_ID || "");
   const thread = env.CODEX_THREAD_ID || "";
   const agent = options.agent ?? (options.session === undefined && env.CODEX_SESSION_ID && thread !== session ? thread : "");
   return { session, agent };
@@ -66,8 +68,8 @@ function checkpoint(action, options) {
   }
   // [Foreman: 828] A session delegatedAcceptance lists hears who accepts for
   // it, and gets discovery wording that reports to that orchestrator instead
-  // of asking the user. Antigravity passes no session here unless --session;
-  // its hook names that value once the conversation is listed (838).
+  // of asking the user. Antigravity's session comes from --session or
+  // ANTIGRAVITY_CONVERSATION_ID (850).
   // A background subagent keeps the shared policy: it returns its candidates
   // to its coordinator, which is the listed session.
   const delegatedTo = agent ? null : delegatedOrchestrator(readConfigFile(root).config, session);

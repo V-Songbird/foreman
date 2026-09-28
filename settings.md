@@ -78,16 +78,19 @@ After a commit in a listed session:
 In Codex, the `codex-task.js start` and `check` checkpoints of a listed
 session return the orchestrator's name as `delegatedTo` and give the same
 discovery instructions, and the roadmap skill's close and discovery steps
-follow the same rules. In Antigravity, only the hook knows the conversation
-id, so the first model call after the list names a conversation tells it which
-`--session` value to pass to `start` and `check`; with it, the checkpoints
-behave as in Codex.
+follow the same rules. In Antigravity, the checkpoints read the conversation
+id from `ANTIGRAVITY_CONVERSATION_ID`, which Antigravity sets for the commands
+its agent runs, and then behave as in Codex. The first model call after the
+list names a conversation, or names a different orchestrator for it, also
+tells it the orchestrator and the `--session` value that `start` and `check`
+accept.
 
 A handoff that a listed session crafts to run itself, or to give its
 background agent, closes the same way: it records `awaiting_acceptance` and
 reports to the orchestrator instead of asking you. The handoff script finds
 the session in `CLAUDE_CODE_SESSION_ID` in Claude Code and in
-`CODEX_SESSION_ID` or `CODEX_THREAD_ID` in Codex. A handoff copied to the
+`CODEX_SESSION_ID` or `CODEX_THREAD_ID` in Codex, and in
+`ANTIGRAVITY_CONVERSATION_ID` in Antigravity. A handoff copied to the
 clipboard keeps the usual close, because the session that will paste it is
 not known yet.
 

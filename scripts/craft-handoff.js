@@ -1501,9 +1501,11 @@ function assemble(root, input) {
   // [Foreman: 837] The crafting session runs a task handoff and coordinates an
   // agent's, so delegatedAcceptance is read for its own session; a clipboard
   // prompt runs in a session nobody knows yet and keeps today's close.
+  // [Foreman: 850] Antigravity, which resolves to the codex host here, names
+  // its conversation in ANTIGRAVITY_CONVERSATION_ID.
   const delegatedTo = destination === "clipboard" ? null
     : delegatedOrchestrator(readConfigFile(root).config, host === "codex"
-      ? process.env.CODEX_SESSION_ID || process.env.CODEX_THREAD_ID
+      ? process.env.CODEX_SESSION_ID || process.env.CODEX_THREAD_ID || process.env.ANTIGRAVITY_CONVERSATION_ID
       : process.env.CLAUDE_CODE_SESSION_ID);
 
   const checkCount = hasVerification ? judgment.verification.length : 0;

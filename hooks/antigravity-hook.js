@@ -20,7 +20,7 @@ const os = require("os");
 const path = require("path");
 const { spawnSync } = require("child_process");
 const { readInput } = require("./lib");
-const { readConfigFile, delegatedOrchestrator } = require("../scripts/foreman-config");
+const { configPath, readConfigFile, delegatedOrchestrator } = require("../scripts/foreman-config");
 
 const TOOLS = {
   run_command: (args) => ({ tool_name: "Bash", tool_input: { command: args.CommandLine || "" } }),
@@ -92,7 +92,12 @@ function readState(conversationId) {
   try {
     const parsed = JSON.parse(fs.readFileSync(statePath(conversationId), "utf-8"));
     if (parsed && typeof parsed === "object") {
-      return { started: parsed.started === true, pending: Array.isArray(parsed.pending) ? parsed.pending : [], ...(parsed.delegated === true ? { delegated: true } : {}) };
+      return {
+        started: parsed.started === true,
+        pending: Array.isArray(parsed.pending) ? parsed.pending : [],
+        ...(typeof parsed.delegated === "string" ? { delegated: parsed.delegated } : {}),
+        ...(typeof parsed.configMtime === "number" || parsed.configMtime === null ? { configMtime: parsed.configMtime } : {}),
+      };
     }
   } catch {
     // missing or corrupt: a conversation nothing has been said in yet
@@ -140,13 +145,26 @@ function answer(value) {
 }
 
 // [Foreman: 838] A command the model runs is no child of this hook, so the
-// checkpoint in hooks/codex-task.js cannot learn the conversation id; only
-// this payload has it. The first call after delegatedAcceptance lists the
-// conversation says which --session to pass, once. Unlisted conversations
-// hear nothing new.
-function delegationLine(conversationId, root) {
-  const orchestrator = root && delegatedOrchestrator(readConfigFile(root).config, conversationId);
-  if (!orchestrator) return "";
+// checkpoint in hooks/codex-task.js cannot learn the conversation id from
+// it. The first call after delegatedAcceptance lists the conversation says
+// which --session to pass. Unlisted conversations hear nothing new.
+// [Foreman: 850] The latch is the orchestrator's name, so a new orchestrator
+// is announced too. The config is read again only when its mtime moves, so an
+// unlisted conversation costs one stat per invocation, not a read.
+function delegationLine(conversationId, root, state) {
+  let mtime = null;
+  try {
+    mtime = root ? fs.statSync(configPath(root)).mtimeMs : null;
+  } catch {
+    // no config: nothing is delegated
+  }
+  if (mtime === state.configMtime) return "";
+  state.configMtime = mtime;
+  const orchestrator = mtime === null ? null : delegatedOrchestrator(readConfigFile(root).config, conversationId);
+  const said = state.delegated;
+  if (orchestrator) state.delegated = orchestrator;
+  else delete state.delegated;
+  if (!orchestrator || orchestrator === said) return "";
   const script = path.join(__dirname, "codex-task.js").replace(/\\/g, "/");
   return `[Foreman] delegatedAcceptance lists this conversation: acceptance belongs to the orchestrator ${orchestrator}. ` +
     `Pass --session ${conversationId} to every checkpoint, as in node "${script}" start --id <id> --session ${conversationId}, and the same for check.`;
@@ -156,11 +174,8 @@ function preInvocation(data, { payload, workspace }) {
   pruneQueues(data.conversationId);
   const state = readState(data.conversationId);
   const messages = state.pending.splice(0);
-  const delegation = state.delegated ? "" : delegationLine(data.conversationId, process.env.FOREMAN_PROJECT_DIR || workspace || payload.cwd);
-  if (delegation) {
-    state.delegated = true;
-    messages.unshift(delegation);
-  }
+  const delegation = delegationLine(data.conversationId, process.env.FOREMAN_PROJECT_DIR || workspace || payload.cwd, state);
+  if (delegation) messages.unshift(delegation);
   if (!state.started) {
     state.started = true;
     const notice = runHook("session-start.js", { ...payload, source: "startup" }, workspace).trim();
