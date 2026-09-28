@@ -67,9 +67,11 @@ every event, trusted through `/hooks`.
 Tool names in Codex 0.157.1 events join the namespace and the tool:
 `collaborationspawn_agent`, `collaborationwait_agent` and
 `collaborationfollowup_task`. Hook processes received no `CODEX_THREAD_ID`
-environment variable; the ids arrive in the event itself. The probe did not
-check the environment of the model's shell commands, where `codex-task.js`
-reads that variable.
+environment variable; the ids arrive in the event itself. The model's shell
+commands, where `codex-task.js` reads that variable, do receive it. In a main
+session, `CODEX_THREAD_ID` equals `CODEX_SESSION_ID`. In a subagent's shell,
+`CODEX_THREAD_ID` equals that subagent's `agent_id`, and `CODEX_SESSION_ID`
+still equals the parent's session id.
 
 ## Feature mapping
 
