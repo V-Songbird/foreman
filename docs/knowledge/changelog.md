@@ -41,8 +41,7 @@ instead.
   `planned` or `in_progress`. An entry awaiting acceptance, or already closed,
   passes. So does an entry whose latest review note is `paused:` or
   `review pending:`, so each `collaborationfollowup_task` to a subagent whose
-  review is pending does not block the coordinator again. This holds for an
-  explicit `check` too.
+  review is pending does not block the coordinator again.
 - A `task_name` that is `foreman` or starts with `foreman_` is refused unless
   it is exactly `foreman_<id>` for an entry in `ROADMAP.jsonl`. Every other
   name passes, and a handoff spawned under another name runs normally, but its
