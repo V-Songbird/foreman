@@ -226,6 +226,16 @@ A new session that finds `Codex session <session id>` in the notes offers
 that command before it crafts the work again. A session the host no longer
 knows falls back to recovery from the notes and files.
 
+The session id stays in the roadmap on purpose. It is the identifier Codex
+gives one conversation, and Codex keeps that conversation under the
+`CODEX_HOME` directory of the machine that ran it. On any other machine, or
+after that directory is cleared, the id resumes nothing. It holds no secret,
+but it is a local identifier: when a project commits `ROADMAP.jsonl`, the
+commit publishes the id in the project's history. Foreman keeps it there so a
+later pick on the same machine can still offer the resume command, the same
+way it keeps the background agent and subagent ids a dispatch note records. A
+project that must not publish such ids keeps `ROADMAP.jsonl` out of Git.
+
 The session notice does not fire on resume. Foreman's `SessionStart`
 registration keeps its matcher `^(startup|clear)$`, for three reasons:
 
