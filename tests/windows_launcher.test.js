@@ -28,7 +28,7 @@ test("Windows commands match their readable source without changing policy", () 
   main();
   const source = fs.readFileSync(path.join(__dirname, "../hooks/windows-launcher.ps1"), "utf8");
   const command = build(source, "guard-roadmap-edit.js");
-  const decoded = Buffer.from(command.match(/-EncodedCommand (\S+)"$/)[1], "base64").toString("utf16le");
+  const decoded = Buffer.from(command.match(/-EncodedCommand ([^\s)]+)\) else exit \/b"$/)[1], "base64").toString("utf16le");
   assert.equal(decoded, source.replace(/\r\n/g, "\n").replaceAll("__FOREMAN_HOOK__", "guard-roadmap-edit.js"));
   assert.doesNotMatch(command, /ExecutionPolicy|DevCache/);
   assert.doesNotMatch(decoded, /Set-ExecutionPolicy|ExecutionPolicy\s+Bypass/);
@@ -86,6 +86,20 @@ test("a node.exe in the hook's working directory never runs", { skip: process.pl
     assert.equal(result.stderr, "", label);
     assert.equal(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision, "deny", label);
   }
+});
+
+// [Foreman: 959] A false `if errorlevel 9009` ends cmd with exit 0, so a hook
+// that exits nonzero must still hand Codex its code. A stand-in hook exits 3.
+test("a Codex hook's nonzero exit code survives its Windows command", { skip: process.platform !== "win32" }, () => {
+  const root = makeTmpProject();
+  fs.mkdirSync(path.join(root, "hooks"));
+  const handler = require(CODEX_HOOKS).hooks.PreToolUse[0].hooks[0];
+  fs.writeFileSync(path.join(root, "hooks", handler.command.match(/'hooks','([a-z-]+\.js)'/)[1]), "exports.main = () => process.exit(3);\n");
+  const timeout = Math.max(120000, SPAWN_TIMEOUT_MS);
+  const result = unlessTimedOut(cp.spawnSync("cmd.exe", ["/d", "/s", "/c", `"${handler.commandWindows}"`], {
+    cwd: root, env: { ...process.env, PLUGIN_ROOT: root }, input: "{}", encoding: "utf8", windowsHide: true, windowsVerbatimArguments: true, timeout,
+  }), "a hook exiting 3 under cmd.exe", timeout);
+  assert.equal(result.status, 3, result.stderr);
 });
 
 // [Foreman: 814] The PowerShell-parent tests above find Node on PATH, which
