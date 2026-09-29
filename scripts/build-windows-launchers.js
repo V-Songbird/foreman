@@ -10,6 +10,7 @@ const root = path.resolve(__dirname, "..");
 // cannot find sets ERRORLEVEL 9009 only after `&`, never inside `||`; then the
 // encoded PowerShell launcher finds Node through fnm. 2>nul hides cmd's
 // not-found text on that path, and with it Node's stderr, which no hook writes.
+// [Foreman: 959] A false `if` ends cmd with exit 0; `else exit /b` keeps Node's code.
 function build(source, hook) {
   if (!/^[a-z-]+\.js$/.test(hook)) throw Error("Invalid hook entry point");
   const inline = `try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','${hook}')).main()}catch{}`;
@@ -17,7 +18,7 @@ function build(source, hook) {
   if (/[\s"$%`]/.test(inline)) throw Error("Inline hook script needs quoting");
   const script = source.replace(/\r\n/g, "\n").replaceAll("__FOREMAN_HOOK__", hook);
   const fallback = "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand " + Buffer.from(script, "utf16le").toString("base64");
-  return `cmd /d /s /c "set NoDefaultCurrentDirectoryInExePath=1&& node -e ${inline} 2>nul & if errorlevel 9009 ${fallback}"`;
+  return `cmd /d /s /c "set NoDefaultCurrentDirectoryInExePath=1&& node -e ${inline} 2>nul & if errorlevel 9009 (${fallback}) else exit /b"`;
 }
 
 function main(write = false) {
