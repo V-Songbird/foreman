@@ -14,6 +14,15 @@ summary of them:
 - In Codex, the marker is `dispatched to Codex subagent <id>`; use it only if
   the current host still knows that session or agent, through its follow-up
   capability, and inspect the result.
+- In Codex, a `paused:` or `review pending:` note may instead name
+  `Codex session <id>` (written by
+  [increment-review.md](increment-review.md)). That session still holds the
+  presented result and its subagent. Offer the person
+  `codex exec resume <id> -` before re-crafting anything, and say that the
+  `-` reads their decision from standard input: they type or paste it, then
+  end input with Ctrl+D in a POSIX shell, Git Bash included, or Ctrl+Z and
+  Enter in PowerShell or cmd. If
+  they take it, stop here; if they decline, fall back as below.
 - In Antigravity, the marker is `dispatched to Antigravity subagent <id>`,
   reached through `manage_subagents` under the same condition.
 
