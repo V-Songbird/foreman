@@ -36,7 +36,13 @@ Claude Code and Codex, each through its own hooks:
   `hooks/codex-task.js check` that finds the entry still open. The next `Stop`
   or `SubagentStop` in that session or subagent then asks for one more turn to
   close it. Each check arms the reminder once, and a turn that is already
-  continuing because of it is not stopped again.
+  continuing because of it is not stopped again. An explicit check always
+  blocks once for an entry that is `planned` or `in_progress`.
+  The finish of a `foreman_<id>` subagent is the exception. The reminder it
+  arms for the session that spawned it passes while the last line of the
+  entry's notes starts with `paused:` or `review pending:` (a date can come first), because a reviewed
+  increment waiting on its reviewer stays `in_progress` on purpose. Any note
+  added after that line, such as a decision or new work, ends the pass.
 - **Antigravity** has no task event and no stop event Foreman can scope to a
   session, so `"block"` changes nothing there. `hooks/codex-task.js check`
   still reports what is open.
