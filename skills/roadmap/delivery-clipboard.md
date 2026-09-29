@@ -7,7 +7,8 @@ Write the returned `prompt` to a UTF-8 file first — never pass it as an
 inline shell string: a large prompt breaks shell quoting and the copy silently
 fails. Write the file in the project's `tmp/` directory under a unique name,
 never in the project root or outside the project: a leftover file can dirty the
-tree for `safe-commit.js`. When the user chose the clipboard, pipe the file's content into the
+tree for `safe-commit.js`. Create `tmp/` when it is missing. When the user
+chose the clipboard, pipe the file's content into the
 clipboard command: `Get-Content -LiteralPath <file> -Raw -Encoding utf8 | Set-Clipboard`
 on Windows, `pbcopy < <file>` on macOS, `xclip -selection clipboard < <file>`
 (or `wl-copy < <file>`) on Linux, and delete the file once the copy succeeded.
@@ -16,7 +17,8 @@ copy succeeded. If no clipboard command works, or the user asked for a prompt
 file only, the file is the deliverable: keep it, give its path, and say it must
 be moved out or deleted before a task runs in this project, because it dirties
 the tree. A fenced `xml` block in chat is the last fallback, only when no
-usable file can be delivered. Include the schema artifact too for a structured-output handoff.
+usable file can be delivered. For a structured-output handoff, put the schema
+artifact in the same file, after the prompt, so one file is copied and deleted.
 
 Any checkpoint protocol a multi-row prompt needs already rides inside
 `prompt`'s own `task_rules` — craft-handoff baked it in; nothing more to do

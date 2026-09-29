@@ -110,7 +110,9 @@ describe("the shared destination question", () => {
   test("the clipboard prompt file lives in the project's tmp/ and goes after a successful copy", () => {
     const clipboard = read("skills", "roadmap", "delivery-clipboard.md").replace(/\s+/g, " ");
     assert.match(clipboard, /in the project's `tmp\/` directory under a unique name, never in the project root/);
+    assert.match(clipboard, /Create `tmp\/` when it is missing/);
     assert.match(clipboard, /delete the file once the copy succeeded/);
+    assert.match(clipboard, /put the schema artifact in the same file, after the prompt/);
   });
 
   test("all four destination choices remain available, in order", () => {
