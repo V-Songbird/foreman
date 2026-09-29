@@ -63,7 +63,7 @@ on every event, trusted through `/hooks`.
 
 | Capability | Status on Codex CLI 0.157.1 | What the probe showed |
 | --- | --- | --- |
-| Detached resume: continue a session and its subagent from a new process | Built for reviewed increments, as instructions; see [Resume a paused review](#resume-a-paused-review) | `codex exec resume <session id>` kept the session id, and `SessionStart` reported `source` `resume`. `collaborationfollowup_task` reached the same subagent, with the same `agent_id`. `SubagentStart` did not fire again for it |
+| Detached resume: continue a session and its subagent from a new process | Built for reviewed increments, as instructions; see [Resume a paused review](#resume-a-paused-review) | `codex exec resume` kept the session id, and `SessionStart` reported `source` `resume`. `collaborationfollowup_task` reached the same subagent, with the same `agent_id`. `SubagentStart` did not fire again for it |
 | Decision-anchor hook: recall the decisions a file's `[Foreman: <id>]` anchors name when Codex reads it | Built for anchors; lessons stay out. See [Decision anchors in shell output](#decision-anchors-in-shell-output) | Codex read files through `Bash`, not a file-read tool. `PostToolUse` on `Bash` carries the command output in `tool_response`, where the anchor text appears. The file path is not a separate field, so lessons recalled by path stay out of reach |
 
 Tool names in Codex 0.157.1 events join the namespace and the tool:
@@ -203,8 +203,13 @@ protocol, not as a hook or a stored state:
    The id comes from `CODEX_THREAD_ID` in the main session's shell; in a
    subagent's shell, that variable holds the subagent's own id. The main
    session ends its turn with the command that continues the session.
-2. The person continues it with
-   `codex exec resume <session id> "<their decision>"`.
+2. The person continues it with `codex exec resume <session id> -`. The
+   `-` makes Codex read the decision from standard input, so the person
+   types or pastes it, then ends input with Ctrl+D in a POSIX shell, Git
+   Bash included, or Ctrl+Z and Enter in PowerShell or cmd. Keeping the
+   decision out of the command line keeps quotes, `$` and backticks away
+   from the shell, which parses them differently in PowerShell and POSIX
+   shells.
 3. When a `foreman_<id>` subagent produced the result, the resumed session
    continues it with `collaborationfollowup_task` targeting
    `/root/foreman_<id>`. It never spawns a new subagent for the same work.

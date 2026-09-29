@@ -108,9 +108,28 @@ test('the full canonical recovery protocol reaches the recipient', (t) => {
 test('a Codex resume handoff offers the recorded session and its subagent follow-up', (t) => {
   const result = assemble(setup(t, 'review pending: opening.md presented; Codex session 0000-probe'), request('clipboard'));
   const block = result.prompt.match(/<increment_resume>[\s\S]*?<\/increment_resume>/)[0].replace(/\s+/g, ' ');
-  assert.match(block, /`codex exec resume <session id> "<their decision>"`; offer that command before doing dependent work here/);
+  assert.match(block, /`codex exec resume <session id> -`; offer that command before doing dependent work here/);
   assert.match(block, /`collaborationfollowup_task` targeting `\/root\/foreman_<id>`, never with a new spawn/);
   assert.match(block, /Resuming answers nothing/);
+});
+
+// [Foreman: 940] A later pick reads the same note through resume.md, and the
+// decision travels on stdin, so no shell's quoting rules touch it.
+test('resume.md offers the Codex session a paused note names, decision on stdin', () => {
+  const note = 'paused: opening.md presented; Codex session 0000-probe';
+  const resumeMd = fs.readFileSync(path.join(__dirname, '../skills/roadmap/resume.md'), 'utf8').replace(/\s+/g, ' ');
+  const marker = resumeMd.match(/`(Codex session) <id>`/);
+  assert.ok(marker, 'resume.md names the Codex session marker');
+  const id = note.match(new RegExp(`${marker[1]} ([\\w-]+)`))[1];
+  const offered = resumeMd.match(/`(codex exec resume <id>[^`]*)`/);
+  assert.ok(offered, 'resume.md offers codex exec resume');
+  assert.equal(offered[1].replace('<id>', id), 'codex exec resume 0000-probe -');
+  assert.match(resumeMd, /standard input/);
+  for (const file of ['skills/roadmap/resume.md', 'skills/roadmap/resume-increments.md', 'skills/roadmap/increment-review.md', 'CODEX.md']) {
+    const text = fs.readFileSync(path.join(__dirname, '..', file), 'utf8').replace(/\s+/g, ' ');
+    assert.doesNotMatch(text, /<their decision>/, file);
+    for (const [command] of text.matchAll(/`codex exec resume <[^`]*`/g)) assert.match(command, / -`$/, `${file}: ${command}`);
+  }
 });
 
 test('ordinary resume and a new reviewed run do not activate the recovery block', (t) => {

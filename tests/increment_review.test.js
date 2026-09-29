@@ -87,7 +87,7 @@ for (const destination of ['task', 'clipboard', 'agent']) {
 test('a Codex review pause records its session and names the detached resume', (t) => {
   const block = assemble(fixture(t), input('clipboard')).prompt.match(/<increment_review>[\s\S]*?<\/increment_review>/)[0].replace(/\s+/g, ' ');
   assert.match(block, /the main session adds `Codex session <session id>` to that note, taking the id from its own shell's `CODEX_THREAD_ID`/);
-  assert.match(block, /`codex exec resume <session id>`/);
+  assert.match(block, /`codex exec resume <session id> -`\. The `-` reads the person's decision from standard input/);
   assert.match(block, /When a `foreman_<id>` subagent produced the result, the resumed session continues it with `collaborationfollowup_task` targeting `\/root\/foreman_<id>`; it never spawns a new one/);
 });
 

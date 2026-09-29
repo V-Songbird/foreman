@@ -53,9 +53,13 @@ complete, then apply the existing final acceptance policy.
 In Codex, a pending or paused note may name `Codex session <session id>`.
 That session still holds the presented result, its conversation and any
 `foreman_<id>` subagent. The person can continue it from a new process with
-`codex exec resume <session id> "<their decision>"`; offer that command
-before doing dependent work here. A resumed session continues such a
-subagent with `collaborationfollowup_task` targeting `/root/foreman_<id>`,
+`codex exec resume <session id> -`; offer that command before doing
+dependent work here. The `-` makes Codex read the decision from standard
+input, so the person types or pastes it, then ends input with Ctrl+D in a
+POSIX shell, Git Bash included, or Ctrl+Z and Enter in PowerShell or cmd.
+Keep the decision out of the command line: its quotes, `$` and backticks
+mean different things in PowerShell and POSIX shells. A resumed session
+continues such a subagent with `collaborationfollowup_task` targeting `/root/foreman_<id>`,
 never with a new spawn. Resuming answers nothing: refresh the entry's notes
 and compare the new message with the presented result as above. A session
 the host no longer knows falls back to this evidence comparison.
