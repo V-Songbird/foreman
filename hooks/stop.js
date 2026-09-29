@@ -22,6 +22,16 @@ function armSpawner(root, data) {
   } catch { /* best effort */ }
 }
 
+// [Foreman: 941] A reviewed increment waiting on its reviewer keeps the entry
+// in_progress by design, and its latest review note already records that
+// blocker. Every follow-up to its foreman_<id> subagent re-arms the check, so
+// without this the coordinator's Stop would block once per follow-up.
+const REVIEW_NOTE_RE = /^(?:\d{4}-\d{2}-\d{2}\s+)*(accepted|changes requested|paused|review pending):/;
+function reviewPending(entry) {
+  const decisions = String(entry.notes || "").split("\n").map((line) => REVIEW_NOTE_RE.exec(line.trim())).filter(Boolean);
+  return ["paused", "review pending"].includes(decisions.at(-1)?.[1]);
+}
+
 function main(data = readInput()) {
   if (!["Stop", "SubagentStop"].includes(data.hook_event_name)) return;
   const root = projectDir(data);
@@ -40,7 +50,7 @@ function main(data = readInput()) {
     const id = filename.slice(0, -5);
     if (!isValidId(id)) continue;
     // [Foreman: 760] Any open holder of a duplicated id keeps the check open.
-    if (entries.some((e) => e.id === id && OPEN.has(e.status))) open.push(id);
+    if (entries.some((e) => e.id === id && OPEN.has(e.status) && !reviewPending(e))) open.push(id);
     // Consume the attempted completion exactly once, including when another
     // tool already satisfied it. A future explicit check can re-arm it.
     try { fs.unlinkSync(path.join(scope, filename)); } catch { /* best effort */ }

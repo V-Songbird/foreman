@@ -340,6 +340,25 @@ test("a nested foreman_<id> subagent arms the subagent that spawned it", () => {
   assert.equal(hook("stop.js", { hook_event_name: "SubagentStop", agent_id: "lead-agent" }).decision, "block");
 });
 
+// [Foreman: 941] Resumed with `codex exec resume`, the same session follows up
+// /root/foreman_001 with collaborationfollowup_task; each follow-up ends in a
+// SubagentStop that maps to 001 again (entry 927, run B).
+test("a follow-up to a foreman_<id> subagent whose review is pending does not block its coordinator", () => {
+  writeConfig(root, { taskCloseGate: "block" });
+  const notes = ["2026-09-28 accepted: task 1/3 reviewed at abc1234", "2026-09-28 lesson recorded: L1"];
+  for (const pending of ["review pending: task 2/3 presented, no answer. Codex session 019a", "paused: task 2/3 waits on the owner. Codex session 019a"]) {
+    writeRoadmap(root, [{ id: "001", title: "first", status: "in_progress", notes: [...notes, `2026-09-28 ${pending}`].join("\n") }]);
+    for (let followUp = 0; followUp < 2; followUp++) {
+      assert.equal(subagentStop("/root/foreman_001"), null);
+      assert.equal(hook("stop.js", { hook_event_name: "Stop" }), null, pending);
+    }
+  }
+  // Once the review is answered, an unfinished entry still blocks.
+  writeRoadmap(root, [{ id: "001", title: "first", status: "in_progress", notes: `${notes[0]}\n2026-09-28 review pending: task 2/3\n2026-09-28 changes requested: task 2/3` }]);
+  subagentStop("/root/foreman_001");
+  assert.equal(hook("stop.js", { hook_event_name: "Stop" }).decision, "block");
+});
+
 test("an unmapped, closed or ungated subagent finish arms nothing", () => {
   subagentStop("/root/foreman_001");
   writeConfig(root, { taskCloseGate: "block" });
