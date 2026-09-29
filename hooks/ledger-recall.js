@@ -9,7 +9,8 @@
 // recorded about the file itself. The handoff serves the same two facts one
 // step earlier, at dispatch; this catches the file nobody planned to touch.
 //
-// The document channel fires on every Read/Edit/Write regardless of
+// The document channel fires on every Read/Edit/Write (and Codex's Bash
+// output) regardless of
 // `ledger.enabled` -- once an anchor comment exists in a codebase it should
 // stay findable even in a project that never opted in. Only `dir` (default
 // docs/foreman) is taken from ledger-config, and only to read: Foreman never
@@ -30,7 +31,9 @@ const { readLedger } = require("../scripts/ledger-config");
 const ledger = require("../scripts/ledger");
 const noteStaleness = require("../scripts/note-staleness");
 
-const WATCHED_TOOLS = new Set(["apply_patch", "Read", "Edit", "Write"]);
+// [Foreman: 928] Bash is watched for Codex, which reads files through its
+// shell: the anchors arrive in the command output, with no path beside them.
+const WATCHED_TOOLS = new Set(["apply_patch", "Read", "Edit", "Write", "Bash"]);
 const MAX_BYTES = 512 * 1024;
 
 // [Foreman: 247] The lesson channel's own bounds, deliberately tighter than
@@ -121,9 +124,9 @@ function lessonMessage(relPath, lessons) {
   );
 }
 
-function contextMessage(relPaths) {
+function contextMessage(relPaths, subject = "This file") {
   return (
-    `This file carries decision docs (${relPaths.join(", ")}) -- read them ` +
+    `${subject} carries decision docs (${relPaths.join(", ")}) -- read them ` +
     "before changing what they govern."
   );
 }
@@ -172,7 +175,10 @@ function main(data = readInput()) {
   if (!fs.existsSync(path.join(root, "ROADMAP.jsonl"))) return;
 
   // Bound a single large patch's recall cost and context contribution.
-  const parts = touchedPaths(data).slice(0, 20).flatMap((filePath) => recallFile(data, root, filePath));
+  const parts =
+    data.tool_name === "Bash"
+      ? recallOutput(data, root)
+      : touchedPaths(data).slice(0, 20).flatMap((filePath) => recallFile(data, root, filePath));
   if (!parts.length) return;
   write({
     hookSpecificOutput: {
@@ -182,42 +188,53 @@ function main(data = readInput()) {
   });
 }
 
+// ---- channel 1: the decision docs a text's anchors name, latched per
+// session per `source` per id-set. `text` is a function so the capped read
+// happens only when the documents directory exists.
+//
+// No documents directory means no doc could possibly surface, so this channel
+// exits on one stat instead of paying the capped read on every touched file.
+// Anchors stay findable the moment the dir exists again (the ledger
+// re-enabled) — nothing is latched on this path.
+function anchorDocs(data, root, source, text, subject) {
+  const { dir } = readLedger(root);
+  if (!fs.existsSync(path.join(root, dir))) return [];
+  const content = text();
+  const ids = content === null ? [] : anchorIdsIn(content);
+  const keptIds = [];
+  const relPaths = [];
+  for (const id of ids) {
+    let isFile = false;
+    try {
+      isFile = fs.statSync(path.join(root, dir, `${id}.md`)).isFile();
+    } catch {
+      // no doc for this id -- stray/unrelated bracket text, never surfaced
+    }
+    if (isFile) {
+      keptIds.push(id);
+      relPaths.push(relDocPath(dir, id));
+    }
+  }
+  if (!keptIds.length) return [];
+  const sortedIds = [...keptIds].sort();
+  const sessionId = String(data.session_id || "");
+  return shouldEmit(root, `${sessionId}:${source}:${sortedIds.join(",")}`) ? [contextMessage(relPaths, subject)] : [];
+}
+
+// [Foreman: 928] Codex's PostToolUse on Bash hands the command output over as
+// a plain string in tool_response. Only the anchor channel runs: the output
+// names no file, so the lesson channel has no path to match.
+function recallOutput(data, root) {
+  const output = data.tool_response;
+  // Most shell output carries no anchor: skip the config read for it.
+  if (typeof output !== "string" || !output.includes("[Foreman")) return [];
+  return anchorDocs(data, root, "bash", () => output.slice(0, MAX_BYTES), "This command's output");
+}
+
 function recallFile(data, root, filePath) {
   const target = path.isAbsolute(filePath) ? filePath : path.resolve(root, filePath);
   const sessionId = String(data.session_id || "");
-  const parts = [];
-
-  // ---- channel 1: the decision docs this file's anchors name.
-  //
-  // No documents directory means no doc could possibly surface, so this channel
-  // exits on one stat instead of paying the capped read on every touched file.
-  // Anchors stay findable the moment the dir exists again (the ledger
-  // re-enabled) — nothing is latched on this path.
-  const { dir } = readLedger(root);
-  if (fs.existsSync(path.join(root, dir))) {
-    const content = readCapped(target);
-    const ids = content === null ? [] : anchorIdsIn(content);
-    const keptIds = [];
-    const relPaths = [];
-    for (const id of ids) {
-      let isFile = false;
-      try {
-        isFile = fs.statSync(path.join(root, dir, `${id}.md`)).isFile();
-      } catch {
-        // no doc for this id -- stray/unrelated bracket text, never surfaced
-      }
-      if (isFile) {
-        keptIds.push(id);
-        relPaths.push(relDocPath(dir, id));
-      }
-    }
-    if (keptIds.length) {
-      const sortedIds = [...keptIds].sort();
-      if (shouldEmit(root, `${sessionId}:${target}:${sortedIds.join(",")}`)) {
-        parts.push(contextMessage(relPaths));
-      }
-    }
-  }
+  const parts = anchorDocs(data, root, target, () => readCapped(target));
 
   // ---- channel 2: [Foreman: 247] the lessons recorded about this file.
   //

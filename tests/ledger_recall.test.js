@@ -130,6 +130,52 @@ describe('ledger-recall hook', () => {
   });
 });
 
+// [Foreman: 928] Codex 0.157.1 reads files through Bash. Its PostToolUse
+// payload (probe 328) carries tool_input {command} and the command output as
+// a plain string in tool_response, with no path field.
+describe('ledger-recall hook, Codex Bash output', () => {
+  function bash(output, extra) {
+    return {
+      hook_event_name: 'PostToolUse',
+      tool_name: 'Bash',
+      tool_input: { command: 'cat notes.txt' },
+      tool_response: output,
+      ...(extra || {}),
+    };
+  }
+
+  test('an anchor in the output names its decision doc', () => {
+    writeFile('docs/foreman/019.md', '# decision');
+    const out = run(bash('notes\n// [Foreman: 019]\nmore\n', { session_id: 's-bash' }));
+    const context = JSON.parse(out).hookSpecificOutput.additionalContext;
+    assert.match(context, /^This command's output carries decision docs \(docs\/foreman\/019\.md\)/);
+  });
+
+  test('an anchor with no doc, or no anchor, stays silent', () => {
+    writeFile('docs/foreman/019.md', '# decision');
+    assert.equal(run(bash('// [Foreman: 031]\n', { session_id: 's-bash-none' })), '');
+    assert.equal(run(bash('plain output\n', { session_id: 's-bash-none' })), '');
+  });
+
+  test('the same anchors in the same session say it once', () => {
+    writeFile('docs/foreman/019.md', '# decision');
+    assert.notEqual(run(bash('[Foreman: 019]', { session_id: 's-bash-latch' })), '');
+    assert.equal(run(bash('again [Foreman: 019]', { session_id: 's-bash-latch' })), '');
+  });
+
+  test('a response that is not a string stays silent', () => {
+    writeFile('docs/foreman/019.md', '# decision');
+    assert.equal(run(bash({ stdout: '[Foreman: 019]' }, { session_id: 's-bash-object' })), '');
+  });
+
+  test('the output names no file, so no lesson is served', () => {
+    writeConfig(project, { areaNotes: { enabled: true } });
+    writeFile('notes.txt', 'plain\n');
+    ledger.append(project, { lesson: 'a claim', paths: ['notes.txt'], entry: '042', anchor: { kind: 'none' }, date: '2026-08-01' });
+    assert.equal(run(bash('plain\n', { session_id: 's-bash-lesson' })), '');
+  });
+});
+
 // [Foreman: 247] The second channel: a file with a lesson recorded about it
 // surfaces that lesson at the moment it is touched, on the same hook and under
 // the same once-per-session latch.

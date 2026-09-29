@@ -139,6 +139,18 @@ test("ledger recalls all changed patch files and renamed destination", () => {
   assert.match(output.hookSpecificOutput.additionalContext, /002\.md/);
 });
 
+// [Foreman: 928] Codex reads files through Bash, so its recall registration
+// covers Bash; Claude Code's does not.
+test("Codex registers ledger recall on Bash output; Claude Code does not", () => {
+  const recallMatchers = (hooks) => hooks.PostToolUse.filter((group) => group.hooks.some((h) => (h.command + (h.args || []).join(" ")).includes("ledger-recall.js"))).map((group) => new RegExp(group.matcher));
+  assert.ok(recallMatchers(require(CODEX_HOOKS).hooks).some((re) => re.test("Bash")));
+  assert.ok(!recallMatchers(require(path.join(HOOKS_DIR, "hooks.json")).hooks).some((re) => re.test("Bash")));
+  fs.mkdirSync(path.join(root, "docs", "foreman"), { recursive: true });
+  fs.writeFileSync(path.join(root, "docs", "foreman", "001.md"), "decision");
+  const output = hook("ledger-recall.js", { hook_event_name: "PostToolUse", turn_id: "turn", tool_name: "Bash", tool_input: { command: "cat notes.txt" }, tool_response: "// [Foreman: 001]\n" });
+  assert.match(output.hookSpecificOutput.additionalContext, /docs\/foreman\/001\.md/);
+});
+
 test("post commit accepts explicit exit statuses but never interprets raw output as status", () => {
   assert.equal(commitFailed({ tool_response: { exit_code: 1 } }), true);
   assert.equal(commitFailed({ tool_response: { exit_code: 0 } }), false);

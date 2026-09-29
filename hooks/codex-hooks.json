@@ -51,7 +51,7 @@
         ]
       },
       {
-        "matcher": "^(apply_patch|Read|Edit|Write)$",
+        "matcher": "^(apply_patch|Read|Edit|Write|Bash)$",
         "hooks": [
           {
             "type": "command",

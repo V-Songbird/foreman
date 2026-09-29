@@ -48,23 +48,23 @@ References checked for this implementation:
 - [Codex 0.145.0 hook types](https://github.com/openai/codex/blob/rust-v0.145.0/codex-rs/hooks/src/lib.rs)
 - [Codex 0.145.0 hook discovery](https://github.com/openai/codex/blob/rust-v0.145.0/codex-rs/hooks/src/engine/discovery.rs)
 
-### Capabilities not built yet
+### Capabilities built after the 0.157.1 probe
 
 Three capabilities were deferred because an earlier probe, on Codex CLI
 0.144.6, found no event that could support them. A probe on 2026-09-28 with
-Codex CLI 0.157.1 on Windows 11 found that each one can now be built. Two are now
-built. Tying a subagent's finish to its roadmap entry is described in
-[Subagent finish and its entry](#subagent-finish-and-its-entry). Detached
-resume is described in
-[Resume a paused review](#resume-a-paused-review). The decision-anchor hook
-is not built yet, so Foreman's behavior for it is unchanged. The probe used
-`codex exec` in a disposable repository with one logging hook on every
-event, trusted through `/hooks`.
+Codex CLI 0.157.1 on Windows 11 found that each one can now be built, and all
+three are now built. Tying a subagent's finish to its roadmap entry is
+described in [Subagent finish and its entry](#subagent-finish-and-its-entry).
+Detached resume is described in
+[Resume a paused review](#resume-a-paused-review). The decision-anchor hook is
+described in [Decision anchors in shell output](#decision-anchors-in-shell-output).
+The probe used `codex exec` in a disposable repository with one logging hook
+on every event, trusted through `/hooks`.
 
 | Capability | Status on Codex CLI 0.157.1 | What the probe showed |
 | --- | --- | --- |
 | Detached resume: continue a session and its subagent from a new process | Built for reviewed increments, as instructions; see [Resume a paused review](#resume-a-paused-review) | `codex exec resume <session id>` kept the session id, and `SessionStart` reported `source` `resume`. `collaborationfollowup_task` reached the same subagent, with the same `agent_id`. `SubagentStart` did not fire again for it |
-| Decision-anchor hook: recall the decisions a file's `[Foreman: <id>]` anchors name when Codex reads it | Can be built; not built | Codex read files through `Bash`, not a file-read tool. `PostToolUse` on `Bash` carries the command output in `tool_response`, where the anchor text appears. The file path is not a separate field, so lessons recalled by path stay out of reach |
+| Decision-anchor hook: recall the decisions a file's `[Foreman: <id>]` anchors name when Codex reads it | Built for anchors; lessons stay out. See [Decision anchors in shell output](#decision-anchors-in-shell-output) | Codex read files through `Bash`, not a file-read tool. `PostToolUse` on `Bash` carries the command output in `tool_response`, where the anchor text appears. The file path is not a separate field, so lessons recalled by path stay out of reach |
 
 Tool names in Codex 0.157.1 events join the namespace and the tool:
 `collaborationspawn_agent`, `collaborationwait_agent` and
@@ -92,7 +92,7 @@ for the source mapping, the Foreman policies kept, and the validation limits.
 | Fresh-session reminders | `SessionStart` on startup and clear, as plain text | `SessionStart` on startup and clear, as JSON `additionalContext` | Hooks must be trusted and enabled. Codex drops plain hook output that starts with `[`, so the notice goes to Codex as JSON (see [Validation and limits](#validation-and-limits)) |
 | Direct roadmap write guard | `PreToolUse` on `Edit` and `Write` | `PreToolUse` on `apply_patch`, `Edit` and `Write` | Covers add, update, delete and move destinations; shell writes are outside this guard on both hosts |
 | Successful-commit bookkeeping | `PostToolUse` on `Bash` and `PowerShell` | `PostToolUse` on canonical `Bash` (including Codex shell execution) and compatibility `PowerShell` | Native payloads may omit the exit status; confirm the command succeeded before using the hint. Reminders never write the roadmap |
-| File, decision and lesson recall | Prompt-time recall plus `PostToolUse` on `Read`, `Edit` and `Write` | Prompt-time recall plus `PostToolUse` on `apply_patch`, `Read`, `Edit` and `Write` | Shell commands such as `rg`, `cat` or `Get-Content` are not parsed into reliable file-read events, on either host |
+| File, decision and lesson recall | Prompt-time recall plus `PostToolUse` on `Read`, `Edit` and `Write` | Prompt-time recall plus `PostToolUse` on `apply_patch`, `Read`, `Edit` and `Write`; decision anchors also from `Bash` output | Shell commands such as `rg`, `cat` or `Get-Content` are not parsed into reliable file-read events, on either host. In Codex, the decision docs that anchors in `Bash` output name are recalled, but no lessons |
 | Session-size advice for the destination | From the configured auto-compact window | Unknown when Codex supplies no reliable measurement | Foreman does not read Claude Code settings or treat Claude Code usage as Codex usage |
 | Roadmap, ledger, archive, health and trials | Shared Node.js core | The same | Format 2 and optional legacy settings are kept |
 | Model and effort history | Family label such as `sonnet` | Exact model identifier and actual effort | Runtime defaults are inherited; a valid value says nothing about availability |
@@ -243,6 +243,38 @@ Not verified: a full reviewed-increment handoff paused and resumed live, or
 a model following this wording on its own. The runs used a short probe
 prompt. Also not verified: the close gate after a resumed subagent's finish,
 resume in the Codex app or TUI, nested subagents, and Linux or macOS.
+
+### Decision anchors in shell output
+
+Codex reads files through its shell, so Foreman also watches `Bash` for
+decision anchors. When a command's output contains a `[Foreman: <id>]` anchor
+and the decision documents folder has `<id>.md`, the `PostToolUse` hook on
+`Bash` tells the model to read that document before changing what it
+governs. The notice names the document path, such as `docs/foreman/019.md`.
+It appears once per session for the same set of anchors.
+
+Limits:
+
+- The output names no file, so lessons recorded about a file are not
+  recalled from shell output. They are still recalled when Codex uses
+  `apply_patch`, `Read`, `Edit` or `Write` on the file.
+- Codex hands the output to the hook as plain text. When a Codex version
+  sends it in another shape, the hook stays silent.
+- Claude Code keeps recall on `Read`, `Edit` and `Write` only. It reads files
+  with its `Read` tool, which this hook already covers.
+
+This change added `Bash` to the matcher of the recall hook in
+`hooks/codex-hooks.json`. A changed matcher changes the hook's trust hash, so
+after updating Foreman, trust its hooks again in `/hooks`. Until then, Codex
+does not run the recall hook.
+
+Observed with Codex CLI 0.157.1 on Windows 11, in one live `codex exec` run on
+2026-09-28, with Foreman's hooks trusted in `/hooks`: the model ran
+`cat notes.txt` on a file carrying `[Foreman: 019]`. Codex ran it in
+PowerShell and still reported the tool as `Bash`. The hook named
+`docs/foreman/019.md`, and the model reported that path from the context it
+received. Not verified: the Codex app, Linux or macOS. The hook reads only the
+first 524,288 characters of an output.
 
 ## Existing projects
 
