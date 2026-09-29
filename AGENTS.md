@@ -37,7 +37,7 @@ alter a marketplace or start model sessions.
 | Path | Content |
 | --- | --- |
 | `skills/` | The five skills, one text for every host: `foreman`, `roadmap`, `init`, `survey`, `craft-prompt` |
-| `hooks/` | Hook scripts and the Claude Code and Codex registrations; `antigravity-hook.js` translates Antigravity's events and runs the shared hooks as children; `lib.js` resolves project and host; `windows-launcher.ps1` is the source of the Codex Windows command |
+| `hooks/` | Hook scripts and the Claude Code and Codex registrations; `antigravity-hook.js` translates Antigravity's events and runs the shared hooks as children; `lib.js` resolves project and host; `scripts/build-windows-launchers.js` builds the Codex Windows command, and `windows-launcher.ps1` is its fnm fallback |
 | `scripts/` | Dependency-free CLIs such as `roadmap.js`, `craft-handoff.js`, `check-prompt.js`, `safe-commit.js` and `ledger.js`; `health/` holds the metrics tools |
 | `tests/` | The `node:test` suite for the three hosts |
 | `prompt-template.md` | The one handoff template, read at run time |
