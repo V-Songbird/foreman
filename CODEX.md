@@ -418,7 +418,8 @@ has no task tools, so the session opened the entry with `roadmap.js`, and the
 Foreman 3.3.0 works in the Codex desktop app, with the gaps listed below. The
 owner ran one full lifecycle on 2026-09-29 in the Codex app 26.924.51851, whose
 bundled CLI is 0.158.0-alpha.2.1. The run used Windows 11, the app's default
-permission mode, and a disposable project that was its own Git repository.
+permission mode, which asks before a command leaves the sandbox, and a
+disposable project that was its own Git repository.
 
 | Step | Result |
 | --- | --- |
@@ -431,8 +432,9 @@ permission mode, and a disposable project that was its own Git repository.
 
 The app hands the model one code-mode tool, `exec`. The model's scripts call
 `exec_command` for shell commands and `apply_patch` for file edits. Foreman's
-hooks still fired. The session notice and the commit notice reached the model,
-because Codex reports those shell commands to hooks as `Bash`.
+hooks still fired. The session notice reached the model, and so did the commit
+notice, whose hook matches `Bash` or `PowerShell`. The run does not show which
+of the two names the app reports.
 
 Gaps in the default permission mode:
 
@@ -441,12 +443,12 @@ Gaps in the default permission mode:
   sandbox worked. Foreman then leaves the task's changes uncommitted, so
   commit them yourself after acceptance. The cause is not known yet.
 - **Git writes need approval.** An in-sandbox `git add` failed with
-  `Unable to create '.git/index.lock': Permission denied`. The app asks for
-  approval to run `git commit` outside the sandbox, as the CLI's
-  `workspace-write` sandbox does.
+  `Unable to create '.git/index.lock': Permission denied`. The app then asked
+  for approval to run `git commit` outside the sandbox. The CLI's
+  `workspace-write` sandbox has the same `.git` write limit.
 - **Leftover prompt file.** The clipboard step wrote its temporary prompt file
   to the project root and left it there, untracked. Delete it before you
-  execute, or the next step sees a dirty tree.
+  execute, so the task does not start on a changed tree.
 
 Not verified: a first install with no earlier trust entries, the full-access
 permission mode, reviewed increments or background subagents in the app, and
