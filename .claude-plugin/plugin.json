@@ -1,6 +1,6 @@
 {
   "name": "foreman",
-  "version": "3.2.1",
+  "version": "3.3.0",
   "description": "Project continuity for Claude Code, Codex and Antigravity: a roadmap beside your code, grounded handoffs, and clear task status.",
   "license": "MIT",
   "author": {
