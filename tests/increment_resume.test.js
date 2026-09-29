@@ -159,6 +159,7 @@ test('a declined pick-time resume reaches the handoff as a note that skips the r
   assert.equal(skipsFor(carriedFor(`${pause}\n2026-09-28 ${decline}`)), true, 'declined at pick: no repeat offer');
   assert.equal(skipsFor(carriedFor(pause)), false, 'no decline: the offer stays');
   assert.equal(skipsFor(carriedFor(`${pause}\n${decline}\n${pause}`)), false, 'a later pause brings the offer back');
+  assert.equal(recallExcerpt(`2026-09-28 ${decline}`), null, 'the decline is not a cross-task lesson');
 });
 
 // [Foreman: 942] The session id stays in the roadmap notes, and CODEX.md says

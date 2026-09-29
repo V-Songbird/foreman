@@ -214,7 +214,8 @@ protocol, not as a hook or a stored state:
    Bash included, or Ctrl+Z and Enter in PowerShell or cmd. Keeping the
    decision out of the command line keeps quotes, `$` and backticks away
    from the shell, which parses them differently in PowerShell and POSIX
-   shells.
+   shells. When the person declines this command at pick time, Foreman
+   records the decline, and the re-crafted handoff does not offer it again.
 3. When a `foreman_<id>` subagent produced the result, the resumed session
    continues it with `collaborationfollowup_task` targeting
    `/root/foreman_<id>`. It never spawns a new subagent for the same work.

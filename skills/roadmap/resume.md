@@ -24,7 +24,7 @@ summary of them:
   Enter in PowerShell or cmd. If
   they take it, stop here. If they decline, record the decline with
   `roadmap.js annotate` as the note
-  `paused: declined codex exec resume <id>`, then fall back as below. The
+  `resume declined: codex exec resume <id>`, then fall back as below. The
   re-crafted handoff carries that note, so it does not offer the command
   again.
 - In Antigravity, the marker is `dispatched to Antigravity subagent <id>`,
