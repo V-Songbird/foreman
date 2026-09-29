@@ -4,10 +4,20 @@ const path = require("node:path");
 const { parseFlags, printHelp } = require("./runtime");
 const root = path.resolve(__dirname, "..");
 
+// [Foreman: 957] Codex may start commandWindows from cmd or PowerShell, and a
+// PowerShell start costs 200-450 ms per hook, so cmd starts Node itself. The
+// set keeps cmd from running a node.exe in the working directory. A command cmd
+// cannot find sets ERRORLEVEL 9009 only after `&`, never inside `||`; then the
+// encoded PowerShell launcher finds Node through fnm. 2>nul hides cmd's
+// not-found text on that path, and with it Node's stderr, which no hook writes.
 function build(source, hook) {
   if (!/^[a-z-]+\.js$/.test(hook)) throw Error("Invalid hook entry point");
+  const inline = `try{require(require('path').join(process.env.PLUGIN_ROOT,'hooks','${hook}')).main()}catch{}`;
+  // Unquoted inside cmd's quotes, the script must hold nothing cmd or PowerShell rewrites.
+  if (/[\s"$%`]/.test(inline)) throw Error("Inline hook script needs quoting");
   const script = source.replace(/\r\n/g, "\n").replaceAll("__FOREMAN_HOOK__", hook);
-  return "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand " + Buffer.from(script, "utf16le").toString("base64");
+  const fallback = "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand " + Buffer.from(script, "utf16le").toString("base64");
+  return `cmd /d /s /c "set NoDefaultCurrentDirectoryInExePath=1&& node -e ${inline} 2>nul & if errorlevel 9009 ${fallback}"`;
 }
 
 function main(write = false) {

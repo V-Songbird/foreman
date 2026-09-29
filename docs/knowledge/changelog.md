@@ -34,6 +34,12 @@ instead.
   `collaborationspawn_agent` and adds `Bash` to the matcher of the decision
   recall hook. Both change the hook registrations, so until you trust them
   again, Codex does not run the new hook or the decision recall hook at all.
+- On Windows, each hook now starts Node from cmd instead of PowerShell. Each
+  command in the Codex shell starts two Foreman hooks. On the test machine,
+  those two hooks now take about 0.6 seconds less in total. When PATH has no
+  Node, the hooks still find it through a configured fnm default. This changes
+  the command of every Foreman hook. Until you trust the hooks again in
+  `/hooks`, Codex runs none of them.
 - A subagent that carries a roadmap entry's handoff is now named
   `foreman_<id>`, for example `foreman_042`. When it stops, Foreman ties its
   finish to that entry. With `taskCloseGate` set to `"block"`, the session that

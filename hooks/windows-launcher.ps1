@@ -1,5 +1,5 @@
-# Source for the inline Windows hook command. Rebuild with
-# node scripts/build-windows-launchers.js --write.
+# Fallback of the inline Windows hook command, run when cmd finds no Node on
+# PATH. Rebuild with node scripts/build-windows-launchers.js --write.
 # EncodedCommand preserves this script across cmd and PowerShell quoting.
 # It does not change execution policy or hook trust settings.
 # PATH is probed with where.exe rather than Get-Command: a lookup that misses

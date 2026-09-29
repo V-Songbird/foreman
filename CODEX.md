@@ -22,10 +22,11 @@ updating.
 
 Each hook command loads its script through `process.env.PLUGIN_ROOT` inside
 Node, so it needs no Bash, PowerShell or cmd variable interpolation. The hooks
-need `node`. On Windows, the `commandWindows` form is a PowerShell launcher,
-built from `hooks/windows-launcher.ps1`, that uses `node` from PATH or, when it
-is not there, from a configured fnm default. The hook logic is the same on
-every platform.
+need `node`. On Windows, the `commandWindows` form starts `node` from PATH
+through cmd. It never runs a `node.exe` from the project folder. When PATH has
+no `node`, it runs a PowerShell launcher, built from
+`hooks/windows-launcher.ps1`, that uses a configured fnm default. The hook logic
+is the same on every platform.
 
 ## Runtime baseline
 
