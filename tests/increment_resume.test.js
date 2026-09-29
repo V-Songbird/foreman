@@ -6,7 +6,9 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { makeTmpProject, writeRoadmap } = require('./helpers');
+const crypto = require('node:crypto');
+const { makeTmpProject, writeRoadmap, writeConfig, runScriptRaw } = require('./helpers');
+const { scopePath } = require('../hooks/codex-task');
 const { assemble, recallExcerpt } = require('../scripts/craft-handoff');
 const { today } = require('../scripts/roadmap');
 
@@ -160,6 +162,27 @@ test('a declined pick-time resume reaches the handoff as a note that skips the r
   assert.equal(skipsFor(carriedFor(pause)), false, 'no decline: the offer stays');
   assert.equal(skipsFor(carriedFor(`${pause}\n${decline}\n${pause}`)), false, 'a later pause brings the offer back');
   assert.equal(recallExcerpt(`2026-09-28 ${decline}`), null, 'the decline is not a cross-task lesson');
+});
+
+// [Foreman: 947] The Codex close gate stands down for a subagent's finish
+// while the entry's last note is `paused:` or `review pending:`. A decline
+// is not a review note, so the entry being re-crafted is gated again.
+test('a declined resume after a paused note ends the close gate review pass', (t) => {
+  const pause = '2026-09-28 paused: opening.md presented; Codex session 0000-probe';
+  const stopFor = (notes) => {
+    const root = setup(t, notes);
+    writeConfig(root, { taskCloseGate: 'block' });
+    const session = crypto.randomUUID();
+    const scope = scopePath(root, session, '');
+    t.after(() => fs.rmSync(scope, { recursive: true, force: true }));
+    fs.mkdirSync(scope, { recursive: true });
+    fs.writeFileSync(path.join(scope, '001.json'), JSON.stringify({ id: '001', subagent: true }));
+    const stop = runScriptRaw('stop.js', { cwd: root, session_id: session, hook_event_name: 'Stop' }, { PLUGIN_ROOT: path.resolve(__dirname, '..') });
+    assert.equal(stop.status, 0, stop.stderr);
+    return stop.stdout ? JSON.parse(stop.stdout).decision : null;
+  };
+  assert.equal(stopFor(pause), null, 'a pending review lets the subagent finish pass');
+  assert.equal(stopFor(`${pause}\n2026-09-28 resume declined: codex exec resume 0000-probe`), 'block');
 });
 
 // [Foreman: 942] The session id stays in the roadmap notes, and CODEX.md says
