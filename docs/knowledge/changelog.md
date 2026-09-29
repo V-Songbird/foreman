@@ -27,6 +27,14 @@ instead.
 
 ## Unreleased
 
+### Every host
+
+- Foreman has a new icon: a green tag with a plumb line, from Foundry's
+  hallmark-seal identity. The README banner, wordmark and Codex plugin icon use
+  it. The Ember scene now ends with a stamp pressing that seal onto the answer,
+  and each README graphic carries the seal in a corner. No recorded text,
+  number or timing in the graphics changed.
+
 ### Codex
 
 - After you update Foreman, review and trust its hooks again in `/hooks`.
