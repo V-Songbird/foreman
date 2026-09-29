@@ -258,6 +258,8 @@ Limits:
 - The output names no file, so lessons recorded about a file are not
   recalled from shell output. They are still recalled when Codex uses
   `apply_patch`, `Read`, `Edit` or `Write` on the file.
+- One notice names at most 20 decision documents. When more match, it says
+  how many it left out, and the model can read the rest from the anchors.
 - Codex hands the output to the hook as plain text. When a Codex version
   sends it in another shape, the hook stays silent.
 - Claude Code keeps recall on `Read`, `Edit` and `Write` only. It reads files

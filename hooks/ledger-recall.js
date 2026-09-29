@@ -43,6 +43,8 @@ const MAX_BYTES = 512 * 1024;
 // spend the hook's five-second timeout.
 const NOTE_LIMIT = 2;
 const NOTE_GIT_BUDGET = 6;
+// Decision docs one Bash notice names; one search can match every anchor in a repo.
+const BASH_DOC_LIMIT = 20;
 
 // Reads at most the first MAX_BYTES of `filePath`. null on anything that
 // isn't a readable regular file (missing, directory, permission-denied) --
@@ -124,9 +126,10 @@ function lessonMessage(relPath, lessons) {
   );
 }
 
-function contextMessage(relPaths, subject = "This file") {
+function contextMessage(relPaths, subject = "This file", omitted = 0) {
+  const more = omitted ? ` and ${omitted} more not listed` : "";
   return (
-    `${subject} carries decision docs (${relPaths.join(", ")}) -- read them ` +
+    `${subject} carries decision docs (${relPaths.join(", ")}${more}) -- read them ` +
     "before changing what they govern."
   );
 }
@@ -196,7 +199,7 @@ function main(data = readInput()) {
 // exits on one stat instead of paying the capped read on every touched file.
 // Anchors stay findable the moment the dir exists again (the ledger
 // re-enabled) — nothing is latched on this path.
-function anchorDocs(data, root, source, text, subject) {
+function anchorDocs(data, root, source, text, subject, limit = Infinity) {
   const { dir } = readLedger(root);
   if (!fs.existsSync(path.join(root, dir))) return [];
   const content = text();
@@ -218,7 +221,8 @@ function anchorDocs(data, root, source, text, subject) {
   if (!keptIds.length) return [];
   const sortedIds = [...keptIds].sort();
   const sessionId = String(data.session_id || "");
-  return shouldEmit(root, `${sessionId}:${source}:${sortedIds.join(",")}`) ? [contextMessage(relPaths, subject)] : [];
+  if (!shouldEmit(root, `${sessionId}:${source}:${sortedIds.join(",")}`)) return [];
+  return [contextMessage(relPaths.slice(0, limit), subject, Math.max(0, relPaths.length - limit))];
 }
 
 // [Foreman: 928] Codex's PostToolUse on Bash hands the command output over as
@@ -228,7 +232,7 @@ function recallOutput(data, root) {
   const output = data.tool_response;
   // Most shell output carries no anchor: skip the config read for it.
   if (typeof output !== "string" || !output.includes("[Foreman")) return [];
-  return anchorDocs(data, root, "bash", () => output.slice(0, MAX_BYTES), "This command's output");
+  return anchorDocs(data, root, "bash", () => output.slice(0, MAX_BYTES), "This command's output", BASH_DOC_LIMIT);
 }
 
 function recallFile(data, root, filePath) {

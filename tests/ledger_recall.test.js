@@ -170,9 +170,22 @@ describe('ledger-recall hook, Codex Bash output', () => {
 
   test('the output names no file, so no lesson is served', () => {
     writeConfig(project, { areaNotes: { enabled: true } });
-    writeFile('notes.txt', 'plain\n');
+    writeFile('notes.txt', '// [Foreman: 019]\n');
+    writeFile('docs/foreman/019.md', '# decision');
     ledger.append(project, { lesson: 'a claim', paths: ['notes.txt'], entry: '042', anchor: { kind: 'none' }, date: '2026-08-01' });
-    assert.equal(run(bash('plain\n', { session_id: 's-bash-lesson' })), '');
+    const context = JSON.parse(run(bash('// [Foreman: 019]\n', { session_id: 's-bash-lesson' }))).hookSpecificOutput.additionalContext;
+    assert.match(context, /019\.md/);
+    assert.doesNotMatch(context, /Recorded about|a claim|notes\.txt/);
+  });
+
+  test('a notice names at most 20 decision docs and says how many it left out', () => {
+    const ids = Array.from({ length: 23 }, (_, i) => String(100 + i));
+    for (const id of ids) writeFile(`docs/foreman/${id}.md`, '# decision');
+    const output = ids.map((id) => `// [Foreman: ${id}]`).join('\n');
+    const context = JSON.parse(run(bash(output, { session_id: 's-bash-bound' }))).hookSpecificOutput.additionalContext;
+    assert.equal(context.match(/docs\/foreman\/\d+\.md/g).length, 20);
+    assert.match(context, /and 3 more not listed/);
+    assert.doesNotMatch(context, /122\.md/);
   });
 });
 
