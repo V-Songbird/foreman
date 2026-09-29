@@ -106,6 +106,13 @@ describe("the shared destination question", () => {
     assert.match(read("skills", "roadmap", "delivery-split.md"), /A fixed number of tasks the user asked for/);
   });
 
+  // [Foreman: 968] The clipboard step's prompt file must not dirty the tree.
+  test("the clipboard prompt file lives in the project's tmp/ and goes after a successful copy", () => {
+    const clipboard = read("skills", "roadmap", "delivery-clipboard.md").replace(/\s+/g, " ");
+    assert.match(clipboard, /in the project's `tmp\/` directory under a unique name, never in the project root/);
+    assert.match(clipboard, /delete the file once the copy succeeded/);
+  });
+
   test("all four destination choices remain available, in order", () => {
     let cursor = -1;
     for (const option of [

@@ -27,6 +27,14 @@ instead.
 
 ## Unreleased
 
+### Every host
+
+- Copying a prompt to the clipboard no longer leaves its prompt file in your
+  project root. Foreman writes the file in the project's `tmp/` directory and
+  deletes it after a successful copy. When the copy fails, or you ask for a
+  prompt file only, the file stays in `tmp/`. Move it out or delete it before
+  the next task, because an untracked file makes the tree look changed.
+
 ### Codex
 
 - A full Foreman lifecycle works in the Codex desktop app. In the one
