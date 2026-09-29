@@ -70,6 +70,9 @@ runs other sessions on the roadmap for you. Its value is
 is the one each host passes to its hooks; in Claude Code it is the name of the
 session's transcript file, without `.jsonl`. The list holds the
 orchestrator's own session id and the id of each worker session it starts.
+These ids are host-local, and a project that commits `.foreman/config.json`
+publishes them. A project that must not publish them follows the same choice as
+for the ids in roadmap notes; see [CODEX.md](CODEX.md).
 After a commit in a listed session:
 
 - The session still records the commit and moves the entry to
