@@ -214,7 +214,11 @@ protocol, not as a hook or a stored state:
 2. The person continues it with `codex exec resume <session id> -`. The
    `-` makes Codex read the decision from standard input, so the person
    types or pastes it, then ends input with Ctrl+D in a POSIX shell, Git
-   Bash included, or Ctrl+Z and Enter in PowerShell or cmd. Keeping the
+   Bash included, or Ctrl+Z and Enter in PowerShell or cmd. In one owner
+   run, Git Bash's own window (mintty) closed right after Ctrl+D, and the
+   reply was not on screen. This was seen once. To keep Codex's reply,
+   add `-o <file>` to the command, for example
+   `codex exec resume -o <file> <session id> -`. Keeping the
    decision out of the command line keeps quotes, `$` and backticks away
    from the shell, which parses them differently in PowerShell and POSIX
    shells. When the person declines this command at pick time, Foreman

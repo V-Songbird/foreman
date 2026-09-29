@@ -59,7 +59,10 @@ dependent work here. Skip the offer when a later note reads
 declined it when this work was picked. The `-` makes Codex read the
 decision from standard input, so the person types or pastes it, then ends
 input with Ctrl+D in a POSIX shell, Git Bash included, or Ctrl+Z and Enter
-in PowerShell or cmd.
+in PowerShell or cmd. In one owner run, Git Bash's own window (mintty)
+closed right after Ctrl+D and the reply was not on screen; this was seen
+once. Adding `-o <file>` to `codex exec resume` keeps Codex's reply in that
+file.
 Keep the decision out of the command line: its quotes, `$` and backticks
 mean different things in PowerShell and POSIX shells. A resumed session
 continues such a subagent with `collaborationfollowup_task` targeting `/root/foreman_<id>`,
