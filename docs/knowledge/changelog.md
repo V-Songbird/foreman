@@ -25,6 +25,41 @@ listings pin a release commit and carry no version of their own. Claude Code
 releases up to 2.7.0 kept their number in the foundry marketplace listing
 instead.
 
+## Unreleased
+
+### Codex
+
+- After you update Foreman, review and trust its hooks again in `/hooks`.
+  Codex runs a hook only after you trust it. This update adds a hook on
+  `collaborationspawn_agent` and adds `Bash` to the matcher of the decision
+  recall hook. Both change the hook registrations, so until you trust them
+  again, Codex does not run the new hook or the recall hook on shell output.
+- A subagent that carries a roadmap entry's handoff is now named
+  `foreman_<id>`, for example `foreman_042`. When it stops, Foreman ties its
+  finish to that entry. With `taskCloseGate` set to `"block"`, the session that
+  spawned it is blocked once from ending its turn while the entry is still
+  `planned` or `in_progress`. An entry awaiting acceptance, or already closed,
+  passes.
+- A `task_name` that is `foreman` or starts with `foreman_` is refused unless
+  it is exactly `foreman_<id>` for an entry in `ROADMAP.jsonl`. Every other
+  name passes, and a handoff spawned under another name runs normally, but its
+  finish is not tied to its entry.
+- A reviewed increment that is paused or gets no answer now records
+  `Codex session <session id>` in its note. You can continue it from a new
+  process with `codex exec resume <session id> -`. The `-` makes Codex read
+  your decision from standard input, so the shell does not parse it. Type or
+  paste the decision, then end input with Ctrl+D in a POSIX shell or Ctrl+Z
+  and Enter in PowerShell or cmd. A new session that finds the note offers this
+  command before it crafts the work again.
+- When a command's output contains a `[Foreman: <id>]` anchor and the decision
+  documents folder has `<id>.md`, Foreman now tells the model to read that
+  document before it changes what the anchor governs. Codex reads files
+  through its shell, so this covers files it reads that way. One notice names
+  at most 20 decision documents and says how many it left out. Recorded
+  lessons are still recalled only when Codex uses `apply_patch`, `Read`, `Edit`
+  or `Write` on the file. Claude Code keeps decision recall on `Read`, `Edit`
+  and `Write`.
+
 ## 3.2.1 — 2026-09-28
 
 This release fixes how Foreman on Antigravity finds the orchestrator a
