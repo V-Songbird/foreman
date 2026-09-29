@@ -359,6 +359,29 @@ test("a follow-up to a foreman_<id> subagent whose review is pending does not bl
   assert.equal(hook("stop.js", { hook_event_name: "Stop" }).decision, "block");
 });
 
+// [Foreman: 949] A note followed by any later line is stale: the entry is
+// being worked on again, so a subagent's finish blocks as usual.
+test("a stale review or unrelated paused note does not pass a subagent's finish", () => {
+  writeConfig(root, { taskCloseGate: "block" });
+  for (const stale of ["review pending: task 2/3 presented", "paused: waiting on the staging key"]) {
+    writeRoadmap(root, [{ id: "001", title: "first", status: "in_progress", notes: `2026-09-28 ${stale}\n2026-09-29 reworking task 2/3 after the owner's answer in chat` }]);
+    subagentStop("/root/foreman_001");
+    assert.equal(hook("stop.js", { hook_event_name: "Stop" })?.decision, "block", stale);
+  }
+});
+
+test("an explicit check with a pending review note still blocks once", () => {
+  writeConfig(root, { taskCloseGate: "block" });
+  writeRoadmap(root, [{ id: "001", title: "first", status: "in_progress", notes: "2026-09-28 review pending: task 2/3 presented, no answer" }]);
+  assert.equal(task("check").status, 1);
+  assert.equal(hook("stop.js", { hook_event_name: "Stop" })?.decision, "block");
+  assert.equal(hook("stop.js", { hook_event_name: "Stop" }), null);
+  // A subagent's finish before that Stop leaves the explicit arm in place.
+  task("check");
+  subagentStop("/root/foreman_001");
+  assert.equal(hook("stop.js", { hook_event_name: "Stop" })?.decision, "block");
+});
+
 test("an unmapped, closed or ungated subagent finish arms nothing", () => {
   subagentStop("/root/foreman_001");
   writeConfig(root, { taskCloseGate: "block" });
