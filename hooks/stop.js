@@ -18,7 +18,8 @@ function armSpawner(root, data) {
     const scope = mapped && scopePath(root, data.session_id, mapped.agent);
     if (!scope) return;
     fs.mkdirSync(scope, { recursive: true });
-    fs.writeFileSync(path.join(scope, `${mapped.id}.json`), JSON.stringify({ id: mapped.id }), "utf-8");
+    // [Foreman: 949] "wx" keeps an explicit check's arm from being overwritten.
+    fs.writeFileSync(path.join(scope, `${mapped.id}.json`), JSON.stringify({ id: mapped.id, subagent: true }), { encoding: "utf-8", flag: "wx" });
   } catch { /* best effort */ }
 }
 
@@ -26,10 +27,12 @@ function armSpawner(root, data) {
 // in_progress by design, and its latest review note already records that
 // blocker. Every follow-up to its foreman_<id> subagent re-arms the check, so
 // without this the coordinator's Stop would block once per follow-up.
-const REVIEW_NOTE_RE = /^(?:\d{4}-\d{2}-\d{2}\s+)*(accepted|changes requested|paused|review pending):/;
+// [Foreman: 949] Only while that note is the entry's latest line: any later
+// note, such as a decision, a lesson or a line of new work, means the entry
+// moved on. Each append is one line (roadmap.js appendNote).
 function reviewPending(entry) {
-  const decisions = String(entry.notes || "").split("\n").map((line) => REVIEW_NOTE_RE.exec(line.trim())).filter(Boolean);
-  return ["paused", "review pending"].includes(decisions.at(-1)?.[1]);
+  const last = String(entry.notes || "").trim().split("\n").at(-1).trim();
+  return /^(?:\d{4}-\d{2}-\d{2}\s+)*(paused|review pending):/.test(last);
 }
 
 function main(data = readInput()) {
@@ -49,8 +52,12 @@ function main(data = readInput()) {
     if (!filename.endsWith(".json")) continue;
     const id = filename.slice(0, -5);
     if (!isValidId(id)) continue;
+    // [Foreman: 949] The review pass applies to a subagent's finish only; an
+    // explicit check is deliberate and blocks once, as before 941.
+    let subagent = false;
+    try { subagent = JSON.parse(fs.readFileSync(path.join(scope, filename), "utf-8")).subagent === true; } catch { /* treated as explicit */ }
     // [Foreman: 760] Any open holder of a duplicated id keeps the check open.
-    if (entries.some((e) => e.id === id && OPEN.has(e.status) && !reviewPending(e))) open.push(id);
+    if (entries.some((e) => e.id === id && OPEN.has(e.status) && !(subagent && reviewPending(e)))) open.push(id);
     // Consume the attempted completion exactly once, including when another
     // tool already satisfied it. A future explicit check can re-arm it.
     try { fs.unlinkSync(path.join(scope, filename)); } catch { /* best effort */ }

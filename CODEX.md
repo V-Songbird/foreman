@@ -150,9 +150,9 @@ returns nonzero while a scoped entry remains planned or in progress, and only
 that explicit attempt arms the optional `taskCloseGate: "block"` reminder. The
 hook consumes the attempt once, honors `stop_hook_active`, and leaves
 acceptance decisions to the user. A completed implementation awaiting
-acceptance passes the close check. So does an `in_progress` entry whose
-latest review note is `paused:` or `review pending:`, because a reviewed
-increment waits there for the reviewer's answer.
+acceptance passes the close check. An explicit `check` on an `in_progress`
+entry blocks once even when its latest note is `paused:` or
+`review pending:`; only a subagent's finish passes on such a note.
 
 ### Subagent finish and its entry
 
@@ -168,10 +168,12 @@ tie the subagent's finish to its entry:
    coordinator owns the entry's close, so the subagent itself is not blocked.
 3. The coordinator's next `Stop` blocks once while the entry is still
    `planned` or `in_progress`, as after an explicit `check`. An entry awaiting
-   acceptance, or already closed, passes. An entry whose latest review note
-   is `paused:` or `review pending:` passes too, so each
-   `collaborationfollowup_task` to a subagent whose review is pending does
-   not block the coordinator again.
+   acceptance, or already closed, passes. An entry whose last note line
+   is `paused:` or `review pending:` passes too, because a reviewed
+   increment waits there for the reviewer's answer. Each
+   `collaborationfollowup_task` to a subagent whose review is pending then
+   does not block the coordinator again. Any note recorded after that line,
+   such as a decision or new work, ends the pass.
 
 The `PreToolUse` hook on `collaborationspawn_agent` guards the name. A
 `task_name` that is `foreman` or starts with `foreman_` must be exactly
