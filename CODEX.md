@@ -237,7 +237,11 @@ identifier: when a project commits `ROADMAP.jsonl`, the commit publishes the
 id in the project's history. Foreman keeps it there so a later pick on the
 same machine can still offer the resume command, the same way it keeps the
 background agent and subagent ids a dispatch note records. A project that must
-not publish such ids keeps `ROADMAP.jsonl` out of Git.
+not publish such ids keeps `ROADMAP.jsonl` out of Git. The same choice covers
+the session ids in the `delegatedAcceptance.sessions` list of
+`.foreman/config.json`, so that project keeps `.foreman/config.json` out of Git
+too. It also covers any id you write into a free-text note: Foreman's own
+markers are only some of the ids a roadmap holds.
 
 The session notice does not fire on resume. Foreman's `SessionStart`
 registration keeps its matcher `^(startup|clear)$`, for three reasons:
