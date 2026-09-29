@@ -35,8 +35,9 @@ function main(write = false) {
 }
 
 const USAGE = `build-windows-launchers.js [--write] -- checks that each commandWindows in
-hooks/codex-hooks.json is the one hooks/windows-launcher.ps1 builds, and fails
-naming the first stale hook. --write regenerates them in place.
+hooks/codex-hooks.json is the one this script builds, with
+hooks/windows-launcher.ps1 as its fallback, and fails naming the first stale
+hook. --write regenerates them in place.
 `;
 
 module.exports = { build, main };

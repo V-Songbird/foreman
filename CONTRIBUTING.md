@@ -47,7 +47,7 @@ skills/                  # the five skills, shared by every host
 hooks/
 ├── hooks.json           # Claude Code hook wiring
 ├── codex-hooks.json     # Codex hook wiring
-├── windows-launcher.ps1 # source of the Codex Windows hook command
+├── windows-launcher.ps1 # fnm fallback of the Codex Windows hook command
 ├── codex-task.js        # explicit task start/check for Codex and Antigravity
 ├── antigravity-hook.js  # Antigravity entrypoint: translates its events and
 │                        # runs the shared hooks as child processes

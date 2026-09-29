@@ -61,22 +61,31 @@ for (const parent of ["powershell.exe", "pwsh.exe"]) {
 
 // [Foreman: 957] cmd searches the working directory before PATH unless
 // NoDefaultCurrentDirectoryInExePath is set, so a project's node.exe must
-// never run in place of Node. A copy of whoami.exe stands in for it.
+// never run in place of Node, nor hide a missing Node from the fnm fallback.
+// A copy of whoami.exe stands in for it.
 test("a node.exe in the hook's working directory never runs", { skip: process.platform !== "win32" }, () => {
   const root = makeTmpProject();
   writeRoadmap(root, [{ id: "001", title: "launcher fixture", status: "planned", depends_on: [] }]);
   fs.copyFileSync(path.join(process.env.SystemRoot || "C:\\Windows", "System32", "whoami.exe"), path.join(root, "node.exe"));
   const env = { ...process.env, PLUGIN_ROOT: path.resolve(__dirname, ".."), FOREMAN_PROJECT_DIR: root };
   delete env.NoDefaultCurrentDirectoryInExePath;
+  const paths = (process.env.PATH || "").split(path.delimiter);
+  const envs = { "Node on PATH": env };
+  if (paths.some(dir => fs.existsSync(path.join(dir, "fnm.exe")))) {
+    envs["no Node on PATH"] = { ...env, PATH: paths.filter(dir => !fs.existsSync(path.join(dir, "node.exe"))).join(path.delimiter) };
+    delete envs["no Node on PATH"].FNM_MULTISHELL_PATH;
+  }
   const handler = require(CODEX_HOOKS).hooks.PreToolUse[0].hooks[0];
   const input = JSON.stringify({ cwd: root, tool_name: "apply_patch", tool_input: { command: "*** Begin Patch\n*** Delete File: ROADMAP.jsonl\n*** End Patch" } });
   const timeout = Math.max(120000, SPAWN_TIMEOUT_MS);
-  const result = unlessTimedOut(cp.spawnSync("cmd.exe", ["/d", "/s", "/c", `"${handler.commandWindows}"`], {
-    cwd: root, env, input, encoding: "utf8", windowsHide: true, windowsVerbatimArguments: true, timeout,
-  }), "the Codex Windows launcher beside a node.exe", timeout);
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stderr, "");
-  assert.equal(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision, "deny");
+  for (const [label, runEnv] of Object.entries(envs)) {
+    const result = unlessTimedOut(cp.spawnSync("cmd.exe", ["/d", "/s", "/c", `"${handler.commandWindows}"`], {
+      cwd: root, env: runEnv, input, encoding: "utf8", windowsHide: true, windowsVerbatimArguments: true, timeout,
+    }), `the Codex Windows launcher beside a node.exe, ${label}`, timeout);
+    assert.equal(result.status, 0, `${label}: ${result.stderr}`);
+    assert.equal(result.stderr, "", label);
+    assert.equal(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision, "deny", label);
+  }
 });
 
 // [Foreman: 814] The PowerShell-parent tests above find Node on PATH, which
