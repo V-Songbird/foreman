@@ -1,3 +1,5 @@
 interface:
   display_name: "Foreman Roadmap"
   short_description: "Pick, update, and review tracked project work"
+  icon_small: "./assets/icon.svg"
+  icon_large: "./assets/icon.png"

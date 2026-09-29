@@ -1,3 +1,5 @@
 interface:
   display_name: "Foreman Craft Prompt"
   short_description: "Craft verified prompts for a fresh Codex session"
+  icon_small: "./assets/icon.svg"
+  icon_large: "./assets/icon.png"

@@ -1,3 +1,5 @@
 interface:
   display_name: "Foreman Init"
   short_description: "Start a durable roadmap from project goals"
+  icon_small: "./assets/icon.svg"
+  icon_large: "./assets/icon.png"

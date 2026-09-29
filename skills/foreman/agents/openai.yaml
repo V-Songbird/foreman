@@ -1,3 +1,5 @@
 interface:
   display_name: "Foreman"
   short_description: "Plan the next task and preserve project history"
+  icon_small: "./assets/icon.svg"
+  icon_large: "./assets/icon.png"

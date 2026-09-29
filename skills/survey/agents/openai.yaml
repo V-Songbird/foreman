@@ -1,3 +1,5 @@
 interface:
   display_name: "Foreman Survey"
   short_description: "Reconcile roadmap claims with current code"
+  icon_small: "./assets/icon.svg"
+  icon_large: "./assets/icon.png"
