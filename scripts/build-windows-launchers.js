@@ -28,6 +28,9 @@ function main(write = false) {
     const match = handler.command.match(/'hooks','([a-z-]+\.js)'/);
     if (!match) throw Error("Unknown hook command shape");
     const expected = build(source, match[1]);
+    // build() repeats the -e body of command; an edit to either copy fails here.
+    const body = handler.command.match(/^node -e "(.*)"$/)?.[1];
+    if (!expected.includes(`node -e ${body} 2>nul`)) throw Error("Windows inline script differs from the command for " + match[1]);
     if (write) handler.commandWindows = expected;
     else if (handler.commandWindows !== expected) throw Error("Regenerate the Windows launcher for " + match[1]);
   }
