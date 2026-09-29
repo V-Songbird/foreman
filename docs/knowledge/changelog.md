@@ -29,9 +29,10 @@ instead.
 
 ### Codex
 
-- A full Foreman lifecycle works in the Codex desktop app. In the app's
-  default permission mode, Foreman does not commit a task for you; commit it
-  yourself after acceptance. See
+- A full Foreman lifecycle works in the Codex desktop app. In the one
+  validated run, in the app's default permission mode, Foreman could not read
+  Git status and left the task uncommitted. The cause is not known yet. Commit
+  the task yourself after acceptance. See
   [The Codex desktop app](../../CODEX.md#the-codex-desktop-app).
 
 ## 3.3.0 — 2026-09-29
