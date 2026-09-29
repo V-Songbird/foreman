@@ -137,7 +137,9 @@ test('resume.md offers the Codex session a paused note names, decision on stdin'
 // roadmap publishes it.
 test('CODEX.md says the Codex session id is local and published with a committed roadmap', () => {
   const codexMd = fs.readFileSync(path.join(__dirname, '../CODEX.md'), 'utf8');
-  const section = codexMd.match(/### Resume a paused review\n[\s\S]*?(?=\n### )/)[0].replace(/\s+/g, ' ');
+  const found = codexMd.match(/### Resume a paused review\n[\s\S]*?(?=\n#{2,3} |$(?![\s\S]))/);
+  assert.ok(found, 'CODEX.md has the Resume a paused review section');
+  const section = found[0].replace(/\s+/g, ' ');
   assert.match(section, /The session id stays in the roadmap on purpose/);
   assert.match(section, /under the `CODEX_HOME` directory of the machine that ran it/);
   assert.match(section, /when a project commits `ROADMAP\.jsonl`, the commit publishes the id/);
