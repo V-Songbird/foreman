@@ -25,6 +25,15 @@ listings pin a release commit and carry no version of their own. Claude Code
 releases up to 2.7.0 kept their number in the foundry marketplace listing
 instead.
 
+## Unreleased
+
+### Codex
+
+- A full Foreman lifecycle works in the Codex desktop app. In the app's
+  default permission mode, Foreman does not commit a task for you; commit it
+  yourself after acceptance. See
+  [The Codex desktop app](../../CODEX.md#the-codex-desktop-app).
+
 ## 3.3.0 — 2026-09-29
 
 ### Every host

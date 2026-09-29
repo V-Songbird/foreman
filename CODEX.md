@@ -413,6 +413,45 @@ edit guard, the session notice and uninstall all passed. Headless Claude Code
 has no task tools, so the session opened the entry with `roadmap.js`, and the
 `TaskCreated` and `TaskCompleted` hooks were not exercised.
 
+### The Codex desktop app
+
+Foreman 3.3.0 works in the Codex desktop app, with the gaps listed below. The
+owner ran one full lifecycle on 2026-09-29 in the Codex app 26.924.51851, whose
+bundled CLI is 0.158.0-alpha.2.1. The run used Windows 11, the app's default
+permission mode, and a disposable project that was its own Git repository.
+
+| Step | Result |
+| --- | --- |
+| Install `foreman@foundry` from the app's plugin UI | Pass |
+| Hook trust | No prompt appeared. The trust entries from an earlier install stayed in `config.toml`, and Codex keys them on the plugin's hooks, not on the project |
+| Init | Pass: one entry. The commit needed approval to leave the sandbox |
+| Pick and copy to the clipboard | Pass: the question showed as clickable options, and `Set-Clipboard` copied the prompt |
+| Execute the pasted prompt | Pass: `awaiting_acceptance`, close check complete, no commit |
+| Acceptance, then archive | Pass: `done`, then moved to `.foreman/archive.jsonl` |
+
+The app hands the model one code-mode tool, `exec`. The model's scripts call
+`exec_command` for shell commands and `apply_patch` for file edits. Foreman's
+hooks still fired. The session notice and the commit notice reached the model,
+because Codex reports those shell commands to hooks as `Bash`.
+
+Gaps in the default permission mode:
+
+- **No automatic task commit.** `safe-commit.js begin` returned `dirty:true`
+  with `git_status_unavailable`, although `git status` typed in the same
+  sandbox worked. Foreman then leaves the task's changes uncommitted, so
+  commit them yourself after acceptance. The cause is not known yet.
+- **Git writes need approval.** An in-sandbox `git add` failed with
+  `Unable to create '.git/index.lock': Permission denied`. The app asks for
+  approval to run `git commit` outside the sandbox, as the CLI's
+  `workspace-write` sandbox does.
+- **Leftover prompt file.** The clipboard step wrote its temporary prompt file
+  to the project root and left it there, untracked. Delete it before you
+  execute, or the next step sees a dirty tree.
+
+Not verified: a first install with no earlier trust entries, the full-access
+permission mode, reviewed increments or background subagents in the app, and
+the app on macOS.
+
 The 2026-09-08 validation of reviewed increments — automated tests plus
 controlled headless cases covering waiting, feedback, pause, recovery, final
 acceptance, omissions and a failed required check — is recorded with its
