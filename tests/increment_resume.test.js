@@ -125,8 +125,11 @@ test('resume.md offers the Codex session a paused note names, decision on stdin'
   assert.ok(offered, 'resume.md offers codex exec resume');
   assert.equal(offered[1].replace('<id>', id), 'codex exec resume 0000-probe -');
   assert.match(resumeMd, /standard input/);
-  const protocol = fs.readFileSync(path.join(__dirname, '../skills/roadmap/resume-increments.md'), 'utf8');
-  assert.doesNotMatch(resumeMd + protocol, /<their decision>/);
+  for (const file of ['skills/roadmap/resume.md', 'skills/roadmap/resume-increments.md', 'skills/roadmap/increment-review.md', 'CODEX.md']) {
+    const text = fs.readFileSync(path.join(__dirname, '..', file), 'utf8').replace(/\s+/g, ' ');
+    assert.doesNotMatch(text, /<their decision>/, file);
+    for (const [command] of text.matchAll(/`codex exec resume <[^`]*`/g)) assert.match(command, / -`$/, `${file}: ${command}`);
+  }
 });
 
 test('ordinary resume and a new reviewed run do not activate the recovery block', (t) => {
