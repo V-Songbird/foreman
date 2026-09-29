@@ -52,5 +52,9 @@ app task creation tools, their real project inventory, and their documented
 worktree default. Pass the complete checked prompt and preserve the user's
 branch restrictions. Report the created task through the app's returned
 reference. If those tools are absent, supply a prompt file for the user to
-paste. This is an explicitly requested extension, not a replacement for
-background agents.
+paste: write it in the project's `tmp/` directory under a unique name, never in
+the project root, and say it must be moved out or deleted before a task runs in
+this project, because it dirties the tree. Create `tmp/` when it is missing. The
+file is the deliverable, so keep it; the prompt-file rules in
+[delivery-clipboard.md](delivery-clipboard.md) cover the rest. This is an
+explicitly requested extension, not a replacement for background agents.

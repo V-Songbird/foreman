@@ -115,6 +115,12 @@ describe("the shared destination question", () => {
     assert.match(clipboard, /put the schema artifact in the same file, after the prompt/);
   });
 
+  test("the Codex new-app-task fallback prompt file follows the same tmp/ rule", () => {
+    const agent = read("skills", "roadmap", "delivery-agent.md").replace(/\s+/g, " ");
+    assert.match(agent, /write it in the project's `tmp\/` directory under a unique name, never in the project root/);
+    assert.match(agent, /moved out or deleted before a task runs in this project/);
+  });
+
   test("all four destination choices remain available, in order", () => {
     let cursor = -1;
     for (const option of [
