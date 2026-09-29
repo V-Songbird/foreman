@@ -62,6 +62,14 @@ handoff artifact; do not create a roadmap or another store just for this review.
   `review pending:` with the presented result, reference and reason. This is
   not an acceptance or an omitted check. Resume by checking what is currently
   pending, not by interpreting the earlier question as answered.
+- **In Codex, after a pause or no answer:** the main session adds `Codex
+  session <session id>` to that note, taking the id from its own shell's
+  `CODEX_THREAD_ID` (a subagent's shell holds its agent id there instead),
+  and ends with the command that continues it:
+  `codex exec resume <session id>`. When a `foreman_<id>` subagent produced
+  the result, the resumed session continues it with
+  `collaborationfollowup_task` targeting `/root/foreman_<id>`; it never
+  spawns a new one.
 
 Honor clear free-text decisions about the current presentation. Clarify an
 ambiguous answer or one referring to an earlier presentation before advancing;

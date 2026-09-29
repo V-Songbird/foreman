@@ -52,16 +52,18 @@ References checked for this implementation:
 
 Three capabilities were deferred because an earlier probe, on Codex CLI
 0.144.6, found no event that could support them. A probe on 2026-09-28 with
-Codex CLI 0.157.1 on Windows 11 found that each one can now be built. The
-third, tying a subagent's finish to its roadmap entry, is now built: see
-[Subagent finish and its entry](#subagent-finish-and-its-entry). The two
-below are not built yet, so Foreman's behavior for them is unchanged. The
-probe used `codex exec` in a disposable repository with one logging hook on
-every event, trusted through `/hooks`.
+Codex CLI 0.157.1 on Windows 11 found that each one can now be built. Two are now
+built. Tying a subagent's finish to its roadmap entry is described in
+[Subagent finish and its entry](#subagent-finish-and-its-entry). Detached
+resume is described in
+[Resume a paused review](#resume-a-paused-review). The decision-anchor hook
+is not built yet, so Foreman's behavior for it is unchanged. The probe used
+`codex exec` in a disposable repository with one logging hook on every
+event, trusted through `/hooks`.
 
 | Capability | Status on Codex CLI 0.157.1 | What the probe showed |
 | --- | --- | --- |
-| Detached resume: continue a session and its subagent from a new process | Can be built; not built | `codex exec resume <session id>` kept the session id, and `SessionStart` reported `source` `resume`. `collaborationfollowup_task` reached the same subagent, with the same `agent_id`. `SubagentStart` did not fire again for it |
+| Detached resume: continue a session and its subagent from a new process | Built for reviewed increments, as instructions; see [Resume a paused review](#resume-a-paused-review) | `codex exec resume <session id>` kept the session id, and `SessionStart` reported `source` `resume`. `collaborationfollowup_task` reached the same subagent, with the same `agent_id`. `SubagentStart` did not fire again for it |
 | Decision-anchor hook: recall the decisions a file's `[Foreman: <id>]` anchors name when Codex reads it | Can be built; not built | Codex read files through `Bash`, not a file-read tool. `PostToolUse` on `Bash` carries the command output in `tool_response`, where the anchor text appears. The file path is not a separate field, so lessons recalled by path stay out of reach |
 
 Tool names in Codex 0.157.1 events join the namespace and the tool:
@@ -188,6 +190,60 @@ Limits, observed with Codex CLI 0.157.1 on Windows 11:
   subagent spawned by the main session. A subagent spawned by another
   subagent is covered by tests only.
 
+### Resume a paused review
+
+A reviewed run in Codex can wait for a review longer than its process lives.
+`codex exec` ends after one turn, so the review answer often comes later. The
+same session can then continue from a new process, with its conversation and
+its subagent intact. Foreman builds this as instructions in its reviewed-increment
+protocol, not as a hook or a stored state:
+
+1. When a review is paused or gets no answer, the main session adds
+   `Codex session <session id>` to its `paused:` or `review pending:` note.
+   The id comes from `CODEX_THREAD_ID` in the main session's shell; in a
+   subagent's shell, that variable holds the subagent's own id. The main
+   session ends its turn with the command that continues the session.
+2. The person continues it with
+   `codex exec resume <session id> "<their decision>"`.
+3. When a `foreman_<id>` subagent produced the result, the resumed session
+   continues it with `collaborationfollowup_task` targeting
+   `/root/foreman_<id>`. It never spawns a new subagent for the same work.
+4. A resume is not an answer. The session refreshes the entry's notes and
+   compares the new message with the result it presented, as
+   [`resume-increments.md`](skills/roadmap/resume-increments.md) says.
+
+A new session that finds `Codex session <session id>` in the notes offers
+that command before it crafts the work again. A session the host no longer
+knows falls back to recovery from the notes and files.
+
+The session notice does not fire on resume. Foreman's `SessionStart`
+registration keeps its matcher `^(startup|clear)$`, for three reasons:
+
+- A resumed session keeps its conversation, which already holds the notice
+  from its start. The resume instructions refresh the entry with
+  `roadmap.js list --ids <id>`.
+- A changed matcher changes the hook's trust hash, so every Codex user would
+  have to trust the hooks again in `/hooks`.
+- Each time `session-start.js` runs, it records a new session in the trial
+  log, when trials are on. A resume is not a new session.
+
+Observed with Codex CLI 0.157.1 on Windows 11, in two live `codex exec`
+runs on 2026-09-28, with Foreman's hooks trusted in `/hooks`:
+
+- The model's shell `CODEX_THREAD_ID` equaled the hook `session_id` in the
+  main session.
+- `codex exec resume` from a new process kept the same session id, and
+  `SessionStart` reported `source` `resume`. Foreman's `session-start.js`
+  did not run.
+- `collaborationfollowup_task` targeting `/root/foreman_001` reached the
+  same subagent, with the same `agent_id`. Its `SubagentStop` mapped to
+  entry `001` again. No new spawn happened.
+
+Not verified: a full reviewed-increment handoff paused and resumed live, or
+a model following this wording on its own. The runs used a short probe
+prompt. Also not verified: the close gate after a resumed subagent's finish,
+resume in the Codex app or TUI, nested subagents, and Linux or macOS.
+
 ## Existing projects
 
 - Keep `ROADMAP.jsonl`, `.foreman/config.json`, `.foreman/archive.jsonl` and
@@ -298,8 +354,8 @@ limits in the maintainer's validation records, which are kept outside this
 repository.
 Separate ephemeral executions recovered from notes and files; this does not
 establish Foreman's recovery through `codex exec resume` against a persisted
-session. The CLI's own resume is described under
-[capabilities not built yet](#capabilities-not-built-yet).
+session. Continuing a paused session is described under
+[Resume a paused review](#resume-a-paused-review).
 
 ## Use reviewed increments after installing
 

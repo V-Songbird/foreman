@@ -103,6 +103,16 @@ test('the full canonical recovery protocol reaches the recipient', (t) => {
   assert.ok(result.prompt.includes('<recorded_increment_notes>\n\n</recorded_increment_notes>'));
 });
 
+// [Foreman: 927] A note naming the paused Codex session lets recovery offer
+// that session back instead of re-crafting the work.
+test('a Codex resume handoff offers the recorded session and its subagent follow-up', (t) => {
+  const result = assemble(setup(t, 'review pending: opening.md presented; Codex session 0000-probe'), request('clipboard'));
+  const block = result.prompt.match(/<increment_resume>[\s\S]*?<\/increment_resume>/)[0].replace(/\s+/g, ' ');
+  assert.match(block, /`codex exec resume <session id> "<their decision>"`; offer that command before doing dependent work here/);
+  assert.match(block, /`collaborationfollowup_task` targeting `\/root\/foreman_<id>`, never with a new spawn/);
+  assert.match(block, /Resuming answers nothing/);
+});
+
 test('ordinary resume and a new reviewed run do not activate the recovery block', (t) => {
   const root = setup(t, 'accepted: this prefix alone does not enable review mode');
   const ordinary = { ...request(), reviewEachIncrement: false };

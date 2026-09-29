@@ -50,6 +50,16 @@ the specific result and check; an unrelated acceptance cannot erase an
 Keep the parent open until its remaining work and integrated verification are
 complete, then apply the existing final acceptance policy.
 
+In Codex, a pending or paused note may name `Codex session <session id>`.
+That session still holds the presented result, its conversation and any
+`foreman_<id>` subagent. The person can continue it from a new process with
+`codex exec resume <session id> "<their decision>"`; offer that command
+before doing dependent work here. A resumed session continues such a
+subagent with `collaborationfollowup_task` targeting `/root/foreman_<id>`,
+never with a new spawn. Resuming answers nothing: refresh the entry's notes
+and compare the new message with the presented result as above. A session
+the host no longer knows falls back to this evidence comparison.
+
 This is assisted recovery. Format-compatible clients may ignore this protocol;
 the existing roadmap CLI does not mechanically enforce every intermediate
 decision. Do not claim automatic exact resume or universal client compliance.
