@@ -132,6 +132,35 @@ test('resume.md offers the Codex session a paused note names, decision on stdin'
   }
 });
 
+// [Foreman: 947] A decline at pick time is recorded as the note resume.md
+// names, and the re-crafted handoff skips the offer only when that note
+// follows the one naming the session.
+test('a declined pick-time resume reaches the handoff as a note that skips the repeat offer', (t) => {
+  const flat = (file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8').replace(/\s+/g, ' ');
+  const recorded = flat('skills/roadmap/resume.md').match(/as the note `([^`]*declined[^`]*<id>)`/);
+  assert.ok(recorded, 'resume.md names the decline note');
+  const skip = flat('skills/roadmap/resume-increments.md').match(/Skip the offer when a later note reads `([^`]*<session id>)`/);
+  assert.ok(skip, 'resume-increments.md skips the offer on a later decline note');
+  const pause = 'paused: opening.md presented; Codex session 0000-probe';
+  const id = pause.match(/Codex session ([\w-]+)/)[1];
+  const decline = recorded[1].replace('<id>', id);
+  const skipsFor = (carried) => {
+    const lines = carried.split('\n');
+    const named = lines.findLastIndex((line) => line.includes(`Codex session ${id}`));
+    return lines.slice(named + 1).some((line) => line.endsWith(skip[1].replace('<session id>', id)));
+  };
+  const carriedFor = (notes) => {
+    const result = assemble(setup(t, notes), request('clipboard'));
+    assert.equal(result.ok, true, JSON.stringify(result.gate));
+    const block = result.prompt.match(/<increment_resume>[\s\S]*?<\/increment_resume>/)[0];
+    assert.match(block.replace(/\s+/g, ' '), /offer that command before doing dependent work here/);
+    return block.match(/<recorded_increment_notes>\n([\s\S]*?)\n<\/recorded_increment_notes>/)[1];
+  };
+  assert.equal(skipsFor(carriedFor(`${pause}\n2026-09-28 ${decline}`)), true, 'declined at pick: no repeat offer');
+  assert.equal(skipsFor(carriedFor(pause)), false, 'no decline: the offer stays');
+  assert.equal(skipsFor(carriedFor(`${pause}\n${decline}\n${pause}`)), false, 'a later pause brings the offer back');
+});
+
 // [Foreman: 942] The session id stays in the roadmap notes, and CODEX.md says
 // plainly that it only works with the local CODEX_HOME and that committing the
 // roadmap publishes it.
