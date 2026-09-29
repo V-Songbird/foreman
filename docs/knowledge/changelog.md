@@ -33,7 +33,7 @@ instead.
   Codex runs a hook only after you trust it. This update adds a hook on
   `collaborationspawn_agent` and adds `Bash` to the matcher of the decision
   recall hook. Both change the hook registrations, so until you trust them
-  again, Codex does not run the new hook or the recall hook on shell output.
+  again, Codex does not run the new hook or the decision recall hook at all.
 - A subagent that carries a roadmap entry's handoff is now named
   `foreman_<id>`, for example `foreman_042`. When it stops, Foreman ties its
   finish to that entry. With `taskCloseGate` set to `"block"`, the session that
