@@ -42,8 +42,9 @@ skills/                  # the five skills, shared by every host
 └── <skill>/
     ├── SKILL.md         # skill instructions
     ├── *.md             # branch and reference files the skill loads
-    └── agents/
-        └── openai.yaml  # Codex skill metadata
+    ├── agents/
+    │   └── openai.yaml  # Codex skill metadata
+    └── assets/          # the skill's Codex icons, copied from Foundry's brand kit
 hooks/
 ├── hooks.json           # Claude Code hook wiring
 ├── codex-hooks.json     # Codex hook wiring
