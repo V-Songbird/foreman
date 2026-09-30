@@ -444,9 +444,9 @@ Gaps in the default permission mode:
   so commit them yourself after acceptance. The cause is the app's Windows
   sandbox: it refuses to start a program from Node.js when Node.js reads the
   program's output through a pipe, and Node.js reports `spawnSync git EPERM`.
-  The same program starts when its output goes to a file. From the next
-  release, `safe-commit.js` runs Git that way when the pipe is refused, and
-  `begin` returns the baseline inside the sandbox. The commit itself still
+  The same program starts when its output goes to a file. Releases after
+  3.3.0 run Git that way when the pipe is refused, so `begin` returns the
+  baseline inside the sandbox. The commit itself still
   needs your approval to leave the sandbox, as the next item says.
 - **Git writes need approval.** An in-sandbox `git add` failed with
   `Unable to create '.git/index.lock': Permission denied`. The app then asked
