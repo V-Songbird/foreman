@@ -39,16 +39,13 @@ instead.
   place for a mismatch and for findings, not the roadmap entry.
 - The prompt check now holds that handoff to its own truth-grounding block,
   closing and autonomy paragraph, and refuses the ordinary autonomy paragraph
-  with only its question sentence changed. It also refuses a `roadmap.js
-  list` command there, and a roadmap or `safe-commit.js` command with node
-  options before the script path, such as `node --no-warnings`.
-- The prompt check now refuses every `roadmap.js` and `safe-commit.js`
-  command in that handoff, also when it has no roadmap entry. This includes
-  commands such as `roadmap.js correct` or `archive`, and commands with a
-  quoted node option value before the script path, such as
-  `node --title "a b" scripts/roadmap.js list`. A project's own script
-  whose name only ends in `roadmap.js`, such as `build-roadmap.js`, still
-  passes.
+  with only its question sentence changed. It also refuses every
+  `roadmap.js` and `safe-commit.js` command there, also when the handoff has
+  no roadmap entry. That covers every `roadmap.js` subcommand, such as
+  `list`, `correct` or `archive`, and node options before the script path,
+  with or without a quoted value, such as `node --no-warnings` or
+  `node --title "a b"`. A project's own script whose name only ends in
+  `roadmap.js`, such as `build-roadmap.js`, still passes.
 - Reviewed increments are still refused for that handoff, with or without a
   roadmap entry. The error now gives the reason that holds in both cases:
   increment review waits for a person's decision after each increment, and

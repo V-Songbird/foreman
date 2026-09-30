@@ -1003,6 +1003,7 @@ describe('host claude: a Workflow stage sent to an agent', () => {
       '`node scripts/build-roadmap.js`',
       '`node scripts/validate-roadmap.js --strict`',
       '`node --test tests/x.test.js` roadmap.js is untouched',
+      'node --test tests/*.test.js\n- scripts/roadmap.js — the CLI',
     ]) {
       const errors = runCheck(makeTmpProject(), stage({ entry_paragraph: command }), entryLess).json.errors || [];
       assert.ok(!errors.some((e) => e.error.includes('roadmap bookkeeping')), `${command}\n${JSON.stringify(errors)}`);

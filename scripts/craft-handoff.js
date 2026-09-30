@@ -19,11 +19,12 @@
 // stdin JSON in, one JSON line out: {ok, prompt, profile, signals, tasks?,
 // gate, warnings} — same house style as every sibling script.
 // `workflowStage: true` drops <tone>, replaces <output_format> with the
-// fixed enforcement sentence, and is passed through to check-prompt.js's
-// gate as --workflow-stage would be on the CLI (entry 204). A Claude Code
-// stage sent to an agent also takes the Workflow-owned variants: the
-// coordinator paragraph in place of the entry paragraph and its bookkeeping
-// commands, no list-ids refresh command in <context>, the workflow-agent
+// fixed enforcement sentence, drops the keep-going paragraph for a destination
+// other than an agent, and is passed through to check-prompt.js's gate as
+// --workflow-stage would be on the CLI (entry 204). A Claude Code stage sent
+// to an agent refuses reviewEachIncrement:true and takes the Workflow-owned
+// variants: the coordinator paragraph in place of the entry paragraph and its
+// bookkeeping commands, no list-ids refresh command in <context>, the workflow-agent
 // <scope_discipline>, the stage <truth_grounding>, approval-source sentence,
 // closing, autonomy paragraph and <plan>, <task_rules> that name the
 // coordinator instead of the user for an investigation's fix authorization

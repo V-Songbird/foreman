@@ -588,8 +588,10 @@ function checkPrompt(prompt, opts) {
   // or quoted, a quoted one may hold spaces, and node options, with or
   // without a value, quoted or not, may come before it. The basename must
   // start a path segment, so a project's own build-roadmap.js passes, and an
-  // unquoted option never holds a backtick, so a closed code span ends it.
-  if (workflowAgent && /\bnode\s+(?:-(?:[^\s"'`]|"[^"\n]*"|'[^'\n]*')*\s+(?:(?:"[^"\n]*"|'[^'\n]*'|[^\s"'`-][^\s"'`]*)\s+)?)*(?:"[^"\n]*|'[^'\n]*|\S*)(?<![^\s"'\\/=])(?:safe-commit|roadmap)\.js\b/.test(prompt)) {
+  // unquoted option never holds a backtick, so a closed code span ends it. A
+  // command sits on one line, and a bare `-`, such as a list bullet, is not
+  // an option.
+  if (workflowAgent && /\bnode[ \t]+(?:-(?:[^\s"'`]|"[^"\n]*"|'[^'\n]*')+[ \t]+(?:(?:"[^"\n]*"|'[^'\n]*'|[^\s"'`-][^\s"'`]*)[ \t]+)?)*(?:"[^"\n]*|'[^'\n]*|\S*)(?<![^\s"'\\/=])(?:safe-commit|roadmap)\.js\b/.test(prompt)) {
     errors.push(problem("a Workflow stage sent to a background Agent tells the worker to run roadmap bookkeeping — the Workflow that launched it owns the roadmap", "Delete every roadmap.js and safe-commit.js command; the Workflow that launched the agent does that bookkeeping.", null));
   }
 
