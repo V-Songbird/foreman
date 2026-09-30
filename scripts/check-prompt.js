@@ -54,6 +54,7 @@ const PLACEHOLDER_FRAGMENTS = [
   "[The immediate",
   "[Only if something downstream",
   "[WORKFLOW-STAGE FLAVOR",
+  "[WORKFLOW-STAGE AGENT",
 ];
 
 // Instructions asking the destination to echo its internal reasoning as
@@ -96,6 +97,11 @@ const AUTONOMY_SENTENCE = "You are operating autonomously.";
 // stage on a task or clipboard destination takes neither paragraph; one on an
 // agent destination carries the autonomy paragraph, like any agent handoff.
 const KEEP_GOING_SENTENCE = "Keep going until the goal above is met:";
+// A Claude Code Workflow stage sent to a background Agent has no user to ask:
+// the autonomy paragraph's ask sentence gives way to the template's
+// structured-report sentence, which opens with this.
+const ASK_SENTENCE_RE = /If you hit one of these, ask and end the turn[^.]*\./;
+const STAGE_QUESTION_MARKER = "If you hit one of these, put the question";
 
 // How each host's closing paragraph starts; the gate names it in its error.
 const CLOSING_PREFIX = {
@@ -262,9 +268,18 @@ function readCanonical(host) {
   const investigationPlan = investigationMatch ? investigationMatch[1] : null;
   const closingBlock = extractHostBlock(xml, "closing", target);
   const closing = closingBlock === null ? null : closingBlock.trim();
+  // A Claude Code Workflow stage sent to a background Agent: the Workflow owns
+  // the entry, so its scope rule, entry paragraph and question sentence differ.
+  const stageScope = target === "claude" ? xml.match(/<scope_discipline host="claude" stage="workflow-agent">([\s\S]*?)<\/scope_discipline>/) : null;
+  const workflowScopeDiscipline = stageScope ? stageScope[1] : null;
+  const coordinatorBlock = target === "claude" ? extractHostBlock(xml, "coordinator", "claude") : null;
+  const coordinator = coordinatorBlock ? coordinatorBlock.trim().split("\n") : null;
+  const autonomyBlock = target === "claude" ? extractHostBlock(xml, "autonomy", "claude") || "" : "";
+  const questionAt = autonomyBlock.indexOf(STAGE_QUESTION_MARKER);
+  const stageQuestion = questionAt === -1 ? null : norm(autonomyBlock.slice(questionAt, autonomyBlock.indexOf("]", questionAt)));
   if (
     (target === "codex" && !codexRuntime) ||
-    (target === "claude" && !investigationPlan) ||
+    (target === "claude" && (!investigationPlan || !workflowScopeDiscipline || coordinator?.length !== 3 || !stageQuestion)) ||
     !truthGrounding ||
     !scopeDiscipline ||
     !plan ||
@@ -273,7 +288,7 @@ function readCanonical(host) {
   ) {
     throw new Error(`template at ${TEMPLATE_PATH} is missing a canonical ${target} block`);
   }
-  return { host: target, xml, codexRuntime, truthGrounding, scopeDiscipline, plan, investigationPlan, closing };
+  return { host: target, xml, codexRuntime, truthGrounding, scopeDiscipline, workflowScopeDiscipline, coordinator, stageQuestion, plan, investigationPlan, closing };
 }
 
 // Claude Code's scope_discipline embeds ${CLAUDE_PLUGIN_ROOT} paths the
@@ -334,6 +349,10 @@ function checkPrompt(prompt, opts) {
   // either way — standard is a smaller floor, never a licence to reword.
   const profile = opts.profile || detectProfile(prompt);
   const reinforced = profile !== "standard";
+  // A Claude Code Workflow stage sent to a background Agent, whose Workflow
+  // owns the roadmap entry and reads its final text.
+  const workflowAgent = !codex && Boolean(opts.workflowStage) && opts.destination === "agent";
+  const scopeCanonical = workflowAgent ? canonical.workflowScopeDiscipline : canonical.scopeDiscipline;
 
   // --- guardrail blocks, verbatim ---
   if (codex) {
@@ -358,7 +377,7 @@ function checkPrompt(prompt, opts) {
   const scope = extractBlock(prompt, "scope_discipline");
   if (!scope) {
     if (reinforced) errors.push(problem("missing <scope_discipline> — every reinforced handoff carries it, unmodified", "Copy prompt-template.md's <scope_discipline> block in unchanged.", null));
-  } else if (!segmentsInOrder(canonical.scopeDiscipline, scope)) {
+  } else if (!segmentsInOrder(scopeCanonical, scope)) {
     errors.push(codex
       ? problem("<scope_discipline> differs from the template — it must be carried verbatim", "Restore prompt-template.md's <scope_discipline> without rewording.", null)
       : problem("<scope_discipline> differs from the template — it must be carried verbatim (only the ${CLAUDE_PLUGIN_ROOT} paths are substituted)", "Restore prompt-template.md's <scope_discipline> and change nothing but the ${CLAUDE_PLUGIN_ROOT} paths.", null));
@@ -543,7 +562,17 @@ function checkPrompt(prompt, opts) {
   // --- roadmap-entry paragraph ---
   if (opts.entry) {
     const marker = `ROADMAP.jsonl entry \`${opts.entry}\``;
-    if (!prompt.includes(marker)) {
+    if (workflowAgent) {
+      // The Workflow owns the entry's lifecycle, so the worker gets the
+      // coordinator paragraph and no bookkeeping command.
+      const [ownerLine, , returnLine] = canonical.coordinator.map((line) => norm(line.split("<id>").join(opts.entry)));
+      if (!norm(prompt).includes(ownerLine) || !norm(prompt).includes(returnLine)) {
+        errors.push(problem(`a Workflow stage sent to a background Agent is missing the coordinator paragraph for ${marker} — the Workflow owns that entry's lifecycle`, "Use prompt-template.md's coordinator paragraph, with the entry's id, in place of the entry paragraph.", ownerLine));
+      }
+      if (/\bnode\s+\S*(?:safe-commit\.js|roadmap\.js\s+(?:update-status|annotate|add)\b)/.test(prompt)) {
+        errors.push(problem("a Workflow stage sent to a background Agent tells the worker to run roadmap bookkeeping — the Workflow that launched it owns the entry", "Delete every safe-commit.js and roadmap.js update-status, annotate or add command; the coordinator paragraph replaces them.", null));
+      }
+    } else if (!prompt.includes(marker)) {
       errors.push(problem(`missing the entry paragraph naming ${marker} — the destination session can't mark or close the entry without it`, "Add the entry paragraph naming the roadmap id, so the destination can open and close the entry itself.", null));
     } else if (opts.resume) {
       if (!/already marked `in_progress`/.test(prompt)) {
@@ -552,7 +581,7 @@ function checkPrompt(prompt, opts) {
     } else if (!/Mark it `in_progress`/.test(prompt)) {
       errors.push(problem("entry paragraph must instruct the destination to mark the entry `in_progress` first", "Tell the destination to mark the entry `in_progress` before it starts.", null));
     }
-    if (!prompt.includes("update-status")) {
+    if (!workflowAgent && !prompt.includes("update-status")) {
       errors.push(problem("entry paragraph must carry the roadmap.js update-status command for opening and closing the entry", "Include the roadmap.js update-status command the destination runs to open and close the entry.", null));
     }
   }
@@ -569,6 +598,9 @@ function checkPrompt(prompt, opts) {
     errors.push(problem(`missing the autonomous-operation paragraph ("You are operating autonomously.") — a ${agentName} has no user to answer questions`, `Add the autonomous-operation paragraph; a ${agentName} has nobody to ask.`, AUTONOMY_SENTENCE));
   } else if (opts.destination !== "agent" && hasAutonomy) {
     warnings.push("carries the autonomous-operation paragraph but the destination has a user present — drop it for task/clipboard");
+  }
+  if (workflowAgent && hasAutonomy && (ASK_SENTENCE_RE.test(norm(prompt)) || !norm(prompt).includes(canonical.stageQuestion))) {
+    errors.push(problem("a Workflow stage sent to a background Agent tells the worker to ask and end the turn — its final text is the return value, and no user reads a question there", "Replace the autonomy paragraph's ask sentence with the template's structured-report sentence.", canonical.stageQuestion));
   }
   if (!codex && opts.destination !== "agent" && !opts.workflowStage && !norm(prompt).includes(KEEP_GOING_SENTENCE)) {
     errors.push(problem(`missing the keep-going paragraph ("${KEEP_GOING_SENTENCE}") — a session with a user present stops mid-task to report without it`, "Add prompt-template.md's user-present paragraph after the request sentence; it names the only three pauses.", KEEP_GOING_SENTENCE));
@@ -624,7 +656,10 @@ instruction, not a complaint.
   --resume        with --entry: expect the resume variant paragraph instead.
   --research      pure-investigation task: no verification block required.
   --workflow-stage  the Workflow-stage flavor: tone dropped, output_format
-                  replaced by the host's fixed enforcement sentence.
+                  replaced by the host's fixed enforcement sentence. On
+                  Claude Code with --destination agent, the Workflow owns
+                  the entry: the coordinator paragraph replaces the entry
+                  paragraph, and questions go in the structured report.
 `;
 
 // [Foreman: 791] Flags go through runtime.parseFlags like every other Foreman
@@ -694,6 +729,7 @@ module.exports = {
   IMPLEMENTATION_AUTHORIZATION_SENTENCE,
   CLOSING_PREFIX,
   KEEP_GOING_SENTENCE,
+  ASK_SENTENCE_RE,
   WORKFLOW_STAGE_SENTENCES,
   NO_INVENTION_SENTENCE,
   FIX_CEILING_SENTENCE,

@@ -35,6 +35,14 @@ instead.
   prompt file only, the file stays in `tmp/`. Move it out or delete it before
   the next task, because an untracked file makes the tree look changed.
 
+### Claude Code
+
+- A handoff crafted for a Workflow stage and sent to a background agent now
+  leaves the roadmap entry to the Workflow that launched the agent. The agent
+  runs no `update-status` or `safe-commit`. It commits only its own files, with
+  `Foreman: <id>` as the last trailer, and returns the commit, its checks and
+  any questions in its structured report instead of asking you.
+
 ### Codex
 
 - A full Foreman lifecycle works in the Codex desktop app. In the one

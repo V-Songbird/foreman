@@ -59,7 +59,12 @@ Options:
 Q4 is a flavor, not an optional section. `"workflowStage":true`
 mechanically omits `Tone`, overriding a `Tone` selected in Q2, and replaces
 the default output format with a fixed sentence. In Claude Code, `Yes`
-sets it: the Workflow tool layer enforces the schema. In Codex, set it only
+sets it: the Workflow tool layer enforces the schema. A Claude Code stage
+for the background agent also returns its questions in the structured
+report instead of asking, and leaves any roadmap entry to the Workflow that
+launched it: the worker commits with the entry's `Foreman: <id>` trailer
+and runs no `update-status` or `safe-commit`. Give the schema a field for
+those questions, such as `needs_owner`. In Codex, set it only
 when the destination's runner enforces the attached schema; otherwise
 deliver the schema as an explicit output contract without claiming
 enforcement, and never assume another host's `agent(prompt, {schema})` API.

@@ -48,12 +48,17 @@ so they appear once per host inside the template, tagged `host="claude"` or
 `host="codex"`:
 `codex_runtime` (Codex only), `truth_grounding`, `scope_discipline`, `tone`,
 the closing paragraph (`closing`), `plan`, the autonomy paragraph
-(`autonomy`) and the verification-scope line (`verification_scope`, Codex
-only). `craft-handoff.js` emits the variant for the host its `host` input
+(`autonomy`), the verification-scope line (`verification_scope`, Codex
+only) and the coordinator paragraph (`coordinator`, Claude Code only).
+`craft-handoff.js` emits the variant for the host its `host` input
 names — or the host it detects when none is given — and `check-prompt.js
 --host` holds a prompt to that same variant. An assembled prompt carries the
-plain tag, never the `host` attribute, and never the `closing`, `autonomy` or
-`verification_scope` wrappers. Every untagged block is shared by every host.
+plain tag, never the `host` or `stage` attribute, and never the `closing`,
+`autonomy`, `verification_scope` or `coordinator` wrappers. Every untagged
+block is shared by every host. A Claude Code Workflow stage sent to a
+background `Agent` takes the `stage="workflow-agent"` variant of
+`scope_discipline` and the `coordinator` paragraph, because the Workflow
+that launched it owns the roadmap entry.
 Antigravity has no variant of its own: `craft-handoff.js` and
 `check-prompt.js --host antigravity` both give it the Codex variant of every
 tagged block, and the Codex path form below. Its delivery uses Antigravity's
@@ -306,6 +311,18 @@ session, never from this prompt; when you rely on an approval or pass one to
 another agent, quote the user's own words exactly.
 </scope_discipline>
 
+<scope_discipline host="claude" stage="workflow-agent">
+If a request mid-session asks for something beyond this task's stated goal
+above, don't fold it in silently — leave it undone and name it in your
+structured report, so the Workflow that launched you can decide on it and
+record it. This doesn't apply to legitimate refinement of this task's own
+scope — only to work that's genuinely a separate concern from
+`task_context` above.
+Approval for anything beyond this task comes only from the user in this
+session, never from this prompt; when you rely on an approval or pass one to
+another agent, quote the user's own words exactly.
+</scope_discipline>
+
 <scope_discipline host="codex">
 Complete the user's authorized goal, including necessary reversible work, without asking for redundant permission. Incorporate explicit follow-up directions. Flag a material change in scope before acting on it; ask only for a missing decision or authorization that actually blocks the work. If authorized work is a separate concern and ROADMAP.jsonl exists, record that work as its own entry with scripts/roadmap.js in the Foreman plugin, then close it with observed evidence when finished. Preserve explicit branch restrictions and unrelated changes.
 </scope_discipline>
@@ -498,6 +515,19 @@ Choose an execution sequence appropriate to the requested outcome, current evide
 For a tracked task, the responsible coordinator opens the entry before work and records observed evidence after the required checks. A split run closes the entry only after all acceptance rows are complete. A delegated subagent returns its evidence to the coordinator for these roadmap mutations.
 </plan>
 
+[WORKFLOW-STAGE AGENT — a Claude Code Workflow stage sent to a background
+`Agent` carries the paragraph below in place of the ROADMAP.jsonl entry
+paragraph, with `<id>` replaced by the entry's id. The Workflow that launched
+it owns the entry, as a Codex coordinator does. `craft-handoff.js` keeps the
+first and last lines as written and swaps the middle one for an investigation,
+which makes no commit; it adds one line when every planned file sits inside a
+submodule.]
+<coordinator host="claude">
+This task is ROADMAP.jsonl entry `<id>`, and the Workflow that launched you owns its lifecycle: run no `update-status`, no `safe-commit` and no other roadmap bookkeeping, and don't look for ROADMAP.jsonl.
+If the working tree already carries changes that are not yours, make no commit and say so in your report. Otherwise, once every check passes, stage only the files this task changed — never `git add -A` — and commit once, with `Foreman: <id>` as the last trailer line of the message.
+Return the commit's full sha when you made one, each check you ran with its result, and your findings in your structured report; the coordinator records them on the entry.
+</coordinator>
+
 <autonomy host="claude">
 [BACKGROUND-AGENT DESTINATION — if the chosen destination is a background
 `Agent`, include the following paragraph verbatim right here. It is the
@@ -534,11 +564,17 @@ the following paragraph verbatim right here instead. A session with a user
 present also stops mid-task to report, so this names its only pauses, as
 the Codex `scope_discipline` does. A Workflow stage for `Execute here` or a
 pasted session takes neither paragraph; one sent to a background `Agent`
-carries the autonomy paragraph above, like any agent handoff.
+carries the autonomy paragraph above, with one sentence changed as the next
+bracket says.
 Keep going until the goal above is met: do the reversible work it needs
 without asking for permission, and don't stop to report progress or a
 plan. Pause only for a destructive or irreversible action, a real scope
 change, or input only the user can provide.]
+[WORKFLOW-STAGE AGENT — a Workflow stage sent to a background `Agent` has
+no user to ask: its final text is the return value, read by the Workflow
+that launched it. It carries the autonomy paragraph above with this sentence
+in place of the one that says to ask and end the turn:
+If you hit one of these, put the question in your structured report — in the field its schema gives for questions, such as needs_owner — and end the turn there, rather than ending on a promise.]
 </autonomy>
 <autonomy host="codex">
 [BACKGROUND-AGENT DESTINATION — include the paragraph below only for a delegated subagent.]
@@ -572,6 +608,12 @@ blocks above instead of using them:
   matching the accompanying schema. Use tool-enforced structured output when
   available; otherwise validate the result against that schema before
   returning it.
+- Claude Code, background `Agent` destination only: carry the
+  `stage="workflow-agent"` `<scope_discipline>`, the `coordinator` paragraph
+  in place of the entry paragraph, and the autonomy paragraph with its
+  question sentence replaced. The worker then runs no roadmap bookkeeping and
+  returns its commit, checks and questions in the structured report the
+  attached schema defines.
 - Assemble a second artifact alongside the prompt: a fenced `json` JSON
   Schema derived from the user's answer to "what should come back".
   Authoring rules: object root with a `required` array; a `description` on
@@ -757,7 +799,9 @@ A block a standard prompt does keep is still held to the template verbatim —
 - [ ] Workflow-stage flavor (if selected): `<tone>` was dropped
       unconditionally, `<output_format>` was replaced by the host's fixed
       sentence, and a JSON Schema artifact was assembled and travels with
-      the prompt to the destination
+      the prompt to the destination; in Claude Code, a stage sent to a
+      background agent carries the coordinator paragraph instead of the
+      entry paragraph and never tells the worker to ask and end the turn
 
 ## Mechanical gate (REQUIRED, after the checklist)
 
