@@ -4,8 +4,9 @@
 // process whose output is a pipe (spawnSync git EPERM) and allows one that
 // writes to files, so a refused spawn runs again with stdout and stderr in
 // temporary files. The rerun fails the way execFileSync would.
-// [Foreman: 974] Every Foreman git call goes through here, so a close, its
-// attestation and the post-commit hook read Git in that sandbox too.
+// [Foreman: 974] safe-commit.js, roadmap.js, commit-evidence.js and
+// hooks/post-commit.js run Git through here, so a close, its attestation and
+// the post-commit hook read Git in that sandbox too.
 
 const fs = require("fs");
 const os = require("os");
