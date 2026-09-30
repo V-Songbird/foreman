@@ -20,7 +20,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { execFileSync } = require("child_process");
+const { runGit } = require("./run-git");
 
 // roadmap.js requires this module at load time, so requiring it back up here
 // would capture a half-built exports object. Same deferred-require shape
@@ -34,8 +34,7 @@ function roadmap() {
 // callers keep distinct from an empty answer.
 function gitRead(cwd, args, { timeout = 30000 } = {}) {
   try {
-    return execFileSync("git", args, {
-      cwd,
+    return runGit(cwd, args, {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"],
       maxBuffer: 8 * 1024 * 1024,

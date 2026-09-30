@@ -76,6 +76,26 @@ function begin() {
   return json;
 }
 
+// [Foreman: 967] The Codex desktop app's Windows sandbox fails any spawn with
+// piped output as `spawnSync git EPERM`; this preload refuses git pipes the
+// same way for every later run in the test.
+function refusePipes() {
+  const shim = path.join(path.dirname(project), 'refuse-pipes.js');
+  fs.writeFileSync(shim, `
+    const cp = require('child_process');
+    for (const name of ['execFileSync', 'spawnSync']) {
+      const real = cp[name];
+      cp[name] = function (file, args, options = {}) {
+        if (file === 'git' && [].concat(options.stdio ?? 'pipe').includes('pipe')) {
+          throw Object.assign(new Error('spawnSync git EPERM'), { code: 'EPERM', errno: -4048, syscall: 'spawnSync git' });
+        }
+        return real.apply(this, arguments);
+      };
+    }
+  `);
+  env = { ...env, NODE_OPTIONS: `--require ${JSON.stringify(shim)}` };
+}
+
 describe('safe-commit begin', () => {
   test('a clean tree returns the baseline head and state hash', () => {
     cleanRepo();
@@ -190,21 +210,8 @@ describe('safe-commit begin', () => {
   // same way, and begin still reads the tree through files.
   test('a sandbox that refuses piped git output still yields the baseline', () => {
     cleanRepo();
-    const shim = path.join(path.dirname(project), 'refuse-pipes.js');
-    fs.writeFileSync(shim, `
-      const cp = require('child_process');
-      for (const name of ['execFileSync', 'spawnSync']) {
-        const real = cp[name];
-        cp[name] = function (file, args, options = {}) {
-          if (file === 'git' && [].concat(options.stdio ?? 'pipe').includes('pipe')) {
-            throw Object.assign(new Error('spawnSync git EPERM'), { code: 'EPERM', errno: -4048, syscall: 'spawnSync git' });
-          }
-          return real.apply(this, arguments);
-        };
-      }
-    `);
     const piped = begin();
-    env = { ...env, NODE_OPTIONS: `--require ${JSON.stringify(shim)}` };
+    refusePipes();
     const json = begin();
     assert.equal(json.dirty, false, JSON.stringify(json));
     assert.deepEqual(json.baseline, piped.baseline);
@@ -393,9 +400,9 @@ describe('safe-commit finish stages renames and deletions cleanly', () => {
       return realExecFileSync(file, args, options);
     });
 
-    // First direct require in this file: everything else drives safe-commit.js
-    // through the CLI, so this is the one place the mocked child_process is
-    // actually captured by the module's own `git()` helper.
+    // Everything else drives safe-commit.js through the CLI, so this is the
+    // one place the mocked child_process reaches the module's own `git()`
+    // helper, through scripts/run-git.js.
     const { beginUnit, finishUnit } = require('../scripts/safe-commit');
     const baseline = beginUnit(project).baseline.head;
     writeFile('src/a.js', 'owned\n');
@@ -436,6 +443,34 @@ describe('safe-commit finish commit and attestation', () => {
     assert.deepEqual(json.attested.reasons, []);
     assert.equal(git('log', '-1', '--format=%B').trim(), 'Add the thing\n\nForeman: 001');
     assert.equal(git('status', '--porcelain').trim(), '', 'the tree is clean afterwards');
+  });
+
+  // [Foreman: 974] Inside the Codex sandbox a roadmap close of a private
+  // roadmap commits, attests and still says the roadmap was not staged,
+  // because every git read, check-ignore included, falls back to files.
+  test('a sandbox that refuses piped git output still closes, attests and names the ignored roadmap', () => {
+    initGitRepo(project);
+    writeFile('.gitignore', 'ROADMAP.jsonl\n');
+    writeRoadmap(project, [entry('001')]);
+    git('add', '-A');
+    git('commit', '-q', '-m', 'baseline');
+    refusePipes();
+    const baseline = begin().baseline.head;
+    writeFile('src/a.js', 'owned\n');
+
+    const { json } = run(['finish', '--baseline', baseline], {
+      id: '001',
+      expected: ['src'],
+      message_title: 'Add the thing',
+      roadmap_close: true,
+    });
+
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.equal(json.commit, git('rev-parse', 'HEAD').trim());
+    assert.deepEqual(json.files, ['src/a.js']);
+    assert.equal(json.attested.ok, true);
+    assert.deepEqual(json.attested.trailer_lines, ['Foreman: 001']);
+    assert.match(json.warnings?.[0] ?? '', /^git-ignored here, so not staged: ROADMAP\.jsonl\./, JSON.stringify(json));
   });
 
   test('a checkpoint with no entry id commits titled and trailer-free', () => {

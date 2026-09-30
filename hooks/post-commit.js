@@ -7,7 +7,7 @@ const path = require("path");
 const { readInput, projectDir: hookProjectDir, pluginDir, hostName } = require("./lib");
 const crypto = require("crypto");
 
-const { execFileSync } = require("child_process");
+const { runGit } = require("../scripts/run-git");
 
 const { readEntries, today, touchesOverlap, trailerIdsIn } = require("../scripts/roadmap");
 const { resolveHookScope } = require("../scripts/commit-evidence");
@@ -337,8 +337,7 @@ function inCommitRepo(entry, prefix, trailerIds) {
 // every other git read here: no repo / no git -> no trailer ids.
 function headTrailerIds(cwd) {
   try {
-    const msg = execFileSync("git", ["log", "-1", "--format=%B"], {
-      cwd,
+    const msg = runGit(cwd, ["log", "-1", "--format=%B"], {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"],
     });
@@ -358,10 +357,10 @@ function headTrailerIds(cwd) {
 // every other git read here.
 function scopeTouchedFiles(scope) {
   try {
-    const out = execFileSync(
-      "git",
+    const out = runGit(
+      scope.cwd,
       ["show", "--pretty=format:", "--name-only", "--relative", "HEAD"],
-      { cwd: scope.cwd, encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] }
+      { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] }
     );
     const files = out.split("\n").map((line) => line.trim()).filter(Boolean);
     return scope.prefix ? files.map((file) => `${scope.prefix}/${file}`) : files;

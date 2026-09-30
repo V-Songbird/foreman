@@ -46,6 +46,12 @@ instead.
   output through a pipe, so `safe-commit.js` now runs Git with its output in
   temporary files when that happens. Committing the task still needs your
   approval to leave the sandbox.
+- Every Git command Foreman runs now uses the same temporary-file fallback,
+  not only `safe-commit.js`. Before, some checks failed without a message in
+  the Codex desktop app's sandbox. For example, when your project keeps
+  `ROADMAP.jsonl` out of Git, a roadmap close did not warn that the commit
+  leaves the roadmap out. Closing an entry and the check Foreman runs after
+  each commit now work in the sandbox too.
 - When Foreman cannot read Git status, `safe-commit.js begin` now says why:
   its `git_status_unavailable` result adds a `cause` with Git's error text.
 

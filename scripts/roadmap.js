@@ -10,7 +10,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { execFileSync } = require("child_process");
+const { runGit } = require("./run-git");
 const { withRoadmapLock } = require("./roadmap-lock");
 // [Foreman: 208] The opt-in trial log. Its record() is a silent no-op unless
 // the project turned it on, and it never throws — a trial is an observation
@@ -905,10 +905,10 @@ function cmdAddUnlocked(root, payload) {
 // so no submodule has to be initialized for the lookup to work.
 function submodulePaths(root) {
   try {
-    const out = execFileSync(
-      "git",
+    const out = runGit(
+      root,
       ["config", "--file", ".gitmodules", "--get-regexp", "^submodule\\..*\\.path$"],
-      { cwd: root, encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] }
+      { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] }
     );
     return out
       .split("\n")
@@ -945,8 +945,7 @@ function commitMessageFor(root, sha) {
   const where = resolveSha(root, sha);
   if (!where.exists) return null;
   try {
-    return execFileSync("git", ["log", "-1", "--format=%B", where.full], {
-      cwd: where.in_submodule ? path.join(root, where.in_submodule) : root,
+    return runGit(where.in_submodule ? path.join(root, where.in_submodule) : root, ["log", "-1", "--format=%B", where.full], {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"],
       timeout: 30000,
@@ -1010,8 +1009,7 @@ function driftNote(drift) {
 // repository means the same here.
 function ignoredPaths(root, paths) {
   try {
-    return execFileSync("git", ["check-ignore", "--", ...paths], {
-      cwd: root,
+    return runGit(root, ["check-ignore", "--", ...paths], {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"],
     })
@@ -1051,8 +1049,7 @@ function stageRoadmapFile(root, written = []) {
   const ignored = ["ROADMAP.jsonl", ...written].filter((file) => ignoredAll.includes(file));
   let tracked = [];
   try {
-    tracked = execFileSync("git", ["ls-files", "--", ...paths], {
-      cwd: root,
+    tracked = runGit(root, ["ls-files", "--", ...paths], {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"],
     }).split(/\r?\n/).filter(Boolean);
@@ -1063,8 +1060,7 @@ function stageRoadmapFile(root, written = []) {
     && (fs.existsSync(path.join(root, file)) || tracked.includes(file)));
   if (!toStage.length) return { staged: false, ignored };
   try {
-    execFileSync("git", ["add", "--", ...toStage], {
-      cwd: root,
+    runGit(root, ["add", "--", ...toStage], {
       stdio: ["ignore", "ignore", "ignore"],
     });
     return { staged: !ignoredAll.includes("ROADMAP.jsonl"), ignored };
