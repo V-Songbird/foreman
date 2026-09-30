@@ -20,7 +20,9 @@
 // gate, warnings} — same house style as every sibling script.
 // `workflowStage: true` drops <tone>, replaces <output_format> with the
 // fixed enforcement sentence, and is passed through to check-prompt.js's
-// gate as --workflow-stage would be on the CLI (entry 204).
+// gate as --workflow-stage would be on the CLI (entry 204). A Claude Code
+// stage sent to an agent also gets the Workflow-owned entry: the coordinator
+// paragraph, the workflow-agent scope rule and questions returned in the report.
 // `host: "claude" | "codex" | "antigravity"` names the host that will run the
 // handoff; it is detected when absent, and antigravity takes the Codex form.
 // It picks the host-tagged template variants, the plugin-path form, and each
@@ -83,6 +85,7 @@ const {
   IMPLEMENTATION_AUTHORIZATION_SENTENCE,
   NO_INVENTION_SENTENCE,
   FIX_CEILING_SENTENCE,
+  ASK_SENTENCE_RE,
   WORKFLOW_STAGE_SENTENCES,
 } = require("./check-prompt.js");
 
@@ -202,13 +205,20 @@ function templateDefaults(host) {
     const end = at === -1 ? -1 : autonomyInner.indexOf("]", at);
     return at === -1 || end === -1 ? null : norm(autonomyInner.slice(at, end));
   };
+  const autonomyParagraph = paragraphFrom(AUTONOMY_MARKER);
+  // A Claude Code Workflow stage sent to a background Agent returns its
+  // questions in the structured report instead of asking.
+  const stageAutonomyParagraph = autonomyParagraph && canonical.stageQuestion
+    ? autonomyParagraph.replace(ASK_SENTENCE_RE, canonical.stageQuestion)
+    : null;
   return {
     canonical,
     defaultTone,
     defaultOutputFormat,
     noInventionLine,
     fixCeilingLine: verificationScope ? `${fixCeilingLine}\n${verificationScope.trim()}` : fixCeilingLine,
-    autonomyParagraph: paragraphFrom(AUTONOMY_MARKER),
+    autonomyParagraph,
+    stageAutonomyParagraph,
     keepGoingParagraph: paragraphFrom(KEEP_GOING_MARKER),
   };
 }
@@ -1271,6 +1281,19 @@ function claudeEntryParagraphText({ id, resume, notesPlace = null, requireVerifi
   return steps.filter(Boolean).join("\n");
 }
 
+// A Claude Code Workflow stage sent to a background Agent: the Workflow that
+// launched it owns the entry, so the worker commits and reports instead of
+// running the lifecycle — prompt-template.md's coordinator paragraph.
+function coordinatorParagraphText(lines, { id, investigation, submodule }) {
+  const [owner, commit, report] = lines.map((line) => line.split("<id>").join(id));
+  const work = investigation
+    ? "This task is an investigation: change no implementation file and make no commit, even when a diagnostic check fails."
+    : submodule
+      ? `${commit}\nThe planned files sit inside the submodule \`${submodule}\`: commit there, not at the project root, and never stage its gitlink.`
+      : commit;
+  return [owner, work, report].join("\n");
+}
+
 function codexEntryParagraphText({ id, resume, notesPlace = null, requireVerification, askLesson, destination, investigation, reviewEachIncrement = false, submodule = null, privateRoadmap = false, delegatedTo = null }) {
   const code = (value) => "`" + value + "`";
   const opening = resume
@@ -1491,8 +1514,11 @@ function assemble(root, input) {
   const reinforced = Object.values(signals).some(Boolean);
   const profile = reinforced ? "reinforced" : "standard";
 
-  const { canonical, defaultTone, defaultOutputFormat, noInventionLine, fixCeilingLine, autonomyParagraph, keepGoingParagraph } =
+  const { canonical, defaultTone, defaultOutputFormat, noInventionLine, fixCeilingLine, autonomyParagraph, stageAutonomyParagraph, keepGoingParagraph } =
     templateDefaults(host);
+  // A Claude Code Workflow stage sent to a background Agent: the Workflow owns
+  // the entry and reads the worker's final text as its return value.
+  const workflowAgent = workflowStage && destination === "agent" && host === "claude";
 
   const omit = new Set(config.omit);
   const isDecision = record.kind === "decision";
@@ -1519,8 +1545,10 @@ function assemble(root, input) {
     ? checkpointEmbedText(checkpointsConfig(root), checkCount, isEntry ? entryId : null, hasReview, reviewEachIncrement, host, close)
     : null;
 
-  const entryParagraph = isEntry
-    ? entryParagraphText({
+  const entryParagraph = !isEntry ? ""
+    : workflowAgent
+    ? coordinatorParagraphText(canonical.coordinator, { id: entryId, investigation: Boolean(judgment.question), submodule: close.submodule })
+    : entryParagraphText({
         id: entryId,
         // The resume *variant* is about the delivery path (this pick came
         // from the finish-first in_progress array), never the `resumed`
@@ -1538,8 +1566,7 @@ function assemble(root, input) {
         askLesson: isEntry && readLedger(root).enabled,
         host,
         ...close,
-      })
-    : "";
+      });
 
   const taskContextBlock = holdUserRoot(taskContextText(config.usePersona, judgment, record));
   const backgroundInner = holdUserRoot(relevantFilesText(symbolResult.files, symbolResult.references, symbolResult.unresolved, record));
@@ -1623,7 +1650,7 @@ function assemble(root, input) {
     parts.push(taskContextBlock);
     if (reinforced) {
       parts.push(`<truth_grounding>\n${canonical.truthGrounding}\n</truth_grounding>`);
-      parts.push(`<scope_discipline>\n${canonical.scopeDiscipline}\n</scope_discipline>`);
+      parts.push(`<scope_discipline>\n${workflowAgent ? canonical.workflowScopeDiscipline : canonical.scopeDiscipline}\n</scope_discipline>`);
       if (host === "codex") parts.push(`Foreman bookkeeping command: \`${pluginCommand("roadmap.js")}\`. Send each JSON payload from a UTF-8 file using the active shell. Commands are quoted for the crafting host; re-quote for a different shell, and refresh installed paths from the currently loaded Foreman skill if they moved.`);
     } else {
       parts.push(CONCISE_TRUTH_EMITTED);
@@ -1658,7 +1685,7 @@ function assemble(root, input) {
     parts.push(rulesBlock);
     if (exampleText) parts.push(exampleText);
     parts.push(requestSentence);
-    if (destination === "agent" && autonomyParagraph) parts.push(autonomyParagraph);
+    if (destination === "agent" && autonomyParagraph) parts.push(workflowAgent ? stageAutonomyParagraph : autonomyParagraph);
     else if (destination !== "agent" && !workflowStage) parts.push(keepGoingParagraph);
     if (reinforced) parts.push(canonical.closing);
     else parts.push(CLOSURE_EVIDENCE_SENTENCE);

@@ -1422,6 +1422,19 @@ describe('workflow-stage flavor', () => {
       assert.ok(json.prompt.includes(WORKFLOW_STAGE_SENTENCES[host]));
     });
 
+    // A Codex stage keeps its coordinator-owned form: only the fixed sentence
+    // is added, byte for byte, to a standard agent handoff.
+    if (host === 'codex') {
+      test('a Codex stage sent to an agent is the ordinary agent handoff plus the fixed sentence', () => {
+        writeRoadmap(project, [entryFields()]);
+        const plain = run(project, { entry: '001', destination: 'agent', host, judgment: goodJudgment() }).json;
+        const stage = run(project, { entry: '001', destination: 'agent', host, workflowStage: true, judgment: goodJudgment() }).json;
+        assert.equal(plain.profile, 'standard');
+        assert.equal(stage.gate.ok, true, JSON.stringify(stage.gate));
+        assert.equal(stage.prompt, `${plain.prompt}\n${WORKFLOW_STAGE_SENTENCES.codex}\n`);
+      });
+    }
+
     test(`without the flag, the same reinforced handoff carries tone and output_format as usual (${host})`, () => {
       writeRoadmap(project, [entryFields({ kind: 'decision' })]);
       const { json } = run(project, { entry: '001', destination: 'clipboard', host, judgment: goodJudgment() });
@@ -1431,6 +1444,57 @@ describe('workflow-stage flavor', () => {
       assert.ok(!json.prompt.includes(WORKFLOW_STAGE_SENTENCES[host]));
     });
   }
+
+  // A Claude Code Workflow agent was told to run update-status and
+  // safe-commit, which its worktree cannot reach, and to ask and end the turn,
+  // though no user reads its final text. The Workflow owns the entry.
+  describe('a Claude Code stage sent to an agent', () => {
+    const delegated = { delegatedAcceptance: { orchestrator: 'orch-1', sessions: ['worker-a'] } };
+    const session = { CLAUDE_CODE_SESSION_ID: 'worker-a', CODEX_SESSION_ID: '', CODEX_THREAD_ID: '', ANTIGRAVITY_CONVERSATION_ID: '' };
+    const craft = (fields, input = {}) => {
+      writeRoadmap(project, [entryFields(fields)]);
+      const { status, json } = run(project, { entry: '001', destination: 'agent', host: 'claude', workflowStage: true, judgment: goodJudgment(), ...input }, session);
+      assert.equal(status, 0, JSON.stringify(json));
+      assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+      return json;
+    };
+
+    beforeEach(() => {
+      writeConfig(project, delegated);
+      // The planned files sit inside a submodule, as in the Workflow run.
+      fs.writeFileSync(path.join(project, '.gitmodules'), '[submodule "src"]\n\tpath = src\n\turl = ./src\n', 'utf-8');
+    });
+
+    for (const [label, fields] of [['standard', {}], ['reinforced', { kind: 'decision' }]]) {
+      test(`the worker runs no roadmap bookkeeping, commits with the trailer and returns its questions (${label})`, () => {
+        const { prompt, profile } = craft(fields);
+        assert.equal(profile, label);
+        assert.doesNotMatch(prompt, /roadmap\.js|safe-commit\.js|\$\{CLAUDE_PLUGIN_ROOT\}/);
+        assert.doesNotMatch(prompt, /ask and end the turn|AskUserQuestion|Mark it `in_progress`/);
+        assert.match(prompt, /ROADMAP\.jsonl entry `001`, and the Workflow that launched you owns its lifecycle: run no `update-status`, no `safe-commit`/);
+        assert.match(prompt, /commit once, with `Foreman: 001` as the last trailer line of the message/);
+        assert.match(prompt, /inside the submodule `src`: commit there, not at the project root/);
+        assert.match(prompt, /Return the commit's full sha when you made one, each check you ran with its result, and your findings in your structured report/);
+        assert.match(prompt, /You are operating autonomously\.[\s\S]*put the question in your structured report — in the field its schema gives for questions, such as needs_owner — and end the turn there/);
+        assert.ok(prompt.endsWith(`${WORKFLOW_STAGE_SENTENCES.claude}\n`));
+      });
+    }
+
+    test('an investigation makes no commit', () => {
+      const { prompt } = craft({}, { judgment: goodJudgment({ question: 'Why does refresh fail?' }) });
+      assert.match(prompt, /This task is an investigation: change no implementation file and make no commit/);
+      assert.doesNotMatch(prompt, /Foreman: 001|roadmap\.js|safe-commit\.js/);
+    });
+
+    test('the same agent handoff without the flag keeps the entry lifecycle and the ask sentence', () => {
+      writeRoadmap(project, [entryFields()]);
+      const { json } = run(project, { entry: '001', destination: 'agent', host: 'claude', judgment: goodJudgment() }, session);
+      assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+      assert.match(json.prompt, /Mark it `in_progress`[\s\S]*safe-commit\.js begin/);
+      assert.match(json.prompt, /If you hit one of these, ask and end the turn, rather than ending on a promise\./);
+      assert.doesNotMatch(json.prompt, /structured report/);
+    });
+  });
 });
 
 // Prior-work recall: a planned path only a handful of finished entries ever

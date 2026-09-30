@@ -913,6 +913,56 @@ test('the gate still accepts <context> nested inside <background>', () => {
   assert.equal(status, 0, JSON.stringify(json));
 });
 
+// A Claude Code Workflow stage sent to a background Agent: the Workflow that
+// launched it owns the entry and reads its final text, so the worker gets the
+// coordinator paragraph and returns its questions in the structured report.
+describe('host claude: a Workflow stage sent to an agent', () => {
+  const { canonical, goodPrompt } = fixtures('claude');
+  const args = ['--destination', 'agent', '--workflow-stage', '--entry', '007', '--host', 'claude'];
+  const ASK = 'If you hit one of these, ask and end the turn, rather than ending on a promise.';
+  const coordinator = canonical.coordinator.map((line) => line.split('<id>').join('007')).join('\n');
+  const stage = (overrides = {}) => goodPrompt({
+    scope_discipline: `<scope_discipline>${canonical.workflowScopeDiscipline}</scope_discipline>`,
+    entry_paragraph: coordinator,
+    tone: '',
+    autonomy: `${AUTONOMY} ${canonical.stageQuestion}`,
+    output_format: WORKFLOW_STAGE_SENTENCES.claude,
+    ...overrides,
+  });
+  const errorsOf = (prompt) => runCheck(makeTmpProject(), prompt, args).json.errors || [];
+
+  test('the coordinator paragraph, the workflow-agent scope rule and the report sentence pass', () => {
+    const { status, json } = runCheck(makeTmpProject(), stage(), args);
+    assert.equal(status, 0, JSON.stringify(json));
+  });
+
+  test('a worker told to ask and end the turn fails', () => {
+    const errors = errorsOf(stage({ autonomy: `${AUTONOMY} ${ASK}` }));
+    assert.ok(errors.some((e) => e.error.includes('ask and end the turn') && e.example === canonical.stageQuestion), JSON.stringify(errors));
+  });
+
+  test('the ordinary entry paragraph and its bookkeeping commands fail', () => {
+    const classic = 'This task is ROADMAP.jsonl entry `007`. Mark it `in_progress` before doing anything else:\n`echo \'{"id":"007","status":"in_progress"}\' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`\n`node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js begin`';
+    const errors = errorsOf(stage({ entry_paragraph: classic }));
+    assert.ok(errors.some((e) => e.error.includes('missing the coordinator paragraph')), JSON.stringify(errors));
+    assert.ok(errors.some((e) => e.error.includes('roadmap bookkeeping')), JSON.stringify(errors));
+  });
+
+  test('the ordinary scope rule, which logs extra work on the roadmap, fails', () => {
+    const scope = canonical.scopeDiscipline.split('${CLAUDE_PLUGIN_ROOT}').join(PLUGIN_ROOT);
+    const errors = errorsOf(stage({ scope_discipline: `<scope_discipline>${scope}</scope_discipline>` }));
+    assert.ok(errors.some((e) => e.error.includes('<scope_discipline> differs')), JSON.stringify(errors));
+  });
+
+  test('outside that form the gate asks for what it always did', () => {
+    const project = makeTmpProject();
+    const task = runCheck(project, goodPrompt({ tone: '', autonomy: '', output_format: WORKFLOW_STAGE_SENTENCES.claude }), ['--destination', 'task', '--workflow-stage', '--host', 'claude']);
+    assert.equal(task.status, 0, JSON.stringify(task.json));
+    const agent = runCheck(project, stage(), ['--destination', 'agent', '--entry', '007', '--host', 'claude']);
+    assert.ok(agent.json.errors.some((e) => e.error.includes('mark the entry `in_progress`')), JSON.stringify(agent.json.errors));
+  });
+});
+
 // [Foreman: 107] Claude Code substitutes ${CLAUDE_PLUGIN_ROOT} into a skill's
 // text, so a crafter copies the resolved, version-pinned path by default; the
 // prompt must carry the literal variable instead.
