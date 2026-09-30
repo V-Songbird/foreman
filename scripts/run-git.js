@@ -7,13 +7,14 @@
 // [Foreman: 974] safe-commit.js, roadmap.js, commit-evidence.js and
 // hooks/post-commit.js run Git through here, so a roadmap close, the lookups
 // that link an entry to its commits and the post-commit hook read Git in that
-// sandbox too. Other child processes do not come through here:
-// - scripts/resolve-symbols.js gitAvailable() and lastChanged() still pipe
-//   Git; craft-handoff.js reaches them, and in the sandbox a handoff only
-//   loses the date each planned file last changed. Not moved yet.
-// - scripts/roadmap-lock.js processStartTime() pipes powershell.exe or ps,
-//   not Git.
-// - hooks/antigravity-hook.js spawns node, not Git.
+// sandbox too.
+// [Foreman: 977] resolve-symbols.js reads the date each planned file last
+// changed through runGit, and roadmap-lock.js reads a lock owner's start time
+// from powershell.exe or ps through runFile. The rerun keeps every option but
+// stdio; `input` needs a stdin pipe, so it is refused. Other child processes
+// do not come through here:
+// - hooks/antigravity-hook.js spawns node with piped output. It runs under
+//   Antigravity, not the Codex app.
 // - scripts/git-hooks/pre-commit and check-readme-nav.js are contributor
 //   tooling, not runtime.
 
@@ -24,19 +25,20 @@ const path = require("path");
 // reaches every caller however early this module loaded.
 const childProcess = require("child_process");
 
-function runGit(root, args, options = {}) {
+function runFile(file, args, options = {}) {
   try {
-    return childProcess.execFileSync("git", args, { cwd: root, ...options });
+    return childProcess.execFileSync(file, args, options);
   } catch (error) {
     if (error.code !== "EPERM") throw error;
+    if (options.input !== undefined) throw error;
   }
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "foreman-git-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "foreman-run-"));
   try {
     const [outFile, errFile] = [path.join(dir, "out"), path.join(dir, "err")];
     const [out, err] = [fs.openSync(outFile, "w"), fs.openSync(errFile, "w")];
     let result;
     try {
-      result = childProcess.spawnSync("git", args, { cwd: root, stdio: ["ignore", out, err], timeout: options.timeout });
+      result = childProcess.spawnSync(file, args, { ...options, encoding: undefined, stdio: ["ignore", out, err] });
     } finally {
       fs.closeSync(out);
       fs.closeSync(err);
@@ -44,7 +46,7 @@ function runGit(root, args, options = {}) {
     if (result.error) throw result.error;
     if (result.status !== 0) {
       const stderr = fs.readFileSync(errFile, "utf-8");
-      throw Object.assign(new Error(`Command failed: git ${args.join(" ")}\n${stderr}`), {
+      throw Object.assign(new Error(`Command failed: ${file} ${args.join(" ")}\n${stderr}`), {
         status: result.status,
         stderr,
       });
@@ -55,4 +57,8 @@ function runGit(root, args, options = {}) {
   }
 }
 
-module.exports = { runGit };
+function runGit(root, args, options = {}) {
+  return runFile("git", args, { cwd: root, ...options });
+}
+
+module.exports = { runFile, runGit };

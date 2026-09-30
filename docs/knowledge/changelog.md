@@ -68,9 +68,14 @@ instead.
   message in the Codex desktop app's sandbox. For example, when your project
   keeps `ROADMAP.jsonl` out of Git, a roadmap close did not warn that the
   commit leaves the roadmap out. Staging the roadmap file is a Git write, so a
-  close that stages it still needs your approval to leave the sandbox. The Git
-  reads that date a handoff's planned files do not use the fallback yet, so in
-  the sandbox a crafted handoff leaves out when each planned file last changed.
+  close that stages it still needs your approval to leave the sandbox.
+- A handoff crafted in the Codex desktop app's sandbox now shows when each
+  planned file last changed. The Git reads behind those dates use the same
+  temporary-file fallback. So does the roadmap lock's check of a lock left
+  behind by an earlier Foreman process whose process ID now belongs to another
+  program. Before, in the sandbox, that lock stayed while the other program
+  ran, and every roadmap change failed with `timed out after 2000ms waiting for another
+  Foreman roadmap mutation`.
 - When Foreman cannot read Git status, `safe-commit.js begin` now says why:
   its `git_status_unavailable` result adds a `cause` with Git's error text.
 

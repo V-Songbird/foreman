@@ -15,7 +15,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
-const { makeTmpProject, writeRoadmap, writeArchiveFile, writeConfig, initGitRepo, runNodeScript, runRoadmap, SCRIPTS_DIR } = require('./helpers');
+const { makeTmpProject, writeRoadmap, writeArchiveFile, writeConfig, initGitRepo, runNodeScript, runRoadmap, SCRIPTS_DIR, HOOKS_DIR, TIME_SCALE } = require('./helpers');
 
 const SAFE_COMMIT = path.join(SCRIPTS_DIR, 'safe-commit.js');
 // LF text, so a CRLF checkout pins the same template prose.
@@ -79,6 +79,8 @@ function begin() {
 // [Foreman: 967] The Codex desktop app's Windows sandbox fails any spawn with
 // piped output as `spawnSync git EPERM`; this preload refuses git pipes the
 // same way for every later run in the test.
+// [Foreman: 977] Any program, not only git: the lock's start-time read runs
+// powershell.exe or ps.
 function refusePipes() {
   const shim = path.join(path.dirname(project), 'refuse-pipes.js');
   fs.writeFileSync(shim, `
@@ -86,8 +88,11 @@ function refusePipes() {
     for (const name of ['execFileSync', 'spawnSync']) {
       const real = cp[name];
       cp[name] = function (file, args, options = {}) {
-        if (file === 'git' && [].concat(options.stdio ?? 'pipe').includes('pipe')) {
-          throw Object.assign(new Error('spawnSync git EPERM'), { code: 'EPERM', errno: -4048, syscall: 'spawnSync git' });
+        if ([].concat(options.stdio ?? 'pipe').includes('pipe')) {
+          const error = Object.assign(new Error(\`spawnSync \${file} EPERM\`), { code: 'EPERM', errno: -4048, syscall: \`spawnSync \${file}\` });
+          // spawnSync reports a failed start in its result; execFileSync throws it.
+          if (name === 'spawnSync') return { pid: 0, output: null, stdout: null, stderr: null, status: null, signal: null, error };
+          throw error;
         }
         return real.apply(this, arguments);
       };
@@ -215,6 +220,118 @@ describe('safe-commit begin', () => {
     const json = begin();
     assert.equal(json.dirty, false, JSON.stringify(json));
     assert.deepEqual(json.baseline, piped.baseline);
+  });
+});
+
+// [Foreman: 977] Every other child process that reads piped output goes
+// through run-git.js too. Each test runs one caller in a child under the
+// preload, so a caller that pipes again fails its test.
+describe('the other piped reads in a sandbox that refuses piped output', () => {
+  const q = JSON.stringify;
+  const EVIDENCE = path.join(SCRIPTS_DIR, 'commit-evidence.js');
+  const ROADMAP = path.join(SCRIPTS_DIR, 'roadmap.js');
+  const RESOLVE = path.join(SCRIPTS_DIR, 'resolve-symbols.js');
+  const LOCK = path.join(SCRIPTS_DIR, 'roadmap-lock.js');
+  const POST_COMMIT = path.join(HOOKS_DIR, 'post-commit.js');
+
+  // Evaluates `expression` in a child, which the preload reaches, and returns
+  // its value.
+  function probe(expression) {
+    const file = path.join(path.dirname(project), 'probe.js');
+    fs.writeFileSync(file, `process.stdout.write(JSON.stringify(${expression}) ?? 'null');`);
+    const r = runNodeScript(file, [], null, env);
+    assert.equal(r.status, 0, r.stderr);
+    return JSON.parse(r.stdout);
+  }
+
+  function commitWith(message) {
+    writeFile('src/a.js', `${message}\n`);
+    git('add', '-A');
+    git('commit', '-q', '-m', message);
+    return git('rev-parse', 'HEAD').trim();
+  }
+
+  test('commit-evidence.js gitRead resolves a recorded sha', () => {
+    cleanRepo();
+    const sha = git('rev-parse', 'HEAD').trim();
+    refusePipes();
+    const where = probe(`require(${q(EVIDENCE)}).resolveSha(${q(project)}, ${q(sha.slice(0, 7))})`);
+    assert.deepEqual(where, { sha: sha.slice(0, 7), exists: true, full: sha });
+  });
+
+  test('roadmap.js submodulePaths reads .gitmodules', () => {
+    cleanRepo();
+    writeFile('.gitmodules', '[submodule "lib"]\n\tpath = lib\n\turl = ./lib\n');
+    refusePipes();
+    assert.deepEqual(probe(`require(${q(ROADMAP)}).submodulePaths(${q(project)})`), ['lib']);
+  });
+
+  test('roadmap.js commitMessageFor still refuses another entry\'s commit', () => {
+    cleanRepo();
+    const sha = commitWith('Other work\n\nForeman: 002');
+    refusePipes();
+    const r = runRoadmap(['update-status'], { id: '001', status: 'done', commit: sha }, env);
+    assert.equal(r.status, 1, r.stdout);
+    assert.ok(JSON.parse(r.stdout).error.includes('"Foreman: 002", not 001'), r.stdout);
+  });
+
+  test('roadmap.js stageRoadmapFile stages a tracked ledger file deleted from disk', () => {
+    cleanRepo();
+    writeArchiveFile(project, []);
+    git('add', '-A');
+    git('commit', '-q', '-m', 'archive');
+    fs.rmSync(path.join(project, '.foreman', 'archive.jsonl'));
+    refusePipes();
+    probe(`require(${q(ROADMAP)}).stageRoadmapFile(${q(project)})`);
+    assert.equal(git('diff', '--cached', '--name-status').trim(), 'D\t.foreman/archive.jsonl');
+  });
+
+  test('post-commit.js headTrailerIds reads the trailer of HEAD', () => {
+    cleanRepo();
+    commitWith('Own work\n\nForeman: 001');
+    refusePipes();
+    assert.deepEqual(probe(`require(${q(POST_COMMIT)}).headTrailerIds(${q(project)})`), ['001']);
+  });
+
+  test('post-commit.js scopeTouchedFiles lists the files of HEAD', () => {
+    cleanRepo();
+    commitWith('Own work');
+    refusePipes();
+    assert.deepEqual(probe(`require(${q(POST_COMMIT)}).scopeTouchedFiles({ cwd: ${q(project)}, prefix: '' })`), ['src/a.js']);
+  });
+
+  test('resolve-symbols.js still dates each planned file', () => {
+    cleanRepo();
+    commitWith('Own work');
+    const date = git('log', '-1', '--format=%ad', '--date=short', '--', 'src/a.js').trim();
+    refusePipes();
+    const { files } = probe(`require(${q(RESOLVE)}).resolve(${q(project)}, ['src/a.js'])`);
+    assert.equal(files[0].lastChanged, date, q(files));
+  });
+
+  // A claim whose PID is alive but whose start time differs is abandoned.
+  // Only the start-time read can tell; Linux reads it from /proc, not a child.
+  test('roadmap-lock.js recovers a claim whose PID now names another process', () => {
+    const { lockPathForRoot, withRoadmapLock } = require(LOCK);
+    const lockPath = lockPathForRoot(project);
+    let identity;
+    withRoadmapLock(project, () => {
+      const [claim] = fs.readdirSync(lockPath).filter((name) => name.startsWith('claim-'));
+      identity = JSON.parse(fs.readFileSync(path.join(lockPath, claim, 'owner.json'), 'utf-8')).process_identity;
+    });
+    const claim = path.join(lockPath, `claim-${process.pid}-reused`);
+    fs.mkdirSync(claim, { recursive: true });
+    fs.writeFileSync(path.join(claim, 'owner.json'), q({
+      pid: process.pid,
+      timestamp: Date.now(),
+      token: 'reused',
+      process_identity: identity.kind === 'epoch-ms' ? { kind: 'epoch-ms', value: 0 } : { kind: identity.kind, value: `${identity.value}-reused` },
+    }));
+    fs.writeFileSync(path.join(claim, 'ticket.json'), q({ number: 1, token: 'reused' }));
+    refusePipes();
+    const waitMs = 10000 * TIME_SCALE;
+    assert.equal(probe(`require(${q(LOCK)}).withRoadmapLock(${q(project)}, () => 'recovered', { staleMs: 0, waitMs: ${waitMs} })`), 'recovered');
+    assert.equal(fs.existsSync(lockPath), false);
   });
 });
 

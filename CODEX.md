@@ -446,7 +446,11 @@ Gaps in the default permission mode:
   program's output through a pipe, and Node.js reports `spawnSync git EPERM`.
   The same program starts when its output goes to a file. Releases after
   3.3.0 run Git that way when the pipe is refused, so `begin` returns the
-  baseline inside the sandbox. The commit itself still
+  baseline inside the sandbox. Every other program Foreman starts in Codex and
+  reads output from falls back the same way: the Git reads of `roadmap.js`, of the
+  lookups that link an entry to its commits, of the check after each commit
+  and of the dates a handoff gives its planned files, and the roadmap lock's
+  `powershell.exe` or `ps` check of a lock's owner. The commit itself still
   needs your approval to leave the sandbox, as the next item says.
 - **Git writes need approval.** An in-sandbox `git add` failed with
   `Unable to create '.git/index.lock': Permission denied`. The app then asked

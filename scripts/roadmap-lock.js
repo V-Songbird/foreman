@@ -1,7 +1,9 @@
 "use strict";
 
 const crypto = require("crypto");
-const { execFileSync } = require("child_process");
+// [Foreman: 977] Through the Codex sandbox pipe-refusal fallback, so a claim
+// whose PID now names another process is still recovered there.
+const { runFile } = require("./run-git");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -96,7 +98,7 @@ function processIdentity(pid, deadline = Infinity) {
         `$p = Get-Process -Id ${pid} -ErrorAction Stop`,
         "([DateTimeOffset]$p.StartTime.ToUniversalTime()).ToUnixTimeMilliseconds()",
       ].join("; ");
-      const value = Number(execFileSync(
+      const value = Number(runFile(
         "powershell.exe",
         ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script],
         { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout }
@@ -104,7 +106,7 @@ function processIdentity(pid, deadline = Infinity) {
       return Number.isFinite(value) ? { kind: "epoch-ms", value } : null;
     }
 
-    const value = Date.parse(execFileSync(
+    const value = Date.parse(runFile(
       "ps",
       ["-o", "lstart=", "-p", String(pid)],
       { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout }

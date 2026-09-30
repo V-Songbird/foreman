@@ -26,8 +26,8 @@
 
 const fs = require("fs");
 const path = require("path");
-const { spawnSync } = require("child_process");
 const { submodulePaths } = require("./roadmap.js");
+const { runGit } = require("./run-git");
 
 const { projectDir, parseFlags, printHelp } = require("./runtime");
 
@@ -466,9 +466,16 @@ function referenceImplementations(root, files, texts = new Map()) {
 // How long ago each touched file changed is the cheapest signal for how much
 // of an entry's claims have aged since it was written. Outside a repo the
 // field is simply absent — an unknown date is one fewer fact, not a failure.
+// [Foreman: 977] Git runs through run-git.js, so the dates survive the Codex
+// sandbox's pipe refusal; a failed or missing git still means no date.
+const GIT_READ = { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] };
+
 function gitAvailable(root) {
-  const result = spawnSync("git", ["rev-parse", "--is-inside-work-tree"], { cwd: root, encoding: "utf-8" });
-  return result.status === 0 && String(result.stdout).trim() === "true";
+  try {
+    return runGit(root, ["rev-parse", "--is-inside-work-tree"], GIT_READ).trim() === "true";
+  } catch {
+    return false;
+  }
 }
 
 // A submodule's files are invisible to `git log` at the project root — the
@@ -488,11 +495,11 @@ function gitScopeFor(root, relPath) {
 
 function lastChanged(root, relPath) {
   const { cwd, relPath: scoped } = gitScopeFor(root, relPath);
-  const result = spawnSync("git", ["log", "-1", "--format=%ad", "--date=short", "--", scoped], {
-    cwd,
-    encoding: "utf-8",
-  });
-  return result.status === 0 ? String(result.stdout).trim() || null : null;
+  try {
+    return runGit(cwd, ["log", "-1", "--format=%ad", "--date=short", "--", scoped], GIT_READ).trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 function resolve(root, touches, what, verify) {
