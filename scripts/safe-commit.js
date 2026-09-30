@@ -76,9 +76,17 @@ function repositoryState(root) {
     return status.trim()
       ? { clean: false, reason: "working_tree_has_changes" }
       : { clean: true, reason: null };
-  } catch {
-    return { clean: false, reason: "git_status_unavailable" };
+  } catch (error) {
+    return { clean: false, reason: "git_status_unavailable", cause: gitFailureCause(error) };
   }
+}
+
+// [Foreman: 967] Why git could not run, bounded: its stderr, or the spawn
+// error's code and message when git never started or timed out. A sandbox
+// that blocks git then names the block instead of a bare reason.
+function gitFailureCause(error) {
+  const stderr = String(error.stderr || "").trim();
+  return (stderr || [error.code, error.message].filter(Boolean).join(": ")).slice(0, 500);
 }
 
 function addHashPart(hash, label, value) {
@@ -269,7 +277,9 @@ function beginUnit(root) {
   if (!state.clean) {
     const ledger =
       state.reason === "working_tree_has_changes" ? ledgerOnlyDirt(root) : null;
-    if (!ledger) return { ok: true, dirty: true, reason: state.reason };
+    if (!ledger) {
+      return { ok: true, dirty: true, reason: state.reason, ...(state.cause && { cause: state.cause }) };
+    }
     return { ok: true, dirty: false, ledger_dirty: ledger, baseline: repositorySnapshot(root) };
   }
   return { ok: true, dirty: false, baseline: repositorySnapshot(root) };
@@ -495,7 +505,8 @@ error; a refusal is a successful call reporting ok:false).
   begin     no input. Clean tree -> {ok:true,dirty:false,baseline:{head,state_hash}}.
             Dirty tree -> {ok:true,dirty:true,reason:"..."} and NO baseline:
             offer the user to resolve it first, or continue WITHOUT automated
-            commits. Never proceed implicitly. Exception: dirt confined to
+            commits. Never proceed implicitly. reason "git_status_unavailable"
+            adds cause: git's error text. Exception: dirt confined to
             shared-ledger files (a tracked roadmap's own status flip) still
             returns the baseline, with ledger_dirty naming those files.
 

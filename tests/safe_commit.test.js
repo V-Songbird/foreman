@@ -172,6 +172,18 @@ describe('safe-commit begin', () => {
     assert.equal(json.ok, false);
     assert.match(json.error, /--baseline must name the commit/);
   });
+
+  // [Foreman: 967] A git that cannot run must say why, not only that it failed.
+  test('a git failure reports git_status_unavailable with git\'s error as the cause', () => {
+    // No repository here, and none above: the ceiling stops git's upward search.
+    env = { ...env, GIT_CEILING_DIRECTORIES: path.dirname(project), LC_ALL: 'C' };
+    const json = begin();
+    assert.equal(json.ok, true);
+    assert.equal(json.dirty, true);
+    assert.equal(json.reason, 'git_status_unavailable');
+    assert.equal(json.baseline, undefined);
+    assert.match(json.cause, /not a git repository/);
+  });
 });
 
 describe('safe-commit finish staging discipline', () => {
