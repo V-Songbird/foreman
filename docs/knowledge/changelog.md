@@ -46,13 +46,15 @@ instead.
   output through a pipe, so `safe-commit.js` now runs Git with its output in
   temporary files when that happens. Committing the task still needs your
   approval to leave the sandbox.
-- The Git reads in `roadmap.js`, the commit attestation and the check
-  Foreman runs after each commit now use the same temporary-file fallback.
-  Before, some of these reads failed without a message in the Codex desktop
-  app's sandbox. For example, when your project keeps `ROADMAP.jsonl` out of
-  Git, a roadmap close did not warn that the commit leaves the roadmap out.
-  Staging the roadmap file is a Git write, so a close that stages it still
-  needs your approval to leave the sandbox.
+- The Git reads in `roadmap.js`, in the lookups that link an entry to its
+  commits and in the check Foreman runs after each commit now use the same
+  temporary-file fallback. Before, some of these reads failed without a
+  message in the Codex desktop app's sandbox. For example, when your project
+  keeps `ROADMAP.jsonl` out of Git, a roadmap close did not warn that the
+  commit leaves the roadmap out. Staging the roadmap file is a Git write, so a
+  close that stages it still needs your approval to leave the sandbox. The Git
+  reads that date a handoff's planned files do not use the fallback yet, so in
+  the sandbox a crafted handoff leaves out when each planned file last changed.
 - When Foreman cannot read Git status, `safe-commit.js begin` now says why:
   its `git_status_unavailable` result adds a `cause` with Git's error text.
 

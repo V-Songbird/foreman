@@ -445,10 +445,12 @@ describe('safe-commit finish commit and attestation', () => {
     assert.equal(git('status', '--porcelain').trim(), '', 'the tree is clean afterwards');
   });
 
-  // [Foreman: 974] Inside the Codex sandbox a roadmap close of a private
-  // roadmap commits, attests and still says the roadmap was not staged,
-  // because every git read, check-ignore included, falls back to files.
-  test('a sandbox that refuses piped git output still closes, attests and names the ignored roadmap', () => {
+  // [Foreman: 974] Inside the Codex sandbox a roadmap close of a git-ignored
+  // roadmap still warns that the roadmap was not staged: roadmap.js
+  // ignoredPaths runs `git check-ignore` through run-git.js, which falls back
+  // to files. The warning is what this test proves; the commit and
+  // attestation assertions only confirm the close still completes.
+  test('a sandbox that refuses piped git output still warns that the ignored roadmap was not staged', () => {
     initGitRepo(project);
     writeFile('.gitignore', 'ROADMAP.jsonl\n');
     writeRoadmap(project, [entry('001')]);

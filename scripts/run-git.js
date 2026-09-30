@@ -5,8 +5,17 @@
 // writes to files, so a refused spawn runs again with stdout and stderr in
 // temporary files. The rerun fails the way execFileSync would.
 // [Foreman: 974] safe-commit.js, roadmap.js, commit-evidence.js and
-// hooks/post-commit.js run Git through here, so a close, its attestation and
-// the post-commit hook read Git in that sandbox too.
+// hooks/post-commit.js run Git through here, so a roadmap close, the lookups
+// that link an entry to its commits and the post-commit hook read Git in that
+// sandbox too. Other child processes do not come through here:
+// - scripts/resolve-symbols.js gitAvailable() and lastChanged() still pipe
+//   Git; craft-handoff.js reaches them, and in the sandbox a handoff only
+//   loses the date each planned file last changed. Not moved yet.
+// - scripts/roadmap-lock.js processStartTime() pipes powershell.exe or ps,
+//   not Git.
+// - hooks/antigravity-hook.js spawns node, not Git.
+// - scripts/git-hooks/pre-commit and check-readme-nav.js are contributor
+//   tooling, not runtime.
 
 const fs = require("fs");
 const os = require("os");
