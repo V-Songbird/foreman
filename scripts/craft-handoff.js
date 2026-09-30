@@ -23,9 +23,12 @@
 // gate as --workflow-stage would be on the CLI (entry 204). A Claude Code
 // stage sent to an agent also takes the Workflow-owned variants: the
 // coordinator paragraph in place of the entry paragraph and its bookkeeping
-// commands, the workflow-agent <scope_discipline>, the stage
-// <truth_grounding>, closing, autonomy paragraph and <plan>, and the question
-// sentence that returns questions in the structured report.
+// commands, no list-ids refresh command in <context>, the workflow-agent
+// <scope_discipline>, the stage <truth_grounding>, approval-source sentence,
+// closing, autonomy paragraph and <plan>, <task_rules> that name the
+// coordinator instead of the user for an investigation's fix authorization
+// and for writes beyond the expected file surface, and the question sentence
+// that returns questions in the structured report.
 // `host: "claude" | "codex" | "antigravity"` names the host that will run the
 // handoff; it is detected when absent, and antigravity takes the Codex form.
 // It picks the host-tagged template variants, the plugin-path form, and each

@@ -998,6 +998,17 @@ describe('host claude: a Workflow stage sent to an agent', () => {
     }
   });
 
+  test('a project script whose name ends in roadmap.js, or prose after a node command, passes', () => {
+    for (const command of [
+      '`node scripts/build-roadmap.js`',
+      '`node scripts/validate-roadmap.js --strict`',
+      '`node --test tests/x.test.js` roadmap.js is untouched',
+    ]) {
+      const errors = runCheck(makeTmpProject(), stage({ entry_paragraph: command }), entryLess).json.errors || [];
+      assert.ok(!errors.some((e) => e.error.includes('roadmap bookkeeping')), `${command}\n${JSON.stringify(errors)}`);
+    }
+  });
+
   test('a stage prompt craft-handoff.js emits, with or without an entry, still passes', () => {
     assert.equal(runCheck(makeTmpProject(), stage({ entry_paragraph: '' }), entryLess).status, 0);
     const project = makeTmpProject();

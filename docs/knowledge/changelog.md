@@ -46,7 +46,9 @@ instead.
   command in that handoff, also when it has no roadmap entry. This includes
   commands such as `roadmap.js correct` or `archive`, and commands with a
   quoted node option value before the script path, such as
-  `node --title "a b" scripts/roadmap.js list`.
+  `node --title "a b" scripts/roadmap.js list`. A project's own script
+  whose name only ends in `roadmap.js`, such as `build-roadmap.js`, still
+  passes.
 - Reviewed increments are still refused for that handoff, with or without a
   roadmap entry. The error now gives the reason that holds in both cases:
   increment review waits for a person's decision after each increment, and
