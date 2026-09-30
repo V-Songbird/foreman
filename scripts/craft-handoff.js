@@ -82,6 +82,7 @@ const {
   CONCISE_TRUTH_EMITTED,
   CLOSURE_EVIDENCE_SENTENCE,
   APPROVAL_SOURCE_SENTENCE,
+  STAGE_APPROVAL_SOURCE_SENTENCE,
   IMPLEMENTATION_AUTHORIZATION_SENTENCE,
   NO_INVENTION_SENTENCE,
   FIX_CEILING_SENTENCE,
@@ -914,13 +915,14 @@ function listIdsCommand(host, id) {
 // [Foreman: 783] An entry's notes go in the same way, so the crafter never
 // pastes them raw into judgment.context.
 // [Foreman: 786] Past ENTRY_NOTES_MAX_CHARS the lead sentence says what was
-// left out and gives `refresh`, the command that prints it all.
+// left out and gives `refresh`, the command that prints it all, when the
+// destination may run one.
 function contextText(judgmentContext, dependsOnDocs, observed, notes, refresh) {
   let text = judgmentContext || "";
   if (notes) {
     const { kept, cut } = cappedNotes(notes, "its");
     const lead = cut
-      ? `Prior findings recorded on this entry, cut to fit this handoff: ${cut}. Print them all with:\n${refresh}\n`
+      ? `Prior findings recorded on this entry, cut to fit this handoff: ${cut}.${refresh ? ` Print them all with:\n${refresh}` : ""}\n`
       : "Prior findings recorded on this entry. ";
     text += `${text ? "\n" : ""}${lead}${recordedEvidence("recorded_entry_notes", kept)}`;
   }
@@ -996,7 +998,7 @@ function incrementResumeText(record, host = resolveHost()) {
   return `<increment_resume>\n${protocol}\n\n${refresh}${marker}\n${recordedEvidence("recorded_increment_notes", kept)}\n</increment_resume>`;
 }
 
-function taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkpointEmbed, reviewEachIncrement = false, host = resolveHost()) {
+function taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkpointEmbed, reviewEachIncrement = false, host = resolveHost(), workflowAgent = false) {
   const lines = [];
   if (record.kind === "decision") {
     lines.push(
@@ -1025,7 +1027,9 @@ function taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkp
     constraintLines.push(
       host === "codex"
         ? `Expected file surface: ${surface}. Flag a changed forecast before writing outside it; continue when the necessary work is already authorized. Ask only before crossing an explicit file boundary or making a material scope change.`
-        : `Expected file surface: ${surface}. Anything beyond this list gets flagged to the user before it is written, not after.`
+        : workflowAgent
+          ? `Expected file surface: ${surface}. Anything beyond this list is left unwritten and named in your structured report, so the coordinator can decide on it.`
+          : `Expected file surface: ${surface}. Anything beyond this list gets flagged to the user before it is written, not after.`
     );
   }
   if (constraintLines.length) {
@@ -1479,6 +1483,12 @@ function assemble(root, input) {
     throw new Error("reviewEachIncrement must be a boolean supplied explicitly for this run");
   }
   const reviewEachIncrement = input.reviewEachIncrement === true;
+  // A Claude Code Workflow stage sent to a background Agent: the Workflow owns
+  // the entry and reads the worker's final text as its return value.
+  const workflowAgent = Boolean(input.workflowStage) && destination === "agent" && host === "claude";
+  if (reviewEachIncrement && workflowAgent) {
+    throw new Error("reviewEachIncrement:true is not available for a Claude Code Workflow stage sent to an agent: increment review records each decision on the roadmap entry, which the Workflow that launched the agent owns");
+  }
   if (reviewEachIncrement) {
     if (!judgment.verification?.length || judgment.verification.some((row) => !row.review)) {
       throw new Error("reviewEachIncrement:true requires review:{action, expected} on every increment");
@@ -1516,9 +1526,6 @@ function assemble(root, input) {
 
   const { canonical, defaultTone, defaultOutputFormat, noInventionLine, fixCeilingLine, autonomyParagraph, stageAutonomyParagraph, keepGoingParagraph } =
     templateDefaults(host);
-  // A Claude Code Workflow stage sent to a background Agent: the Workflow owns
-  // the entry and reads the worker's final text as its return value.
-  const workflowAgent = workflowStage && destination === "agent" && host === "claude";
 
   const omit = new Set(config.omit);
   const isDecision = record.kind === "decision";
@@ -1579,15 +1586,15 @@ function assemble(root, input) {
   // [Foreman: 789] `resume` without an entry is ignored: no skill sends it.
   const recoveryCarriesNotes = isEntry && reviewEachIncrement && input.resume;
   // The user's text is held before the build, so the refresh command keeps
-  // Foreman's root.
+  // Foreman's root. A Workflow agent runs no roadmap command, so it gets none.
   const ctxText = contextText(holdUserRoot(judgment.context), holdUserRoot(record.depends_on_docs), holdUserRoot(judgment.observed),
-    record.id && !recoveryCarriesNotes ? holdUserRoot(record.notes) : "", record.id ? listIdsCommand(host, record.id) : "");
+    record.id && !recoveryCarriesNotes ? holdUserRoot(record.notes) : "", record.id && !workflowAgent ? listIdsCommand(host, record.id) : "");
   const includeTone = !workflowStage && reinforced && (destination === "agent" || !omit.has("tone"));
   const includeBackground = !omit.has("background");
   const includeOutputFormat = !workflowStage && reinforced && !omit.has("output_format");
   // These two mix Foreman's own commands with the user's text, so the user's
   // side is held before they are built.
-  const rulesBlock = taskRulesText(holdUserRoot(record), holdUserRoot(judgment), hasVerification, fixCeilingLine, checkpointEmbed, reviewEachIncrement, host);
+  const rulesBlock = taskRulesText(holdUserRoot(record), holdUserRoot(judgment), hasVerification, fixCeilingLine, checkpointEmbed, reviewEachIncrement, host, workflowAgent);
   const recoveryBlock = recoveryCarriesNotes ? incrementResumeText(holdUserRoot(record), host) : "";
   // [Foreman: 597, 605, 701, 783] <context> and <invariants> are task evidence
   // on every host and profile: judgment.context, the entry's notes (unless
@@ -1654,7 +1661,7 @@ function assemble(root, input) {
       if (host === "codex") parts.push(`Foreman bookkeeping command: \`${pluginCommand("roadmap.js")}\`. Send each JSON payload from a UTF-8 file using the active shell. Commands are quoted for the crafting host; re-quote for a different shell, and refresh installed paths from the currently loaded Foreman skill if they moved.`);
     } else {
       parts.push(CONCISE_TRUTH_EMITTED);
-      parts.push(host === "claude" ? APPROVAL_SOURCE_SENTENCE : IMPLEMENTATION_AUTHORIZATION_SENTENCE);
+      parts.push(host === "claude" ? (workflowAgent ? STAGE_APPROVAL_SOURCE_SENTENCE : APPROVAL_SOURCE_SENTENCE) : IMPLEMENTATION_AUTHORIZATION_SENTENCE);
     }
     if (includeEntry && entryParagraph) parts.push(entryParagraph);
     if (includeTone) {
@@ -1689,7 +1696,12 @@ function assemble(root, input) {
     else if (destination !== "agent" && !workflowStage) parts.push(keepGoingParagraph);
     if (reinforced) parts.push(canonical.closing);
     else parts.push(CLOSURE_EVIDENCE_SENTENCE);
-    if (reinforced) parts.push(`<plan>\n${judgment.question && canonical.investigationPlan ? canonical.investigationPlan : canonical.plan}\n</plan>`);
+    if (reinforced) {
+      const plan = judgment.question && canonical.investigationPlan
+        ? (workflowAgent ? canonical.stageInvestigationPlan : canonical.investigationPlan)
+        : (workflowAgent ? canonical.stagePlan : canonical.plan);
+      parts.push(`<plan>\n${plan}\n</plan>`);
+    }
     if (workflowStage) parts.push(WORKFLOW_STAGE_SENTENCES[host]);
     else if (includeOutputFormat) parts.push(`<output_format>\n${defaultOutputFormat}\n</output_format>`);
     const firstRoot = parts.findIndex((part) => part && part.includes(CLAUDE_ROOT));

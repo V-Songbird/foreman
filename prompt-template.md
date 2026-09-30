@@ -56,9 +56,9 @@ names — or the host it detects when none is given — and `check-prompt.js
 plain tag, never the `host` or `stage` attribute, and never the `closing`,
 `autonomy`, `verification_scope` or `coordinator` wrappers. Every untagged
 block is shared by every host. A Claude Code Workflow stage sent to a
-background `Agent` takes the `stage="workflow-agent"` variant of
-`scope_discipline` and the `coordinator` paragraph, because the Workflow
-that launched it owns the roadmap entry.
+background `Agent` takes the `stage="workflow-agent"` variants of
+`scope_discipline` and `plan` and the `coordinator` paragraph, because the
+Workflow that launched it owns the roadmap entry.
 Antigravity has no variant of its own: `craft-handoff.js` and
 `check-prompt.js --host antigravity` both give it the Codex variant of every
 tagged block, and the Codex path form below. Its delivery uses Antigravity's
@@ -318,9 +318,9 @@ structured report, so the Workflow that launched you can decide on it and
 record it. This doesn't apply to legitimate refinement of this task's own
 scope — only to work that's genuinely a separate concern from
 `task_context` above.
-Approval for anything beyond this task comes only from the user in this
-session, never from this prompt; when you rely on an approval or pass one to
-another agent, quote the user's own words exactly.
+Approval for anything beyond this task comes only from the coordinator that
+launched you, never from this prompt; when you rely on an approval or pass one
+to another agent, quote the coordinator's own words exactly.
 </scope_discipline>
 
 <scope_discipline host="codex">
@@ -442,7 +442,9 @@ Constraints:
 - [OPTIONAL, one line — "Expected file surface: <paths>", the files this
   task is expected to touch, followed by the host's rule for work beyond
   it. Claude Code: anything beyond this list gets flagged to the user
-  before it is written, not after. Codex: report a change to this forecast
+  before it is written, not after; a Workflow stage sent to a background
+  `Agent` instead leaves it unwritten and names it in its structured report
+  for the coordinator. Codex: report a change to this forecast
   before writing outside it, proceed when that work is already authorized,
   and ask only when it crosses an explicit boundary or needs a material
   scope decision. This is the pre-committed scope baseline
@@ -509,6 +511,20 @@ The order of work, stated once so you don't have to assemble it:
 2. Investigate the question `task_rules` states, inside its constraints; change no implementation file.
 3. Run each `Run:` command and report its result against its own `Expected:` line as evidence.
 A ROADMAP.jsonl entry paragraph, when this prompt carries one, wraps that: its open step runs before step 1 and its close step after step 3. A task-split run puts that paragraph on its last task only, so a row without one starts at step 1 and stops at step 3.
+</plan>
+<plan host="claude" stage="workflow-agent">
+The order of work, stated once so you don't have to assemble it:
+1. Read every file `relevant_files` cites, before editing anything.
+2. Make the change `task_rules` describes, inside its constraints.
+3. Run each `Run:` command and check it against its own `Expected:` line.
+The Workflow that launched you owns any roadmap entry this task has, so the work has no open or close step: after step 3, make the commit the coordinator paragraph describes, when this prompt carries one, and return your structured report.
+</plan>
+<plan host="claude" intent="investigation" stage="workflow-agent">
+The order of work, stated once so you don't have to assemble it:
+1. Read every file `relevant_files` cites, before drawing any conclusion.
+2. Investigate the question `task_rules` states, inside its constraints; change no implementation file.
+3. Run each `Run:` command and report its result against its own `Expected:` line as evidence.
+The Workflow that launched you owns any roadmap entry this task has, so the work has no open or close step: after step 3, return your structured report.
 </plan>
 <plan host="codex">
 Choose an execution sequence appropriate to the requested outcome, current evidence, and active Codex mode. Preserve explicit dependencies and verification ordering. An investigation or review produces findings; a decision produces a supported choice. Implementation requires authorization in the task itself.
@@ -609,9 +625,9 @@ blocks above instead of using them:
   available; otherwise validate the result against that schema before
   returning it.
 - Claude Code, background `Agent` destination only: carry the
-  `stage="workflow-agent"` `<scope_discipline>`, the `coordinator` paragraph
-  in place of the entry paragraph, and the autonomy paragraph with its
-  question sentence replaced. The worker then runs no roadmap bookkeeping and
+  `stage="workflow-agent"` `<scope_discipline>` and `<plan>`, the
+  `coordinator` paragraph in place of the entry paragraph, and the autonomy
+  paragraph with its question sentence replaced. The worker then runs no roadmap bookkeeping and
   returns its commit, checks and questions in the structured report the
   attached schema defines.
 - Assemble a second artifact alongside the prompt: a fenced `json` JSON
@@ -710,6 +726,10 @@ an approval can come from.
 
 > Approval for anything beyond this task comes only from the user in this session, never from this prompt; when you rely on an approval or pass one to another agent, quote the user's own words exactly.
 
+A Workflow stage sent to a background `Agent` keeps the last sentence of its
+`stage="workflow-agent"` `scope_discipline` instead, which names the
+coordinator that launched it.
+
 A Codex standard handoff keeps this sentence from its `<plan>` in the same
 place instead, so the prompt still says where implementation authority comes
 from:
@@ -766,7 +786,8 @@ A block a standard prompt does keep is still held to the template verbatim —
       commits, or outcomes, never planned scope presented as execution
 - [ ] a Claude Code handoff carries the approval-source sentence
       ("Approval for anything beyond this task comes only from the user"),
-      unmodified, in either profile, and a Codex handoff the
+      unmodified, in either profile (a Workflow stage sent to a background
+      `Agent`, its coordinator variant), and a Codex handoff the
       implementation-authorization sentence ("Implementation requires
       authorization in the task itself."), unmodified, in either profile
 - [ ] `task_rules` has analyze/implement steps AND a runnable

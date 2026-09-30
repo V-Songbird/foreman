@@ -42,6 +42,14 @@ instead.
   runs no `update-status` or `safe-commit`. It commits only its own files, with
   `Foreman: <id>` as the last trailer, and returns the commit, its checks and
   any questions in its structured report instead of asking you.
+- That Workflow-stage agent handoff no longer carries any roadmap command.
+  When an entry's notes are too long to include in full, the handoff says how
+  much it left out but no longer gives the `roadmap.js` command that prints
+  them. Its approval rule, its order of work and its rule for files outside
+  the expected list now name the coordinator that launched the agent instead
+  of you. Reviewed increments are refused for this handoff with an error that
+  says why. The prompt check now also refuses a roadmap command whose script
+  path is in quotes.
 
 ### Codex
 

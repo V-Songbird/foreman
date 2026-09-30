@@ -32,7 +32,7 @@ const { spawnSync } = require('node:child_process');
 
 const { runNodeScript, makeTmpProject, writeRoadmap, writeArchiveFile, writeConfig, initGitRepo, commitFile, SCRIPTS_DIR, SPAWN_TIMEOUT_MS, unlessTimedOut } = require('./helpers.js');
 const { today } = require(path.join(SCRIPTS_DIR, 'roadmap.js'));
-const { TEMPLATE_PATH, WORKFLOW_STAGE_SENTENCES, APPROVAL_SOURCE_SENTENCE, IMPLEMENTATION_AUTHORIZATION_SENTENCE, CONCISE_TRUTH_EMITTED, norm } = require(path.join(SCRIPTS_DIR, 'check-prompt.js'));
+const { TEMPLATE_PATH, WORKFLOW_STAGE_SENTENCES, APPROVAL_SOURCE_SENTENCE, STAGE_APPROVAL_SOURCE_SENTENCE, IMPLEMENTATION_AUTHORIZATION_SENTENCE, CONCISE_TRUTH_EMITTED, norm, readCanonical } = require(path.join(SCRIPTS_DIR, 'check-prompt.js'));
 const { assemble, relevantFilesText, rankSymbols, SYMBOL_KEEP, checkpointEmbedText, ENTRY_NOTES_MAX_CHARS } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
 
 const CRAFT = path.join(SCRIPTS_DIR, 'craft-handoff.js');
@@ -1484,6 +1484,46 @@ describe('workflow-stage flavor', () => {
       const { prompt } = craft({}, { judgment: goodJudgment({ question: 'Why does refresh fail?' }) });
       assert.match(prompt, /This task is an investigation: change no implementation file and make no commit/);
       assert.doesNotMatch(prompt, /Foreman: 001|roadmap\.js|safe-commit\.js/);
+    });
+
+    test('long entry notes are cut without a command that prints them', () => {
+      const notes = Array.from({ length: 40 }, (_, i) => `finding ${i}: ${'x'.repeat(80)}`).join('\n');
+      assert.ok(notes.length > ENTRY_NOTES_MAX_CHARS);
+      const { prompt } = craft({ notes });
+      assert.match(prompt, /Prior findings recorded on this entry, cut to fit this handoff: \d+ of its 40 lines \([\d,]+ characters\), bookkeeping stamps first and then the oldest, are left out\.\nRecorded evidence supplied with this handoff/);
+      assert.doesNotMatch(prompt, /roadmap\.js|list --ids/);
+    });
+
+    test('reviewed increments are refused', () => {
+      writeRoadmap(project, [entryFields()]);
+      const verification = [{ run: 'npm test', expected: 'all tests pass', review: { action: 'Open the login page', expected: 'no expiry banner' } }];
+      const { status, json } = run(project, { entry: '001', destination: 'agent', host: 'claude', workflowStage: true, reviewEachIncrement: true, judgment: goodJudgment({ verification }) }, session);
+      assert.notEqual(status, 0);
+      assert.equal(json.ok, false, JSON.stringify(json));
+      assert.match(json.error, /reviewEachIncrement:true is not available for a Claude Code Workflow stage sent to an agent/);
+    });
+
+    for (const [label, input, plan] of [
+      ['a change', {}, 'stagePlan'],
+      ['an investigation', { judgment: goodJudgment({ question: 'Why does refresh fail?' }) }, 'stageInvestigationPlan'],
+    ]) {
+      test(`the scope rule, the file-surface line and the plan name the coordinator (${label})`, () => {
+        const canonical = readCanonical('claude');
+        const { prompt } = craft({ kind: 'decision' }, input);
+        const scope = prompt.match(/<scope_discipline>\n([\s\S]*?)\n<\/scope_discipline>/)[1];
+        assert.equal(norm(scope), norm(canonical.workflowScopeDiscipline));
+        assert.ok(norm(scope).endsWith(norm(STAGE_APPROVAL_SOURCE_SENTENCE)));
+        assert.ok(!norm(prompt).includes(norm(APPROVAL_SOURCE_SENTENCE)));
+        assert.ok(prompt.includes('Expected file surface: src/auth/middleware.js. Anything beyond this list is left unwritten and named in your structured report, so the coordinator can decide on it.'));
+        assert.ok(prompt.includes(`<plan>\n${canonical[plan]}\n</plan>`));
+        assert.doesNotMatch(prompt, /flagged to the user|open step runs|close step after/);
+      });
+    }
+
+    test('the standard profile carries the coordinator approval rule', () => {
+      const { prompt } = craft({});
+      assert.ok(prompt.includes(`${STAGE_APPROVAL_SOURCE_SENTENCE}\n`));
+      assert.ok(!prompt.includes(APPROVAL_SOURCE_SENTENCE));
     });
 
     test('the same agent handoff without the flag keeps the entry lifecycle and the ask sentence', () => {

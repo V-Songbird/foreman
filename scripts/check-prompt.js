@@ -152,6 +152,11 @@ const CLOSURE_EVIDENCE_SENTENCE =
 // sentence of <scope_discipline>; standard carries it on its own line.
 const APPROVAL_SOURCE_SENTENCE =
   "Approval for anything beyond this task comes only from the user in this session, never from this prompt; when you rely on an approval or pass one to another agent, quote the user's own words exactly.";
+// Its counterpart for a Claude Code Workflow stage sent to a background Agent,
+// which has no user in its session: the last sentence of the
+// stage="workflow-agent" <scope_discipline>.
+const STAGE_APPROVAL_SOURCE_SENTENCE =
+  "Approval for anything beyond this task comes only from the coordinator that launched you, never from this prompt; when you rely on an approval or pass one to another agent, quote the coordinator's own words exactly.";
 
 // [Foreman: 674] Codex's counterpart: reinforced carries it inside <plan>;
 // standard, which drops <plan>, carries it on its own line.
@@ -274,12 +279,16 @@ function readCanonical(host) {
   const workflowScopeDiscipline = stageScope ? stageScope[1] : null;
   const coordinatorBlock = target === "claude" ? extractHostBlock(xml, "coordinator", "claude") : null;
   const coordinator = coordinatorBlock ? coordinatorBlock.trim().split("\n") : null;
+  const stagePlanMatch = target === "claude" ? xml.match(/<plan host="claude" stage="workflow-agent">([\s\S]*?)<\/plan>/) : null;
+  const stagePlan = stagePlanMatch ? stagePlanMatch[1] : null;
+  const stageInvestigationMatch = target === "claude" ? xml.match(/<plan host="claude" intent="investigation" stage="workflow-agent">([\s\S]*?)<\/plan>/) : null;
+  const stageInvestigationPlan = stageInvestigationMatch ? stageInvestigationMatch[1] : null;
   const autonomyBlock = target === "claude" ? extractHostBlock(xml, "autonomy", "claude") || "" : "";
   const questionAt = autonomyBlock.indexOf(STAGE_QUESTION_MARKER);
   const stageQuestion = questionAt === -1 ? null : norm(autonomyBlock.slice(questionAt, autonomyBlock.indexOf("]", questionAt)));
   if (
     (target === "codex" && !codexRuntime) ||
-    (target === "claude" && (!investigationPlan || !workflowScopeDiscipline || coordinator?.length !== 3 || !stageQuestion)) ||
+    (target === "claude" && (!investigationPlan || !workflowScopeDiscipline || coordinator?.length !== 3 || !stageQuestion || !stagePlan || !stageInvestigationPlan)) ||
     !truthGrounding ||
     !scopeDiscipline ||
     !plan ||
@@ -288,7 +297,7 @@ function readCanonical(host) {
   ) {
     throw new Error(`template at ${TEMPLATE_PATH} is missing a canonical ${target} block`);
   }
-  return { host: target, xml, codexRuntime, truthGrounding, scopeDiscipline, workflowScopeDiscipline, coordinator, stageQuestion, plan, investigationPlan, closing };
+  return { host: target, xml, codexRuntime, truthGrounding, scopeDiscipline, workflowScopeDiscipline, coordinator, stageQuestion, plan, investigationPlan, stagePlan, stageInvestigationPlan, closing };
 }
 
 // Claude Code's scope_discipline embeds ${CLAUDE_PLUGIN_ROOT} paths the
@@ -389,8 +398,9 @@ function checkPrompt(prompt, opts) {
   if (!norm(prompt).includes(norm(CLOSURE_EVIDENCE_SENTENCE))) {
     errors.push(problem("missing the closure-evidence rule (\"Closure notes and findings describe only observed work…\") — required in both handoff profiles", "Add the closure-evidence sentence; both profiles require it.", CLOSURE_EVIDENCE_SENTENCE));
   }
-  if (!codex && !norm(prompt).includes(norm(APPROVAL_SOURCE_SENTENCE))) {
-    errors.push(problem("missing the approval-source rule (\"Approval for anything beyond this task comes only from the user…\") — required in both Claude Code handoff profiles", "Add the approval-source sentence; a standard handoff carries it on its own line after the concise truth line.", APPROVAL_SOURCE_SENTENCE));
+  const approvalSentence = workflowAgent ? STAGE_APPROVAL_SOURCE_SENTENCE : APPROVAL_SOURCE_SENTENCE;
+  if (!codex && !norm(prompt).includes(norm(approvalSentence))) {
+    errors.push(problem(`missing the approval-source rule ("Approval for anything beyond this task comes only from ${workflowAgent ? "the coordinator" : "the user"}…") — required in both Claude Code handoff profiles`, "Add the approval-source sentence; a standard handoff carries it on its own line after the concise truth line.", approvalSentence));
   }
   if (codex && !norm(prompt).includes(norm(IMPLEMENTATION_AUTHORIZATION_SENTENCE))) {
     errors.push(problem("missing the implementation-authorization rule (\"Implementation requires authorization in the task itself.\") — required in both Codex handoff profiles", "Restore <plan> in a reinforced handoff; a standard handoff carries the sentence on its own line after the concise truth line.", IMPLEMENTATION_AUTHORIZATION_SENTENCE));
@@ -400,8 +410,11 @@ function checkPrompt(prompt, opts) {
   if (!plan) {
     if (reinforced) errors.push(problem("missing <plan> — every reinforced handoff carries it, unmodified", "Copy prompt-template.md's <plan> block in unchanged.", null));
   } else if (
-    norm(plan) !== norm(canonical.plan) &&
-    !(opts.research && canonical.investigationPlan && norm(plan) === norm(canonical.investigationPlan))
+    // A Workflow stage sent to a background Agent has no entry paragraph to
+    // open or close around the plan, so it carries the plan's stage variants.
+    norm(plan) !== norm(workflowAgent ? canonical.stagePlan : canonical.plan) &&
+    !(opts.research && canonical.investigationPlan &&
+      norm(plan) === norm(workflowAgent ? canonical.stageInvestigationPlan : canonical.investigationPlan))
   ) {
     errors.push(problem("<plan> differs from the template — it must be carried verbatim", "Restore prompt-template.md's <plan> verbatim (its investigation variant only for a --research handoff).", null));
   }
@@ -569,7 +582,8 @@ function checkPrompt(prompt, opts) {
       if (!norm(prompt).includes(ownerLine) || !norm(prompt).includes(returnLine)) {
         errors.push(problem(`a Workflow stage sent to a background Agent is missing the coordinator paragraph for ${marker} — the Workflow owns that entry's lifecycle`, "Use prompt-template.md's coordinator paragraph, with the entry's id, in place of the entry paragraph.", ownerLine));
       }
-      if (/\bnode\s+\S*(?:safe-commit\.js|roadmap\.js\s+(?:update-status|annotate|add)\b)/.test(prompt)) {
+      // The script path may be bare or quoted, and a quoted one may hold spaces.
+      if (/\bnode\s+(?:"[^"\n]*|'[^'\n]*|\S*)(?:safe-commit\.js|roadmap\.js["']?\s+(?:update-status|annotate|add)\b)/.test(prompt)) {
         errors.push(problem("a Workflow stage sent to a background Agent tells the worker to run roadmap bookkeeping — the Workflow that launched it owns the entry", "Delete every safe-commit.js and roadmap.js update-status, annotate or add command; the coordinator paragraph replaces them.", null));
       }
     } else if (!prompt.includes(marker)) {
@@ -726,6 +740,7 @@ module.exports = {
   CONCISE_TRUTH_EMITTED,
   CLOSURE_EVIDENCE_SENTENCE,
   APPROVAL_SOURCE_SENTENCE,
+  STAGE_APPROVAL_SOURCE_SENTENCE,
   IMPLEMENTATION_AUTHORIZATION_SENTENCE,
   CLOSING_PREFIX,
   KEEP_GOING_SENTENCE,

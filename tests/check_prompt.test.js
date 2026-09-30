@@ -49,6 +49,7 @@ const {
   CONCISE_TRUTH_EMITTED,
   CLOSURE_EVIDENCE_SENTENCE,
   APPROVAL_SOURCE_SENTENCE,
+  STAGE_APPROVAL_SOURCE_SENTENCE,
   IMPLEMENTATION_AUTHORIZATION_SENTENCE,
   norm,
   CLOSING_PREFIX,
@@ -926,10 +927,11 @@ describe('host claude: a Workflow stage sent to an agent', () => {
     entry_paragraph: coordinator,
     tone: '',
     autonomy: `${AUTONOMY} ${canonical.stageQuestion}`,
+    plan: `<plan>${canonical.stagePlan}</plan>`,
     output_format: WORKFLOW_STAGE_SENTENCES.claude,
     ...overrides,
   });
-  const errorsOf = (prompt) => runCheck(makeTmpProject(), prompt, args).json.errors || [];
+  const errorsOf = (prompt, extra = []) => runCheck(makeTmpProject(), prompt, [...args, ...extra]).json.errors || [];
 
   test('the coordinator paragraph, the workflow-agent scope rule and the report sentence pass', () => {
     const { status, json } = runCheck(makeTmpProject(), stage(), args);
@@ -946,6 +948,37 @@ describe('host claude: a Workflow stage sent to an agent', () => {
     const errors = errorsOf(stage({ entry_paragraph: classic }));
     assert.ok(errors.some((e) => e.error.includes('missing the coordinator paragraph')), JSON.stringify(errors));
     assert.ok(errors.some((e) => e.error.includes('roadmap bookkeeping')), JSON.stringify(errors));
+  });
+
+  // A quoted script path slipped past the bookkeeping check.
+  test('a bookkeeping command on a quoted script path fails', () => {
+    for (const command of [
+      '`echo \'{"id":"007","status":"done"}\' | node "${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js" update-status`',
+      '`node \'/opt/my plugins/foreman/scripts/roadmap.js\' annotate`',
+      '`node "/opt/my plugins/foreman/scripts/safe-commit.js" begin`',
+    ]) {
+      const errors = errorsOf(stage({ entry_paragraph: `${coordinator}\n${command}` }));
+      assert.ok(errors.some((e) => e.error.includes('roadmap bookkeeping')), `${command}\n${JSON.stringify(errors)}`);
+    }
+  });
+
+  test('the plan and the approval rule name no entry paragraph and no user', () => {
+    for (const plan of [canonical.stagePlan, canonical.stageInvestigationPlan]) {
+      assert.doesNotMatch(plan, /open step runs|close step after|entry paragraph/);
+    }
+    assert.ok(norm(canonical.workflowScopeDiscipline).endsWith(norm(STAGE_APPROVAL_SOURCE_SENTENCE)));
+    assert.doesNotMatch(canonical.workflowScopeDiscipline, /\bthe user\b/);
+    assert.equal(errorsOf(stage({ plan: `<plan>${canonical.stageInvestigationPlan}</plan>` }), ['--research']).length, 0);
+  });
+
+  test('the ordinary plan and approval rule fail', () => {
+    for (const plan of [canonical.plan, canonical.investigationPlan]) {
+      const errors = errorsOf(stage({ plan: `<plan>${plan}</plan>` }), ['--research']);
+      assert.ok(errors.some((e) => e.error.includes('<plan> differs')), JSON.stringify(errors));
+    }
+    const standard = fixtures('claude').standardPrompt({ entry: coordinator, autonomy: `${AUTONOMY} ${canonical.stageQuestion}`, stage: WORKFLOW_STAGE_SENTENCES.claude });
+    const errors = errorsOf(standard, ['--profile', 'standard']);
+    assert.ok(errors.some((e) => e.error.includes('comes only from the coordinator') && e.example === STAGE_APPROVAL_SOURCE_SENTENCE), JSON.stringify(errors));
   });
 
   test('the ordinary scope rule, which logs extra work on the roadmap, fails', () => {
