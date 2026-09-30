@@ -31,21 +31,24 @@ instead.
 
 - A handoff crafted for a Workflow stage and sent to a background agent no
   longer mentions a user the agent does not have. Its autonomy paragraph says
-  the Workflow that launched the agent is not watching, and the agent returns
-  a question in its report instead of pausing for you. An investigation may
-  not start a fix unless that Workflow authorizes it. Its closing paragraph
-  names the agent's report, the commit message or the task's artifact as the
-  place for its findings, not the roadmap entry.
-- The prompt check now also refuses a `roadmap.js list` command in that
-  handoff, and a roadmap or `safe-commit.js` command with node options before
-  the script path, such as `node --no-warnings`.
+  the Workflow that launched the agent is not watching, and the pauses it
+  names are the coordinator's, not yours; questions still go in the
+  structured report. An investigation may not start a fix unless that
+  Workflow authorizes it. Its truth-grounding block and closing paragraph
+  name the agent's report, the commit message or the task's artifact as the
+  place for a mismatch and for findings, not the roadmap entry.
+- The prompt check now holds that handoff to its own truth-grounding block,
+  closing and autonomy paragraph, and refuses the ordinary autonomy paragraph
+  with only its question sentence changed. It also refuses a `roadmap.js
+  list` command there, and a roadmap or `safe-commit.js` command with node
+  options before the script path, such as `node --no-warnings`.
 - Reviewed increments are still refused for that handoff, with or without a
   roadmap entry. The error now gives the reason that holds in both cases:
   increment review waits for a person's decision after each increment, and
   the agent only returns its final report.
-- Correction to the 3.4.0 notes: that handoff's order of work did not start
-  naming the coordinator. It lost the roadmap entry's open and close steps,
-  which the Workflow now runs.
+- Correction to the 3.4.0 notes: that handoff's order of work never named
+  you. It lost the roadmap entry's open and close steps, and now says the
+  Workflow that launched the agent owns the entry.
 
 ## 3.4.0 — 2026-09-30
 

@@ -57,7 +57,8 @@ plain tag, never the `host` or `stage` attribute, and never the `closing`,
 `autonomy`, `verification_scope` or `coordinator` wrappers. Every untagged
 block is shared by every host. A Claude Code Workflow stage sent to a
 background `Agent` takes the `stage="workflow-agent"` variants of
-`scope_discipline`, `closing` and `plan`, the `coordinator` paragraph and its
+`truth_grounding`, `scope_discipline`, `closing` and `plan`, the
+`coordinator` paragraph and its
 own autonomy paragraph, because the Workflow that launched it owns the
 roadmap entry.
 Antigravity has no variant of its own: `craft-handoff.js` and
@@ -281,6 +282,21 @@ proceed from what you actually find — and treat the mismatch itself as part
 of the outcome: state it in one line of your final message (and in the
 roadmap entry's notes, if this task closes one). A minimal register trims
 narration, never a found discrepancy.
+One limit on that: the facts above are hypotheses, but the approach this
+prompt prescribes is a decision already taken. If what you find makes that
+approach unworkable, stop and report it — never silently substitute an
+approach of your own.
+</truth_grounding>
+<truth_grounding host="claude" stage="workflow-agent">
+Before acting on anything in this prompt, verify it against the current state
+of the codebase — read the cited files, run the cited commands. This prompt
+may have been written earlier and executed later (queued via TaskCreate, run
+by a background Agent, or pasted into a fresh session); treat every claim
+below as a hypothesis to confirm at the start of this session, never as a
+fact to assume. If reality contradicts this prompt, trust reality and
+proceed from what you actually find — and treat the mismatch itself as part
+of the outcome: state it in one line of your structured report. A minimal
+register trims narration, never a found discrepancy.
 One limit on that: the facts above are hypotheses, but the approach this
 prompt prescribes is a decision already taken. If what you find makes that
 approach unworkable, stop and report it — never silently substitute an
@@ -650,8 +666,8 @@ blocks above instead of using them:
   available; otherwise validate the result against that schema before
   returning it.
 - Claude Code, background `Agent` destination only: carry the
-  `stage="workflow-agent"` `<scope_discipline>`, closing paragraph and
-  `<plan>`, the `coordinator` paragraph in place of the entry paragraph, and
+  `stage="workflow-agent"` `<truth_grounding>`, `<scope_discipline>`,
+  closing paragraph and `<plan>`, the `coordinator` paragraph in place of the entry paragraph, and
   the Workflow-stage autonomy paragraph. The worker then runs no roadmap bookkeeping and
   returns its commit, checks and questions in the structured report the
   attached schema defines.

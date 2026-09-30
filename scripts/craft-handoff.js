@@ -1653,7 +1653,7 @@ function assemble(root, input) {
     }
     parts.push(taskContextBlock);
     if (reinforced) {
-      parts.push(`<truth_grounding>\n${canonical.truthGrounding}\n</truth_grounding>`);
+      parts.push(`<truth_grounding>\n${workflowAgent ? canonical.stageTruthGrounding : canonical.truthGrounding}\n</truth_grounding>`);
       parts.push(`<scope_discipline>\n${workflowAgent ? canonical.workflowScopeDiscipline : canonical.scopeDiscipline}\n</scope_discipline>`);
       if (host === "codex") parts.push(`Foreman bookkeeping command: \`${pluginCommand("roadmap.js")}\`. Send each JSON payload from a UTF-8 file using the active shell. Commands are quoted for the crafting host; re-quote for a different shell, and refresh installed paths from the currently loaded Foreman skill if they moved.`);
     } else {

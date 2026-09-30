@@ -1514,9 +1514,10 @@ describe('workflow-stage flavor', () => {
       assert.match(json.error, /waits for a person's decision after each increment, and this agent only returns its final report/);
     });
 
-    // The autonomy paragraph, the investigation rule and the closing were
-    // shared with the interactive form: they told the worker to pause for a
-    // user it does not have, and named the roadmap entry as a place to write.
+    // The autonomy paragraph, the investigation rule, truth_grounding and the
+    // closing were shared with the interactive form: they told the worker to
+    // pause for a user it does not have, and named the roadmap entry as a
+    // place to write.
     for (const [label, fields, input] of [
       ['standard change', {}, {}],
       ['reinforced change', { kind: 'decision' }, {}],
@@ -1526,7 +1527,9 @@ describe('workflow-stage flavor', () => {
       test(`the handoff names no user and no roadmap entry to write to (${label})`, () => {
         const canonical = readCanonical('claude');
         const { prompt, profile } = craft(fields, input);
-        assert.doesNotMatch(prompt, /\bthe user\b|Pause for the user|roadmap entry, the commit message/);
+        assert.doesNotMatch(prompt, /\bthe user\b|Pause for the user|roadmap entry, the commit message|roadmap entry's notes/);
+        assert.equal(prompt.includes('<truth_grounding>'), profile === 'reinforced');
+        if (profile === 'reinforced') assert.ok(norm(prompt).includes(norm(canonical.stageTruthGrounding)), 'the stage truth_grounding is missing');
         assert.ok(norm(prompt).includes(canonical.stageAutonomy), 'the stage autonomy paragraph is missing');
         assert.equal(norm(prompt).includes(norm(canonical.closing)), false);
         assert.equal(norm(prompt).includes(norm(canonical.stageClosing)), profile === 'reinforced');

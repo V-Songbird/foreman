@@ -98,8 +98,8 @@ const AUTONOMY_SENTENCE = "You are operating autonomously.";
 // agent destination carries the autonomy paragraph, like any agent handoff.
 const KEEP_GOING_SENTENCE = "Keep going until the goal above is met:";
 // A Claude Code Workflow stage sent to a background Agent has no user to ask:
-// the autonomy paragraph's ask sentence gives way to the template's
-// structured-report sentence, which opens with this.
+// it carries its own autonomy paragraph, whose structured-report sentence
+// opens with this, in place of the one with the ask sentence.
 const ASK_SENTENCE_RE = /If you hit one of these, ask and end the turn[^.]*\./;
 const STAGE_QUESTION_MARKER = "If you hit one of these, put the question";
 
@@ -285,6 +285,8 @@ function readCanonical(host) {
   const stageInvestigationPlan = stageInvestigationMatch ? stageInvestigationMatch[1] : null;
   const stageClosingMatch = target === "claude" ? xml.match(/<closing host="claude" stage="workflow-agent">([\s\S]*?)<\/closing>/) : null;
   const stageClosing = stageClosingMatch ? stageClosingMatch[1].trim() : null;
+  const stageTruthMatch = target === "claude" ? xml.match(/<truth_grounding host="claude" stage="workflow-agent">([\s\S]*?)<\/truth_grounding>/) : null;
+  const stageTruthGrounding = stageTruthMatch ? stageTruthMatch[1] : null;
   // The stage autonomy paragraph runs from its bracket's reminder to the end of
   // that bracket; its question sentence sits alone on one line inside it.
   const autonomyBlock = target === "claude" ? extractHostBlock(xml, "autonomy", "claude") || "" : "";
@@ -296,7 +298,7 @@ function readCanonical(host) {
   if (
     (target === "codex" && !codexRuntime) ||
     (target === "claude" && (!investigationPlan || !workflowScopeDiscipline || coordinator?.length !== 3 || !stageAutonomy || !stageQuestion ||
-      !stagePlan || !stageInvestigationPlan || !stageClosing?.startsWith(CLOSING_PREFIX.claude))) ||
+      !stagePlan || !stageInvestigationPlan || !stageClosing?.startsWith(CLOSING_PREFIX.claude) || !stageTruthGrounding)) ||
     !truthGrounding ||
     !scopeDiscipline ||
     !plan ||
@@ -305,7 +307,7 @@ function readCanonical(host) {
   ) {
     throw new Error(`template at ${TEMPLATE_PATH} is missing a canonical ${target} block`);
   }
-  return { host: target, xml, codexRuntime, truthGrounding, scopeDiscipline, workflowScopeDiscipline, coordinator, stageAutonomy, stageQuestion, plan, investigationPlan, stagePlan, stageInvestigationPlan, closing, stageClosing };
+  return { host: target, xml, codexRuntime, truthGrounding, stageTruthGrounding, scopeDiscipline, workflowScopeDiscipline, coordinator, stageAutonomy, stageQuestion, plan, investigationPlan, stagePlan, stageInvestigationPlan, closing, stageClosing };
 }
 
 // Claude Code's scope_discipline embeds ${CLAUDE_PLUGIN_ROOT} paths the
@@ -388,7 +390,7 @@ function checkPrompt(prompt, opts) {
     else if (!norm(prompt).includes(norm(CONCISE_TRUTH_SENTENCE))) {
       errors.push(problem("standard handoff is missing the concise truth-grounding line (\"Treat every claim in this prompt as a hypothesis…\") — the short profile drops the block, never the rule", "Add the concise truth-grounding sentence as its own line - the short profile drops the block, never the rule.", CONCISE_TRUTH_EMITTED));
     }
-  } else if (norm(truth) !== norm(canonical.truthGrounding)) {
+  } else if (norm(truth) !== norm(workflowAgent ? canonical.stageTruthGrounding : canonical.truthGrounding)) {
     errors.push(problem("<truth_grounding> differs from the template — it must be carried verbatim", "Restore prompt-template.md's <truth_grounding> byte for byte; no rewording is allowed.", null));
   }
   const scope = extractBlock(prompt, "scope_discipline");
@@ -624,6 +626,8 @@ function checkPrompt(prompt, opts) {
   }
   if (workflowAgent && hasAutonomy && (ASK_SENTENCE_RE.test(norm(prompt)) || !norm(prompt).includes(canonical.stageQuestion))) {
     errors.push(problem("a Workflow stage sent to a background Agent tells the worker to ask and end the turn — its final text is the return value, and no user reads a question there", "Replace the autonomy paragraph's ask sentence with the template's structured-report sentence.", canonical.stageQuestion));
+  } else if (workflowAgent && hasAutonomy && !norm(prompt).includes(canonical.stageAutonomy)) {
+    errors.push(problem("a Workflow stage sent to a background Agent is missing the Workflow-stage autonomy paragraph — the ordinary one tells the worker to pause for a user it does not have", "Use prompt-template.md's Workflow-stage autonomy paragraph, unaltered, in place of the ordinary one.", null));
   }
   if (!codex && opts.destination !== "agent" && !opts.workflowStage && !norm(prompt).includes(KEEP_GOING_SENTENCE)) {
     errors.push(problem(`missing the keep-going paragraph ("${KEEP_GOING_SENTENCE}") — a session with a user present stops mid-task to report without it`, "Add prompt-template.md's user-present paragraph after the request sentence; it names the only three pauses.", KEEP_GOING_SENTENCE));

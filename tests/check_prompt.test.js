@@ -923,6 +923,7 @@ describe('host claude: a Workflow stage sent to an agent', () => {
   const ASK = 'If you hit one of these, ask and end the turn, rather than ending on a promise.';
   const coordinator = canonical.coordinator.map((line) => line.split('<id>').join('007')).join('\n');
   const stage = (overrides = {}) => goodPrompt({
+    truth_grounding: `<truth_grounding>${canonical.stageTruthGrounding}</truth_grounding>`,
     scope_discipline: `<scope_discipline>${canonical.workflowScopeDiscipline}</scope_discipline>`,
     entry_paragraph: coordinator,
     tone: '',
@@ -977,18 +978,26 @@ describe('host claude: a Workflow stage sent to an agent', () => {
     }
   });
 
-  test('the stage autonomy paragraph and closing name no user and no roadmap entry to write to', () => {
+  test('the stage truth_grounding, autonomy paragraph and closing name no user and no roadmap entry to write to', () => {
     assert.ok(canonical.stageAutonomy.startsWith('You are operating autonomously.'));
     assert.ok(canonical.stageAutonomy.includes(canonical.stageQuestion));
     assert.ok(canonical.stageClosing.includes(CLOSURE_EVIDENCE_SENTENCE));
-    for (const text of [canonical.stageAutonomy, canonical.stageClosing]) {
+    for (const text of [canonical.stageTruthGrounding, canonical.stageAutonomy, canonical.stageClosing]) {
       assert.doesNotMatch(text, /\bthe user\b|\bthey\b|roadmap entry/, text);
     }
   });
 
-  test('the ordinary closing fails', () => {
-    const errors = errorsOf(stage({ closing: canonical.closing }));
+  test('the ordinary truth_grounding, closing or autonomy paragraph fails', () => {
+    let errors = errorsOf(stage({ closing: canonical.closing }));
     assert.ok(errors.some((e) => e.error.includes('closing paragraph')), JSON.stringify(errors));
+    errors = errorsOf(stage({ truth_grounding: `<truth_grounding>${canonical.truthGrounding}</truth_grounding>` }));
+    assert.ok(errors.some((e) => e.error.includes('<truth_grounding> differs')), JSON.stringify(errors));
+    // The ordinary paragraph with only its question sentence swapped still
+    // pauses for the user.
+    const swapped = `${AUTONOMY} ${canonical.stageQuestion}`;
+    assert.ok(norm(swapped).includes(norm(canonical.stageQuestion)));
+    errors = errorsOf(stage({ autonomy: swapped }));
+    assert.ok(errors.some((e) => e.error.includes('Workflow-stage autonomy paragraph')), JSON.stringify(errors));
   });
 
   test('the plan and the approval rule name no entry paragraph and no user', () => {
