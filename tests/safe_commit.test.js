@@ -184,6 +184,31 @@ describe('safe-commit begin', () => {
     assert.equal(json.baseline, undefined);
     assert.match(json.cause, /not a git repository/);
   });
+
+  // [Foreman: 967] The Codex desktop app's Windows sandbox fails any spawn
+  // with piped output as `spawnSync git EPERM`; a preload refuses pipes the
+  // same way, and begin still reads the tree through files.
+  test('a sandbox that refuses piped git output still yields the baseline', () => {
+    cleanRepo();
+    const shim = path.join(path.dirname(project), 'refuse-pipes.js');
+    fs.writeFileSync(shim, `
+      const cp = require('child_process');
+      for (const name of ['execFileSync', 'spawnSync']) {
+        const real = cp[name];
+        cp[name] = function (file, args, options = {}) {
+          if (file === 'git' && [].concat(options.stdio ?? 'pipe').includes('pipe')) {
+            throw Object.assign(new Error('spawnSync git EPERM'), { code: 'EPERM', errno: -4048, syscall: 'spawnSync git' });
+          }
+          return real.apply(this, arguments);
+        };
+      }
+    `);
+    const piped = begin();
+    env = { ...env, NODE_OPTIONS: `--require ${JSON.stringify(shim)}` };
+    const json = begin();
+    assert.equal(json.dirty, false, JSON.stringify(json));
+    assert.deepEqual(json.baseline, piped.baseline);
+  });
 });
 
 describe('safe-commit finish staging discipline', () => {

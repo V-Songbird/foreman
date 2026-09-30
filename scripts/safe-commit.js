@@ -21,8 +21,9 @@
 
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
 const crypto = require("crypto");
-const { execFileSync } = require("child_process");
+const { execFileSync, spawnSync } = require("child_process");
 // [Foreman: 125] One collision rule for planning and for picking — the same
 // touchesOverlap next-candidates uses.
 const {
@@ -41,9 +42,43 @@ const ROADMAP_FILE = "ROADMAP.jsonl";
 
 const { projectDir, parseFlags, printHelp } = require("./runtime");
 
+// [Foreman: 967] The Codex desktop app's Windows sandbox refuses a child
+// process whose output is a pipe (spawnSync git EPERM) and allows one that
+// writes to files, so a refused spawn runs again with stdout and stderr in
+// temporary files. The rerun fails the way execFileSync would.
+function runGit(root, args, options) {
+  try {
+    return execFileSync("git", args, { cwd: root, ...options });
+  } catch (error) {
+    if (error.code !== "EPERM") throw error;
+  }
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "foreman-git-"));
+  try {
+    const [outFile, errFile] = [path.join(dir, "out"), path.join(dir, "err")];
+    const [out, err] = [fs.openSync(outFile, "w"), fs.openSync(errFile, "w")];
+    let result;
+    try {
+      result = spawnSync("git", args, { cwd: root, stdio: ["ignore", out, err], timeout: options.timeout });
+    } finally {
+      fs.closeSync(out);
+      fs.closeSync(err);
+    }
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+      const stderr = fs.readFileSync(errFile, "utf-8");
+      throw Object.assign(new Error(`Command failed: git ${args.join(" ")}\n${stderr}`), {
+        status: result.status,
+        stderr,
+      });
+    }
+    return fs.readFileSync(outFile, options.encoding === "buffer" ? undefined : options.encoding);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 function git(root, args) {
-  return execFileSync("git", args, {
-    cwd: root,
+  return runGit(root, args, {
     encoding: "utf-8",
     stdio: ["ignore", "pipe", "pipe"],
     maxBuffer: 8 * 1024 * 1024,
@@ -60,8 +95,7 @@ function zsplit(out) {
 }
 
 function gitBuffer(root, args) {
-  return execFileSync("git", args, {
-    cwd: root,
+  return runGit(root, args, {
     encoding: "buffer",
     stdio: ["ignore", "pipe", "ignore"],
     maxBuffer: 64 * 1024 * 1024,

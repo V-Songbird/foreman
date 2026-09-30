@@ -39,9 +39,15 @@ instead.
 
 - A full Foreman lifecycle works in the Codex desktop app. In the one
   validated run, in the app's default permission mode, Foreman could not read
-  Git status and left the task uncommitted. The cause is not known yet. Commit
-  the task yourself after acceptance. See
+  Git status and left the task uncommitted. See
   [The Codex desktop app](../../CODEX.md#the-codex-desktop-app).
+- Foreman can now read Git status in the Codex desktop app's Windows sandbox.
+  The sandbox refuses to start Git from Node.js when Node.js reads Git's
+  output through a pipe, so `safe-commit.js` now runs Git with its output in
+  temporary files when that happens. Committing the task still needs your
+  approval to leave the sandbox.
+- When Foreman cannot read Git status, `safe-commit.js begin` now says why:
+  its `git_status_unavailable` result adds a `cause` with Git's error text.
 
 ## 3.3.0 — 2026-09-29
 

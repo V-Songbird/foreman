@@ -438,10 +438,16 @@ of the two names the app reports.
 
 Gaps in the default permission mode:
 
-- **No automatic task commit.** `safe-commit.js begin` returned `dirty:true`
-  with `git_status_unavailable`, although `git status` typed in the same
-  sandbox worked. Foreman then leaves the task's changes uncommitted, so
-  commit them yourself after acceptance. The cause is not known yet.
+- **No automatic task commit in 3.3.0.** `safe-commit.js begin` returned
+  `dirty:true` with `git_status_unavailable`, although `git status` typed in
+  the same sandbox worked. Foreman then leaves the task's changes uncommitted,
+  so commit them yourself after acceptance. The cause is the app's Windows
+  sandbox: it refuses to start a program from Node.js when Node.js reads the
+  program's output through a pipe, and Node.js reports `spawnSync git EPERM`.
+  The same program starts when its output goes to a file. From the next
+  release, `safe-commit.js` runs Git that way when the pipe is refused, and
+  `begin` returns the baseline inside the sandbox. The commit itself still
+  needs your approval to leave the sandbox, as the next item says.
 - **Git writes need approval.** An in-sandbox `git add` failed with
   `Unable to create '.git/index.lock': Permission denied`. The app then asked
   for approval to run `git commit` outside the sandbox. The CLI's
