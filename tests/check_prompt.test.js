@@ -926,7 +926,8 @@ describe('host claude: a Workflow stage sent to an agent', () => {
     scope_discipline: `<scope_discipline>${canonical.workflowScopeDiscipline}</scope_discipline>`,
     entry_paragraph: coordinator,
     tone: '',
-    autonomy: `${AUTONOMY} ${canonical.stageQuestion}`,
+    autonomy: canonical.stageAutonomy,
+    closing: canonical.stageClosing,
     plan: `<plan>${canonical.stagePlan}</plan>`,
     output_format: WORKFLOW_STAGE_SENTENCES.claude,
     ...overrides,
@@ -962,6 +963,34 @@ describe('host claude: a Workflow stage sent to an agent', () => {
     }
   });
 
+  // A list command, and node options before the script path, slipped past it.
+  test('a roadmap list command or a node option before the script path fails', () => {
+    for (const command of [
+      '`node "${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js" list`',
+      '`node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js list --ids 007`',
+      '`echo \'{"id":"007","status":"done"}\' | node --flag path/roadmap.js update-status`',
+      '`node --no-warnings "/opt/my plugins/foreman/scripts/safe-commit.js" begin`',
+      '`node -r ./preload.js --trace-warnings scripts/roadmap.js annotate`',
+    ]) {
+      const errors = errorsOf(stage({ entry_paragraph: `${coordinator}\n${command}` }));
+      assert.ok(errors.some((e) => e.error.includes('roadmap bookkeeping')), `${command}\n${JSON.stringify(errors)}`);
+    }
+  });
+
+  test('the stage autonomy paragraph and closing name no user and no roadmap entry to write to', () => {
+    assert.ok(canonical.stageAutonomy.startsWith('You are operating autonomously.'));
+    assert.ok(canonical.stageAutonomy.includes(canonical.stageQuestion));
+    assert.ok(canonical.stageClosing.includes(CLOSURE_EVIDENCE_SENTENCE));
+    for (const text of [canonical.stageAutonomy, canonical.stageClosing]) {
+      assert.doesNotMatch(text, /\bthe user\b|\bthey\b|roadmap entry/, text);
+    }
+  });
+
+  test('the ordinary closing fails', () => {
+    const errors = errorsOf(stage({ closing: canonical.closing }));
+    assert.ok(errors.some((e) => e.error.includes('closing paragraph')), JSON.stringify(errors));
+  });
+
   test('the plan and the approval rule name no entry paragraph and no user', () => {
     for (const plan of [canonical.stagePlan, canonical.stageInvestigationPlan]) {
       assert.doesNotMatch(plan, /open step runs|close step after|entry paragraph/);
@@ -976,7 +1005,7 @@ describe('host claude: a Workflow stage sent to an agent', () => {
       const errors = errorsOf(stage({ plan: `<plan>${plan}</plan>` }), ['--research']);
       assert.ok(errors.some((e) => e.error.includes('<plan> differs')), JSON.stringify(errors));
     }
-    const standard = fixtures('claude').standardPrompt({ entry: coordinator, autonomy: `${AUTONOMY} ${canonical.stageQuestion}`, stage: WORKFLOW_STAGE_SENTENCES.claude });
+    const standard = fixtures('claude').standardPrompt({ entry: coordinator, autonomy: canonical.stageAutonomy, stage: WORKFLOW_STAGE_SENTENCES.claude });
     const errors = errorsOf(standard, ['--profile', 'standard']);
     assert.ok(errors.some((e) => e.error.includes('comes only from the coordinator') && e.example === STAGE_APPROVAL_SOURCE_SENTENCE), JSON.stringify(errors));
   });

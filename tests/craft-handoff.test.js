@@ -1501,7 +1501,38 @@ describe('workflow-stage flavor', () => {
       assert.notEqual(status, 0);
       assert.equal(json.ok, false, JSON.stringify(json));
       assert.match(json.error, /reviewEachIncrement:true is not available for a Claude Code Workflow stage sent to an agent/);
+      assert.doesNotMatch(json.error, /roadmap entry/);
     });
+
+    test('reviewed increments are refused without an entry too, for a reason that holds there', () => {
+      const verification = [{ run: 'npm test', expected: 'all tests pass', review: { action: 'Open the login page', expected: 'no expiry banner' } }];
+      const { status, json } = run(project, {
+        title: 'Ad-hoc fix', what: 'Fix the refresh.', planned_touches: ['src/auth/middleware.js'],
+        destination: 'agent', host: 'claude', workflowStage: true, reviewEachIncrement: true, judgment: goodJudgment({ verification }),
+      }, session);
+      assert.notEqual(status, 0);
+      assert.match(json.error, /waits for a person's decision after each increment, and this agent only returns its final report/);
+    });
+
+    // The autonomy paragraph, the investigation rule and the closing were
+    // shared with the interactive form: they told the worker to pause for a
+    // user it does not have, and named the roadmap entry as a place to write.
+    for (const [label, fields, input] of [
+      ['standard change', {}, {}],
+      ['reinforced change', { kind: 'decision' }, {}],
+      ['standard investigation', {}, { judgment: goodJudgment({ question: 'Why does refresh fail?' }) }],
+      ['reinforced investigation', { notes: 'finding: refresh runs late. '.repeat(40) }, { judgment: goodJudgment({ question: 'Why does refresh fail?' }) }],
+    ]) {
+      test(`the handoff names no user and no roadmap entry to write to (${label})`, () => {
+        const canonical = readCanonical('claude');
+        const { prompt, profile } = craft(fields, input);
+        assert.doesNotMatch(prompt, /\bthe user\b|Pause for the user|roadmap entry, the commit message/);
+        assert.ok(norm(prompt).includes(canonical.stageAutonomy), 'the stage autonomy paragraph is missing');
+        assert.equal(norm(prompt).includes(norm(canonical.closing)), false);
+        assert.equal(norm(prompt).includes(norm(canonical.stageClosing)), profile === 'reinforced');
+        if (input.judgment) assert.match(prompt, /Do not implement a fix unless the coordinator that launched you separately authorizes it\./);
+      });
+    }
 
     for (const [label, input, plan] of [
       ['a change', {}, 'stagePlan'],

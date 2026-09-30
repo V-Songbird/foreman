@@ -57,8 +57,9 @@ plain tag, never the `host` or `stage` attribute, and never the `closing`,
 `autonomy`, `verification_scope` or `coordinator` wrappers. Every untagged
 block is shared by every host. A Claude Code Workflow stage sent to a
 background `Agent` takes the `stage="workflow-agent"` variants of
-`scope_discipline` and `plan` and the `coordinator` paragraph, because the
-Workflow that launched it owns the roadmap entry.
+`scope_discipline`, `closing` and `plan`, the `coordinator` paragraph and its
+own autonomy paragraph, because the Workflow that launched it owns the
+roadmap entry.
 Antigravity has no variant of its own: `craft-handoff.js` and
 `check-prompt.js --host antigravity` both give it the Codex variant of every
 tagged block, and the Codex path form below. Its delivery uses Antigravity's
@@ -494,6 +495,9 @@ if the interview selected it.]
 <closing host="claude">
 Don't reason in prose between tool calls. The steps and commands above are a working plan, not a narration script: whatever output style governs this session decides what you say aloud, so don't announce step transitions or restate command results in chat. The same style governs the register of your final message. Full evidence and findings belong in their durable home — the roadmap entry, the commit message, or the artifact the task names — with the final message stating the outcome and pointing there. Closure notes and findings describe only observed work and cite supporting files, commands, commits, or outcomes; never restate planned scope as evidence that it was executed.
 </closing>
+<closing host="claude" stage="workflow-agent">
+Don't reason in prose between tool calls. The steps and commands above are a working plan, not a narration script, so don't announce step transitions or restate command results. Full evidence and findings belong in their durable home — your structured report, the commit message, or the artifact the task names — and the Workflow that launched you records your report. Closure notes and findings describe only observed work and cite supporting files, commands, commits, or outcomes; never restate planned scope as evidence that it was executed.
+</closing>
 <closing host="codex">
 Complete the requested outcome and verify it with the checks above. Share concise progress when useful and report the outcome, evidence, and remaining limits. Explain decisions briefly when they help the user assess the result; do not provide a transcript of internal reasoning. Closure notes and findings describe only observed work and cite supporting files, commands, commits, or outcomes; never restate planned scope as evidence that it was executed.
 </closing>
@@ -580,17 +584,38 @@ the following paragraph verbatim right here instead. A session with a user
 present also stops mid-task to report, so this names its only pauses, as
 the Codex `scope_discipline` does. A Workflow stage for `Execute here` or a
 pasted session takes neither paragraph; one sent to a background `Agent`
-carries the autonomy paragraph above, with one sentence changed as the next
-bracket says.
+carries the paragraph the next bracket gives.
 Keep going until the goal above is met: do the reversible work it needs
 without asking for permission, and don't stop to report progress or a
 plan. Pause only for a destructive or irreversible action, a real scope
 change, or input only the user can provide.]
 [WORKFLOW-STAGE AGENT — a Workflow stage sent to a background `Agent` has
 no user to ask: its final text is the return value, read by the Workflow
-that launched it. It carries the autonomy paragraph above with this sentence
-in place of the one that says to ask and end the turn:
-If you hit one of these, put the question in your structured report — in the field its schema gives for questions, such as needs_owner — and end the turn there, rather than ending on a promise.]
+that launched it. It carries the following paragraph verbatim in place of
+the background-agent paragraph above: the same reminder and pauses, with the
+coordinator in place of the user and the question returned in the report
+instead of asked.
+You are operating autonomously. The Workflow that launched you is not
+watching in real time and cannot answer questions mid-task, so asking 'Want
+me to…?' or 'Shall I…?' will block the work. For reversible actions that
+follow from the original request, proceed without asking. Offering
+follow-ups after the task is done is fine; asking permission before doing
+the work is not. Pause only when the work genuinely requires the
+coordinator: a destructive or irreversible action, a real scope change, or
+input that only it can provide.
+If you hit one of these, put the question in your structured report — in the field its schema gives for questions, such as needs_owner — and end the turn there, rather than ending on a promise.
+Before ending your turn, check your last paragraph. If it is a plan, an
+analysis, a question outside those three pauses, a list of next steps, or
+a promise about work you have not done ('I'll…', 'let me know when…'), do
+that work now with tool calls. That includes retrying after errors and
+gathering missing information yourself. Do not stop because the context
+or session is long. End your turn only when the task is complete, you
+have paused for one of those three reasons, or you are blocked on input
+only the coordinator can provide.
+Before running a command that changes system state (such as restarts,
+deletes, or config edits), check that the evidence actually supports that
+specific action. A signal that pattern-matches to a known failure may
+have a different cause.]
 </autonomy>
 <autonomy host="codex">
 [BACKGROUND-AGENT DESTINATION — include the paragraph below only for a delegated subagent.]
@@ -625,9 +650,9 @@ blocks above instead of using them:
   available; otherwise validate the result against that schema before
   returning it.
 - Claude Code, background `Agent` destination only: carry the
-  `stage="workflow-agent"` `<scope_discipline>` and `<plan>`, the
-  `coordinator` paragraph in place of the entry paragraph, and the autonomy
-  paragraph with its question sentence replaced. The worker then runs no roadmap bookkeeping and
+  `stage="workflow-agent"` `<scope_discipline>`, closing paragraph and
+  `<plan>`, the `coordinator` paragraph in place of the entry paragraph, and
+  the Workflow-stage autonomy paragraph. The worker then runs no roadmap bookkeeping and
   returns its commit, checks and questions in the structured report the
   attached schema defines.
 - Assemble a second artifact alongside the prompt: a fenced `json` JSON

@@ -25,6 +25,28 @@ listings pin a release commit and carry no version of their own. Claude Code
 releases up to 2.7.0 kept their number in the foundry marketplace listing
 instead.
 
+## Unreleased
+
+### Claude Code
+
+- A handoff crafted for a Workflow stage and sent to a background agent no
+  longer mentions a user the agent does not have. Its autonomy paragraph says
+  the Workflow that launched the agent is not watching, and the agent returns
+  a question in its report instead of pausing for you. An investigation may
+  not start a fix unless that Workflow authorizes it. Its closing paragraph
+  names the agent's report, the commit message or the task's artifact as the
+  place for its findings, not the roadmap entry.
+- The prompt check now also refuses a `roadmap.js list` command in that
+  handoff, and a roadmap or `safe-commit.js` command with node options before
+  the script path, such as `node --no-warnings`.
+- Reviewed increments are still refused for that handoff, with or without a
+  roadmap entry. The error now gives the reason that holds in both cases:
+  increment review waits for a person's decision after each increment, and
+  the agent only returns its final report.
+- Correction to the 3.4.0 notes: that handoff's order of work did not start
+  naming the coordinator. It lost the roadmap entry's open and close steps,
+  which the Workflow now runs.
+
 ## 3.4.0 — 2026-09-30
 
 ### Every host

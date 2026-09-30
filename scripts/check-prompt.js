@@ -283,12 +283,20 @@ function readCanonical(host) {
   const stagePlan = stagePlanMatch ? stagePlanMatch[1] : null;
   const stageInvestigationMatch = target === "claude" ? xml.match(/<plan host="claude" intent="investigation" stage="workflow-agent">([\s\S]*?)<\/plan>/) : null;
   const stageInvestigationPlan = stageInvestigationMatch ? stageInvestigationMatch[1] : null;
+  const stageClosingMatch = target === "claude" ? xml.match(/<closing host="claude" stage="workflow-agent">([\s\S]*?)<\/closing>/) : null;
+  const stageClosing = stageClosingMatch ? stageClosingMatch[1].trim() : null;
+  // The stage autonomy paragraph runs from its bracket's reminder to the end of
+  // that bracket; its question sentence sits alone on one line inside it.
   const autonomyBlock = target === "claude" ? extractHostBlock(xml, "autonomy", "claude") || "" : "";
-  const questionAt = autonomyBlock.indexOf(STAGE_QUESTION_MARKER);
-  const stageQuestion = questionAt === -1 ? null : norm(autonomyBlock.slice(questionAt, autonomyBlock.indexOf("]", questionAt)));
+  const stageBracket = autonomyBlock.indexOf("[WORKFLOW-STAGE AGENT");
+  const stageAt = stageBracket === -1 ? -1 : autonomyBlock.indexOf(AUTONOMY_SENTENCE, stageBracket);
+  const stageAutonomy = stageAt === -1 ? null : norm(autonomyBlock.slice(stageAt, autonomyBlock.indexOf("]", stageAt)));
+  const questionAt = stageAt === -1 ? -1 : autonomyBlock.indexOf(STAGE_QUESTION_MARKER, stageAt);
+  const stageQuestion = questionAt === -1 ? null : norm(autonomyBlock.slice(questionAt, autonomyBlock.indexOf("\n", questionAt)));
   if (
     (target === "codex" && !codexRuntime) ||
-    (target === "claude" && (!investigationPlan || !workflowScopeDiscipline || coordinator?.length !== 3 || !stageQuestion || !stagePlan || !stageInvestigationPlan)) ||
+    (target === "claude" && (!investigationPlan || !workflowScopeDiscipline || coordinator?.length !== 3 || !stageAutonomy || !stageQuestion ||
+      !stagePlan || !stageInvestigationPlan || !stageClosing?.startsWith(CLOSING_PREFIX.claude))) ||
     !truthGrounding ||
     !scopeDiscipline ||
     !plan ||
@@ -297,7 +305,7 @@ function readCanonical(host) {
   ) {
     throw new Error(`template at ${TEMPLATE_PATH} is missing a canonical ${target} block`);
   }
-  return { host: target, xml, codexRuntime, truthGrounding, scopeDiscipline, workflowScopeDiscipline, coordinator, stageQuestion, plan, investigationPlan, stagePlan, stageInvestigationPlan, closing };
+  return { host: target, xml, codexRuntime, truthGrounding, scopeDiscipline, workflowScopeDiscipline, coordinator, stageAutonomy, stageQuestion, plan, investigationPlan, stagePlan, stageInvestigationPlan, closing, stageClosing };
 }
 
 // Claude Code's scope_discipline embeds ${CLAUDE_PLUGIN_ROOT} paths the
@@ -391,7 +399,7 @@ function checkPrompt(prompt, opts) {
       ? problem("<scope_discipline> differs from the template — it must be carried verbatim", "Restore prompt-template.md's <scope_discipline> without rewording.", null)
       : problem("<scope_discipline> differs from the template — it must be carried verbatim (only the ${CLAUDE_PLUGIN_ROOT} paths are substituted)", "Restore prompt-template.md's <scope_discipline> and change nothing but the ${CLAUDE_PLUGIN_ROOT} paths.", null));
   }
-  if (reinforced && !segmentsInOrder(canonical.closing, prompt)) {
+  if (reinforced && !segmentsInOrder(workflowAgent ? canonical.stageClosing : canonical.closing, prompt)) {
     errors.push(problem(`the fixed closing paragraph ("${CLOSING_PREFIX[host]}…") is missing or altered`, "Append the template's fixed closing paragraph, unaltered, as the last thing in the prompt.", null));
   }
   // [Foreman: 138] The one guardrail neither profile may drop.
@@ -582,9 +590,10 @@ function checkPrompt(prompt, opts) {
       if (!norm(prompt).includes(ownerLine) || !norm(prompt).includes(returnLine)) {
         errors.push(problem(`a Workflow stage sent to a background Agent is missing the coordinator paragraph for ${marker} — the Workflow owns that entry's lifecycle`, "Use prompt-template.md's coordinator paragraph, with the entry's id, in place of the entry paragraph.", ownerLine));
       }
-      // The script path may be bare or quoted, and a quoted one may hold spaces.
-      if (/\bnode\s+(?:"[^"\n]*|'[^'\n]*|\S*)(?:safe-commit\.js|roadmap\.js["']?\s+(?:update-status|annotate|add)\b)/.test(prompt)) {
-        errors.push(problem("a Workflow stage sent to a background Agent tells the worker to run roadmap bookkeeping — the Workflow that launched it owns the entry", "Delete every safe-commit.js and roadmap.js update-status, annotate or add command; the coordinator paragraph replaces them.", null));
+      // The script path may be bare or quoted, a quoted one may hold spaces,
+      // and node options, with or without a value, may come before it.
+      if (/\bnode\s+(?:-[^\s"']*\s+(?:[^\s"'-][^\s"']*\s+)?)*(?:"[^"\n]*|'[^'\n]*|\S*)(?:safe-commit\.js|roadmap\.js["']?\s+(?:update-status|annotate|add|list)\b)/.test(prompt)) {
+        errors.push(problem("a Workflow stage sent to a background Agent tells the worker to run roadmap bookkeeping — the Workflow that launched it owns the entry", "Delete every safe-commit.js and roadmap.js update-status, annotate, add or list command; the coordinator paragraph replaces them.", null));
       }
     } else if (!prompt.includes(marker)) {
       errors.push(problem(`missing the entry paragraph naming ${marker} — the destination session can't mark or close the entry without it`, "Add the entry paragraph naming the roadmap id, so the destination can open and close the entry itself.", null));

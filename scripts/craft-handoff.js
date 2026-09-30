@@ -86,7 +86,6 @@ const {
   IMPLEMENTATION_AUTHORIZATION_SENTENCE,
   NO_INVENTION_SENTENCE,
   FIX_CEILING_SENTENCE,
-  ASK_SENTENCE_RE,
   WORKFLOW_STAGE_SENTENCES,
 } = require("./check-prompt.js");
 
@@ -207,11 +206,9 @@ function templateDefaults(host) {
     return at === -1 || end === -1 ? null : norm(autonomyInner.slice(at, end));
   };
   const autonomyParagraph = paragraphFrom(AUTONOMY_MARKER);
-  // A Claude Code Workflow stage sent to a background Agent returns its
-  // questions in the structured report instead of asking.
-  const stageAutonomyParagraph = autonomyParagraph && canonical.stageQuestion
-    ? autonomyParagraph.replace(ASK_SENTENCE_RE, canonical.stageQuestion)
-    : null;
+  // A Claude Code Workflow stage sent to a background Agent has its own
+  // paragraph: it names the coordinator and returns questions in the report.
+  const stageAutonomyParagraph = canonical.stageAutonomy || null;
   return {
     canonical,
     defaultTone,
@@ -1005,7 +1002,7 @@ function taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkp
       "This is a decision, not a build: resolve the open question — state the choice and the reason it wins over the alternatives — and do not write implementation code for it. The deliverable is the decision."
     );
   } else if (judgment.question) {
-    lines.push("Investigate the question and return findings with supporting evidence. Do not implement a fix unless the user separately authorizes it.");
+    lines.push(`Investigate the question and return findings with supporting evidence. Do not implement a fix unless ${workflowAgent ? "the coordinator that launched you" : "the user"} separately authorizes it.`);
   }
   // Codex handoffs frame the steps as a suggested approach; Claude Code's
   // truth_grounding treats the approach a prompt prescribes as a decision taken.
@@ -1487,7 +1484,7 @@ function assemble(root, input) {
   // the entry and reads the worker's final text as its return value.
   const workflowAgent = Boolean(input.workflowStage) && destination === "agent" && host === "claude";
   if (reviewEachIncrement && workflowAgent) {
-    throw new Error("reviewEachIncrement:true is not available for a Claude Code Workflow stage sent to an agent: increment review records each decision on the roadmap entry, which the Workflow that launched the agent owns");
+    throw new Error("reviewEachIncrement:true is not available for a Claude Code Workflow stage sent to an agent: increment review waits for a person's decision after each increment, and this agent only returns its final report to the Workflow that launched it");
   }
   if (reviewEachIncrement) {
     if (!judgment.verification?.length || judgment.verification.some((row) => !row.review)) {
@@ -1694,7 +1691,7 @@ function assemble(root, input) {
     parts.push(requestSentence);
     if (destination === "agent" && autonomyParagraph) parts.push(workflowAgent ? stageAutonomyParagraph : autonomyParagraph);
     else if (destination !== "agent" && !workflowStage) parts.push(keepGoingParagraph);
-    if (reinforced) parts.push(canonical.closing);
+    if (reinforced) parts.push(workflowAgent ? canonical.stageClosing : canonical.closing);
     else parts.push(CLOSURE_EVIDENCE_SENTENCE);
     if (reinforced) {
       const plan = judgment.question && canonical.investigationPlan
