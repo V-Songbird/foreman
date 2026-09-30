@@ -42,6 +42,11 @@ instead.
   with only its question sentence changed. It also refuses a `roadmap.js
   list` command there, and a roadmap or `safe-commit.js` command with node
   options before the script path, such as `node --no-warnings`.
+- The prompt check now refuses every `roadmap.js` and `safe-commit.js`
+  command in that handoff, also when it has no roadmap entry. This includes
+  commands such as `roadmap.js correct` or `archive`, and commands with a
+  quoted node option value before the script path, such as
+  `node --title "a b" scripts/roadmap.js list`.
 - Reviewed increments are still refused for that handoff, with or without a
   roadmap entry. The error now gives the reason that holds in both cases:
   increment review waits for a person's decision after each increment, and

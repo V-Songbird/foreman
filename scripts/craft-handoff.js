@@ -21,8 +21,11 @@
 // `workflowStage: true` drops <tone>, replaces <output_format> with the
 // fixed enforcement sentence, and is passed through to check-prompt.js's
 // gate as --workflow-stage would be on the CLI (entry 204). A Claude Code
-// stage sent to an agent also gets the Workflow-owned entry: the coordinator
-// paragraph, the workflow-agent scope rule and questions returned in the report.
+// stage sent to an agent also takes the Workflow-owned variants: the
+// coordinator paragraph in place of the entry paragraph and its bookkeeping
+// commands, the workflow-agent <scope_discipline>, the stage
+// <truth_grounding>, closing, autonomy paragraph and <plan>, and the question
+// sentence that returns questions in the structured report.
 // `host: "claude" | "codex" | "antigravity"` names the host that will run the
 // handoff; it is detected when absent, and antigravity takes the Codex form.
 // It picks the host-tagged template variants, the plugin-path form, and each

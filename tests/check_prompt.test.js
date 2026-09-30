@@ -978,6 +978,43 @@ describe('host claude: a Workflow stage sent to an agent', () => {
     }
   });
 
+  // [Foreman: 979] An entry-less stage prompt skipped the bookkeeping check,
+  // only four roadmap.js subcommands were refused, and a quoted node option
+  // value before the script path hid the command.
+  const entryLess = ['--destination', 'agent', '--workflow-stage', '--host', 'claude'];
+  test('any roadmap.js or safe-commit.js command fails, with or without an entry', () => {
+    for (const command of [
+      '`node --title "a b" "${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js" correct`',
+      '`node --title \'a b\' scripts/roadmap.js list`',
+      '`node --title="a b" scripts/roadmap.js archive`',
+      '`node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-deps`',
+      '`node "${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js" note-prune`',
+      '`node --title "a b" "${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js" begin`',
+    ]) {
+      const withEntry = errorsOf(stage({ entry_paragraph: `${coordinator}\n${command}` }));
+      assert.ok(withEntry.some((e) => e.error.includes('roadmap bookkeeping')), `${command}\n${JSON.stringify(withEntry)}`);
+      const without = runCheck(makeTmpProject(), stage({ entry_paragraph: command }), entryLess).json.errors || [];
+      assert.ok(without.some((e) => e.error.includes('roadmap bookkeeping')), `${command}\n${JSON.stringify(without)}`);
+    }
+  });
+
+  test('a stage prompt craft-handoff.js emits, with or without an entry, still passes', () => {
+    assert.equal(runCheck(makeTmpProject(), stage({ entry_paragraph: '' }), entryLess).status, 0);
+    const project = makeTmpProject();
+    const day = new Date().toISOString().slice(0, 10);
+    writeRoadmap(project, [{ id: '001', title: 'Fix token refresh bug', why: 'Sessions expire mid-request.', what: 'Refresh the token before it expires.', status: 'planned', source: 'user', depends_on: [], planned_touches: ['src/auth/middleware.ts'], observed_touches: [], commits: [], created_at: day, updated_at: day, notes: '' }]);
+    const judgment = { role: 'a senior engineer', goal: 'to fix the retry bug so all tests pass', context: 'Uses JWT tokens in httpOnly cookies.', steps: ['Fix the bug.'], constraints: ['Do not modify the public API.'], verification: [{ run: 'npm test', expected: 'all tests pass' }] };
+    for (const input of [
+      { entry: '001' },
+      { title: 'Fix token refresh bug', what: 'Refresh the token before it expires.', planned_touches: ['src/auth/middleware.ts'], request: 'Fix the token refresh bug.' },
+    ]) {
+      const result = runNodeScript(CRAFT, [], { ...input, destination: 'agent', host: 'claude', workflowStage: true, judgment }, { CLAUDE_PROJECT_DIR: project });
+      const emitted = JSON.parse(result.stdout);
+      assert.equal(emitted.ok, true, result.stdout);
+      assert.deepEqual(emitted.gate.errors, [], JSON.stringify(emitted.gate));
+    }
+  });
+
   test('the stage truth_grounding, autonomy paragraph and closing name no user and no roadmap entry to write to', () => {
     assert.ok(canonical.stageAutonomy.startsWith('You are operating autonomously.'));
     assert.ok(canonical.stageAutonomy.includes(canonical.stageQuestion));

@@ -582,20 +582,24 @@ function checkPrompt(prompt, opts) {
     errors.push(problem("missing <output_format> — include the template default unless the project omits it", "Add <output_format> with the template default unless the project omits it.", "<output_format>\nGive a concise, human-readable summary: what changed, and the verification result. No XML tags in the visible response.\n</output_format>"));
   }
 
+  // --- roadmap bookkeeping in a Workflow stage sent to an agent ---
+  // The Workflow owns the roadmap, with or without an entry, so the worker
+  // runs no roadmap.js or safe-commit.js command. The script path may be bare
+  // or quoted, a quoted one may hold spaces, and node options, with or
+  // without a value, quoted or not, may come before it.
+  if (workflowAgent && /\bnode\s+(?:-(?:[^\s"']|"[^"\n]*"|'[^'\n]*')*\s+(?:(?:"[^"\n]*"|'[^'\n]*'|[^\s"'-][^\s"']*)\s+)?)*(?:"[^"\n]*|'[^'\n]*|\S*)(?:safe-commit|roadmap)\.js\b/.test(prompt)) {
+    errors.push(problem("a Workflow stage sent to a background Agent tells the worker to run roadmap bookkeeping — the Workflow that launched it owns the roadmap", "Delete every roadmap.js and safe-commit.js command; the coordinator paragraph replaces them.", null));
+  }
+
   // --- roadmap-entry paragraph ---
   if (opts.entry) {
     const marker = `ROADMAP.jsonl entry \`${opts.entry}\``;
     if (workflowAgent) {
       // The Workflow owns the entry's lifecycle, so the worker gets the
-      // coordinator paragraph and no bookkeeping command.
+      // coordinator paragraph in place of the entry paragraph.
       const [ownerLine, , returnLine] = canonical.coordinator.map((line) => norm(line.split("<id>").join(opts.entry)));
       if (!norm(prompt).includes(ownerLine) || !norm(prompt).includes(returnLine)) {
         errors.push(problem(`a Workflow stage sent to a background Agent is missing the coordinator paragraph for ${marker} — the Workflow owns that entry's lifecycle`, "Use prompt-template.md's coordinator paragraph, with the entry's id, in place of the entry paragraph.", ownerLine));
-      }
-      // The script path may be bare or quoted, a quoted one may hold spaces,
-      // and node options, with or without a value, may come before it.
-      if (/\bnode\s+(?:-[^\s"']*\s+(?:[^\s"'-][^\s"']*\s+)?)*(?:"[^"\n]*|'[^'\n]*|\S*)(?:safe-commit\.js|roadmap\.js["']?\s+(?:update-status|annotate|add|list)\b)/.test(prompt)) {
-        errors.push(problem("a Workflow stage sent to a background Agent tells the worker to run roadmap bookkeeping — the Workflow that launched it owns the entry", "Delete every safe-commit.js and roadmap.js update-status, annotate, add or list command; the coordinator paragraph replaces them.", null));
       }
     } else if (!prompt.includes(marker)) {
       errors.push(problem(`missing the entry paragraph naming ${marker} — the destination session can't mark or close the entry without it`, "Add the entry paragraph naming the roadmap id, so the destination can open and close the entry itself.", null));
