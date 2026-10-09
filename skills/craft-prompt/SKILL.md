@@ -67,7 +67,8 @@ read [call-4.md](call-4.md) (`${CLAUDE_PLUGIN_ROOT}/skills/craft-prompt/call-4.m
 
 ## When an answer is "I don't know"
 
-When any answer comes back as a don't-know, read [dont-know.md](dont-know.md) (`${CLAUDE_PLUGIN_ROOT}/skills/craft-prompt/dont-know.md`) and follow it.
+When any answer comes back as a don't-know, or Call 2 Q3 comes back as
+`I can only name the area` or names no file, read [dont-know.md](dont-know.md) (`${CLAUDE_PLUGIN_ROOT}/skills/craft-prompt/dont-know.md`) and follow it.
 
 ---
 
