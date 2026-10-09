@@ -135,7 +135,7 @@ live session only that one call saw it; the next request no longer did.
 ## Review between increments
 
 > [!NOTE]
-> Codex only. Claude Code does not offer this yet.
+> Codex only. Claude Code and Antigravity do not offer this.
 
 Sometimes you want to see each part of a task before the next part is built.
 In Codex you can ask for exactly that: Foreman runs one roadmap task in

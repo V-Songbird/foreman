@@ -123,7 +123,7 @@ any moment is supported. See [`TRIALS.md`](TRIALS.md).
 
 ## Reviewed increments are not a setting
 
-This applies to Codex only; Claude Code does not offer reviewed increments yet.
+This applies to Codex only; Claude Code and Antigravity do not offer reviewed increments.
 
 `reviewEachIncrement` is **not a setting and not a roadmap field**. The prompt
 builder receives it only for a run where you explicitly ask to approve each

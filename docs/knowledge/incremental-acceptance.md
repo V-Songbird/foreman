@@ -13,11 +13,10 @@ related_files:
 
 # Accepting a task increment by increment
 
-This contract is implemented for Codex only, and the owner accepted reviewed
-increments for Codex as a whole on 2026-10-09. Claude Code's skills and
-Antigravity do not offer the protocol, and the documentation says it is not
-available there yet; offering it on those hosts is a separate decision. The
-contract does not certify acceptance of any single implemented result.
+This contract is offered on Codex only, by decision, and the owner accepted
+reviewed increments for Codex as a whole on 2026-10-09. The skills of Claude
+Code and Antigravity do not offer the protocol, and the documentation says so.
+The contract does not certify acceptance of any single implemented result.
 
 ## 1. Product agreement
 
@@ -238,6 +237,17 @@ and spontaneous use apart when recording it.
 Foreman accepts each meaningful increment, implemented on the current split and
 notes, with assisted recovery and explicit limits. A separate V1 store and
 automatic advancement when no answer arrives are both out.
+
+Per host:
+
+| Host | Reviewed increments |
+| --- | --- |
+| Codex | Offered, on explicit request |
+| Claude Code | Not offered |
+| Antigravity | Not offered |
+
+The prompt builder still accepts review rows on every host; the hosts differ in
+whether their skills offer the protocol.
 
 Pausing only on exclusively human checks would be a different product contract.
 Adopting it requires an explicit change to this document before the tasks are

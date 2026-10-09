@@ -57,8 +57,8 @@ naming a public page when one exists. Never
 present a Claude Code result as a Codex result, never treat unit tests as a performance run, and
 show `Not measured` where evidence is absent.
 
-Reviewed increments stay a Codex feature until the owner decides otherwise: the assembler
-accepts review rows on both hosts, but Claude Code's skills do not offer the protocol.
+Reviewed increments are offered on Codex only, by decision: the assembler accepts review rows
+on both hosts, but the skills of Claude Code and Antigravity do not offer the protocol.
 
 Preserve roadmap format 2 and records written by either host. Keep scripts dependency-free.
 Benchmark runners, datasets and experiments are not part of the package; `tests/` holds

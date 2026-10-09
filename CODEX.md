@@ -98,7 +98,7 @@ for the source mapping, the Foreman policies kept, and the validation limits.
 | Roadmap, ledger, archive, health and trials | Shared Node.js core | The same | Format 2 and optional legacy settings are kept |
 | Model and effort history | Family label such as `sonnet` | Exact model identifier and actual effort | Runtime defaults are inherited; a valid value says nothing about availability |
 | Script paths in handoffs | `${CLAUDE_PLUGIN_ROOT}`, filled in by Claude Code | Verified installed paths, quoted | A prompt crafted on one host is crafted again for the other |
-| Review between increments | Not available yet | On explicit request | See [validation and limits](#validation-and-limits) |
+| Review between increments | Not offered: Codex only | On explicit request | Not offered: Codex only; see [validation and limits](#validation-and-limits) |
 
 Codex 0.145.0 does not guarantee a shell exit code in `PostToolUse`. Structured
 adapter exit codes are honored when present; a missing code does not prove
@@ -345,10 +345,9 @@ Code, and their `Codex` and `Claude` branches were deleted on 2026-09-15.
 
 ## Validation and limits
 
-The reviewed-increment protocol is implemented for Codex only and is not
-available in Claude Code yet: the shared prompt builder accepts review rows on
-both hosts, but Claude Code's skills do not offer the protocol, and its
-behavior there has not been established. Its preparation, wait, recovery and
+The reviewed-increment protocol is offered on Codex only, by decision: the
+shared prompt builder accepts review rows on every host, but the skills of
+Claude Code and Antigravity do not offer the protocol. Its preparation, wait, recovery and
 integrated-close instructions live in
 [`prepare-increments.md`](skills/roadmap/prepare-increments.md),
 [`increment-review.md`](skills/roadmap/increment-review.md),

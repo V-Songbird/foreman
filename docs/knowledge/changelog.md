@@ -36,8 +36,9 @@ instead.
 
 ### Codex
 
-- Reviewed increments are accepted for Codex as a whole. Claude Code and
-  Antigravity still do not offer the protocol.
+- Reviewed increments are accepted for Codex as a whole. They are offered on
+  Codex only: Claude Code and Antigravity do not offer the protocol, and the
+  documentation states that as the decision, not a pending port.
 
 ### Claude Code
 

@@ -69,7 +69,7 @@ Foreman keeps one README for every host, plain-language sections first and techn
 
 **Host differences live in one place each.** Scripts ask `scripts/runtime.js` which host is running (`FOREMAN_HOST`, then Codex's own environment markers, then Antigravity's, otherwise Claude Code). Handoff wording that differs by host is a tagged block in `prompt-template.md`; `craft-handoff.js` takes a `host` input and `check-prompt.js` takes `--host`, and both give an Antigravity handoff the Codex form.
 
-**Reviewed increments are Codex-only for now.** The prompt builder accepts review rows on both hosts, but Claude Code's skills do not offer the protocol until the owner decides otherwise.
+**Reviewed increments are offered on Codex only, by decision.** The prompt builder accepts review rows on both hosts, but the skills of Claude Code and Antigravity do not offer the protocol.
 
 ---
 

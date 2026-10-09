@@ -130,7 +130,7 @@ Foreman does the same job in every assistant. The host — the assistant Foreman
 | Lessons appear when a file is touched with | `Read`, `Edit` and `Write` | `apply_patch`, `Read`, `Edit` and `Write` | `view_file` and the three write tools, at the next model call |
 | Offering untracked work Foreman noticed | After a commit | After a commit, in every handoff and before reporting completion | After a commit, at the next model call, in every handoff and before reporting completion |
 | Advice based on how full the session is | When your auto-compact window is set ([settings](settings.md)) | Not available: Codex does not report it | Not available: Antigravity does not report it |
-| Stopping for your approval after each result of a task | Not available in Claude Code yet | On explicit request | Not available |
+| Stopping for your approval after each result of a task | Not offered: reviewed increments are Codex only | On explicit request | Not offered: reviewed increments are Codex only |
 | Model recorded when a task closes | Family name, such as `sonnet` | Exact model id | Exact model id |
 
 On every host, a shell command can still write the roadmap file, and reading a file through the shell shows no lessons. A prompt copied out of one assistant carries that assistant's script paths, so craft it again in the other. [Foreman in Codex](CODEX.md) covers the Codex side in detail; an Antigravity session gets the same form of prompt, run with its own tools.
