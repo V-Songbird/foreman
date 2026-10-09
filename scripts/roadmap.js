@@ -744,6 +744,9 @@ function credentialKind(text) {
 }
 
 // The fields are the ones each command stores: strings, or arrays of them.
+// Each caller passes its own list, so a field a command starts storing joins
+// that list, and refuseHiddenCharacters' when a handoff quotes it, or it goes
+// unchecked.
 function refuseCredentials(command, payload, fields) {
   for (const field of fields) {
     const value = (payload || {})[field];
@@ -1038,7 +1041,8 @@ function notStagedWarning(id, ignored) {
 // wrote it: the roadmap, the lesson store and the archive, so another close's
 // lesson or an archive move reaches history with this close instead of
 // trailing it. A path that neither exists nor is tracked is left out, since
-// `git add` fails on it.
+// `git add` fails on it. safe-commit.js CLOSE_BOOKKEEPING lists the same
+// files; a declared roadmap close refuses any it lacks.
 // [Foreman: 335] An ignored file is left out rather than handed to `git add`,
 // which refuses it and fails the whole call even after staging the rest;
 // `ignored` names what this close wrote and git will not carry, so the close
@@ -2144,6 +2148,9 @@ function cmdNextCandidates(root, filters) {
 // word as a composed one. For ASCII text this is the old [a-z0-9] rule
 // exactly. A CJK run has no spaces and stays one token; matching it would
 // need word segmentation (tests/roadmap.test.js records that limit).
+// It feeds --hint ranking, check-duplicate and roadmap-doctor's
+// similar_titles, so a change here moves all three; keep its ASCII output
+// as it is, or existing roadmaps stop matching.
 function normalizeWords(text) {
   return new Set(
     String(text || "")

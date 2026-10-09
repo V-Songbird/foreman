@@ -108,6 +108,7 @@ const CLIPBOARD_ROOT_RESOLVER = `The Foreman script paths below were resolved wh
 // name ${CLAUDE_PLUGIN_ROOT} for the user's own plugin. Only the text Foreman
 // writes names Foreman's root, so user text holds the variable behind this
 // marker while the root is resolved and located, then gets it back as written.
+// New user-derived text in a handoff goes through holdUserRoot too.
 const USER_ROOT = "\u0000USER_PLUGIN_ROOT\u0000";
 function holdUserRoot(value) {
   if (typeof value === "string") return value.split(CLAUDE_ROOT).join(USER_ROOT);
@@ -205,7 +206,9 @@ function templateDefaults(host) {
   // Codex calibrates verification to the change on the line after the ceiling.
   const verificationScope = canonical.host === "codex" ? extractHostBlock(xml, "verification_scope", "codex") : null;
   // Each autonomy paragraph runs from its marker to the end of its bracket,
-  // read inside the host's own variant.
+  // read inside the host's own variant, so no paragraph may contain a `]`.
+  // A standard handoff drops <scope_discipline> and the closing, so a rule a
+  // standard Claude Code handoff must carry belongs in these paragraphs.
   const autonomyInner = extractHostBlock(xml, "autonomy", canonical.host) || "";
   const paragraphFrom = (marker) => {
     const at = autonomyInner.indexOf(marker);

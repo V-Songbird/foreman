@@ -186,6 +186,8 @@ function preInvocation(data, { payload, workspace }) {
   answer(messages.length ? { injectSteps: messages.map((text) => ({ ephemeralMessage: text })) } : {});
 }
 
+// The allow is never left empty: Antigravity reads an empty PreToolUse answer
+// as a denial with no reason and skips the call's later PreToolUse hooks.
 function preToolUse(data, { payload, workspace }) {
   const output = hookOutput("guard-roadmap-edit.js", { ...payload, hook_event_name: "PreToolUse" }, workspace);
   answer(

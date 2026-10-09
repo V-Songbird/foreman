@@ -17,6 +17,8 @@ const { discoveryInstructions, duplicateCheckStep, delegatedDiscoveryInstruction
 const PLUGIN_ROOT = pluginDir();
 const SCRIPT_PATH = path.join(PLUGIN_ROOT, "scripts", "roadmap.js");
 
+// hooks/hooks.json registers this hook once per shell, with `Bash(git *)` and
+// `PowerShell(git *)`, because a handler's `if` holds one rule for one tool.
 const WATCHED_TOOLS = new Set(["Bash", "PowerShell"]);
 // [Foreman: 831] One command of a chain: `&&`, `||`, `|`, `;` and newlines
 // separate commands only outside quotes, so a quoted `-m "a; b"` or a JSON

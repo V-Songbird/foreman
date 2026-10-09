@@ -244,6 +244,7 @@ function extractHostBlock(text, tag, host) {
 // value means the host this process runs in. A prompt has two forms, not
 // three: Antigravity takes Codex's, since neither host expands the plugin-root
 // variable, opens an entry from a task event or reads Claude Code's tools.
+// craft-handoff.js imports this, so it is the one place a host maps to a form.
 function resolveHost(host) {
   const target = host === undefined || host === null || host === "" ? detectHost() : host;
   if (!HOSTS.has(target)) throw new Error(`host must be one of ${[...HOSTS].join("|")}`);
