@@ -225,7 +225,7 @@ nothing else:
   asked. A Pre-check `Cancel` therefore leaves an
   `init_started` with no `init_completed`, which is the correct record of an
   abandoned setup.
-- **`init_completed`** — the same file's Write phase, after the `add` loop and
+- **`init_completed`** — `skills/init/write.md`, the Write phase, after the `add` loop and
   the commit of the files init wrote, or, in a private roadmap, after the
   write: when git ignores every file init wrote, there is no commit to wait
   for. `tasks` is how many `add` calls succeeded, not how many were drafted.
@@ -238,7 +238,7 @@ nothing else:
   plain-text question in Codex, one `ask_question` call in Antigravity. One
   event per interaction, `flow` naming the
   branch it sits in and never the question:
-  `init` for every question `skills/init/SKILL.md` asks, `pick` / `add` /
+  `init` for every question the init skill (`skills/init/`) asks, `pick` / `add` /
   `correct` / `status` for `skills/roadmap/pick.md`, `add.md`, `correct.md` and
   `status.md` (Call 1's menu and the archive-finished-work ask stay in
   `SKILL.md` and belong to the branch the user ends up in), and `survey`. The
@@ -254,7 +254,7 @@ nothing else:
   `requireVerification` holds a close (`verification_declined`). `hook`
   names the surface, `reason_class` copies the refusal name verbatim and
   nothing else from the result.
-- **`recovery_attempted`, `reinit-snapshot`** — `skills/init/SKILL.md`, Write
+- **`recovery_attempted`, `reinit-snapshot`** — `skills/init/write.md`, Write
   phase step 1's four-option question after a failed snapshot. `success: true`
   for a retry that exited 0 or a backup that copied; `success: false` for
   `Continue without a snapshot` and for `Cancel`. One event per resolution, not

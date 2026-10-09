@@ -29,9 +29,10 @@ instead.
 
 ### Every host
 
-- The craft-prompt skill loads less at start: its `SKILL.md` lists the steps,
-  and each step's instructions sit in their own file, read when the interview
-  reaches it. The questions and the prompt it builds are unchanged.
+- The craft-prompt, init and survey skills load less at start: each
+  `SKILL.md` lists the steps, and each step's instructions sit in their own
+  file, read when the flow reaches it. The questions, what they write and the
+  prompt craft-prompt builds are unchanged.
 
 ### Claude Code
 

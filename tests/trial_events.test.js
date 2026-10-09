@@ -17,8 +17,8 @@
 //   - pick.md records only the model-side pick events and leaves menu_shown/
 //     hint_used to next-candidates --menu, which records exactly one of each
 //   - one definition of a question interaction for both hosts
-//   - init/SKILL.md carries init_started, init_completed and the snapshot
-//     recovery
+//   - init/SKILL.md carries init_started, and init/write.md init_completed
+//     and the snapshot recovery
 //   - the shapes the prose writes actually pass the writer's own validator
 
 const { describe, test } = require('node:test');
@@ -135,15 +135,16 @@ describe('the model-side trial events', () => {
     }
   });
 
-  test('init/SKILL.md carries the setup pair and the snapshot recovery', () => {
+  test('init carries the setup pair and the snapshot recovery', () => {
     const text = skill('init', 'SKILL.md');
-    for (const event of ['init_started', 'init_completed', 'recovery_attempted']) {
-      assert.match(text, new RegExp(`trial-log\\.js ${event} `), `init never records ${event}`);
+    const write = skill('init', 'write.md');
+    for (const [event, file] of [['init_started', text], ['init_completed', write], ['recovery_attempted', write]]) {
+      assert.match(file, new RegExp(`trial-log\\.js ${event} `), `init never records ${event}`);
     }
-    assert.match(text, /"kind":"reinit-snapshot"/);
+    assert.match(write, /"kind":"reinit-snapshot"/);
     const flat = text.replace(/\s+/g, ' ');
     assert.ok(
-      /how many `add` calls actually succeeded, never how many were drafted/.test(flat),
+      /how many `add` calls actually succeeded, never how many were drafted/.test(write.replace(/\s+/g, ' ')),
       'init_completed no longer says tasks counts successes, not drafts'
     );
     assert.ok(

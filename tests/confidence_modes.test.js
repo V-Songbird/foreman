@@ -15,7 +15,7 @@ const read = (...rel) => fs.readFileSync(path.join(__dirname, "..", ...rel), "ut
 
 const roadmap = read("skills", "roadmap", "pick.md");
 const reconcile = read("skills", "roadmap", "reconcile.md");
-const survey = read("skills", "survey", "SKILL.md");
+const survey = read("skills", "survey", "scope.md");
 const entrance = read("skills", "foreman", "SKILL.md");
 const destination = read("skills", "roadmap", "destination-question.md");
 const howItWorks = read("HOW-IT-WORKS.md");

@@ -14,7 +14,7 @@ const { spawnSync } = require('node:child_process');
 const { makeTmpProject, initGitRepo, writeConfig, runRoadmap, runNodeScript, SCRIPTS_DIR } = require('./helpers');
 
 const SAFE_COMMIT = path.join(SCRIPTS_DIR, 'safe-commit.js');
-const INIT_SKILL = fs.readFileSync(path.join(__dirname, '..', 'skills', 'init', 'SKILL.md'), 'utf-8');
+const INIT_WRITE = fs.readFileSync(path.join(__dirname, '..', 'skills', 'init', 'write.md'), 'utf-8');
 const PRIVATE = ['ROADMAP.jsonl', '.foreman/'];
 
 let project;
@@ -75,8 +75,8 @@ function startEntry() {
 // init's step 4 exactly as the skill writes it: the check-ignore command, then
 // the commit command with every printed file dropped from both halves, and no
 // commit at all when nothing is left.
-const DETECT = INIT_SKILL.match(/`(git check-ignore -- [^`]+)`/);
-const COMMIT = INIT_SKILL.match(/`(git add -- ROADMAP\.jsonl [^`]+ && git commit [^`]+)`/);
+const DETECT = INIT_WRITE.match(/`(git check-ignore -- [^`]+)`/);
+const COMMIT = INIT_WRITE.match(/`(git add -- ROADMAP\.jsonl [^`]+ && git commit [^`]+)`/);
 
 function words(command) {
   return command.match(/"[^"]*"|\S+/g).map((word) => word.replace(/^"(.*)"$/, '$1'));
@@ -108,7 +108,7 @@ describe("init's commit step", () => {
   test('the skill checks what git ignores before committing', () => {
     assert.ok(DETECT, 'step 4 names its git check-ignore command');
     assert.ok(COMMIT, 'step 4 keeps its pathspec commit command');
-    const flat = INIT_SKILL.replace(/\s+/g, ' ');
+    const flat = INIT_WRITE.replace(/\s+/g, ' ');
     assert.match(flat, /never force it with `git add -f`/);
     assert.match(flat, /When no file is left, skip the command/);
     assert.match(flat, /Report back: task count, each file written but not committed because git ignores it/);
