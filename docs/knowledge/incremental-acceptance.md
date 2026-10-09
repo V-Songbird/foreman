@@ -13,10 +13,11 @@ related_files:
 
 # Accepting a task increment by increment
 
-This contract is implemented for Codex only. Claude Code's skills do not offer
-the protocol, and the documentation says it is not available there yet. It
-does not certify acceptance of any implemented result or of the whole feature;
-that decision is separate.
+This contract is implemented for Codex only, and the owner accepted reviewed
+increments for Codex as a whole on 2026-10-09. Claude Code's skills and
+Antigravity do not offer the protocol, and the documentation says it is not
+available there yet; offering it on those hosts is a separate decision. The
+contract does not certify acceptance of any single implemented result.
 
 ## 1. Product agreement
 

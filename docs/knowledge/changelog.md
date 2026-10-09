@@ -34,6 +34,11 @@ instead.
   file, read when the flow reaches it. The questions, what they write and the
   prompt craft-prompt builds are unchanged.
 
+### Codex
+
+- Reviewed increments are accepted for Codex as a whole. Claude Code and
+  Antigravity still do not offer the protocol.
+
 ### Claude Code
 
 - A handoff crafted for a Workflow stage and sent to a background agent no
