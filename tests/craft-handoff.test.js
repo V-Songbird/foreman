@@ -1382,7 +1382,7 @@ describe('judgment shape validation', () => {
   });
 });
 
-// entry 204: craft-prompt/SKILL.md's Workflow-stage output flavor needs
+// entry 204: craft-prompt's Workflow-stage output flavor needs
 // this wired through — the gap flagged in entry 201's own header comment.
 describe('workflow-stage flavor', () => {
   // Each host carries its own fixed sentence where <output_format> would go.
@@ -2031,11 +2031,10 @@ describe('the symbol chain', () => {
 // grounds that question in one Explore pass before it asks. This is prose, so
 // the pin is on the properties that make it safe rather than on the wording.
 describe('craft-prompt grounds its file options before asking', () => {
-  const SKILL = fs.readFileSync(
-    path.join(__dirname, '..', 'skills', 'craft-prompt', 'SKILL.md'),
-    'utf-8'
-  );
-  const flat = SKILL.replace(/\s+/g, ' ');
+  const read = (name) => fs.readFileSync(path.join(__dirname, '..', 'skills', 'craft-prompt', name), 'utf-8');
+  const SKILL = read('SKILL.md');
+  const GROUND = read('ground-files.md');
+  const flat = GROUND.replace(/\s+/g, ' ');
 
   test('the grounding pass runs before Call 2, not after it', () => {
     const ground = SKILL.indexOf('## Ground the file options');
@@ -2043,10 +2042,13 @@ describe('craft-prompt grounds its file options before asking', () => {
     assert.ok(ground > 0, 'the grounding section is gone');
     assert.ok(call2 > 0);
     assert.ok(ground < call2, 'grounding must happen before the questions it grounds');
+    assert.ok(SKILL.indexOf('(ground-files.md)') > ground, 'the grounding step no longer reads ground-files.md');
+    assert.ok(SKILL.indexOf('(ground-files.md)') < call2);
+    assert.ok(SKILL.indexOf('(call-2.md)') > call2, 'Call 2 no longer reads call-2.md');
   });
 
   test('it dispatches exactly one read-only Explore pass, never a second', () => {
-    assert.ok(/`Explore`/.test(SKILL), 'the grounding pass names no agent');
+    assert.ok(/`Explore`/.test(GROUND), 'the grounding pass names no agent');
     assert.ok(/\*\*one\*\* `Explore`/.test(flat), 'the single-pass bound is gone');
     assert.ok(/[Nn]ever a second one/.test(flat), 'nothing stops a follow-up Explore');
     assert.ok(/read-only/.test(flat));
@@ -2070,16 +2072,18 @@ describe('craft-prompt grounds its file options before asking', () => {
       'the empty-Explore fallback is gone'
     );
     // Q3 keeps its hand-typed path, and Q1 keeps all four generic commands.
-    assert.ok(flat.includes("`I'll list them`"));
-    assert.ok(flat.includes('`I can only name the area`'));
+    const call2 = read('call-2.md').replace(/\s+/g, ' ');
+    assert.ok(call2.includes("`I'll list them`"));
+    assert.ok(call2.includes('`I can only name the area`'));
+    const call3 = read('call-3.md').replace(/\s+/g, ' ');
     for (const cmd of ['npm test', 'pytest', 'cargo test', 'go test ./...']) {
-      assert.ok(flat.includes(cmd), `the generic ${cmd} fallback is gone`);
+      assert.ok(call3.includes(cmd), `the generic ${cmd} fallback is gone`);
     }
   });
 
   test('a detected command is still settled by resolve-symbols, not by Explore', () => {
     assert.ok(
-      /verification\.resolves: false/.test(flat),
+      /verification\.resolves: false/.test(read('call-3.md')),
       'the real verification check is no longer what settles the command'
     );
   });
@@ -2791,9 +2795,11 @@ describe('a pasted observed failure', () => {
   });
 
   test('craft-prompt sends the pasted failure to judgment.observed, not judgment.context', () => {
-    const skill = fs.readFileSync(path.join(__dirname, '..', 'skills', 'craft-prompt', 'SKILL.md'), 'utf-8');
-    assert.match(skill, /- `judgment\.observed` ← Call 3 Q3's observed failure, verbatim/);
-    assert.doesNotMatch(skill, /under an `Observed failure:` line/);
+    const dir = path.join(__dirname, '..', 'skills', 'craft-prompt');
+    assert.match(fs.readFileSync(path.join(dir, 'assemble.md'), 'utf-8'), /- `judgment\.observed` ← Call 3 Q3's observed failure, verbatim/);
+    for (const name of fs.readdirSync(dir).filter((file) => file.endsWith('.md'))) {
+      assert.doesNotMatch(fs.readFileSync(path.join(dir, name), 'utf-8'), /under an `Observed failure:` line/, name);
+    }
   });
 
   test('carrying an invisible character fails the gate', () => {

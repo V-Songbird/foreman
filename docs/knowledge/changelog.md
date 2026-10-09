@@ -27,6 +27,12 @@ instead.
 
 ## Unreleased
 
+### Every host
+
+- The craft-prompt skill loads less at start: its `SKILL.md` lists the steps,
+  and each step's instructions sit in their own file, read when the interview
+  reaches it. The questions and the prompt it builds are unchanged.
+
 ### Claude Code
 
 - A handoff crafted for a Workflow stage and sent to a background agent no

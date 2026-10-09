@@ -75,6 +75,11 @@ function readText(file) {
 }
 const readTemplate = () => readText(TEMPLATE_PATH);
 const readSkill = (...rel) => readText(path.join(__dirname, '..', 'skills', ...rel));
+// craft-prompt's SKILL.md routes to sibling step files; a rule that must be
+// absent from the skill is checked against every one of them.
+const readCraftPrompt = () => fs.readdirSync(path.join(__dirname, '..', 'skills', 'craft-prompt'))
+  .filter((name) => name.endsWith('.md')).sort()
+  .map((name) => readSkill('craft-prompt', name)).join('\n');
 
 // One fixture set per host, built from that host's canonical blocks: Codex
 // prompts open with <codex_runtime>, and only Claude Code's scope_discipline
@@ -1292,11 +1297,17 @@ describe('drift pins', () => {
   });
 
   test('both skills still gather the three optional per-task fields', () => {
-    for (const rel of [['craft-prompt', 'SKILL.md'], ['roadmap', 'pick.md']]) {
-      const skill = readSkill(...rel);
-      assert.ok(skill.includes('invariants` ←'), `${rel.join('/')} lost the invariants mapping`);
-      assert.ok(skill.includes('Expected file surface:'), `${rel.join('/')} lost the file-surface mapping`);
-      assert.ok(skill.includes('test-first ordering'), `${rel.join('/')} lost the test-first mapping`);
+    const pick = readSkill('roadmap', 'pick.md');
+    const call3 = readSkill('craft-prompt', 'call-3.md');
+    const assemble = readSkill('craft-prompt', 'assemble.md');
+    for (const [name, text, needles] of [
+      ['roadmap/pick.md', pick, ['invariants` ←', 'Expected file surface:', 'test-first ordering']],
+      ['craft-prompt/call-3.md', call3, ['Expected file surface:', 'test-first ordering']],
+      ['craft-prompt/assemble.md', assemble, ['invariants` ←', 'Expected file surface:']],
+    ]) {
+      for (const needle of needles) {
+        assert.ok(text.includes(needle), `${name} lost the ${needle} mapping`);
+      }
     }
   });
 
@@ -1306,9 +1317,8 @@ describe('drift pins', () => {
     assert.match(template, /A symbol name is self-locating and survives\nedits above it/);
     assert.match(template, /each carrying the symbol names/);
     assert.ok(!/with symbols or line ranges/.test(template), 'checklist still offers line ranges as an equal option');
-    const skill = readSkill('craft-prompt', 'SKILL.md');
-    assert.match(skill, /naming the functions or classes that\nmatter in each/);
-    assert.ok(!/List the relevant files with line ranges/.test(skill), 'craft-prompt Q3 still asks for line ranges');
+    assert.match(readSkill('craft-prompt', 'call-2.md'), /naming the functions or classes that\nmatter in each/);
+    assert.ok(!/List the relevant files with line ranges/.test(readCraftPrompt()), 'craft-prompt Q3 still asks for line ranges');
   });
 
   test('the read-first bullet is gone from the template, the skill, and the fragment list', () => {
@@ -1339,7 +1349,7 @@ describe('drift pins', () => {
     const flat = template.replace(/\s+/g, ' ');
     assert.ok(flat.includes('`check-prompt.js --host codex` errors on an unresolved `${CLAUDE_PLUGIN_ROOT}` or `${CODEX_PLUGIN_ROOT}`'));
     assert.ok(flat.includes('in Codex it is a quoted absolute installed path instead, never an unexpanded variable'));
-    for (const rel of [['roadmap', 'pick.md'], ['craft-prompt', 'SKILL.md']]) {
+    for (const rel of [['roadmap', 'pick.md'], ['craft-prompt', 'assemble.md']]) {
       assert.match(
         readSkill(...rel),
         /the\s+variable already resolved to a version-pinned\s*\n?\s*cache path/,
@@ -1350,7 +1360,7 @@ describe('drift pins', () => {
 
   // [Foreman: 349]
   test('craft-prompt names the host value for Antigravity as well as Claude Code and Codex', () => {
-    const skill = readSkill('craft-prompt', 'SKILL.md').replace(/\s+/g, ' ');
+    const skill = readSkill('craft-prompt', 'assemble.md').replace(/\s+/g, ' ');
     assert.ok(
       skill.includes('`host` ← `"claude"` in Claude Code, `"codex"` in Codex, `"antigravity"` in Antigravity'),
       'craft-prompt no longer sets host to "antigravity" in Antigravity'
@@ -1415,7 +1425,7 @@ describe('handoff profiles', () => {
   // loud: 1.0 stopped reciting it in the delivery message, so the pin is
   // that the skill calls the assembler and keeps the score to itself.
   test('the prompt-building skills delegate the profile and never recite it', () => {
-    for (const rel of [['roadmap', 'pick.md'], ['craft-prompt', 'SKILL.md']]) {
+    for (const rel of [['roadmap', 'pick.md'], ['craft-prompt', 'assemble.md']]) {
       const skill = readSkill(...rel).replace(/\s+/g, ' ');
       assert.ok(
         skill.includes('node ${CLAUDE_PLUGIN_ROOT}/scripts/craft-handoff.js'),
@@ -1432,7 +1442,7 @@ describe('handoff profiles', () => {
 // [Foreman: 075]
 describe('every gate error is a repair instruction: the skills', () => {
   test('both prompt-building skills tell the caller to act on the fix field', () => {
-    for (const rel of [['roadmap', 'pick.md'], ['craft-prompt', 'SKILL.md']]) {
+    for (const rel of [['roadmap', 'pick.md'], ['craft-prompt', 'assemble.md']]) {
       const skill = readSkill(...rel).replace(/\s+/g, ' ');
       assert.ok(
         skill.includes('{error, fix, example}'),

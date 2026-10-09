@@ -13,7 +13,7 @@
 // check-prompt.js's gate in-process as the last step.
 //
 // Both crafting flows route here: skills/roadmap/pick.md calls it with an
-// `entry` id, and skills/craft-prompt/SKILL.md calls it entry-less, with the same
+// `entry` id, and skills/craft-prompt/assemble.md calls it entry-less, with the same
 // title/why/what/judgment fields given inline on stdin instead.
 //
 // stdin JSON in, one JSON line out: {ok, prompt, profile, signals, tasks?,
@@ -1847,7 +1847,7 @@ Takes no flags: stdin JSON in, one JSON line out:
 The input is {"entry":"<id>", ...} for a roadmap pick, or title, what and
 touches given inline for an entry-less prompt (judgment.purpose carries the
 why), plus host, destination and judgment.
-skills/roadmap/pick.md step 3 and skills/craft-prompt/SKILL.md give the full payload.
+skills/roadmap/pick.md step 3 and skills/craft-prompt/assemble.md give the full payload.
 `;
 
 function main() {

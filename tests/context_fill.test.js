@@ -359,7 +359,9 @@ describe('context-fill — wiring', () => {
     for (const rel of [
       ['skills', 'roadmap', 'destination-question.md'],
       ['skills', 'roadmap', 'pick.md'],
-      ['skills', 'craft-prompt', 'SKILL.md'],
+      ...fs.readdirSync(path.join(__dirname, '..', 'skills', 'craft-prompt'))
+        .filter((name) => name.endsWith('.md'))
+        .map((name) => ['skills', 'craft-prompt', name]),
       ['prompt-template.md'],
     ]) {
       const text = fs.readFileSync(path.join(__dirname, '..', ...rel), 'utf-8');
