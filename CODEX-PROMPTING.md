@@ -70,8 +70,8 @@ report, not implicit permission to fix the subject under investigation.
 ## Foreman policies retained
 
 Both handoff profiles, destination choices, source grounding, historical
-evidence labels, `usePersona`, `omitSections`, acceptance holds, ledger options,
-and checkpoint preferences remain. The two-failed-fix-attempt ceiling is
+evidence labels, `usePersona`, `omitSections`, acceptance holds and
+checkpoint preferences remain. The two-failed-fix-attempt ceiling is
 Foreman's deliberate bounded-retry policy on both hosts, not an OpenAI model
 recommendation. It reports unresolved verification without inventing success or
 expanding scope. Explicit user directions can override workflow defaults under

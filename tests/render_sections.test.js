@@ -17,10 +17,8 @@
 //     a non-string entry, and a duplicate are each skipped with a warning
 //   - usePersona: declared in config (default true); other plugins' flag
 //     files and the legacy inheritOperatorTone key are ignored entirely
-//   - ledger: {enabled,dir} delegated to ledger-config; disabled
-//     by default, honored from config and the FOREMAN_LEDGER* env
-//     path, and its warning (invalid dir / corrupt config) surfaced through
-//     render's own warning channel
+//   - the retired ledger, areaNotes and decisionLog keys change nothing in
+//     the output and raise no warning
 
 const { test, describe, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
@@ -247,100 +245,25 @@ describe('render-sections — requireVerification', () => {
   });
 });
 
-describe('render-sections — ledger', () => {
-  test('no config.json -> disabled by default, default dir, no warnings', () => {
-    const { json } = run();
-    assert.equal(json.ledger.enabled, false);
-    assert.equal(json.ledger.dir, 'docs/foreman');
-    assert.deepEqual(json.warnings, []);
+describe('render-sections — retired ledger keys', () => {
+  test('ledger, areaNotes and decisionLog, valid or not, change nothing', () => {
+    const { json: plain } = run();
+    for (const config of [
+      { ledger: { enabled: true, dir: 'docs/adr' } },
+      { areaNotes: { enabled: true }, decisionLog: { enabled: true, dir: '../escape' } },
+      { ledger: 'yes' },
+    ]) {
+      writeConfig(project, config);
+      const { status, json } = run();
+      assert.equal(status, 0);
+      assert.deepEqual(json, plain, JSON.stringify(config));
+      assert.equal('ledger' in json, false);
+    }
   });
 
-  test('config.json without ledger -> disabled by default, default dir', () => {
-    writeConfig(project, { discoverySuggestions: true });
-    const { json } = run();
-    assert.equal(json.ledger.enabled, false);
-    assert.equal(json.ledger.dir, 'docs/foreman');
-  });
-
-  test('ledger.enabled:true flows into the output shape', () => {
-    writeConfig(project, { ledger: { enabled: true } });
-    const { json } = run();
-    assert.equal(json.ledger.enabled, true);
-    assert.equal(json.ledger.dir, 'docs/foreman');
-    assert.deepEqual(json.warnings, []);
-  });
-
-  test('ledger.enabled:false explicitly opts out of the default', () => {
-    writeConfig(project, { ledger: { enabled: false } });
-    const { json } = run();
-    assert.equal(json.ledger.enabled, false);
-    assert.equal(json.ledger.dir, 'docs/foreman');
-    assert.deepEqual(json.warnings, []);
-  });
-
-  test('a custom dir flows through to the rendered output', () => {
-    writeConfig(project, { ledger: { enabled: true, dir: 'docs/adr' } });
-    const { json } = run();
-    assert.equal(json.ledger.enabled, true);
-    assert.equal(json.ledger.dir, 'docs/adr');
-  });
-
-  // The two keys `ledger` replaced still resolve, so a project that opted
-  // into either one keeps its setting without editing its config.
-  test('the legacy areaNotes key still enables the ledger', () => {
-    writeConfig(project, { areaNotes: { enabled: true } });
-    const { json } = run();
-    assert.equal(json.ledger.enabled, true);
-  });
-
-  test('the legacy decisionLog key still enables the ledger, dir included', () => {
-    writeConfig(project, { decisionLog: { enabled: true, dir: 'docs/adr' } });
-    const { json } = run();
-    assert.equal(json.ledger.enabled, true);
-    assert.equal(json.ledger.dir, 'docs/adr');
-  });
-
-  test('ledger wins over a legacy key that disagrees with it', () => {
-    writeConfig(project, { ledger: { enabled: true }, areaNotes: { enabled: false } });
-    const { json } = run();
-    assert.equal(json.ledger.enabled, true);
-  });
-
-  test('FOREMAN_LEDGER=1 enables via the env path', () => {
-    env.FOREMAN_LEDGER = '1';
-    const { json } = run();
-    assert.equal(json.ledger.enabled, true);
-  });
-
-  test('the legacy FOREMAN_DECISION_LOG env override still enables it', () => {
-    env.FOREMAN_DECISION_LOG = '1';
-    const { json } = run();
-    assert.equal(json.ledger.enabled, true);
-  });
-
-  test('FOREMAN_LEDGER_DIR overrides the dir via the env path', () => {
-    env.FOREMAN_LEDGER = '1';
-    env.FOREMAN_LEDGER_DIR = 'docs/decisions';
-    const { json } = run();
-    assert.equal(json.ledger.enabled, true);
-    assert.equal(json.ledger.dir, 'docs/decisions');
-  });
-
-  test('an invalid dir defaults and surfaces a warning through render-sections', () => {
-    writeConfig(project, { ledger: { enabled: true, dir: '../escape' } });
-    const { status, json } = run();
-    assert.equal(status, 0);
-    assert.equal(json.ledger.enabled, true);
-    assert.equal(json.ledger.dir, 'docs/foreman');
-    assert.ok(json.warnings.some((w) => /relative path/.test(w)));
-  });
-
-  test('corrupt config.json surfaces the ledger corrupt warning too', () => {
-    fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
-    fs.writeFileSync(path.join(project, '.foreman', 'config.json'), '{not json', 'utf-8');
-    const { status, json } = run();
-    assert.equal(status, 0);
-    assert.equal(json.ledger.enabled, false);
-    assert.ok(json.warnings.some((w) => w.includes('ledger')));
+  test('the old environment switches change nothing either', () => {
+    const { json: plain } = run();
+    env = { ...env, FOREMAN_LEDGER: '1', FOREMAN_AREA_NOTES: '1', FOREMAN_DECISION_LOG: '1', FOREMAN_LEDGER_DIR: '../x' };
+    assert.deepEqual(run().json, plain);
   });
 });

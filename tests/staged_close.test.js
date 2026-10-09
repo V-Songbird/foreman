@@ -199,8 +199,8 @@ describe('post-commit.js trailer behavior', () => {
 
 // [Foreman: 539] A staged close commits Foreman's pending bookkeeping as it
 // stands, whoever wrote it, so the committed roadmap never trails the working
-// one: other entries' roadmap edits, a lesson a `commit:` close stored, and an
-// archive move all ride in the next staged close's commit.
+// one: other entries' roadmap edits and an archive move ride in the next
+// staged close's commit.
 describe('a staged close commits all pending bookkeeping', () => {
   const SAFE_COMMIT = path.join(__dirname, '..', 'scripts', 'safe-commit.js');
 
@@ -251,21 +251,12 @@ describe('a staged close commits all pending bookkeeping', () => {
     assert.match(atHead('ROADMAP.jsonl'), /noted while 001 ran/);
   });
 
-  test('a lesson a commit: close stored neither blocks the next finish nor stays uncommitted', () => {
-    trackedRoadmap([entry('001', 'in_progress'), entry('002', 'in_progress')]);
-    writeConfig(project, { ledger: { enabled: true } });
-    commitAllWithMessage('ledger on');
-    writeFile('src/b.js', 'work\n');
-    git('add', '--', 'src/b.js');
-    git('commit', '-q', '-m', 'work for 002', '-m', 'Foreman: 002');
-    const sha = git('rev-parse', 'HEAD').trim();
-    const stored = roadmap(['update-status'], { id: '002', status: 'done', commit: sha, lesson: 'src/b.js keeps the retry state.' });
-    assert.equal(stored.lesson && stored.lesson.stored, true, JSON.stringify(stored));
-
-    const finish = closeStaged('src/a.js');
-    assert.ok((finish.ledger_excluded || []).includes('.foreman/notes.jsonl'), JSON.stringify(finish));
-    assert.ok(clean(), git('status', '--porcelain'));
-    assert.match(atHead('.foreman/notes.jsonl'), /keeps the retry state/);
+  test('a leftover lesson store is not Foreman bookkeeping, so begin reports the tree dirty', () => {
+    trackedRoadmap([entry('001', 'in_progress')]);
+    fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
+    fs.writeFileSync(path.join(project, '.foreman', 'notes.jsonl'), '{"lesson":"old"}\n', 'utf-8');
+    const begin = safeCommit(['begin']);
+    assert.equal(begin.dirty, true, 'an untracked store is the project\'s own change');
   });
 
   test('an archive move is committed whole by the next staged close', () => {

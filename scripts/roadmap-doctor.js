@@ -23,7 +23,6 @@
 
 const fs = require("fs");
 const path = require("path");
-const { isValidDir } = require("./ledger-config");
 // The only gate left in the config: hooks/task-completed.js's own, parsed
 // inline there. One line here beats a module whose only export it is.
 const VALID_GATES = new Set(["off", "block"]);
@@ -33,9 +32,6 @@ const VALID_GATES = new Set(["off", "block"]);
 // duplicate is actually present.
 const { recordedCommits, trailerShasFor } = require("./commit-evidence");
 const { configPath, OMITTABLE_TAGS } = require("./render-sections");
-// ledger.js requires nothing from this module, so there is no cycle to
-// defer around -- unlike roadmap.js below.
-const ledger = require("./ledger");
 const { hiddenCharacters, stripHiddenCharacters } = require("./check-prompt");
 
 // roadmap.js requires this module at load time, so requiring it back up here
@@ -361,13 +357,6 @@ function quoted(value, text = JSON.stringify(value)) {
   return found.length ? `a value carrying characters a reader cannot see (${found.join("; ")})` : text;
 }
 
-// [Foreman: 700] One "field line N: U+200B" hit per lesson-store field that
-// servedBody checks, since every serving path prints them. [Foreman: 723]
-// roadmap.js notes prints a record with hits by its key and these instead.
-function recordHiddenCharacters(record) {
-  return ["lesson", "entry", "date", "paths"].flatMap((field) => hiddenIn(record[field]).map((hit) => `${field} ${hit}`));
-}
-
 // The stored strings a handoff prints: an entry's own title, why, what, notes
 // and planned_touches, another entry's title and notes when a handoff recalls
 // it, and doc through a dependent's depends_on_docs.
@@ -541,14 +530,9 @@ function oneOf(values) {
   return { ok: (value) => values.has(value), expected: [...values].join(" | ") };
 }
 
-// One shape for the ledger group and for the two keys it replaced, so an
-// alias can never validate differently from the name it aliases.
-const LEDGER_SPEC = {
-  spec: {
-    enabled: BOOL,
-    dir: { ok: isValidDir, expected: 'a relative path with no ".." segments' },
-  },
-};
+// Keys a removed feature read. A project that set one keeps it without a
+// finding: nothing reads the value, so no value is wrong.
+const RETIRED = { ok: () => true };
 
 // Documented in settings.md; the accepted values come from the modules that
 // actually read them, so this table can never drift from the readers.
@@ -560,9 +544,8 @@ const CONFIG_SPEC = {
   requireVerification: BOOL,
   // [Foreman: 260] `fableEnabled` is gone with the executing-model question
   // it gated -- Foreman no longer asks which model runs a task -- and now
-  // reports as a key this Foreman does not know, the same way
-  // `decisionLog.gate` did. init has always written `{}`, so only a project
-  // that hand-set it sees the warning.
+  // reports as a key this Foreman does not know. init has always written
+  // `{}`, so only a project that hand-set it sees the warning.
   taskCloseGate: oneOf(VALID_GATES),
   // [Foreman: 825] Read by hooks/post-commit.js, which treats any other
   // shape as off; one rule, since neither half means anything alone.
@@ -576,17 +559,14 @@ const CONFIG_SPEC = {
     ok: (value) => Array.isArray(value) && value.every((tag) => OMITTABLE_TAGS.has(tag)),
     expected: `an array of ${[...OMITTABLE_TAGS].join(" | ")}`,
   },
-  // The ledger. Two keys, default off, every other constant in code — a
-  // consumer-less setting is a setting that drifts from its reader.
-  ledger: LEDGER_SPEC,
   checkpoints: {
     spec: { baseBranch: STRING, branch: BOOL, onFinish: oneOf(ON_FINISH) },
   },
-  // The two keys `ledger` replaced, still read so an opted-in project keeps
-  // working untouched. Validated identically; `decisionLog.gate` is gone with
-  // the gate it named, and reports as a key this Foreman does not know.
-  decisionLog: LEDGER_SPEC,
-  areaNotes: LEDGER_SPEC,
+  // The removed lesson ledger's switches, under its name and the two older
+  // ones. Any value is accepted and none does anything.
+  ledger: RETIRED,
+  decisionLog: RETIRED,
+  areaNotes: RETIRED,
 };
 
 function checkGroup(prefix, group, spec, out) {
@@ -610,101 +590,6 @@ function checkGroup(prefix, group, spec, out) {
       out.push(finding("invalid_config_value", "error", [], `.foreman/config.json: ${field} must be ${rule.expected}, got ${JSON.stringify(value)}`, { field }));
     }
   }
-}
-
-// How many record ids a truncated list names before it stops. Long enough to
-// point at the problem, short enough that a store with hundreds of dead
-// records still produces one readable line.
-const NOTES_ID_SAMPLE = 5;
-
-/**
- * Findings for `.foreman/notes.jsonl`. Filesystem only — no git, ever: this
- * runs on every `doctor`, and a per-record history scan would put the cost of
- * the whole store on a command people run casually.
- *
- * Dead and invalid records aggregate into ONE finding each. Reporting them
- * individually would make doctor's output grow with the store forever, which
- * is the same unbounded-output failure the `notes` CLI caps against.
- */
-function validateAreaNotes(root) {
-  const out = [];
-  const { records, error, invalid } = ledger.read(root);
-
-  if (error === "unreadable" || error === "conflict") {
-    out.push(finding(
-      "notes_unreadable",
-      "error",
-      [],
-      error === "conflict"
-        ? `${ledger.NOTES_RELATIVE} still carries merge conflict markers — resolve them by hand; it is append-only, so both sides' lines are keepable`
-        : `${ledger.NOTES_RELATIVE} exists but could not be read`
-    ));
-    return out;
-  }
-  if (error === "unsupported_format") {
-    out.push(finding(
-      "notes_unsupported_format",
-      "error",
-      [],
-      `${ledger.NOTES_RELATIVE} declares a format this Foreman does not know — upgrade Foreman rather than editing the file`
-    ));
-    return out;
-  }
-
-  if (invalid) {
-    out.push(finding(
-      "notes_invalid_record",
-      "warning",
-      [],
-      `${ledger.NOTES_RELATIVE}: ${invalid} line${invalid === 1 ? "" : "s"} could not be read as a record and ${invalid === 1 ? "is" : "are"} skipped`
-    ));
-  }
-
-  // A record every one of whose files is gone describes code that no longer
-  // exists. It is information, not a defect: the store is append-only and
-  // pruning is a later, user-approved decision — `roadmap.js note-prune` is
-  // that decision's one mechanism, and nothing here performs it.
-  const dead = records.filter((record) => ledger.isDead(root, record));
-  if (dead.length) {
-    const areas = new Set(dead.map((record) => record.area || "."));
-    const oldest = dead.map((record) => record.date).filter(Boolean).sort()[0];
-    const ids = dead.map((record) => record.entry).filter(Boolean);
-    const sample = ids.slice(0, NOTES_ID_SAMPLE).join(", ");
-    const more = ids.length > NOTES_ID_SAMPLE ? `, +${ids.length - NOTES_ID_SAMPLE} more` : "";
-    out.push(finding(
-      "notes_dead_record",
-      "info",
-      [],
-      `${ledger.NOTES_RELATIVE}: ${dead.length} record${dead.length === 1 ? "" : "s"} name only files that no longer exist, `
-        + `across ${areas.size} area${areas.size === 1 ? "" : "s"}`
-        + (oldest ? `; oldest ${oldest}` : "")
-        + (sample ? ` (entries ${sample}${more})` : "")
-        + " — clear them with `roadmap.js note-prune`"
-    ));
-  }
-
-  // [Foreman: 700] note-staleness.js servedBody serves a record nowhere once
-  // its lesson, entry, date or paths carry a character a reader cannot see,
-  // and nothing else says so. A warning, like an unreadable line: every reader
-  // skips it and nothing breaks. One finding, naming each record's key for
-  // note-supersede.
-  const hidden = records.flatMap((record) => {
-    const hits = recordHiddenCharacters(record);
-    return hits.length ? [`${ledger.recordKey(record)} (${hits.join("; ")})`] : [];
-  });
-  if (hidden.length) {
-    const more = hidden.length > NOTES_ID_SAMPLE ? `, +${hidden.length - NOTES_ID_SAMPLE} more` : "";
-    out.push(finding(
-      "notes_hidden_characters",
-      "warning",
-      [],
-      `${ledger.NOTES_RELATIVE}: ${hidden.length} record${hidden.length === 1 ? " carries" : "s carry"} characters a reader cannot see, `
-        + `so no handoff or file read serves ${hidden.length === 1 ? "it" : "them"}: ${hidden.slice(0, NOTES_ID_SAMPLE).join(", ")}${more}`
-        + " — retire each by its key with `roadmap.js note-supersede`"
-    ));
-  }
-
-  return out;
 }
 
 /** Findings for .foreman/config.json. A missing file is the uninitialized case. */
@@ -835,12 +720,10 @@ module.exports = {
   validateEntries,
   validateHiddenCharacters,
   hiddenIn,
-  recordHiddenCharacters,
   quoted,
   validateAcrossFiles,
   enrichDuplicates,
   validateConfig,
-  validateAreaNotes,
   applyRepairs,
   summarize,
   CONFIG_SPEC,

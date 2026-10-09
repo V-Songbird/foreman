@@ -193,9 +193,9 @@ describe("init writes safe defaults instead of asking", () => {
   // user was never asked, which is what makes the later first-relevant ask
   // fire exactly once. Writing the key at init would silence it forever.
   test("leaves the first-relevant keys unwritten", () => {
-    assert.match(skill, /`ledger` stays absent/);
+    assert.match(flat, /Checkpoint policy stays absent for a second reason too/);
     assert.match(flat, /an absent key is the record that the user was never asked/);
-    assert.match(flat, /Checkpoint policy is asked the same way, at the first split run/);
+    assert.match(flat, /at the first split run/);
     assert.doesNotMatch(all, /"discoverySuggestions": ?(true|false)/);
     assert.doesNotMatch(all, /"ledger": ?\{/);
   });

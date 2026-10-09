@@ -3,7 +3,6 @@
 
 // Standalone Node CLI; project selection is shared by runtime.projectDir.
 
-const { readLedger } = require("./ledger-config");
 const { configPath, readConfigFile } = require("./foreman-config");
 
 const { projectDir, parseFlags, printHelp } = require("./runtime");
@@ -51,19 +50,6 @@ function readRequireVerification(config) {
   };
 }
 
-// Delegates the ledger settings chain (env override ->
-// .foreman/config.json's `ledger` group, or the `areaNotes`/`decisionLog`
-// keys it replaced -> defaults) to the module that owns it for every
-// consumer, instead of restating the parse here. Its `warning` rides the
-// same user-visible channel as readConfig's corrupt warning; ledger-config
-// reads the file itself, so a corrupt config yields one warning from each
-// reader (both accurate — every setting AND every ledger setting fell to
-// default).
-function readLedgerSection(root) {
-  const { enabled, dir, warning } = readLedger(root);
-  return { enabled, dir, warning };
-}
-
 // Only these template tags are ever conditional in the first place — the
 // rest (task_context, truth_grounding, scope_discipline, task_rules) are
 // the guardrails/core structure omitSections can never touch.
@@ -103,23 +89,20 @@ function render(root) {
   const { config, warning: configWarning } = readConfig(root);
   const omitResult = renderOmit(config.omitSections);
   const requireVerificationResult = readRequireVerification(config);
-  const ledger = readLedgerSection(root);
   return {
     usePersona: readUsePersona(config),
     omit: omitResult.omit,
     requireVerification: requireVerificationResult.value,
-    ledger: { enabled: ledger.enabled, dir: ledger.dir },
     warnings: [
       ...(configWarning ? [configWarning] : []),
       ...omitResult.warnings,
       ...(requireVerificationResult.warning ? [requireVerificationResult.warning] : []),
-      ...(ledger.warning ? [ledger.warning] : []),
     ],
   };
 }
 
 const USAGE = `render-sections.js -- reads the project's Foreman config and prints one JSON line:
-{"ok":true,"usePersona","omit","requireVerification","ledger":{"enabled","dir"},"warnings"}.
+{"ok":true,"usePersona","omit","requireVerification","warnings"}.
 Takes no flags or input and writes nothing.
 `;
 
@@ -145,7 +128,6 @@ module.exports = {
   configPath,
   readConfig,
   readUsePersona,
-  readLedgerSection,
   renderOmit,
   render,
   OMITTABLE_TAGS,

@@ -52,8 +52,7 @@ assume the shell defines a plugin-root variable.
   check. Before reporting a completed entry, run the companion `check --id <id>`;
   a failed check arms the optional Stop reminder for this session. At a flow's
   entrance, surface unfinished or awaiting work from compact CLI reads when the
-  session-start hook has not already done so, and read lessons for the task's
-  paths with `roadmap.js notes --paths <comma-joined paths>` when useful. After a
+  session-start hook has not already done so. After a
   commit the hook did not handle, use
   `list --status in_progress,awaiting_acceptance --summary` to find the entries
   it implements. Hooks add assistance, but these explicit calls remain part of

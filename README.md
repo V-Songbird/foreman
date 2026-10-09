@@ -35,7 +35,7 @@ Ask "what’s next?" and it recommends a task with its reason and a prompt check
 
 ## How it works
 
-The roadmap lives in your project. Foreman reads it, checks the relevant context and helps you choose what to do next. Optional lessons let later tasks learn from earlier work without creating a separate knowledge base.
+The roadmap lives in your project. Foreman reads it, checks the relevant context and helps you choose what to do next.
 
 ## What you can do
 
@@ -110,9 +110,7 @@ agy plugin install "<path-to-foundry>/foreman"
 
 ## Good to know
 
-Foreman is for a solo developer. It does not become a team tracker, code-review service, unattended scheduler or workflow server. Your project keeps its own data. The optional ledger is off until requested; disabling it deletes no existing notes.
-
-A lesson's verdict says whether its files changed since it was recorded, not whether the lesson was ever right, so a wrong lesson keeps being served until you retire it.
+Foreman is for a solo developer. It does not become a team tracker, code-review service, unattended scheduler or workflow server. Your project keeps its own data.
 
 ### Switching between assistants
 
@@ -127,13 +125,12 @@ Foreman does the same job in every assistant. The host — the assistant Foreman
 | Starting a tracked task | A hook opens the roadmap entry when Foreman's prompt becomes a task | The prompt opens the entry with an explicit start command | The same explicit start command |
 | Reminder when a task ends with its entry still open (`taskCloseGate`) | Once per task, the first attempt to finish is stopped with instructions to close the entry; the retry passes | After an explicit check finds the entry still open, Foreman asks Codex for one more turn | Not available: Antigravity has no task or stop event Foreman can use |
 | Direct edits of the roadmap file are blocked for | `Edit` and `Write` | `apply_patch`, `Edit` and `Write` | `write_to_file`, `replace_file_content` and `multi_replace_file_content` |
-| Lessons appear when a file is touched with | `Read`, `Edit` and `Write` | `apply_patch`, `Read`, `Edit` and `Write` | `view_file` and the three write tools, at the next model call |
 | Offering untracked work Foreman noticed | After a commit | After a commit, in every handoff and before reporting completion | After a commit, at the next model call, in every handoff and before reporting completion |
 | Advice based on how full the session is | When your auto-compact window is set ([settings](settings.md)) | Not available: Codex does not report it | Not available: Antigravity does not report it |
 | Stopping for your approval after each result of a task | Not offered: reviewed increments are Codex only | On explicit request | Not offered: reviewed increments are Codex only |
 | Model recorded when a task closes | Family name, such as `sonnet` | Exact model id | Exact model id |
 
-On every host, a shell command can still write the roadmap file, and reading a file through the shell shows no lessons. A prompt copied out of one assistant carries that assistant's script paths, so craft it again in the other. [Foreman in Codex](CODEX.md) covers the Codex side in detail; an Antigravity session gets the same form of prompt, run with its own tools.
+On every host, a shell command can still write the roadmap file. A prompt copied out of one assistant carries that assistant's script paths, so craft it again in the other. [Foreman in Codex](CODEX.md) covers the Codex side in detail; an Antigravity session gets the same form of prompt, run with its own tools.
 
 ## The numbers
 
@@ -185,7 +182,7 @@ The task trail above illustrates the workflow. The recorded demo below comes fro
 
 ## Going deeper
 
-[How it works](HOW-IT-WORKS.md) · [Settings](settings.md) · [Roadmap schema](roadmap-schema.md) · [Ledger](ledger.md) · [Foreman in Codex](CODEX.md) · [Codex handoff prompting](CODEX-PROMPTING.md)
+[How it works](HOW-IT-WORKS.md) · [Settings](settings.md) · [Roadmap schema](roadmap-schema.md) · [Foreman in Codex](CODEX.md) · [Codex handoff prompting](CODEX-PROMPTING.md)
 
 [Product scope](docs/knowledge/scope.md) · [Incremental acceptance](docs/knowledge/incremental-acceptance.md) · [Changelog](docs/knowledge/changelog.md) · [Foundry](https://github.com/V-Songbird/foundry)
 

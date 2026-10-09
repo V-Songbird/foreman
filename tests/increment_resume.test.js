@@ -71,7 +71,7 @@ test('note text cannot inject a closing XML tag or another protocol block', (t) 
   assert.equal((result.prompt.match(/<task_rules>/g) || []).length, 1);
 });
 
-test('operational review notes do not become cross-task code lessons', () => {
+test('operational review notes are never recalled into another task', () => {
   const prefixes = ['accepted:', 'changes requested:', 'paused:', 'review pending:', 'unverified:', 'verification resolved:'];
   for (const prefix of prefixes) assert.equal(recallExcerpt(`2026-09-08 ${prefix} a long review record`), null);
   assert.equal(recallExcerpt('2026-09-08 accepted: long acceptance record\n2026-09-08 parser.js preserves empty tokens'), 'parser.js preserves empty tokens');
@@ -161,7 +161,7 @@ test('a declined pick-time resume reaches the handoff as a note that skips the r
   assert.equal(skipsFor(carriedFor(`${pause}\n2026-09-28 ${decline}`)), true, 'declined at pick: no repeat offer');
   assert.equal(skipsFor(carriedFor(pause)), false, 'no decline: the offer stays');
   assert.equal(skipsFor(carriedFor(`${pause}\n${decline}\n${pause}`)), false, 'a later pause brings the offer back');
-  assert.equal(recallExcerpt(`2026-09-28 ${decline}`), null, 'the decline is not a cross-task lesson');
+  assert.equal(recallExcerpt(`2026-09-28 ${decline}`), null, 'the decline is never recalled into another task');
 });
 
 // [Foreman: 947] The Codex close gate stands down for a subagent's finish

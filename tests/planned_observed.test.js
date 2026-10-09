@@ -334,13 +334,11 @@ describe('a close records the observed surface only', () => {
     assert.deepEqual(json.entry.observed_touches, ['src/auth/session.ts']);
   });
 
-  // [Foreman: 869] A commit-sha close whose commit carries the roadmap and the
-  // notes file records only the task's own files, as a staged close does.
-  test('the roadmap and the notes file in the landed commit are not observed', () => {
+  // [Foreman: 869] A commit-sha close whose commit carries the roadmap
+  // records only the task's own files, as a staged close does.
+  test('the roadmap in the landed commit is not observed', () => {
     seed(['src/work.ts']);
-    fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
-    fs.writeFileSync(path.join(project, '.foreman', 'notes.jsonl'), '', 'utf-8');
-    spawnSync('git', ['add', 'ROADMAP.jsonl', '.foreman/notes.jsonl'], { cwd: project });
+    spawnSync('git', ['add', 'ROADMAP.jsonl'], { cwd: project });
     const sha = commitFile(project, 'src/work.ts', 'export const x = 1;\n');
 
     const { json } = run(['update-status'], { id: '001', status: 'done', commit: sha });

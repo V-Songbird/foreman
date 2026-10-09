@@ -77,7 +77,7 @@ describe('tracked-roadmap lifecycle', () => {
     fs.mkdirSync(path.join(project, 'src'), { recursive: true });
     fs.writeFileSync(path.join(project, 'src', 'thing.js'), 'done\n', 'utf-8');
 
-    // 4. Stage the task's own files; the ledger stays out.
+    // 4. Stage the task's own files; the roadmap stays out.
     const finish = JSON.parse(
       runNodeScript(
         SAFE_COMMIT,

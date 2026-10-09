@@ -1,19 +1,19 @@
 'use strict';
 
 // Records Foreman writes while Codex runs it (codex-suggested entries, exact
-// model ids, Codex effort tiers, a Codex-written lesson), handled end to end by
+// model ids, Codex effort tiers, a lesson store an older Foreman left), handled end to end by
 // the one CLI both hosts share.
 //
 // Covers:
 //   - doctor reports nothing for codex-suggested entries, exact model ids, the
-//     none/minimal/ultra effort tiers, an archived Codex-closed entry, a lesson
-//     recorded on one, and the settings both editions share
+//     none/minimal/ultra effort tiers, an archived Codex-closed entry, a
+//     leftover lesson store and retired ledger setting, and the settings both
+//     editions share
 //   - list, list --summary, list --stats, next-candidates and correct read and
 //     repair them
-//   - update-status and annotate write to them, including a close that records
-//     a lesson
+//   - update-status and annotate write to them, and a close that still
+//     carries a lesson leaves the leftover store as it was
 //   - archive and restore move them, and reassign-id renumbers one
-//   - notes, note-supersede and note-prune handle a Codex-written lesson
 //   - a handoff crafts, for either host, for a Codex-suggested entry whose
 //     parent Codex closed
 //   - isValidModel keeps the legacy labels and exact ids, and refuses anything
@@ -181,8 +181,10 @@ describe('writing to Codex-written entries', () => {
     assert.equal(run(['doctor']).json.summary.errors, 0);
   });
 
-  test('a close carrying Codex values records its lesson beside the Codex-written one', () => {
+  test('a close carrying Codex values and a lesson leaves the leftover store as it was', () => {
     seedCodexProject();
+    const notesFile = path.join(project, '.foreman', 'notes.jsonl');
+    const before = fs.readFileSync(notesFile, 'utf-8');
     const { status, json } = run(['update-status'], {
       id: '004',
       status: 'done',
@@ -192,8 +194,9 @@ describe('writing to Codex-written entries', () => {
       lesson: 'upload retries reuse the parse() walker in src/alpha.js',
     });
     assert.equal(status, 0, JSON.stringify(json));
-    assert.equal(json.lesson.stored, true, JSON.stringify(json.lesson));
-    assert.equal(run(['notes']).json.records.length, 2);
+    assert.equal(json.lesson, undefined);
+    assert.equal(json.entry.model, 'gpt-5.6-sol');
+    assert.equal(fs.readFileSync(notesFile, 'utf-8'), before);
   });
 });
 
@@ -225,27 +228,6 @@ describe('moving Codex-written entries', () => {
     const moved = run(['list', '--ids', '002']).json.entries[0];
     assert.equal(moved.title, 'Index epsilon logs');
     assert.equal(moved.model, 'gpt-5.6-luna');
-    assert.equal(run(['doctor']).json.summary.errors, 0);
-  });
-});
-
-describe('the ledger with a Codex-written lesson', () => {
-  test('notes serves it, note-supersede retires it and note-prune clears it', () => {
-    seedCodexProject();
-    const served = run(['notes']).json;
-    assert.equal(served.records.length, 1, JSON.stringify(served));
-    const { key } = served.records[0];
-
-    const retired = run(['note-supersede'], { key, by_entry: '004' });
-    assert.equal(retired.json.superseded, true, JSON.stringify(retired.json));
-    assert.deepEqual(run(['notes']).json.records, []);
-
-    const dry = run(['note-prune', '--dry-run']).json;
-    assert.equal(dry.dry_run, true);
-    assert.deepEqual(dry.dropped, { dead: 0, superseded: 1 });
-    const pruned = run(['note-prune']).json;
-    assert.equal(pruned.pruned, true, JSON.stringify(pruned));
-    assert.equal(pruned.kept, 0);
     assert.equal(run(['doctor']).json.summary.errors, 0);
   });
 });

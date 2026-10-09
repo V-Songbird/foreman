@@ -16,19 +16,14 @@ const { withRoadmapLock } = require("./roadmap-lock");
 // the project turned it on, and it never throws — a trial is an observation
 // of the work and must never become a way for the work to fail.
 const { record: recordTrial } = require("./trial-log");
-const ledger = require("./ledger");
-const { readLedger } = require("./ledger-config");
-const noteStaleness = require("./note-staleness");
 const {
   validateEntries,
   validateHiddenCharacters,
   hiddenIn,
-  recordHiddenCharacters,
   quoted,
   validateAcrossFiles,
   enrichDuplicates,
   validateConfig,
-  validateAreaNotes,
   hookDependencies,
   applyRepairs,
   summarize,
@@ -447,49 +442,14 @@ function today() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-// Anchor comment format pointing code at the entry that governs it: `[Foreman: 019]`
-// or multi-id `[Foreman: 019, 034]` -- ID_PATTERN ids, comma-separated,
-// spaces around the comma optional. Exported so the close gate and the anchor
-// tripwire hook share one definition instead of two regexes drifting apart. A
-// digit run that is not a valid id (`0199`, `07`) fails the whole bracketed
-// match rather than partially matching -- deliberate.
-const DECISION_ANCHOR_RE = new RegExp(
-  `\\[Foreman:\\s*${ID_PATTERN}(?:\\s*,\\s*${ID_PATTERN})*\\s*\\]`,
-  "g"
-);
 const ID_SCAN_RE = new RegExp(ID_PATTERN, "g");
-
-// All ids named across every anchor comment in `text`, deduped,
-// first-seen order. String.prototype.matchAll clones the regex per call,
-// so the shared `g` flag's lastIndex never leaks across calls or into
-// other consumers of DECISION_ANCHOR_RE.
-function anchorIdsIn(text) {
-  if (!text) return [];
-  const ids = [];
-  const seen = new Set();
-  for (const match of String(text).matchAll(DECISION_ANCHOR_RE)) {
-    for (const id of match[0].match(ID_SCAN_RE) || []) {
-      if (!seen.has(id)) {
-        seen.add(id);
-        ids.push(id);
-      }
-    }
-  }
-  return ids;
-}
-
-// True when some anchor comment in `text` names this exact id (string
-// comparison -- callers pass the same zero-padded id shape entries use).
-function anchorHasId(text, id) {
-  return anchorIdsIn(text).includes(String(id));
-}
 
 // Commit-message trailer linking a commit to the entry it closes:
 // `Foreman: 042` (or multi-id `Foreman: 041, 042`) as its own line. This
 // is the inverse pointer a staged close relies on -- a commit can never
 // contain its own sha, but it can name the entry id, which is known
-// before committing. Same ID_PATTERN grammar as the decision anchors,
-// unbracketed because trailers follow git's `Key: value` shape.
+// before committing. ID_PATTERN ids, comma-separated, in git's
+// `Key: value` trailer shape.
 const COMMIT_TRAILER_RE = new RegExp(
   `^Foreman:\\s*${ID_PATTERN}(?:\\s*,\\s*${ID_PATTERN})*\\s*$`,
   "gm"
@@ -639,8 +599,8 @@ function fieldWarnings(fields) {
 }
 
 // `doc` is an optional pointer, not a free-text field: exactly "none" (this
-// task recorded nothing outside the ledger) or a relative .md path into the
-// project's documents dir. Same trust boundary as depends_on ids/
+// task recorded nothing outside the roadmap) or a relative .md path into the
+// project's own documents. Same trust boundary as depends_on ids/
 // touches paths -- an absolute path or a `..` escape could point outside
 // the project. path.win32.isAbsolute is checked alongside posix's (it's
 // always available regardless of host OS) so a Windows-shaped drive-letter
@@ -720,7 +680,7 @@ function plannedTouchesInput(payload, command) {
   return value;
 }
 
-// [Foreman: 436] Titles, notes and lessons come from conversations and land in
+// [Foreman: 436] Titles and notes come from conversations and land in
 // files a project commits, so a write whose text looks like a credential is
 // refused before the lock, with nothing written. A small closed set, started
 // from hush's containsSecret list: provider key prefixes, private key blocks,
@@ -761,14 +721,12 @@ function refuseCredentials(command, payload, fields) {
   }
 }
 
-// [Foreman: 633] A lesson is served into later sessions with no review, by
-// the handoff and by the hook that runs on every Read of its files, and only
-// the handoff passes the prompt gate. So a lesson carrying a character the
-// gate refuses (check-prompt.js hiddenCharacters, the one set) is refused
-// here, before the lock, with nothing written. The error names each line and
-// code point, never the text. [Foreman: 648] The same holds for the title,
-// why, what and notes a handoff quotes: notes cannot be corrected, so one bad
-// note would fail every later handoff for its entry. A handoff quotes a field
+// [Foreman: 648] The title, why, what and notes a handoff quotes are refused
+// here, before the lock, with nothing written, when they carry a character
+// the prompt gate refuses (check-prompt.js hiddenCharacters, the one set).
+// The error names each line and code point, never the text. Notes cannot be
+// corrected, so one bad note would fail every later handoff for its entry.
+// A handoff quotes a field
 // mid-prompt, never at its start, so the field is checked behind a space and
 // a leading byte order mark is refused as the gate would refuse it there.
 // [Foreman: 724] The handoff also prints planned_touches and, through a
@@ -934,7 +892,7 @@ function gitFilesIn(root, args, keep) {
 // [Foreman: 869] Foreman's own records are never task footprint, whether a
 // close reads them from the index or from a landed commit that carries them.
 function isTaskFootprint(file) {
-  return Boolean(file) && file !== "ROADMAP.jsonl" && file !== ledger.NOTES_RELATIVE;
+  return Boolean(file) && file !== "ROADMAP.jsonl";
 }
 
 function filesTouchedByCommit(root, sha) {
@@ -962,10 +920,6 @@ function commitMessageFor(root, sha) {
 // landed commit, so a close can derive touches BEFORE the commit exists
 // and ride inside it. Same fail-soft contract. ROADMAP.jsonl itself is
 // dropped — the close is about to stage it, and it isn't task footprint.
-// `.foreman/notes.jsonl` is dropped for the same reason ROADMAP.jsonl is, and
-// for one more: a staged close that is later abandoned leaves the notes file
-// in the index, where the NEXT close would fold it into observed_touches and
-// keep it there permanently.
 function filesStagedIn(root) {
   return gitFilesIn(root, ["diff", "--cached", "--name-only", "--relative"], isTaskFootprint);
 }
@@ -1038,19 +992,19 @@ function notStagedWarning(id, ignored) {
 // absent / not a repo) never fails the close — the caller just stages them
 // itself.
 // [Foreman: 539] The commit carries every pending bookkeeping file, whoever
-// wrote it: the roadmap, the lesson store and the archive, so another close's
-// lesson or an archive move reaches history with this close instead of
-// trailing it. A path that neither exists nor is tracked is left out, since
-// `git add` fails on it. safe-commit.js CLOSE_BOOKKEEPING lists the same
-// files; a declared roadmap close refuses any it lacks.
+// wrote it: the roadmap and the archive, so an archive move reaches history
+// with this close instead of trailing it. A path that neither exists nor is
+// tracked is left out, since `git add` fails on it. safe-commit.js
+// CLOSE_BOOKKEEPING lists the same files; a declared roadmap close refuses
+// any it lacks.
 // [Foreman: 335] An ignored file is left out rather than handed to `git add`,
 // which refuses it and fails the whole call even after staging the rest;
-// `ignored` names what this close wrote and git will not carry, so the close
-// can say so: the roadmap, and the lesson store when `written` names it.
-function stageRoadmapFile(root, written = []) {
-  const paths = ["ROADMAP.jsonl", ledger.NOTES_RELATIVE, ARCHIVE_LABEL];
+// `ignored` names the roadmap when git will not carry it, so the close can
+// say so.
+function stageRoadmapFile(root) {
+  const paths = ["ROADMAP.jsonl", ARCHIVE_LABEL];
   const ignoredAll = ignoredPaths(root, paths);
-  const ignored = ["ROADMAP.jsonl", ...written].filter((file) => ignoredAll.includes(file));
+  const ignored = ["ROADMAP.jsonl"].filter((file) => ignoredAll.includes(file));
   let tracked = [];
   try {
     tracked = runGit(root, ["ls-files", "--", ...paths], {
@@ -1165,11 +1119,14 @@ function soleHolder(entries, id, label) {
 }
 
 function cmdUpdateStatus(root, payload) {
-  refuseCredentials("update-status", payload, ["notes", "lesson", "add_touches", "doc", "model"]);
-  refuseHiddenCharacters("update-status", payload, ["notes", "lesson", "doc"]);
+  refuseCredentials("update-status", payload, ["notes", "add_touches", "doc", "model"]);
+  refuseHiddenCharacters("update-status", payload, ["notes", "doc"]);
   return withRoadmapLock(root, () => cmdUpdateStatusUnlocked(root, payload));
 }
 
+// A `lesson` field, which older handoffs ask a close to carry, is read by
+// nothing here: it is neither stored nor validated, so such a close goes
+// through unchanged.
 function cmdUpdateStatusUnlocked(root, payload) {
   const {
     id,
@@ -1177,7 +1134,6 @@ function cmdUpdateStatusUnlocked(root, payload) {
     commit,
     staged,
     notes,
-    lesson,
     add_touches,
     doc,
     kind,
@@ -1217,9 +1173,6 @@ function cmdUpdateStatusUnlocked(root, payload) {
   }
   if (add_touches !== undefined && !Array.isArray(add_touches)) {
     throw new Error("add_touches must be an array of paths");
-  }
-  if (lesson !== undefined && typeof lesson !== "string") {
-    throw new Error("lesson must be a string — one sentence naming the file or symbol it concerns");
   }
   if (doc !== undefined) validateDoc(doc);
   if (kind !== undefined) validateKind(kind);
@@ -1285,9 +1238,6 @@ function cmdUpdateStatusUnlocked(root, payload) {
       );
     }
   }
-  // [Foreman: 283] Read before the status moves: the omitted-lesson row below
-  // is written only on an entry's FIRST arrival at a closing status.
-  const wasClosed = LESSON_STATUSES.has(entry.status);
   entry.status = status;
   if (doc !== undefined) entry.doc = doc;
   // What ran, not what was recommended -- the gap between the two is the
@@ -1339,24 +1289,6 @@ function cmdUpdateStatusUnlocked(root, payload) {
   if (note && !String(entry.notes || "").includes(note)) {
     entry.notes = appendNote(entry.notes, note);
   }
-  // The lesson ledger's one write moment, inside the lock this close already
-  // holds. Nothing here can fail the close: every refusal is a reported
-  // reason, and prose that could not be stored is kept on the entry's own
-  // notes rather than dropped.
-  const lessonOutcome = lesson === undefined
-    ? null
-    : recordLesson(root, entry, { lesson, commit });
-  if (lessonOutcome && lessonOutcome.note) {
-    entry.notes = appendNote(entry.notes, lessonOutcome.note);
-  }
-  // [Foreman: 283] The denominator the store rate never had: a close the ask
-  // could have reached that carried no lesson. Only the first arrival at a
-  // closing status counts — the accept transition (awaiting_acceptance ->
-  // done) is the user's yes, not the closing session's answer — and only
-  // while the ledger is on, because a disabled project was never asked.
-  if (lesson === undefined && LESSON_STATUSES.has(status) && !wasClosed && readLedger(root).enabled) {
-    recordTrial("lesson_present", { stored: false, outcome: "omitted" }, { root });
-  }
   entry.updated_at = today();
   const migrated = writeEntries(root, entries, resolve);
   const warnings = notes ? fieldWarnings([["notes", notes, NOTES_APPEND_WARN_CHARS, NOTES_WARN_HINT]]) : [];
@@ -1364,68 +1296,15 @@ function cmdUpdateStatusUnlocked(root, payload) {
   if (migrated) result.migrated = migrated;
   if (derivedTouches.length) result.derived_touches = derivedTouches;
   if (drift && (drift.untouched.length || drift.unpredicted.length)) result.scope_drift = drift;
-  if (lessonOutcome) result.lesson = lessonOutcome.report;
   // A staged close hands back the exact trailer line the commit message
   // must carry — the entry↔commit link the recorded sha used to be.
   if (staged) {
     result.trailer = commitTrailerFor(id);
-    const staging = stageRoadmapFile(
-      root,
-      lessonOutcome && lessonOutcome.report.stored ? [ledger.NOTES_RELATIVE] : []
-    );
+    const staging = stageRoadmapFile(root);
     result.roadmap_staged = staging.staged;
     if (staging.ignored.length) warnings.push(notStagedWarning(id, staging.ignored));
   }
   return warnings.length ? { ...result, warnings } : result;
-}
-
-// A lesson is worth recording only where there is finished work behind it.
-// `awaiting_acceptance` counts for the same reason recall counts it: the diff
-// is real and only the user's yes is missing.
-const LESSON_STATUSES = new Set([...TERMINAL_STATUSES, "awaiting_acceptance"]);
-
-/**
- * Store one close's lesson, or say exactly why it was not stored.
- *
- * `{report, note}` — `report` is what the close hands back
- * (`{stored:true, area, paths_count}` or `{stored:false, reason}`), `note` is
- * the line to append to the entry's own notes. Both machine prefixes below
- * are in craft-handoff.js's MACHINE_NOTE_RE, so neither the provenance line
- * nor the fallback prose can ever be quoted back as a recall excerpt.
- */
-function recordLesson(root, entry, { lesson, commit }) {
-  const refuse = (reason, note = null) => {
-    recordTrial("lesson_present", { stored: false, outcome: reason }, { root });
-    return { report: { stored: false, reason }, note };
-  };
-
-  if (!LESSON_STATUSES.has(entry.status)) return refuse("not_a_close");
-
-  // Disabled is not a reason to lose what the user typed: the prose lands on
-  // the entry, prefixed so recall can never mistake it for a finding.
-  if (!readLedger(root).enabled) {
-    return refuse("disabled", `lesson not recorded (ledger disabled): ${lesson}`);
-  }
-
-  const anchor = commit ? { kind: "commit", sha: commit } : { kind: "entry" };
-  const stored = ledger.append(root, {
-    lesson,
-    paths: entry.observed_touches || [],
-    entry: entry.id,
-    anchor,
-    date: today(),
-  });
-  if (!stored.stored) {
-    return refuse(stored.reason, `lesson not recorded (${stored.reason}): ${lesson}`);
-  }
-  recordTrial("lesson_present", { stored: true, outcome: "stored" }, { root });
-  // [Foreman: 747] The area is a path prefix git reported, named by code point
-  // when it carries a hidden character.
-  const area = quoted(stored.area, stored.area);
-  return {
-    report: { ...stored, area },
-    note: `lesson recorded: ${ledger.NOTES_RELATIVE}, area ${area}`,
-  };
 }
 
 // Notes-only append that leaves status alone — a breadcrumb write must not
@@ -2447,25 +2326,12 @@ function cmdReassignIdUnlocked(root, payload) {
   if (rewrites(archived)) {
     migrated = writeArchive(root, archived) || migrated;
   }
-  // [Foreman: 247] Lesson records anchored to the repaired id have the same
-  // problem the commit trailers do, and unlike the trailers this store is
-  // ours to fix. Which holder wrote a given record is unknowable, so the
-  // anchor is demoted rather than repointed: the lesson keeps serving, and its
-  // staleness reads "unknown" instead of resolving against the wrong entry's
-  // history. [Foreman: 769] Demotion keys on the record's own entry, since a
-  // close never writes the id on the anchor; a recorded sha keeps resolving,
-  // and only the fallback through the id's trailers stops. A sole holder
-  // moved off a malformed id wrote every record naming it, so nothing is
-  // ambiguous and nothing is demoted.
-  const notes = holders.length > 1 ? ledger.demoteAnchors(root, id, { date }) : null;
-
   const result = {
     kept: { id: named(id), ...(malformed ? { to: keptTo } : {}), title: named(kept.entry.title) },
     reassigned,
     dependents_on_kept: dependents.map((entry) => named(entry.id)),
   };
   if (migrated) result.migrated = migrated;
-  if (notes && notes.demoted) result.notes_anchors_demoted = notes.demoted;
   return result;
 }
 
@@ -2565,131 +2431,8 @@ function allFindings(root) {
     })),
     ...validateAcrossFiles(active, archived, archivedAt),
     ...validateConfig(root),
-    ...validateAreaNotes(root),
     ...hookDependencies(),
   ], active, archived);
-}
-
-// [Foreman: 243] The explicit pull. Every cap here exists so the output is
-// O(what you asked for) and never O(store): an unfiltered call on a project
-// with four hundred closed tasks must still print something a person reads.
-const NOTES_MAX_AREAS = 10;
-
-function cmdNotes(root, flags) {
-  const { records, error } = ledger.read(root);
-  if (error) return { error_code: error, areas: [], records: [] };
-
-  const wantPaths = typeof flags.paths === "string"
-    ? flags.paths.split(",").map((p) => p.trim()).filter(Boolean)
-    : [];
-  const wantArea = typeof flags.area === "string" ? ledger.normalizeStorePath(flags.area).toLowerCase() : "";
-
-  // Newest first everywhere: a corrective record is written after the record
-  // it corrects, so it has to be the one a reader meets first.
-  let matched = [...records].reverse();
-  if (wantPaths.length) {
-    matched = matched.filter((record) =>
-      record.paths.some((stored) => wantPaths.some((wanted) => touchesOverlap(wanted, stored))));
-  }
-  if (wantArea) {
-    matched = matched.filter((record) => {
-      const area = String(record.area || ".").toLowerCase();
-      return area === wantArea || area.startsWith(`${wantArea}/`);
-    });
-  }
-
-  // An unfiltered call is the one that can run away, so only that one is
-  // capped by area. A filtered call already named its own bound.
-  const filtered = Boolean(wantPaths.length || wantArea);
-  const order = [];
-  for (const record of matched) {
-    const area = record.area || ".";
-    if (!order.includes(area)) order.push(area);
-  }
-  const served = filtered ? order : order.slice(0, NOTES_MAX_AREAS);
-  const overflow = order.length - served.length;
-  const shown = matched.filter((record) => served.includes(record.area || "."));
-
-  const budget = noteStaleness.newBudget();
-  const resolved = noteStaleness.resolveAll(root, shown, budget);
-
-  const result = {
-    // [Foreman: 728] An area is a path prefix, so it can carry a hidden character too.
-    areas: served.map((area) => quoted(area, area)),
-    records: resolved.map(({ record, state, label: line }) => {
-      const key = ledger.recordKey(record);
-      const area = quoted(record.area || ".", record.area || ".");
-      // [Foreman: 723] Survey hands this output to a model, and JSON.stringify
-      // keeps a hidden character as it is. A record servedBody serves nowhere
-      // prints what doctor names it by: its key and code points, not its text.
-      const hidden = recordHiddenCharacters(record);
-      if (hidden.length) {
-        return {
-          key,
-          area,
-          hidden_characters: hidden,
-          withheld: "its text carries characters a reader cannot see, so no handoff or file read serves it; `roadmap.js note-supersede` can retire it by its key",
-        };
-      }
-      return {
-        key,
-        area,
-        entry: record.entry,
-        date: record.date,
-        paths: record.paths,
-        lesson: record.lesson,
-        staleness: state,
-        label: line,
-      };
-    }),
-  };
-  if (overflow > 0) {
-    result.overflow = `+${overflow} more area${overflow === 1 ? "" : "s"} — filter with --area or --paths`;
-  }
-  // Past the budget every remaining record serves its anchor and no freshness
-  // claim, so say that rather than letting "unknown" read as a git failure.
-  if (budget.spent >= budget.limit) result.staleness_budget_spent = true;
-  return result;
-}
-
-/**
- * [Foreman: 247] Retire one served lesson that proved wrong.
- *
- * The handoff block already tells a session to record the corrected fact on
- * its close, and newest-first serving puts the correction above the mistake.
- * That fixes what gets read first; it does not stop the wrong line being read
- * at all, and it leaves it spending part of a capped serving window forever.
- * This is the other half: name the record and it stops being served.
- *
- * The key comes from `notes` output. It is derived from the record's own
- * content, so it is the same in every clone of the project.
- */
-function cmdNoteSupersede(root, payload) {
-  const { key, by_entry: byEntry } = payload || {};
-  if (typeof key !== "string" || !key) {
-    throw new Error("note-supersede requires key: the record key, as `notes` reports it");
-  }
-  if (byEntry !== undefined && (typeof byEntry !== "string" || !byEntry)) {
-    throw new Error("note-supersede's by_entry, when given, is the id of the entry recording the correction");
-  }
-  // The store's own append is atomic, but a concurrent close writing a lesson
-  // is the case this has to serialize against, and that close holds this lock.
-  return withRoadmapLock(root, () => ledger.supersede(root, { key, by_entry: byEntry, date: today() }));
-}
-
-/**
- * [Foreman: 247] The one operation that rewrites the lesson store.
- *
- * Append-only is what makes every other path in the ledger safe, so this is
- * the deliberate exception and it is never automatic: `--dry-run` reports what
- * would go, and a flow shows that count before asking. What goes is only what
- * nothing can learn from any more — records whose every file is gone, and
- * records a correction already retired.
- */
-function cmdNotePrune(root, flags) {
-  const dryRun = Boolean(flags && flags["dry-run"]);
-  if (dryRun) return ledger.prune(root, { dryRun: true });
-  return withRoadmapLock(root, () => ledger.prune(root));
 }
 
 function cmdDoctor(root, flags) {
@@ -2744,7 +2487,7 @@ to its own result -- absent when the file was already current. add,
 update-status, annotate and correct refuse text that looks like a credential (an API key, a token, a
 private key block, an Authorization value or a password inside a URL): nothing
 is written, and the error names the field and the kind, never the text. They
-likewise refuse a title, why, what, notes or lesson carrying a character
+likewise refuse a title, why, what or notes carrying a character
 check-prompt.js refuses (zero-width, a byte order mark, bidi, Unicode tags),
 naming the field, each line and code point.
 
@@ -2768,7 +2511,7 @@ naming the field, each line and code point.
                     an exact existing title returns that entry with
                     deduped:true; intentional separate tasks need distinct
                     titles so every add remains safe to replay
-  update-status     stdin JSON: {id, status, commit?, staged?, notes?, lesson?, add_touches?, doc?, kind?, model?, effort?, expected_status?, require_ready?}
+  update-status     stdin JSON: {id, status, commit?, staged?, notes?, add_touches?, doc?, kind?, model?, effort?, expected_status?, require_ready?}
                     status: "planned" | "in_progress" | "awaiting_acceptance" | "deferred" | "done" | "dropped" | "rejected"
                     "awaiting_acceptance" = implemented AND checked, waiting
                     only on the user's yes; open everywhere (does not satisfy
@@ -2790,9 +2533,9 @@ naming the field, each line and code point.
                     the task's own files with "safe-commit.js finish
                     --no-commit" and BEFORE committing: observed_touches
                     auto-folds from the index instead of a commit, the script stages
-                    the pending bookkeeping itself (ROADMAP.jsonl,
-                    .foreman/notes.jsonl, .foreman/archive.jsonl, other
-                    entries' edits included), and the result carries trailer
+                    the pending bookkeeping itself (ROADMAP.jsonl and
+                    .foreman/archive.jsonl, other entries' edits
+                    included), and the result carries trailer
                     ("Foreman: <id>") to put as the commit message's final
                     line -- entry and commit link through that trailer, so
                     the close lands inside its own commit with no sha
@@ -2804,20 +2547,6 @@ naming the field, each line and code point.
                     add_touches: array of paths to fold into observed_touches
                     (dedup, never removes) -- for a file the commit's own
                     diff cannot show
-                    lesson: one durable sentence about this code area,
-                    naming the file or symbol it concerns, recorded in
-                    .foreman/notes.jsonl for a later task whose planned files
-                    intersect this close's observed ones. Only on a close
-                    (done/dropped/rejected/awaiting_acceptance), only when
-                    ledger.enabled, at most 500 chars -- longer is
-                    refused, never truncated. A lesson carrying a
-                    character check-prompt.js refuses (zero-width, bidi,
-                    Unicode tags) refuses the whole call. The result reports
-                    lesson:{stored:true, area, paths_count} or
-                    {stored:false, reason}; prose that could not be stored
-                    lands on the entry's own notes instead of being dropped.
-                    Omitting it is a valid outcome: nothing generalizes from
-                    most tasks
                     doc: same "none" | relative .md path contract as add
                     kind: "build" | "decision" -- reclassify the entry;
                     "decision" is stored, "build" drops the key (the default)
@@ -2918,15 +2647,7 @@ naming the field, each line and code point.
                     from correct, checked against the kept holder
                     returns {kept:{id,title}, reassigned:[{from,to,title,
                     trailer_commits}], dependents_on_kept:[ids]}
-                    a lesson-ledger record written for the repaired id
-                    cannot be attributed to either holder, so every one
-                    is demoted: it stops resolving through the id's
-                    commit trailers rather than reading the surviving
-                    holder's history (notes_anchors_demoted counts them).
-                    The lesson and its date stay; a record that kept its
-                    commit sha still resolves through it, the rest read
-                    unknown
-  archive           stdin JSON: {ids:["019", ...]}
+  archive          stdin JSON: {ids:["019", ...]}
                     moves terminal (done/dropped/rejected) entries out of
                     ROADMAP.jsonl into .foreman/archive.jsonl, verbatim --
                     same id, same fields, same status. A non-terminal or
@@ -2985,45 +2706,6 @@ naming the field, each line and code point.
                     user's yes -- same in both shapes, omitted when empty.
                     Separate from in_progress: the action is accept, not
                     resume
-  notes             flag: --paths a.js,b.js   (optional, comma-separated:
-                    only records whose stored files overlap one of these)
-                    flag: --area <prefix>   (optional: only records under
-                    that area key -- a poor filter by design, since two
-                    thirds of closed work has no dominant area; --paths is
-                    the useful one)
-                    the explicit read of the lesson ledger
-                    (.foreman/notes.jsonl), newest first, each record
-                    carrying a staleness verdict ("fresh"|"stale"|"unknown")
-                    and the label that states it. Records whose every stored
-                    file is gone are dropped, not labelled.
-                    An unfiltered call serves at most 10 areas and adds an
-                    "overflow" line counting the rest; staleness resolution
-                    stops at a fixed git budget, after which records serve
-                    their anchor and no freshness claim
-                    (staleness_budget_spent:true says so)
-                    a store that will not parse returns error_code and no
-                    records -- run doctor for the finding that explains it
-                    every record carries key, the name note-supersede takes
-  note-supersede    stdin JSON: {key, by_entry?}
-                    retire one record that proved wrong, so it stops being
-                    served and stops spending the serving window. key is the
-                    one notes reports; it is derived from the record's own
-                    content, so it is identical in every clone. Appends a
-                    marker rather than editing the line -- the store stays
-                    append-only and two clones retiring the same record still
-                    merge cleanly. by_entry (optional) names the entry that
-                    recorded the correction.
-                    refuses with reason "no_such_record" when the key names
-                    nothing live, "already_superseded" when it is already
-                    retired
-  note-prune        flag: --dry-run   (optional: report and write nothing)
-                    the ONE operation that rewrites .foreman/notes.jsonl, and
-                    never automatic. Removes only what nothing can learn from
-                    any more: records whose every stored file is gone, and
-                    records a note-supersede marker retired. A marker whose
-                    target this file has never carried is kept -- that is the
-                    half-merged case, where the line it retires is still
-                    inbound. Returns {removed, dropped:{dead,superseded}, kept}
   check-duplicate   stdin JSON: {title, why}
                     word-overlap match against ALL entries regardless of
                     status, archived ones included (archived:true on those);
@@ -3033,8 +2715,8 @@ naming the field, each line and code point.
                     checks the whole roadmap against the structural contract
                     every mutation is held to, and also what the write gate
                     leaves out: a character a reader cannot see in a field a
-                    handoff quotes, titles that read alike, .foreman/config.json
-                    and the lesson store .foreman/notes.jsonl; prints {ok,
+                    handoff quotes, titles that read alike and
+                    .foreman/config.json; prints {ok,
                     findings, summary:{errors,warnings}} -- here
                     ok means "no error-severity finding", not "the call
                     worked" (a failed call still exits 1 with error)
@@ -3060,10 +2742,7 @@ naming the field, each line and code point.
                     unsupported_schema_version,
                     duplicate_across_files, unknown_config_key,
                     invalid_config_value, unreadable_config,
-                    hidden_characters, notes_unreadable,
-                    notes_unsupported_format, notes_invalid_record,
-                    notes_dead_record, notes_hidden_characters,
-                    hook_dependencies
+                    hidden_characters, hook_dependencies
                     the whole per-entry contract also runs over
                     .foreman/archive.jsonl (its findings' messages carry that
                     prefix, and --fix never writes that file)
@@ -3154,9 +2833,6 @@ const SUBCOMMAND_FLAGS = {
   restore: {},
   list: { status: "list", ids: "list", summary: "switch", stats: "switch", archived: "switch" },
   "next-candidates": { limit: "value", menu: "switch", hint: "value" },
-  notes: { paths: "list", area: "value" },
-  "note-supersede": {},
-  "note-prune": { "dry-run": "switch" },
   "check-duplicate": {},
   doctor: { fix: "switch" },
   migrate: {},
@@ -3214,15 +2890,6 @@ function main() {
       break;
     case "next-candidates":
       result = cmdNextCandidates(root, flags);
-      break;
-    case "notes":
-      result = cmdNotes(root, flags);
-      break;
-    case "note-supersede":
-      result = cmdNoteSupersede(root, readStdinJSON());
-      break;
-    case "note-prune":
-      result = cmdNotePrune(root, flags);
       break;
     case "check-duplicate":
       result = cmdCheckDuplicate(root, readStdinJSON());
@@ -3325,9 +2992,6 @@ module.exports = {
   // usage text, the skill branch, and their drift test all read it instead of
   // each keeping a copy that can fall behind.
   CORRECTABLE_STATUSES,
-  DECISION_ANCHOR_RE,
-  anchorIdsIn,
-  anchorHasId,
   COMMIT_TRAILER_RE,
   commitTrailerFor,
   trailerIdsIn,

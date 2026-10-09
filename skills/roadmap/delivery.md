@@ -55,9 +55,7 @@ picked and follow it together with this file:
 ## Close and acceptance
 
 Record observed files, commands, commits, outcomes, and any `unverified:`
-checks in entry notes. If the ledger is enabled, a useful lesson is one
-factual sentence anchored to the task's actual files, within the writer's
-length limit; never fabricate one to fill a field.
+checks in entry notes.
 
 With `requireVerification:true`, completed implementation becomes
 `awaiting_acceptance`; summarize the evidence and ask the user to accept or

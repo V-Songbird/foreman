@@ -147,32 +147,6 @@ hold (written by Claude Code's `hooks/task-completed.js`; Codex's stop
 reminder records none, and Antigravity has neither). Names only: never the
 count of dirty files, never which files were unexpected.
 
-<!-- [Foreman: 283] -->
-### Ledger events
-
-| | `event` | Extra fields | Written when |
-| --- | --- | --- | --- |
-| ✓ | `lesson_present` | `stored` (boolean), `outcome` (see below) | A close reached `done`, `awaiting_acceptance`, `dropped` or `rejected` with the ledger on — carrying a lesson, or arriving there for the first time without one |
-| ✓ | `lesson_served` | `count` (integer, lesson lines the handoff carried), `chars` (integer, the block's length) | A handoff for a roadmap entry passed the gate on a project with the ledger on, whether or not any record matched |
-
-`outcome` is `stored`, one of the store's own refusal names — `empty_lesson`,
-`over_500_chars`, `no_observed_paths`, `not_a_close`, `disabled`, `conflict`,
-`unsupported_format`, `unreadable`, `write_failed` — or `omitted`: the close
-carried no `lesson` field at all. Only an entry's first arrival at a closing
-status records `omitted`; the later accept transition (`awaiting_acceptance` →
-`done`) is the user's yes, not the closing session's answer, and a project
-with the ledger off was never asked, so it records nothing. `omitted` counts
-every such close, asked or not — a close made by hand from a session that
-never saw the ask lands here too — so the omit rate is a ceiling on how often
-the ask is skipped, never an exact count. Never the lesson's text, never a
-path out of it.
-
-```jsonl
-{"event":"lesson_present","ts":"2026-09-05","session":"p2c8d1","stored":true,"outcome":"stored"}
-{"event":"lesson_present","ts":"2026-09-05","session":"p2c8d1","stored":false,"outcome":"omitted"}
-{"event":"lesson_served","ts":"2026-09-05","session":"p2c8d1","count":2,"chars":412}
-```
-
 ## Where each event would be recorded
 
 ### Recommendation events
@@ -284,32 +258,14 @@ nothing else:
   the project — including tasks that ran start to finish — into a recorded
   recovery.
 
-<!-- [Foreman: 283] -->
-### Ledger events
-
-- **`lesson_present`** — `scripts/roadmap.js`'s `update-status`, inside the
-  close's own lock. `recordLesson` writes the stored or refused outcome when a
-  `lesson` field arrived; the close path writes `omitted` when none did, the
-  entry is arriving at a closing status for the first time, and the ledger is
-  on.
-- **`lesson_served`** — `scripts/craft-handoff.js`, beside `first_pick`: after
-  the gate passes on a handoff that carries a roadmap entry, and only with the
-  ledger on. `count` is the number of lesson lines the served block holds and
-  `chars` its length, both `0` when nothing matched — the zero rows are the
-  denominator.
-
 ## The analysis
 
-`roadmap-health.js --trial-log .foreman/trial-log.jsonl` adds four metrics:
+`roadmap-health.js --trial-log .foreman/trial-log.jsonl` adds three metrics:
 
 - **`recommendation_acceptance`** — `pick_accepted / (pick_accepted +
   pick_overridden)`, with `menus_shown` alongside it.
 - **`override_rate`** — `pick_overridden / (pick_accepted + pick_overridden)`.
 - **`hint_success`** — `hint_used` with `hit: true` over all `hint_used`.
-- **`lessons`** — `omit_rate`, `lesson_present` with `outcome: omitted` over
-  all `lesson_present`, and `served_rate`, `lesson_served` with `count > 0`
-  over all `lesson_served`, with the counts (`closes`, `stored`, `omitted`,
-  `refused`, `handoffs`, `served`) beside them.
 
 Acceptance and override are each computed from their own event count, not as
 one minus the other. They sum to 1 in a complete log, so a pair that does not

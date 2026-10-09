@@ -115,7 +115,7 @@ test("patch path extraction includes every operation and move destination withou
 });
 
 for (const operation of ["Add File", "Update File", "Delete File", "Move to"]) {
-  for (const file of ["ROADMAP.jsonl", ".foreman/archive.jsonl", ".foreman/notes.jsonl"]) {
+  for (const file of ["ROADMAP.jsonl", ".foreman/archive.jsonl"]) {
     test(`apply_patch guards ${operation} ${file} even after a safe first file`, () => {
       const command = `*** Begin Patch\n*** Update File: safe.txt\n@@\n-a\n+b\n*** ${operation}: ${file}\n*** End Patch`;
       const output = hook("guard-roadmap-edit.js", { tool_name: "apply_patch", tool_input: { command } });
@@ -128,27 +128,14 @@ test("patching an unrelated archive and a header-looking added line stays silent
   assert.equal(hook("guard-roadmap-edit.js", { tool_name: "apply_patch", tool_input: { command: "*** Begin Patch\n*** Add File: vendor/archive.jsonl\n+*** Delete File: ROADMAP.jsonl\n*** End Patch" } }), null);
 });
 
-test("ledger recalls all changed patch files and renamed destination", () => {
-  fs.mkdirSync(path.join(root, "docs", "foreman"), { recursive: true });
-  fs.writeFileSync(path.join(root, "docs", "foreman", "001.md"), "decision");
-  fs.writeFileSync(path.join(root, "docs", "foreman", "002.md"), "other decision");
-  fs.writeFileSync(path.join(root, "a.js"), "// [Foreman: 001]\n");
-  fs.writeFileSync(path.join(root, "new.js"), "// [Foreman: 002]\n");
-  const output = hook("ledger-recall.js", { hook_event_name: "PostToolUse", tool_name: "apply_patch", tool_input: { command: "*** Begin Patch\n*** Update File: a.js\n*** Update File: old.js\n*** Move to: new.js\n*** End Patch" } });
-  assert.match(output.hookSpecificOutput.additionalContext, /001\.md/);
-  assert.match(output.hookSpecificOutput.additionalContext, /002\.md/);
-});
-
-// [Foreman: 928] Codex reads files through Bash, so its recall registration
-// covers Bash; Claude Code's does not.
-test("Codex registers ledger recall on Bash output; Claude Code does not", () => {
-  const recallMatchers = (hooks) => hooks.PostToolUse.filter((group) => group.hooks.some((h) => (h.command + (h.args || []).join(" ")).includes("ledger-recall.js"))).map((group) => new RegExp(group.matcher));
-  assert.ok(recallMatchers(require(CODEX_HOOKS).hooks).some((re) => re.test("Bash")));
-  assert.ok(!recallMatchers(require(path.join(HOOKS_DIR, "hooks.json")).hooks).some((re) => re.test("Bash")));
-  fs.mkdirSync(path.join(root, "docs", "foreman"), { recursive: true });
-  fs.writeFileSync(path.join(root, "docs", "foreman", "001.md"), "decision");
-  const output = hook("ledger-recall.js", { hook_event_name: "PostToolUse", turn_id: "turn", tool_name: "Bash", tool_input: { command: "cat notes.txt" }, tool_response: "// [Foreman: 001]\n" });
-  assert.match(output.hookSpecificOutput.additionalContext, /docs\/foreman\/001\.md/);
+test("no host registers a hook on reading or editing a file, and no recall script ships", () => {
+  for (const hooks of [require(CODEX_HOOKS).hooks, require(path.join(HOOKS_DIR, "hooks.json")).hooks]) {
+    for (const group of hooks.PostToolUse) {
+      const re = new RegExp(group.matcher);
+      for (const tool of ["Read", "Edit", "Write", "apply_patch"]) assert.ok(!re.test(tool), `${group.matcher} matches ${tool}`);
+    }
+  }
+  assert.ok(!fs.existsSync(path.join(HOOKS_DIR, "ledger-recall.js")));
 });
 
 test("post commit accepts explicit exit statuses but never interprets raw output as status", () => {
@@ -345,7 +332,7 @@ test("a nested foreman_<id> subagent arms the subagent that spawned it", () => {
 // SubagentStop that maps to 001 again (entry 927, run B).
 test("a follow-up to a foreman_<id> subagent whose review is pending does not block its coordinator", () => {
   writeConfig(root, { taskCloseGate: "block" });
-  const notes = ["2026-09-28 accepted: task 1/3 reviewed at abc1234", "2026-09-28 lesson recorded: L1"];
+  const notes = ["2026-09-28 accepted: task 1/3 reviewed at abc1234", "2026-09-28 unverified: none"];
   for (const pending of ["review pending: task 2/3 presented, no answer. Codex session 019a", "paused: task 2/3 waits on the owner. Codex session 019a"]) {
     writeRoadmap(root, [{ id: "001", title: "first", status: "in_progress", notes: [...notes, `2026-09-28 ${pending}`].join("\n") }]);
     for (let followUp = 0; followUp < 2; followUp++) {

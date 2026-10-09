@@ -24,7 +24,6 @@ const fs = require('fs');
 const path = require('path');
 
 const { runRoadmap, makeTmpProject, writeRoadmap, writeArchiveFile, writeConfig, SCRIPTS_DIR } = require('./helpers');
-const { recordKey } = require(path.join(SCRIPTS_DIR, 'ledger.js'));
 
 // Hidden characters are built from code points: tests/check_prompt.test.js
 // fails on a raw one anywhere in tests/.
@@ -132,7 +131,6 @@ describe('doctor on a healthy roadmap', () => {
       taskCloseGate: 'block',
       trialLog: true,
       requireVerification: false,
-      ledger: { enabled: true, dir: 'docs/foreman' },
       checkpoints: { branch: true, onFinish: 'squash', baseBranch: 'main' },
     });
     assert.deepEqual(defects(doctor().findings), []);
@@ -519,9 +517,9 @@ describe('doctor config findings', () => {
 
   test('invalid_config_value reaches nested groups', () => {
     writeRoadmap(project, [base('001')]);
-    writeConfig(project, { decisionLog: { dir: '../elsewhere' }, checkpoints: { onFinish: 'rebase' } });
+    writeConfig(project, { checkpoints: { branch: 'yes', onFinish: 'rebase' } });
     const fields = withCode(doctor(), 'invalid_config_value').map((f) => f.field);
-    assert.deepEqual(fields.sort(), ['checkpoints.onFinish', 'decisionLog.dir']);
+    assert.deepEqual(fields.sort(), ['checkpoints.branch', 'checkpoints.onFinish']);
   });
 
   // [Foreman: 825] Anything the post-commit hook would read as off is an
@@ -540,8 +538,8 @@ describe('doctor config findings', () => {
 
   test('unknown_config_key reaches nested groups', () => {
     writeRoadmap(project, [base('001')]);
-    writeConfig(project, { decisionLog: { push: true } });
-    assert.equal(assertFinding(doctor(), 'unknown_config_key', 'warning').field, 'decisionLog.push');
+    writeConfig(project, { checkpoints: { push: true } });
+    assert.equal(assertFinding(doctor(), 'unknown_config_key', 'warning').field, 'checkpoints.push');
   });
 
   // [Foreman: 260] `fableEnabled` gated the executing-model menu, which is
@@ -564,107 +562,25 @@ describe('doctor config findings', () => {
   });
 });
 
-// The lesson ledger's four codes. Dead and invalid records aggregate into one
-// finding each on purpose: a per-record finding would make doctor's output
-// grow with the store forever.
-describe('doctor lesson-ledger findings', () => {
-  function writeNotes(lines) {
+// The lesson ledger is gone. Its settings, under any of their three names and
+// with any value, and a store an older Foreman left, in any state, are the
+// project's own business now: doctor reports none of them.
+describe('doctor and the removed lesson ledger', () => {
+  test('retired ledger settings and a leftover store raise no finding', () => {
+    writeRoadmap(project, [base('001')]);
     fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
-    fs.writeFileSync(path.join(project, '.foreman', 'notes.jsonl'), lines.join('\n') + '\n', 'utf-8');
-  }
-
-  function record(overrides = {}) {
-    return JSON.stringify({
-      area: 'src/auth',
-      paths: ['src/auth/session.js'],
-      entry: '001',
-      anchor: { kind: 'entry' },
-      date: '2026-08-01',
-      lesson: 'a durable fact',
-      ...overrides,
-    });
-  }
-
-  test('a store with no notes file produces no findings at all', () => {
-    writeRoadmap(project, [base('001')]);
-    assert.deepEqual(withCode(doctor(), 'notes_dead_record'), []);
-    assert.deepEqual(withCode(doctor(), 'notes_invalid_record'), []);
-  });
-
-  test('notes_unreadable: the file still carries merge conflict markers', () => {
-    writeRoadmap(project, [base('001')]);
-    writeNotes(['{"foreman_notes_format":1}', '<<<<<<< HEAD', record()]);
-    const finding = assertFinding(doctor(), 'notes_unreadable', 'error');
-    assert.match(finding.message, /merge conflict markers/);
-  });
-
-  test('notes_unsupported_format: a format this Foreman does not know', () => {
-    writeRoadmap(project, [base('001')]);
-    writeNotes(['{"foreman_notes_format":99}', record()]);
-    assertFinding(doctor(), 'notes_unsupported_format', 'error');
-  });
-
-  test('notes_invalid_record is one warning that counts the skipped lines', () => {
-    writeRoadmap(project, [base('001')]);
-    fs.mkdirSync(path.join(project, 'src', 'auth'), { recursive: true });
-    fs.writeFileSync(path.join(project, 'src', 'auth', 'session.js'), 'x', 'utf-8');
-    writeNotes(['{"foreman_notes_format":1}', record(), '{"paths":[]}', 'not json at all']);
-    const findings = withCode(doctor(), 'notes_invalid_record');
-    assert.equal(findings.length, 1, 'invalid records aggregate into one finding');
-    assert.equal(findings[0].severity, 'warning');
-    assert.match(findings[0].message, /2 lines/);
-  });
-
-  test('notes_dead_record is one info line naming the count, areas and oldest', () => {
-    writeRoadmap(project, [base('001')]);
-    writeNotes([
-      '{"foreman_notes_format":1}',
-      record({ entry: '001', date: '2026-07-01' }),
-      record({ entry: '002', area: 'src/pay', paths: ['src/pay/charge.js'], date: '2026-08-02' }),
-    ]);
-    const findings = withCode(doctor(), 'notes_dead_record');
-    assert.equal(findings.length, 1, 'dead records aggregate into one finding');
-    assert.equal(findings[0].severity, 'info');
-    assert.match(findings[0].message, /2 records name only files that no longer exist/);
-    assert.match(findings[0].message, /across 2 areas/);
-    assert.match(findings[0].message, /oldest 2026-07-01/);
-    assert.match(findings[0].message, /entries 001, 002/);
-  });
-
-  test('a record with one surviving file is not dead', () => {
-    writeRoadmap(project, [base('001')]);
-    fs.mkdirSync(path.join(project, 'src', 'auth'), { recursive: true });
-    fs.writeFileSync(path.join(project, 'src', 'auth', 'session.js'), 'x', 'utf-8');
-    writeNotes([
-      '{"foreman_notes_format":1}',
-      record({ paths: ['src/auth/session.js', 'src/auth/gone.js'] }),
-    ]);
-    assert.deepEqual(withCode(doctor(), 'notes_dead_record'), []);
-  });
-
-  test('ledger.enabled is a known setting; a bad value is an error', () => {
-    writeRoadmap(project, [base('001')]);
-    writeConfig(project, { ledger: { enabled: true } });
-    assert.deepEqual(withCode(doctor(), 'unknown_config_key'), []);
-    writeConfig(project, { ledger: { enabled: 'yes' } });
-    assert.equal(assertFinding(doctor(), 'invalid_config_value', 'error').field, 'ledger.enabled');
-  });
-
-  test('notes_hidden_characters is one warning naming each record key, field, line and code point', () => {
-    writeRoadmap(project, [base('001')]);
-    const bad = { lesson: `use the ${ZWSP}cache`, entry: '001' };
-    const badPath = { paths: ['src/auth/session.js', `src/auth/${RLO}x.js`], entry: '002' };
-    writeNotes(['{"foreman_notes_format":1}', record(), record(bad), record(badPath)]);
-    const findings = withCode(doctor(), 'notes_hidden_characters');
-    assert.equal(findings.length, 1, 'hidden-character records aggregate into one finding');
-    assert.equal(findings[0].severity, 'warning');
-    const message = findings[0].message;
-    assert.match(message, /2 records carry/);
-    assert.ok(message.includes(`${recordKey(JSON.parse(record(bad)))} (lesson line 1: U+200B)`), message);
-    assert.ok(message.includes(`${recordKey(JSON.parse(record(badPath)))} (paths item 2: U+202E)`), message);
-    assert.ok(!message.includes(recordKey(JSON.parse(record()))), 'a clean record is not named');
-    assert.ok(!/cache|x\.js/.test(message), 'the stored text is never shown');
-    assert.match(message, /note-supersede/);
+    fs.writeFileSync(path.join(project, '.foreman', 'notes.jsonl'), ['{"foreman_notes_format":99}', '<<<<<<< HEAD', 'not json', `{"lesson":"use the \u200bcache","paths":["gone.js"]}`].join('\n') + '\n', 'utf-8');
+    for (const config of [
+      { ledger: { enabled: true, dir: 'docs/foreman' } },
+      { ledger: { enabled: 'yes', dir: '../elsewhere', gate: 'block' } },
+      { decisionLog: { push: true }, areaNotes: 'on' },
+      { ledger: false },
+    ]) {
+      writeConfig(project, config);
+      const report = doctor();
+      assert.deepEqual(report.findings.filter((item) => item.severity !== 'info'), [], JSON.stringify(config));
+      assert.deepEqual(report.findings.map((item) => item.code), ['hook_dependencies'], JSON.stringify(config));
+    }
   });
 });
 

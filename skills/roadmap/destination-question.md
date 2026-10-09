@@ -58,8 +58,7 @@ worth guarding it with.
 Only a `dirty:false` result means this run can commit. Read the `dirty`
 field and nothing else: a routine pick leaves Foreman's own bookkeeping in
 the tree — the entry's `in_progress` flip on ROADMAP.jsonl, the sha a
-previous close recorded there, a lesson written to `.foreman/notes.jsonl`
-— and the probe already discounts all of it, returning `dirty:false` with
+previous close recorded there — and the probe already discounts all of it, returning `dirty:false` with
 those paths named in `ledger_dirty`. A populated `ledger_dirty` is not a
 dirty tree and never earns a caution — otherwise the split could never
 lead on a tracked roadmap, because a pick always leaves one behind.

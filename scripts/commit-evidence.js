@@ -326,75 +326,6 @@ function changedSince(root, sha, paths) {
   };
 }
 
-// [Foreman: 287] A symbol name is spliced into a regex below, so it has to be
-// identifier-shaped and nothing else — this must never run an arbitrary
-// pattern against a repository. `git log -L` walks history commit by commit,
-// so its timeout is a tenth of the ordinary read's.
-const IDENTIFIER_RE = /^[A-Za-z_$][\w$]*$/;
-const SYMBOL_LOG_TIMEOUT_MS = 3000;
-
-/**
- * [Foreman: 287] Which commits shaped one symbol, newest first, each with the
- * entry ids its message names in a `Foreman:` trailer.
- *
- * `git log -L :<symbol>:<file>` follows the function's own range through
- * history, so this answers "who wrote and rewrote this function" with no store
- * of any kind — the trailers a staged close already writes are the store. The
- * path is project-relative the way `touches` spells it; the repo scope is
- * resolved the way changedSince resolves it, so a file inside a declared
- * submodule is asked in that submodule with the prefix stripped.
- *
- * Returns `[{sha, ids}]`, newest first, or null when git could not answer:
- * no git, a file not yet committed, a symbol git finds no definition line for,
- * a timeout. The caller treats null and [] alike — nothing to say — but a
- * test can tell them apart.
- */
-function symbolShapers(root, relPath, symbol, { timeout = SYMBOL_LOG_TIMEOUT_MS } = {}) {
-  const name = String(symbol === undefined || symbol === null ? "" : symbol).trim();
-  if (!IDENTIFIER_RE.test(name)) return null;
-  const file = String(relPath === undefined || relPath === null ? "" : relPath).trim().replace(/\\/g, "/");
-  if (!file) return null;
-
-  // The scope that holds the file: the deepest declared submodule prefix, else
-  // the project root.
-  let scope = { cwd: root, prefix: "" };
-  for (const candidate of repoScopes(root)) {
-    if (!candidate.prefix) continue;
-    if (file !== candidate.prefix && !file.startsWith(`${candidate.prefix}/`)) continue;
-    if (candidate.prefix.length > scope.prefix.length) scope = candidate;
-  }
-  const scoped = scope.prefix ? file.slice(scope.prefix.length + 1) : file;
-  if (!scoped) return null;
-
-  // The name must begin and end where an identifier would — `function alpha(`
-  // and `alpha = ` match, `alphaBeta(` and `realpha(` do not. Bracket
-  // expressions only: git compiles this as a basic regex, and word-boundary
-  // escapes are not portable across the regex libraries it may be built with.
-  // Two passes because a basic regex cannot say "start of line OR a
-  // non-identifier character" portably: first the name after some other
-  // character (`function alpha(`, `def alpha(`), then the name at column 0
-  // (`alpha = ...`). git takes the first funcname line the pattern matches, so
-  // without the left boundary `parse` would serve `reparse`'s history.
-  const escaped = name.replace(/\$/g, "[$]");
-  const boundary = "[^A-Za-z0-9_$]";
-  for (const pattern of [`${boundary}${escaped}${boundary}`, `^${escaped}${boundary}`]) {
-    const out = gitRead(
-      scope.cwd,
-      ["log", "-L", `:${pattern}:${scoped}`, "--format=%h%x00%B%x1e", "-s"],
-      { timeout }
-    );
-    if (out === null) continue;
-    const shapers = [];
-    for (const chunk of out.split("\x1e")) {
-      const [sha, body] = chunk.split("\x00");
-      if (!sha || !sha.trim()) continue;
-      shapers.push({ sha: sha.trim(), ids: roadmap().trailerIdsIn(body || "") });
-    }
-    return shapers;
-  }
-  return null;
-}
-
 /**
  * The compact form a status view reports.
  * `commit_count`   shas the entry records.
@@ -428,8 +359,6 @@ module.exports = {
   resolveEntryEvidence,
   anchorShaFor,
   changedSince,
-  symbolShapers,
-  SYMBOL_LOG_TIMEOUT_MS,
   evidenceSummary,
   SHA_RE,
 };

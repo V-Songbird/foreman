@@ -165,7 +165,7 @@ explicit omission or pause. A useful record describes:
 - The pending point and the next action, when there is one.
 
 Do not record secrets or whole transcripts. `accepted:` can distinguish these
-notes from code lessons, but the prefix certifies nothing on its own. If it is
+notes from other findings, but the prefix certifies nothing on its own. If it is
 filtered out of `recallExcerpt`, the resume flow must read the entry's notes
 directly so that this evidence is not lost.
 

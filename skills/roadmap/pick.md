@@ -90,7 +90,7 @@ The lines below are the events only this turn can see, each invoked only after
 the event actually happens, with real values:
 
 - after each question the user actually saw in this flow — Q1, the accept or
-  test question, the destination question, the ledger question:
+  test question, the destination question:
   `node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js question_asked '{"flow":"pick"}'`.
   A skipped question is never logged.
 - exactly one of these on Q1's answer:
@@ -265,9 +265,7 @@ this session's model, and a pasted prompt runs wherever the user pastes it.
      entry's own `planned_touches` through `resolve-symbols.js` internally
      and cites the symbols it finds — still no investigation, since it
      reads only files the entry already named. Same for the decision-entry
-     task-rule bullet, the lessons the ledger has about those files, and any
-     `[Foreman: <id>]` anchor already sitting in them: all three are
-     gathered by the script, nothing to gather here.
+     task-rule bullet: the script gathers it, nothing to gather here.
 
    Then, one call:
    ```
@@ -282,8 +280,8 @@ this session's model, and a pasted prompt runs wherever the user pastes it.
    path. In Codex and Antigravity, send the JSON through a payload file in
    the project's `tmp/` or a here-string, as the runtime describes.
 
-   Returns one JSON line: `{ok, prompt, profile, signals, tasks?,
-   ledger_ask?, gate, warnings}`. `profile` and `signals` are internal
+   Returns one JSON line: `{ok, prompt, profile, signals, tasks?, gate,
+   warnings}`. `profile` and `signals` are internal
    bookkeeping — never name either in anything the user reads. Surface any top-level
    `warnings` verbatim whenever that array is non-empty — including when
    `ok` is `true`, since a path not on disk yet, or an unanswerable
@@ -298,11 +296,6 @@ this session's model, and a pasted prompt runs wherever the user pastes it.
    passes; show the errors to the user when the repair needs their answer.
    Never invent symbols to satisfy the gate, and never claim its mechanical
    preflight established that the work is correct.
-
-   **`ledger_ask: true`** — the first moment lesson lines could pay. Ask the
-   question in [ledger-question.md](ledger-question.md)
-   (`${CLAUDE_PLUGIN_ROOT}/skills/roadmap/ledger-question.md`) once, before
-   delivering.
 
 4. **Foreman never marks the entry `in_progress` itself.** It stays
    `planned` — even after this prompt is assembled, delivered, or copied —

@@ -154,8 +154,6 @@ describe('trial log — the closed vocabulary', () => {
     assert.match(record('commit_interrupted', { hook: 'safe-commit', reason_class: 'the tree was dirty' }).error, /not a legal value/);
     assert.match(record('recovery_attempted', { kind: 'resume-in-progress', success: 'yes' }).error, /not a legal value/);
     assert.match(record('menu_shown', { candidates: -1, hint: false }).error, /not a legal value/);
-    assert.match(record('lesson_served', { count: 'two', chars: 0 }).error, /not a legal value/);
-    assert.match(record('lesson_present', { stored: false, outcome: 'the user skipped it' }).error, /not a legal value/);
     assert.deepEqual(lines(), []);
   });
 
@@ -196,14 +194,18 @@ describe('trial log — the closed vocabulary', () => {
       ['question_asked', { flow: 'pick' }],
       ['commit_interrupted', { hook: 'safe-commit', reason_class: 'dirty_tree' }],
       ['recovery_attempted', { kind: 'resume-in-progress', success: true }],
-      ['lesson_present', { stored: true, outcome: 'stored' }],
-      ['lesson_present', { stored: false, outcome: 'omitted' }],
-      ['lesson_served', { count: 0, chars: 0 }],
     ];
     for (const [event, fields] of legal) {
       assert.equal(record(event, fields).recorded, true, `${event} should be legal`);
     }
     assert.equal(lines().length, legal.length);
+  });
+
+  test('the removed ledger events are unknown now', () => {
+    for (const [event, fields] of [['lesson_present', { stored: true, outcome: 'stored' }], ['lesson_served', { count: 0, chars: 0 }]]) {
+      assert.match(record(event, fields).error, /unknown event/, event);
+    }
+    assert.deepEqual(lines(), []);
   });
 });
 

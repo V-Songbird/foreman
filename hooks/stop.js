@@ -28,7 +28,7 @@ function armSpawner(root, data) {
 // blocker. Every follow-up to its foreman_<id> subagent re-arms the check, so
 // without this the coordinator's Stop would block once per follow-up.
 // [Foreman: 949] Only while that note is the entry's latest line: any later
-// note, such as a decision, a lesson or a line of new work, means the entry
+// note, such as a decision or a line of new work, means the entry
 // moved on. Each append is one line (roadmap.js appendNote).
 function reviewPending(entry) {
   const last = String(entry.notes || "").trim().split("\n").at(-1).trim();

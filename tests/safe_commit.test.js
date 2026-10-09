@@ -140,24 +140,15 @@ describe('safe-commit begin', () => {
     assert.equal(json.baseline.head, git('rev-parse', 'HEAD').trim());
   });
 
-  // A close that records a lesson writes the notes ledger and does not stage
-  // it, so without this carve-out finishing one task would cost the next its
-  // baseline -- and with it, the split-by-check destination.
-  test('notes-ledger dirt still yields the baseline', () => {
+  // The removed lesson ledger's store is the project's own file now, so a
+  // change to it is someone's uncommitted work, not Foreman's bookkeeping.
+  test('a changed leftover .foreman/notes.jsonl is dirty:true', () => {
     cleanRepo();
-    writeConfig(project, { ledger: true });
-    git('add', '-A');
-    git('commit', '-q', '-m', 'ledger on');
     writeRoadmap(project, [{ ...entry('001'), notes: 'flipped by the flow' }]);
+    fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
     fs.writeFileSync(path.join(project, '.foreman', 'notes.jsonl'), '{}');
     const json = begin();
-    assert.equal(json.ok, true);
-    assert.equal(json.dirty, false);
-    assert.deepEqual(
-      json.ledger_dirty.slice().sort(),
-      ['.foreman/notes.jsonl', 'ROADMAP.jsonl'],
-    );
-    assert.equal(json.baseline.head, git('rev-parse', 'HEAD').trim());
+    assert.equal(json.dirty, true);
   });
 
   test('ledger dirt mixed with real dirt is still dirty:true', () => {

@@ -138,13 +138,13 @@ ceremonies, reporting hierarchies, or a taxonomy users must maintain.
 
 ### Project memory, not a knowledge database
 
-Foreman keeps task notes, decision documents, source anchors, and links to
-normal project documentation. It does not need a wiki, folder system,
+Foreman keeps task notes and links to normal project documentation, such as
+a decision document an entry's `doc` field names. It does not need a wiki, folder system,
 semantic search service, note taxonomy, or automatic knowledge graph.
 
 Only the selected task's detailed notes should enter a handoff — plus capped,
-staleness-labeled lesson lines from closed tasks whose observed files intersect
-the task's planned files. Dependency decisions should enter as bounded
+freshness-stamped leads from finished tasks whose observed files intersect the
+task's planned files. Dependency decisions should enter as bounded
 pointers. General project knowledge remains in the project's existing files and
 is found through truth-grounding.
 

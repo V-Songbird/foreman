@@ -15,14 +15,15 @@ it. Most projects never open it.
 | `checkpoints` | How a split run saves its work: `{baseBranch, branch, onFinish}`. By default it uses a `foreman/<slug>` branch and asks once, at the end of the first run, what to do with it — squash, merge, PR, or keep. Your answer is remembered here. Checkpoint commits stay local, and a run that starts on a dirty tree makes **no** automated commits at all. Existing branch restrictions still apply, and Foreman never picks a protected branch on its own. |
 | `usePersona` | Whether handoff prompts open with a "You are a…" role sentence (default `true`), or plain domain framing. It never chooses which model runs the task. |
 | `omitSections` | Prompt sections to leave out entirely: `tone`, `example`, `background`, `output_format`. Default none. The grounding and acceptance rules always stay, and so does the short block that points a Codex or Antigravity session at its host instructions (`codex_runtime`). |
-| `ledger` **[Beta]** | One place for what a finished task learned, described in [`ledger.md`](ledger.md): `{enabled, dir}`. Off by default, and the youngest setting here — expect rough edges. A finished task can leave one sentence about the code it touched. The next task that plans to touch those files is handed it, and so is anyone who opens one of them. Every sentence comes with a note saying whether that code has moved since, and one that turns out to be wrong can be retired so it stops being quoted. `dir` (default `docs/foreman`) says where a `[Foreman: 019]` comment should look for a written decision, if your project keeps one — Foreman only reads there, never writes. Turning it back off deletes nothing already recorded. If your settings still say `decisionLog` or `areaNotes`, leave them; both still work, and `decisionLog.gate` no longer does anything. |
 
-Two of them are asked for you, once, at the moment they first matter:
-`checkpoints` at the end of the first split run, and `ledger` at the first
-pick where a finished task already touched the files this one plans to. A
-missing key means off, and its absence is also how Foreman knows the
-question was never put to you. Your answer is written here, so it is not
-asked again: a no to the ledger is stored as `"ledger": {"enabled": false}`.
+One of them is asked for you, once, at the moment it first matters:
+`checkpoints` at the end of the first split run. A missing key means the
+default, and its absence is also how Foreman knows the question was never
+put to you. Your answer is written here, so it is not asked again.
+
+If your settings still have `ledger`, `decisionLog` or `areaNotes`, you can
+leave them or delete them. Foreman no longer reads them, and the roadmap
+check does not report them.
 
 ## Everything else
 
@@ -185,8 +186,8 @@ the same thing in each, so keep the file as it is when you switch. What differs
 is when a few settings act: `discoverySuggestions` and `taskCloseGate` run
 through each host's own hooks, and Antigravity has no event for
 `taskCloseGate`; advice about session size exists only in Claude Code, and
-reviewed increments exist only in Codex. The roadmap, its archive and the
-ledger are shared the same way — see [`roadmap-schema.md`](roadmap-schema.md).
+reviewed increments exist only in Codex. The roadmap and its archive are
+shared the same way — see [`roadmap-schema.md`](roadmap-schema.md).
 
 ## Sharing a session with another plugin
 

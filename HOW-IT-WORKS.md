@@ -121,14 +121,13 @@ detail.
 | Finishing a task | With `taskCloseGate: "block"`, a `TaskCompleted` hook holds the first attempt while the entry is still open | `hooks/codex-task.js check` reports what is still open; with `taskCloseGate: "block"`, a `Stop` or `SubagentStop` hook then asks for one more turn | `hooks/codex-task.js check` reports what is still open; there is no stop reminder |
 | After a shell command | A commit gets status and discovery reminders. Before the destination question, a note on how full the session is, when your window size is set | A commit gets status and discovery reminders | A commit gets the same reminders at the next model call |
 | Direct edits of roadmap files | Blocked for `Edit` and `Write` | Blocked for `apply_patch`, `Edit` and `Write` | Blocked for `write_to_file`, `replace_file_content` and `multi_replace_file_content` |
-| Lessons when a file is touched | `Read`, `Edit` and `Write` | `apply_patch`, `Read`, `Edit` and `Write` | `view_file` and the three write tools, at the next model call |
 | Background work | A background `Agent` | A subagent that reports to its coordinator | An `invoke_subagent` worker that reports to its coordinator |
 | Script paths inside prompts | `${CLAUDE_PLUGIN_ROOT}`, which Claude Code fills in | Quoted installed paths | Quoted installed paths, in the Codex form of the prompt |
 
-Shell commands are outside the edit and lesson hooks on every host. A prompt
+Shell commands are outside the edit hook on every host. A prompt
 carries its own host's script paths, so a prompt copied out of one host should
 be crafted again in the other. Antigravity lets a hook answer a tool call only
-with a decision, so what Foreman has to say after a commit or a file touch
+with a decision, so what Foreman has to say after a commit
 waits for the model's next call instead of arriving with the command. In a
 live session only that one call saw it; the next request no longer did.
 
@@ -296,9 +295,8 @@ packages and no server.
 - **Antigravity.** The Antigravity CLI, which installs the plugin from a clone
   of this repository. Its hook contract was read from the host's documentation,
   driven by the test suite and checked in live `agy` 1.2.9 sessions on
-  Windows: `/init`, a `/roadmap` pick copied to the clipboard, a commit, a view
-  of a file with a recorded lesson, and a direct write to `ROADMAP.jsonl`,
-  which the host refused.
+  Windows: `/init`, a `/roadmap` pick copied to the clipboard, a commit, and a
+  direct write to `ROADMAP.jsonl`, which the host refused.
 
 Run the scripts from the project they should work on, or name that project
 with `FOREMAN_PROJECT_DIR` — see
@@ -310,7 +308,6 @@ with `FOREMAN_PROJECT_DIR` — see
 | --- | --- |
 | [Settings](settings.md) | Every option, in one table |
 | [The roadmap file](roadmap-schema.md) | Every field, and what it means |
-| [The ledger](ledger.md) | The optional notes store, in full |
 | [The prompt template](prompt-template.md) | The exact shape of every prompt Foreman writes |
 | [Foreman in Codex](CODEX.md) | How Foreman maps onto Codex, and its limits there |
 | [Codex handoff prompting](CODEX-PROMPTING.md) | The guidance Codex prompts follow |

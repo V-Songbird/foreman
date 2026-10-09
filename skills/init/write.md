@@ -91,7 +91,7 @@ descriptive branch first (`codex/<descriptive-name>` in Codex).
    **If the file already exists, leave it exactly as it is.** There is
    nothing for init to put in it, and everything already in it is either a
    deliberate hand edit or the recorded answer to a first-relevant ask
-   (`ledger`, `checkpoints`) that a re-init
+   (`checkpoints`) that a re-init
    must not throw away. If the file exists but won't parse, say so in the
    report-back and change nothing.
 4. Commit only the files this flow wrote, by pathspec, so unrelated staged

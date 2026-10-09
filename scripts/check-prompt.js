@@ -353,7 +353,7 @@ function checkPrompt(prompt, opts) {
     const shown = hidden.length > 5 ? [...hidden.slice(0, 5), `${hidden.length - 5} more lines`] : hidden;
     errors.push(problem(
       `invisible characters in the prompt (${shown.join("; ")}) — a model reads them and a person reviewing the prompt does not, so they can carry instructions nobody approved`,
-      "Delete them, or write each as its code point (for example U+200B), in the text they came from (pasted output, the entry's fields or notes, a recorded lesson), then craft the prompt again. A byte order mark may open the file, and emoji joiners and subdivision-flag tags may stay.",
+      "Delete them, or write each as its code point (for example U+200B), in the text they came from (pasted output, the entry's fields or notes), then craft the prompt again. A byte order mark may open the file, and emoji joiners and subdivision-flag tags may stay.",
       null
     ));
   }

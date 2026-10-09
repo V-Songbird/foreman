@@ -19,19 +19,6 @@ const WATCHED_TOOLS = new Set(["apply_patch", "Edit", "Write"]);
 // generic — so only this project's own copy counts, and some other tool's
 // archive.jsonl is not Foreman's to deny.
 const PROJECT_ARCHIVE = ".foreman/archive.jsonl";
-// The lesson ledger, guarded for the same reason and on the same terms: the
-// CLI owns the append (inside the close's lock, with the format marker and
-// the 500-char refusal), and `notes.jsonl` is far too generic a name to match
-// on the basename alone.
-const PROJECT_NOTES = ".foreman/notes.jsonl";
-
-// Which CLI verbs to name when the deny message fires, per file — a generic
-// "use the CLI" leaves the caller to guess which of the CLI's verbs applies.
-const SCOPED_HINT = {
-  [PROJECT_NOTES]:
-    'Record a lesson by passing `"lesson"` on that entry\'s `update-status` close, ' +
-    "and read the store back with the `notes` verb.",
-};
 
 function projectRelative(filePath, root) {
   return path
@@ -45,9 +32,8 @@ function guardedPath(filePath, root) {
   if (!filePath) return null;
   const base = path.basename(String(filePath)).toLowerCase();
   if (base === "roadmap.jsonl") return "ROADMAP.jsonl";
-  if (base !== "archive.jsonl" && base !== "notes.jsonl") return null;
-  const rel = projectRelative(filePath, root);
-  return rel === PROJECT_ARCHIVE || rel === PROJECT_NOTES ? rel : null;
+  if (base !== "archive.jsonl") return null;
+  return projectRelative(filePath, root) === PROJECT_ARCHIVE ? PROJECT_ARCHIVE : null;
 }
 
 function main(data = readInput()) {
@@ -60,13 +46,11 @@ function main(data = readInput()) {
 
   const filePath = touchedPaths(data).find((file) => guardedPath(file, root) !== null);
   if (!filePath) return;
-  const guarded = guardedPath(filePath, root);
 
   // [Foreman: 734] The verbs come from the dispatcher's own table, so a new
   // subcommand is named here without a second copy. Required only on a deny:
   // every other Edit and Write skips loading the CLI.
   const { SUBCOMMAND_FLAGS } = require("../scripts/roadmap");
-  const scoped = SCOPED_HINT[guarded];
   const payload = {
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
@@ -76,7 +60,6 @@ function main(data = readInput()) {
         `${path.basename(filePath)} is blocked. Use ` +
         `node "${SCRIPT_PATH}" instead (${Object.keys(SUBCOMMAND_FLAGS).join("/")} ` +
         "— run `<subcommand> --help` for one subcommand's usage). " +
-        (scoped ? `${scoped} ` : "") +
         "It enforces id computation and parse-before/after-write; a hand " +
         "edit bypasses both. If the file is corrupt and the CLI itself " +
         "can't read it, inspect the corruption and use an explicitly scoped shell repair. " +

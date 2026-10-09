@@ -35,7 +35,7 @@ the host actually provides rather than tools named for the other host.
 
 ## Roadmap stores
 
-Every roadmap, archive, or lesson-store read and mutation goes through
+Every roadmap or archive read and mutation goes through
 `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js <verb>`. The same CLI owns id
 allocation, validation, locking, migration, and compare-and-set guards. Read
 [the schema](../../roadmap-schema.md) only when a field needs explanation, and

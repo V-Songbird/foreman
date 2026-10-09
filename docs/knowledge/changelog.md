@@ -34,6 +34,24 @@ instead.
   file, read when the flow reaches it. The questions, what they write and the
   prompt craft-prompt builds are unchanged.
 
+#### Removed
+
+- The lesson ledger is gone on every host. Foreman no longer records a
+  lesson on a close, no longer adds lesson lines, the entries that shaped a
+  named function or the `[Foreman: <id>]` markers found in planned files to
+  a handoff, and no longer points at decision documents when a file is
+  opened or edited. The `[Beta]` question that turned the ledger on, the
+  `notes`, `note-supersede` and `note-prune` commands, the doctor's
+  `.foreman/notes.jsonl` findings and the two ledger trial events went with
+  it. The `Foreman: <id>` commit trailer and every check that reads it are
+  unchanged, and `[Foreman: <id>]` comments already in your code stay as
+  ordinary comments.
+- Nothing you have is changed or deleted. An existing `.foreman/notes.jsonl`
+  is left as it is and Foreman no longer reads, guards or stages it. The
+  `ledger`, `decisionLog` and `areaNotes` settings are accepted and do
+  nothing, and a close that still passes `lesson` goes through with the
+  field ignored.
+
 ### Codex
 
 - Reviewed increments are accepted for Codex as a whole. They are offered on
@@ -1034,7 +1052,7 @@ you'd want it, and nothing else. How a task gets picked, what gets checked, the
 commands and the requirements all moved to
 [How Foreman works](../../HOW-IT-WORKS.md), linked from the front page along with
 [Settings](../../settings.md), [the roadmap file](../../roadmap-schema.md),
-[the ledger](../../ledger.md) and [the prompt template](../../prompt-template.md).
+the ledger and [the prompt template](../../prompt-template.md).
 
 ## 2.4.0 — 2026-08-29
 
@@ -1122,7 +1140,7 @@ Foreman kept two separate records of what a finished task learned. There is one 
 - Commit-time roadmap suggestions are on by default. After you save changes, Foreman offers work worth tracking that it spotted in them, and no longer asks first. Set `"discoverySuggestions": false` in `.foreman/config.json` to turn it off.
 - One switch instead of two: `"ledger": {"enabled": true}`. If your settings still say `decisionLog` or `areaNotes`, leave them — both still work and both mean the ledger.
 - Foreman no longer writes decision documents, and no longer hands you a template to fill in. Where you write your decisions down is yours. Put one at `docs/foreman/019.md` and a `[Foreman: 019]` comment will point people at it.
-- `decision-log.md` is now [`ledger.md`](../../ledger.md), and covers the whole thing on one page in plain language.
+- `decision-log.md` is now `ledger.md`, and covers the whole thing on one page in plain language.
 
 ### Removed
 

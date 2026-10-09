@@ -1,6 +1,6 @@
 ---
 name: survey
-description: "Advanced surface, normally reached through the `foreman` entrance's Reconcile and pick mode, which hands it a near-term set of ids to scope the pass to. Ground-truths the roadmap's near-term candidates against the actual codebase — a read-only investigation checks whether each candidate's planned_touches/depends_on still match reality, then proposes a concrete, evidence-backed repair for every finding (hidden dependency, already-done, stale description or planned files), applies only the ones you approve, and persists them back into ROADMAP.jsonl so future sessions pick them up automatically. Also retires any recorded lesson the same evidence contradicts, so a wrong claim stops being quoted into later handoffs. It costs materially more than a plain pick, which is why it is explicit: a fast pick or old roadmap alone does not trigger it."
+description: "Advanced surface, normally reached through the `foreman` entrance's Reconcile and pick mode, which hands it a near-term set of ids to scope the pass to. Ground-truths the roadmap's near-term candidates against the actual codebase — a read-only investigation checks whether each candidate's planned_touches/depends_on still match reality, then proposes a concrete, evidence-backed repair for every finding (hidden dependency, already-done, stale description or planned files), applies only the ones you approve, and persists them back into ROADMAP.jsonl so future sessions pick them up automatically. It costs materially more than a plain pick, which is why it is explicit: a fast pick or old roadmap alone does not trigger it."
 when_to_use: "Reached through the `foreman` entrance for Reconcile and pick; trigger directly when a power user explicitly asks to reconcile, audit, double-check, or verify the roadmap's ordering — 'survey the roadmap', 'audit the next tasks', 'double-check what's next', 'is the roadmap still accurate', or invokes /foreman:survey. Never trigger automatically from foreman:roadmap's pick-next-task flow, a commit, or any other implicit signal."
 argument-hint: "<optional — a task id or two to focus on, otherwise surveys the top unblocked candidates>"
 allowed-tools: AskUserQuestion, Read, Bash, PowerShell, Agent
@@ -47,17 +47,10 @@ Read [confirm.md](confirm.md) (`${CLAUDE_PLUGIN_ROOT}/skills/survey/confirm.md`)
 
 ---
 
-## 3b. The lessons recorded about the same files
-
-Read [lessons.md](lessons.md) (`${CLAUDE_PLUGIN_ROOT}/skills/survey/lessons.md`) and follow it.
-
----
-
 ## 4. Report
 
 Short summary: candidates surveyed (and how many were left unsurveyed, if
-any), verdicts, what got written. Lessons retired and records pruned get one
-line each when either happened, and no line at all when neither did. Separate
+any), verdicts, what got written. Separate
 the three outcomes in one line each: corrections applied, findings left
 unconfirmed as breadcrumbs, and proposals declined (declined ones exist only
 here — nothing about them was written). If no writes happened, say the

@@ -38,10 +38,10 @@ alter a marketplace or start model sessions.
 | --- | --- |
 | `skills/` | The five skills, one text for every host: `foreman`, `roadmap`, `init`, `survey`, `craft-prompt` |
 | `hooks/` | Hook scripts and the Claude Code and Codex registrations; `antigravity-hook.js` translates Antigravity's events and runs the shared hooks as children; `lib.js` resolves project and host; `scripts/build-windows-launchers.js` builds the Codex Windows command, and `windows-launcher.ps1` is its fnm fallback |
-| `scripts/` | Dependency-free CLIs such as `roadmap.js`, `craft-handoff.js`, `check-prompt.js`, `safe-commit.js` and `ledger.js`; `health/` holds the metrics tools |
+| `scripts/` | Dependency-free CLIs such as `roadmap.js`, `craft-handoff.js`, `check-prompt.js` and `safe-commit.js`; `health/` holds the metrics tools |
 | `tests/` | The `node:test` suite for the three hosts |
 | `prompt-template.md` | The one handoff template, read at run time |
-| `HOW-IT-WORKS.md`, `settings.md`, `roadmap-schema.md`, `ledger.md`, `TRIALS.md`, `CODEX.md`, `CODEX-PROMPTING.md` | Reference pages the skills, scripts and tests load or cite; they stay at the root |
+| `HOW-IT-WORKS.md`, `settings.md`, `roadmap-schema.md`, `TRIALS.md`, `CODEX.md`, `CODEX-PROMPTING.md` | Reference pages the skills, scripts and tests load or cite; they stay at the root |
 | `docs/knowledge/` | The product scope, the incremental-acceptance contract and the changelog |
 | `.claude-plugin/`, `.codex-plugin/`, `plugin.json`, `hooks.json` | Host manifests with the same version; the Codex manifest names `hooks/codex-hooks.json`, and the root manifest and `hooks.json` are what Antigravity reads |
 
@@ -71,4 +71,4 @@ functional tests only.
 - **Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` in skill text; Codex does not.** Skills carry a relative link beside each such path.
 - **A passing nav check verifies anchors, not measurements.** Review the source of every README claim; never run paid benchmarks, install plugins or publish to fill an evidence gap.
 - **A prompt copied out of one host carries that host's script paths.** Craft it again in the other.
-- **Antigravity's PostToolUse answer is always `{}`.** What a commit or a file touch has to say waits in a temp queue and reaches the model at its next call, through PreInvocation; nothing arrives at the moment of the command.
+- **Antigravity's PostToolUse answer is always `{}`.** What a commit has to say waits in a temp queue and reaches the model at its next call, through PreInvocation; nothing arrives at the moment of the command.

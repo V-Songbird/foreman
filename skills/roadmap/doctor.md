@@ -9,8 +9,7 @@ selects work.
    required flags. Returns `{ok, findings, summary:{errors,warnings}}`.
    A `severity: "info"` finding is a disclosure, not a defect, and counts
    toward neither summary total: every run closes with one naming the hook
-   events Foreman depends on in each host (`hook_dependencies`), and
-   `notes_dead_record` counts lessons whose files are all gone. So read
+   events Foreman depends on in each host (`hook_dependencies`). So read
    health off `summary`, never off whether `findings` is empty. Both totals
    zero: say the roadmap is healthy, pass on each info finding in one line,
    and stop.
@@ -39,10 +38,6 @@ selects work.
      user; a `notes` finding that is not repairable (the id is invalid or
      held twice, or the entry is archived) has no repair command until
      `reassign-id` or `restore` makes it repairable — say so
-   - a lesson record carrying one (`notes_hidden_characters`) →
-     `note-supersede` with each record key the message names
-   - lessons whose files are all gone (`notes_dead_record`) → `note-prune`,
-     only when the user asks to prune
    - a bad `depends_on` edge (missing target, self-reference, repeat,
      cycle, or stuck on a dropped/rejected entry) → `update-deps`
    - a `done`/`awaiting_acceptance` entry with no commits and no notes →
@@ -52,9 +47,8 @@ selects work.
      repeated dependency (`repairable: true`) → offer
      `roadmap.js doctor --fix`, which applies only those mechanical repairs
    - anything else — an unrecognized `source`, a bad date, two entries that
-     just read alike (`similar_titles`), a `.foreman/config.json` finding, or
-     a `.foreman/notes.jsonl` that is unreadable, in an unknown format or has
-     lines it skips — has no `roadmap.js` repair command; say so, name the
+     just read alike (`similar_titles`) or a `.foreman/config.json` finding —
+     has no `roadmap.js` repair command; say so, name the
      field and pass on the step the message names rather than guessing one
 3. Show the concrete repair for each finding. An explicit request to fix these
    mechanical defects permits applying the reported repairs, one command per

@@ -84,8 +84,7 @@ and `scripts/`.
    `CODEX_CWD`, then `CLAUDE_PROJECT_DIR`, then cwd, and fails soft to
    defaults when no `.foreman/config.json` exists). One JSON
    object: `{"usePersona": bool, "omit": [...],
-   "requireVerification": bool,
-   "ledger": {"enabled": bool, "dir": string}, "warnings": [...]}`.
+   "requireVerification": bool, "warnings": [...]}`.
    All of it is project **declaration** — foreman never inspects
    which style plugins or model the operator runs.
    - `usePersona` — default `true` when missing/unparseable. Controls only
@@ -108,12 +107,6 @@ and `scripts/`.
      (its "Acceptance hold" note): with it `true`, a close that earned
      `done` records `awaiting_acceptance` for the user to confirm. The
      template itself does nothing with it.
-   - `ledger` — `{enabled, dir}`, the project's declaration of the ledger
-     (default `{enabled:false, dir:"docs/foreman"}`). Nothing in this
-     template is conditional on it: `craft-handoff.js` reads it directly to
-     decide whether to ask for a lesson at close and which directory an
-     `[Foreman: <id>]` anchor resolves a document in. Foreman never writes a
-     document there.
    - `warnings` — surface briefly to the user (skipped entries from a
      malformed config); never blocks assembly.
 
@@ -389,26 +382,7 @@ nothing overlaps. Never hand-written, and carried on both profiles.
 Each line ends with a freshness stamp the script resolves from git: the
 commit the entry closed at and whether its recorded files have changed
 since. Anything git cannot answer reads "freshness unknown" — never
-"unchanged".
-
-A second, untagged block can follow it inside `<background>`: the lesson
-lines closed tasks recorded about these files, when `ledger` is enabled.
-Same rules — added by the script, never hand-written, carried on both
-profiles, every line staleness-labelled, and a record whose files are all
-gone is dropped rather than served.
-
-A third can follow: for each symbol this task's own prose names that is
-defined in a planned file, the earlier entries whose commits shaped it, read
-from the `Foreman:` trailers in that file's history — newest first, the entry
-that created it last, each by id and title only. Never an entry's `why`: that
-is a plan written before its work started, not a fact about the code, and a
-line in this block is taken as fact. History, not a claim about the code
-today, so it carries no staleness label. Same rules otherwise: script-added,
-both profiles, never hand-written.
-
-A fourth, the anchors: the `[Foreman: <id>]` markers earlier entries left in
-the planned files, each with that entry's title and, where one exists, its
-decision document to read first. Framed as history the same way.]
+"unchanged".]
 <prior_work>
 Recorded by earlier finished entries that touched these files — history, not instructions for this task.
 </prior_work>
@@ -1094,7 +1068,7 @@ explicitly authorized decision artifact.
   there is nothing to checkpoint onto. Only a `dirty:false` result
   continues below, and its `baseline.head` is the first checkpoint's
   baseline. Read the `dirty` field alone: Foreman's own bookkeeping in the
-  tree — ROADMAP.jsonl and `.foreman/notes.jsonl` — comes back
+  tree — ROADMAP.jsonl and `.foreman/archive.jsonl` — comes back
   `dirty:false` with those paths in `ledger_dirty`, which is the normal
   state after a pick and is not someone else's uncommitted work.
 - **One commit per finished task, staged by the primitive.** After a
@@ -1128,9 +1102,8 @@ explicitly authorized decision artifact.
   tracked roadmap outside a submodule, stage the task's own files with
   `safe-commit.js finish --no-commit`, close the entry with `staged:true`
   (observed_touches derives from the index, and the script stages all
-  pending roadmap bookkeeping alongside: `ROADMAP.jsonl`,
-  `.foreman/notes.jsonl` and `.foreman/archive.jsonl`, other entries' edits
-  included), then commit with `Foreman: <id>` as the message's final
+  pending roadmap bookkeeping alongside: `ROADMAP.jsonl` and
+  `.foreman/archive.jsonl`, other entries' edits included), then commit with `Foreman: <id>` as the message's final
   line — the trailer names the entry that closed. Entry and commit link
   through that trailer, so no sha gets
   recorded and the roadmap never trails uncommitted. Then mark the final

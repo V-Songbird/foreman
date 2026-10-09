@@ -13,7 +13,6 @@ const skill = read("SKILL.md");
 const scope = read("scope.md");
 const investigate = read("investigate.md");
 const confirm = read("confirm.md");
-const lessons = read("lessons.md");
 const all = fs.readdirSync(DIR).filter((name) => name.endsWith(".md")).sort().map(read).join("\n");
 
 describe("survey skill contract", () => {
@@ -23,7 +22,6 @@ describe("survey skill contract", () => {
       ["## 1. Pick the scope", "scope.md"],
       ["## 2. Investigate", "investigate.md"],
       ["## 3. Confirm", "confirm.md"],
-      ["## 3b.", "lessons.md"],
     ]) {
       const at = skill.indexOf(heading);
       assert.ok(at > cursor, `${heading} missing or out of order`);
@@ -163,23 +161,9 @@ describe("survey skill contract", () => {
     assert.match(investigate, /Do not treat a similar title\s+alone as proof/);
   });
 
-  test("lesson retirement requires contradiction, and pruning is a distinct authorized removal", () => {
-    assert.match(lessons, /\*\*A stale label on its own is not a finding\.\*\*/);
-    assert.match(lessons, /roadmap\.js note-supersede/);
-    assert.match(lessons, /roadmap\.js note-prune --dry-run/);
-    assert.match(lessons, /Show the count and ask once, unless the\s+user already explicitly asked to prune that set/);
-  });
-
-  // [Foreman: 745] notes prints such a record as {key, area, hidden_characters,
-  // withheld}, with no lesson to show or contradict.
-  test("a record notes withholds for hidden characters is offered by its key", () => {
-    const step3b = lessons;
-    assert.match(step3b, /Three kinds of record are worth the user's attention, and no others/);
-    assert.match(step3b, /\*\*Any record with `hidden_characters`\.\*\* `notes` withholds its lesson/);
-    assert.match(
-      step3b,
-      /show its key and the code points it lists in place of\s+the lesson, label and evidence, and offer to retire it/
-    );
+  test("no step reads, retires or prunes recorded lessons", () => {
+    assert.doesNotMatch(all, /note-supersede|note-prune|lessons\.md|roadmap\.js notes\b/);
+    assert.ok(!fs.existsSync(path.join(DIR, "lessons.md")));
   });
 
   test("reconcile and pick gets the results before it refreshes its menu", () => {

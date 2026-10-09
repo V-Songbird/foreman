@@ -75,17 +75,6 @@
             "timeout": 5
           }
         ]
-      },
-      {
-        "matcher": "^(Read|Edit|Write)$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/ledger-recall.js"],
-            "timeout": 5
-          }
-        ]
       }
     ]
   }

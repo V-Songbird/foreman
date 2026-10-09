@@ -993,7 +993,7 @@ describe('host claude: a Workflow stage sent to an agent', () => {
       '`node --title \'a b\' scripts/roadmap.js list`',
       '`node --title="a b" scripts/roadmap.js archive`',
       '`node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-deps`',
-      '`node "${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js" note-prune`',
+      '`node "${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js" reassign-id`',
       '`node --title "a b" "${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js" begin`',
     ]) {
       const withEntry = errorsOf(stage({ entry_paragraph: `${coordinator}\n${command}` }));

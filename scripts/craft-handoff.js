@@ -51,12 +51,11 @@ const {
   submodulePaths,
   ignoredPaths,
   today,
-  anchorIdsIn,
 } = require("./roadmap.js");
 
 // [Foreman: 285] Every finished entry this project ever had, active file
-// first. Recall, the overlap check and anchor titles are readings of history,
-// and the archive is exactly that history: hooks/session-start.js offers
+// first. Recall is a reading of history, and the archive is exactly that
+// history: hooks/session-start.js offers
 // archiving once twenty terminal entries pile up, so an active-only read
 // loses the oldest lead — the one that created the code — first. One extra
 // file read at craft time, [] when no archive exists. The selected entry
@@ -75,11 +74,8 @@ function historyEntries(root) {
   }
   return [...readEntries(root), ...archived];
 }
-const { anchorShaFor, changedSince, symbolShapers, SYMBOL_LOG_TIMEOUT_MS } = require("./commit-evidence.js");
-const ledger = require("./ledger");
-const { readLedger } = require("./ledger-config");
-const noteStaleness = require("./note-staleness.js");
-const { recordFirstPick, record: recordTrial } = require("./trial-log.js");
+const { anchorShaFor, changedSince } = require("./commit-evidence.js");
+const { recordFirstPick } = require("./trial-log.js");
 const {
   checkPrompt,
   readCanonical,
@@ -321,7 +317,7 @@ function computeSignals(root, record, input, symbolFiles, hasVerification) {
 // stated discrepancies, exactly as skills/roadmap/SKILL.md's step 3 does.
 
 // [Foreman: 259] Every other block this file assembles has a ceiling —
-// RECALL_MAX_CHARS, NOTES_KEEP, ANCHOR_KEEP — and the symbol list had none.
+// RECALL_MAX_CHARS — and the symbol list had none.
 // A single-file module resolves to hundreds of top-level names, and the ten
 // the task actually touches drown in them. So the names the entry's own prose
 // asks for lead, the rest follow in file order, and the tail is cut with its
@@ -343,7 +339,7 @@ const BACKTICKED_NAME = /`([A-Za-z_$][\w$]*)`/g;
 // Returns a Map of name -> rank: 0 for a name the title or what uses, 1 for
 // one only the why uses. The what says what this task changes; the why says
 // why, and often names the code around it. With one flat set, four symbols a
-// why mentions could fill the chain's slots ahead of the one function the
+// why mentions could fill the kept slots ahead of the one function the
 // what is about (found in review of 293), so the what's names come first and
 // file order decides within each rank.
 function promptedNames(record) {
@@ -450,11 +446,8 @@ const RECALL_MAX_CHARS = 1200;
 // Lines the scripts write into `notes` themselves. Each one is bookkeeping
 // about the entry, never a finding from the work, so none of them is worth
 // carrying into a handoff.
-// `lesson recorded:` and `lesson not recorded` are load-bearing here, not
-// housekeeping: the second one carries the user's own lesson prose verbatim
-// when the store refused it, and quoting that back as a recall excerpt would
-// serve an unstored, unstaleness-checked claim through the one channel this
-// feature exists to keep honest.
+// `lesson recorded:` and `lesson not recorded` are lines older Foremen wrote
+// on a close; the second carries unchecked prose, so it is never quoted back.
 const MACHINE_NOTE_RE =
   /^(scope drift —|correction applied:|id reassigned from |dispatched to background agent|dispatched to Codex subagent|dispatched to Antigravity subagent|survey \(unconfirmed\):|deferred:|orchestrator:|lesson recorded:|lesson not recorded|unverified:|verification resolved:|accepted:|changes requested:|paused:|review pending:|resume declined:)/;
 
@@ -534,7 +527,6 @@ function priorWorkText(entries, record, root) {
   // [Foreman: 284] Rarest path first, then NEWEST entry first. The old
   // ascending-id tie-break served the three oldest entries on a busy path and
   // dropped the latest change — the one that explains the code as it stands.
-  // The lessons block already serves newest first; the two now agree.
   const ranked = [...byEntry.values()]
     .sort((a, b) => a.reach - b.reach || String(b.entry.id).localeCompare(String(a.entry.id)))
     .slice(0, RECALL_KEEP);
@@ -560,324 +552,6 @@ function priorWorkText(entries, record, root) {
   return `<prior_work>\n${header}\n${lines.join("\n")}\n</prior_work>`;
 }
 
-// ---- the lesson ledger's read side. Same discipline as prior-work recall
-// above, and for the same reason: it rides inside <background> on BOTH
-// profiles and is NEVER a computeSignals key, because every value in that
-// object feeds `.some(Boolean)` and would promote every serving handoff to
-// the reinforced profile.
-
-// Flat, not grouped by area. Most closed entries have no dominant area at
-// all, so an area-diverse
-// window would drop a genuinely relevant record to make room for a heading
-// that is an artifact of the prefix rule.
-const NOTES_KEEP = 6;
-// Header + closer + records, all in. Whole-record drops only: half a recorded
-// claim is worse than one fewer.
-const NOTES_MAX_CHARS = 1000;
-const NOTES_HEADER =
-  "Lessons recorded by earlier closed tasks touching these files — recorded claims, verify against the code:";
-// Routes a correction through the one channel that exists today. The judge's
-// original wording promised a survey repair path; that is stage-2 work and
-// promising it here would be a lie the reader cannot act on.
-const NOTES_CLOSER =
-  'If a Lessons line above proved wrong, note the mismatch in your close notes and record the corrected fact by passing "lesson" on your close.';
-
-/**
- * Records worth serving for this entry, best first.
- *
- * Selection is path-level and only path-level: `area` is cosmetic.
- *
- * [Foreman: 286] Deliberately NO reach ceiling here, unlike priorWorkText.
- * The ceiling made sense for entry-level leads — a busy file's whole history
- * is noise — but a lesson is one specific claim, and the busiest files are
- * exactly where claims pile up. With the ceiling copied over, a project's
- * most-worked files could never reach a handoff, while
- * hooks/ledger-recall.js served the same records unfiltered the moment the
- * file was opened. NOTES_KEEP and NOTES_MAX_CHARS are the bound.
- */
-function selectNotes(records, record) {
-  const planned = record.planned_touches || [];
-  if (!planned.length) return [];
-
-  const scored = [];
-  for (const stored of records) {
-    const matches = [];
-    for (const plan of planned) {
-      for (const kept of stored.paths || []) {
-        if (touchesOverlap(plan, kept)) matches.push({ plan, kept });
-      }
-    }
-    if (matches.length) scored.push({ stored, matches });
-  }
-  // Newest first, then by how many planned files a record actually explains.
-  return scored
-    .reverse()
-    .sort((a, b) => b.matches.length - a.matches.length)
-    .slice(0, NOTES_KEEP);
-}
-
-function ledgerText(root, record) {
-  if (!root || !readLedger(root).enabled) return "";
-  const { records, error } = ledger.read(root);
-  if (error || !records.length) return "";
-
-  const selected = selectNotes(records, record);
-  if (!selected.length) return "";
-
-  const budget = noteStaleness.newBudget();
-  const lines = [];
-  let total = NOTES_HEADER.length + 1 + NOTES_CLOSER.length;
-  for (const { stored, matches } of selected) {
-    const verdict = noteStaleness.resolve(root, stored, budget);
-    // [Foreman: 525] The serving rules live in one place, shared with
-    // hooks/ledger-recall.js, so the two paths cannot drift.
-    const body = noteStaleness.servedBody(stored, verdict);
-    if (body === null) continue;
-    const { plan, kept } = matches[0];
-    const line = `- ${body} ${verdict.label} (matched: planned ${plan} ↔ recorded ${kept})`;
-    if (total + 1 + line.length > NOTES_MAX_CHARS) break;
-    lines.push(line);
-    total += 1 + line.length;
-  }
-  if (!lines.length) return "";
-  return `${NOTES_HEADER}\n${lines.join("\n")}\n${NOTES_CLOSER}`;
-}
-
-// ---- the symbol chain — which entries shaped each function this task names,
-// read from the commit history. [Foreman: 287]
-//
-// Every other recall channel matches on paths, and a path has two blind
-// spots: a file everything touches is dropped from <prior_work> as noise, and
-// nothing links a FUNCTION to the entries that created and changed it except
-// a hand-typed anchor comment. `git log -L :<symbol>:<file>` follows the
-// function's own range through history, and the `Foreman:` trailers staged
-// closes already write name the entries — so the chain "005 created it, 030
-// changed it" is already in git. Most functions a task names do lead back to
-// at least one earlier entry, and one `git log -L` call per symbol is cheap
-// enough to run at craft time.
-//
-// Same discipline as the two blocks above: inside <background>, both
-// profiles, NEVER a computeSignals key. Bounded three ways — at most
-// CHAIN_MAX_SYMBOLS git calls, each with its own timeout, under one wall-clock
-// budget for the whole block — because -L walks history and a huge repo must
-// cost a missing block, never a slow handoff.
-const CHAIN_MAX_SYMBOLS = 4;
-// Ids per symbol: the newest two and the one that created it. The middle of a
-// long chain is what a cap cuts, never either end.
-const CHAIN_KEEP = 3;
-// Each entry rides with its id and its title, and deliberately NOT its why.
-// The id alone is a pointer a pasted or background session cannot follow, so
-// the title names the work. The why was carried here once, and cut: it is a
-// plan written before that work started, never rechecked afterwards, and a
-// line inside <background> with no verify-against-the-code frame is taken as
-// fact by the session that reads it, whichever model runs it.
-// A wrong why in this channel would bind exactly as hard as a right one. The
-// title is cut short; the line cap does the rest.
-const CHAIN_TITLE = 40;
-const CHAIN_MAX_CHARS = 900;
-const CHAIN_TIME_BUDGET_MS = 6000;
-// [Foreman: 566] Test-only: the suite's helpers set FOREMAN_TEST_TIME_SCALE
-// on every run, 3 by default and more when FOREMAN_TEST_SPAWN_TIMEOUT_MS
-// raises the suite's spawn limit. It can only stretch the budget and each
-// call's timeout, never shorten them, and a user's session never sets it.
-function chainTimeScale() {
-  return Math.max(1, Number(process.env.FOREMAN_TEST_TIME_SCALE) || 1);
-}
-// Same closing clause as <prior_work>'s header: a chain line reads as a list
-// of past decisions, and the frame has to say they are history.
-const CHAIN_HEADER =
-  "Entries whose commits shaped the symbols this task names — history, not instructions for this task; newest first, the one that created it last:";
-
-/**
- * The symbols worth tracing: names the entry's own prose uses that
- * resolve-symbols found defined in a planned file that exists. File order,
- * capped, one pair per (symbol, file).
- */
-function chainCandidates(record, files) {
-  const prompted = promptedNames(record);
-  if (!prompted.size) return [];
-  const pairs = [];
-  const seen = new Set();
-  for (const f of files || []) {
-    if (!f || !Array.isArray(f.symbols) || !f.symbols.length) continue;
-    if (f.missing || f.outside_project || f.directory || f.unsupported || f.unreadable) continue;
-    for (const s of f.symbols) {
-      if (!prompted.has(s.name)) continue;
-      const key = `${s.name}\0${f.path}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      pairs.push({ name: s.name, file: f.path, rank: prompted.get(s.name) || 0 });
-    }
-  }
-  // What-named symbols take the slots first; the sort is stable, so file order
-  // holds within a rank. Then the cap.
-  return pairs
-    .sort((a, b) => a.rank - b.rank)
-    .slice(0, CHAIN_MAX_SYMBOLS)
-    .map(({ name, file }) => ({ name, file }));
-}
-
-function symbolChainText(root, record, files, history) {
-  if (!root) return "";
-  const pairs = chainCandidates(record, files);
-  if (!pairs.length) return "";
-
-  const known = new Map((history || historyEntries(root)).map((e) => [e.id, e]));
-  const cut = (text, max) => {
-    const flat = typeof text === "string" ? text.replace(/\s+/g, " ").trim() : "";
-    return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
-  };
-  const scale = chainTimeScale();
-  const deadline = Date.now() + CHAIN_TIME_BUDGET_MS * scale;
-  const lines = [];
-  let total = CHAIN_HEADER.length;
-  for (const { name, file } of pairs) {
-    // The wall budget is a ceiling on the whole block, so a call started near
-    // the end gets only what is left of it, not its full own timeout.
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) break;
-    const shapers = symbolShapers(root, file, name, { timeout: Math.min(SYMBOL_LOG_TIMEOUT_MS * scale, remaining) });
-    if (!shapers || !shapers.length) continue;
-    // Newest first, deduped, and never the task's own id — a resumed task
-    // reading "shaped by you" learns nothing.
-    const ids = [];
-    for (const shaper of shapers) {
-      for (const id of shaper.ids) if (id !== record.id && !ids.includes(id)) ids.push(id);
-    }
-    if (!ids.length) continue;
-    let kept = ids;
-    let dropped = 0;
-    if (ids.length > CHAIN_KEEP) {
-      kept = [...ids.slice(0, CHAIN_KEEP - 1), ids[ids.length - 1]];
-      dropped = ids.length - CHAIN_KEEP;
-    }
-    const named = kept.map((id, i) => {
-      const entry = known.get(id);
-      const title = entry ? cut(entry.title, CHAIN_TITLE) : "";
-      const label = `${id}${title ? ` ${title}` : ""}`;
-      return dropped && i === kept.length - 1 ? `… ${label}` : label;
-    });
-    const line = `- ${name} (${file}): shaped by ${named.join("; ")}`;
-    // Whole lines only, same as every block above.
-    if (total + 1 + line.length > CHAIN_MAX_CHARS) break;
-    lines.push(line);
-    total += 1 + line.length;
-  }
-  if (!lines.length) return "";
-  return `${CHAIN_HEADER}\n${lines.join("\n")}`;
-}
-
-// ---- anchors as live references -------------------------------------------
-//
-// `[Foreman: <id>]` comments mark code an earlier entry settled. The read-back
-// hook has always surfaced them the moment someone opens the file; this serves
-// the same fact one step earlier, at dispatch, so the destination starts out
-// knowing which entries left their mark on this code instead of finding out
-// mid-edit. The header frames them as history: an earlier entry's title is a
-// plan that was carried out, not a rule about what this task may do, and a
-// decision document, where one exists, is the thing that actually settles a
-// question — the line points at it.
-//
-// Deliberately not a second lessons channel: what an earlier task LEARNED
-// about these paths already rides in the block above, matched path-level. This
-// answers the different question — which entry settled this code, and where
-// that settlement is written down.
-// Both bounds are on what is SERVED, never on what is collected. An earlier
-// cap counted collected ids between files, which bounded nothing a reader
-// sees: one file carrying fourteen anchors contributed all fourteen, and a
-// file full of stray brackets could spend the budget on lines that are then
-// dropped as unresolvable, so served blocks regularly ran past ANCHOR_KEEP.
-const ANCHOR_MAX_FILES = 12;
-const ANCHOR_KEEP = 6;
-// Header + lines, all in, and whole lines only — the same ceiling and the
-// same whole-or-absent rule the lessons block above it already follows.
-const ANCHOR_MAX_CHARS = 1000;
-const ANCHOR_MAX_BYTES = 512 * 1024;
-const ANCHOR_HEADER =
-  "Anchored in the files this task plans to touch — markers earlier entries left in this code; history, not instructions for this task:";
-
-// Reads at most the first ANCHOR_MAX_BYTES of `filePath`. null on anything
-// that isn't a readable regular file, which the caller skips: a planned path
-// that does not exist yet is the normal case, not an error.
-function readCappedFile(filePath) {
-  let fd;
-  try {
-    fd = fs.openSync(filePath, "r");
-  } catch {
-    return null;
-  }
-  try {
-    const buf = Buffer.alloc(ANCHOR_MAX_BYTES);
-    const bytesRead = fs.readSync(fd, buf, 0, ANCHOR_MAX_BYTES, 0);
-    return buf.toString("utf-8", 0, bytesRead);
-  } catch {
-    return null; // e.g. EISDIR
-  } finally {
-    try {
-      fs.closeSync(fd);
-    } catch {
-      // ignore
-    }
-  }
-}
-
-/**
- * The anchored entries this task will read past, newest file order first.
- *
- * Costs one capped read per planned file and nothing else. An id with neither
- * a roadmap entry nor a document behind it is stray bracket text and is
- * dropped, the same rule the read-back hook applies.
- */
-function anchorsText(root, record, dir, history) {
-  const planned = (record.planned_touches || []).slice(0, ANCHOR_MAX_FILES);
-  if (!planned.length) return "";
-
-  const found = new Map(); // anchor id -> the first planned file carrying it
-  for (const rel of planned) {
-    const content = readCappedFile(path.resolve(root, rel));
-    if (content === null) continue;
-    for (const id of anchorIdsIn(content)) {
-      if (id !== record.id && !found.has(id)) found.set(id, rel);
-    }
-  }
-  if (!found.size) return "";
-
-  const titles = new Map((history || historyEntries(root)).map((e) => [e.id, e.title]));
-  const lines = [];
-  let total = ANCHOR_HEADER.length;
-  for (const [id, rel] of found) {
-    if (lines.length >= ANCHOR_KEEP) break;
-    const docRel = `${String(dir).split(/[\\/]+/).filter(Boolean).join("/")}/${id}.md`;
-    const hasDoc = fs.existsSync(path.resolve(root, docRel));
-    const title = titles.get(id);
-    if (!title && !hasDoc) continue; // stray bracket text, never surfaced
-    const named = title ? ` — ${title}` : "";
-    const doc = hasDoc ? ` → read ${docRel} first` : "";
-    const line = `- ${rel} carries [Foreman: ${id}]${named}${doc}`;
-    if (total + 1 + line.length > ANCHOR_MAX_CHARS) break;
-    lines.push(line);
-    total += 1 + line.length;
-  }
-  if (!lines.length) return "";
-  return `${ANCHOR_HEADER}\n${lines.join("\n")}`;
-}
-
-/**
- * True when a closed entry already touched files this one plans to, so the
- * first-relevant-moment question about the ledger is worth putting. Only the
- * fact, never the ask: pick.md owns the question, this owns the trigger.
- */
-function notesOverlapExists(root, record, history) {
-  const planned = record.planned_touches || [];
-  if (!planned.length) return false;
-  return (history || historyEntries(root)).some(
-    (e) =>
-      RECALL_STATUSES.has(e.status)
-      && e.id !== record.id
-      && (e.observed_touches || []).some((seen) => planned.some((plan) => touchesOverlap(plan, seen)))
-  );
-}
-
 // Text a user pasted or a record carried, quoted into a handoff as data.
 // Escaped so it cannot close its own tag or open a prompt block;
 // check-prompt.js blanks the tagged body before its structural checks.
@@ -892,7 +566,7 @@ function recordedEvidence(tag, text) {
 // newest line stays even alone over the cap, so the quote is never emptied
 // for want of room.
 const ENTRY_NOTES_MAX_CHARS = 2000;
-// Narrower than MACHINE_NOTE_RE on purpose: orchestrator, lesson, survey,
+// Narrower than MACHINE_NOTE_RE on purpose: orchestrator, survey,
 // deferral and review lines are findings a resuming session needs.
 const BOOKKEEPING_NOTE_RE = /^(?:\d{4}-\d{2}-\d{2}\s+)*(?:correction applied:|dispatched to |id reassigned from )/;
 
@@ -1201,7 +875,7 @@ function resumeNotesText(notesPlace, refresh) {
     : ` It had no recorded notes when this handoff was written; check for newer ones before re-deriving anything:\n${refresh}`;
 }
 
-function claudeEntryParagraphText({ id, resume, notesPlace = null, requireVerification, askLesson, destination, investigation, reviewEachIncrement = false, submodule = null, privateRoadmap = false, delegatedTo = null }) {
+function claudeEntryParagraphText({ id, resume, notesPlace = null, requireVerification, destination, investigation, reviewEachIncrement = false, submodule = null, privateRoadmap = false, delegatedTo = null }) {
   const opening = resume
     ? `This task is ROADMAP.jsonl entry \`${id}\`, already marked \`in_progress\` by an earlier session — don't re-mark it.` + resumeNotesText(notesPlace, listIdsCommand("claude", id))
     : `This task is ROADMAP.jsonl entry \`${id}\`. Mark it \`in_progress\` before doing anything else — Foreman's picking flow deliberately leaves it \`planned\` until you do:\n\`echo '{"id":"${id}","status":"in_progress"}' | node ${CLAUDE_ROOT}/scripts/roadmap.js update-status\``;
@@ -1277,18 +951,9 @@ function claudeEntryParagraphText({ id, resume, notesPlace = null, requireVerifi
   // history comparable in `list --stats`.
   const modelEffortNote = "Also add `model` and `effort` to that close call — what actually ran this task. Record a Claude model by its family label: `haiku`, `sonnet`, `opus` or `fable`. Omit either one you genuinely don't know rather than guessing — an absent field reads as unrecorded, a wrong one silently poisons the corpus.";
 
-  // Emitted only where the ledger is on. A skipped ask is silence, which is
-  // the designed outcome: forcing a lesson manufactures platitudes, and the
-  // counter measures the real rate instead. [Foreman: 633] A recorded lesson
-  // is served to later sessions with no review, so the report shows it to the
-  // user word for word, stored or not.
-  const lessonAsk = askLesson
-    ? 'If this task taught you one durable fact about this code area that a future task would need, add `"lesson":"one sentence, naming the file or symbol it concerns"` to that close call. If nothing generalizes beyond this task, omit it — that is a valid outcome. If you record one, quote it word for word in your final report and say whether the close stored it.'
-    : "";
-
   const steps = investigation
-    ? [opening, investigationStep, splitStep, closeIntro, closeCall, modelEffortNote, lessonAsk]
-    : [opening, beginStep, splitStep, closeIntro, stageStep, closeCall, modelEffortNote, lessonAsk];
+    ? [opening, investigationStep, splitStep, closeIntro, closeCall, modelEffortNote]
+    : [opening, beginStep, splitStep, closeIntro, stageStep, closeCall, modelEffortNote];
   return steps.filter(Boolean).join("\n");
 }
 
@@ -1305,7 +970,7 @@ function coordinatorParagraphText(lines, { id, investigation, submodule }) {
   return [owner, work, report].join("\n");
 }
 
-function codexEntryParagraphText({ id, resume, notesPlace = null, requireVerification, askLesson, destination, investigation, reviewEachIncrement = false, submodule = null, privateRoadmap = false, delegatedTo = null }) {
+function codexEntryParagraphText({ id, resume, notesPlace = null, requireVerification, destination, investigation, reviewEachIncrement = false, submodule = null, privateRoadmap = false, delegatedTo = null }) {
   const code = (value) => "`" + value + "`";
   const opening = resume
     ? "This task is ROADMAP.jsonl entry " + code(id) + ", already marked " + code("in_progress") + " by an earlier session." + resumeNotesText(notesPlace, listIdsCommand("codex", id))
@@ -1356,22 +1021,19 @@ function codexEntryParagraphText({ id, resume, notesPlace = null, requireVerific
     + "\nA failure means the entry is still open; resolve it before claiming closure. Read and act on the returned discovery policy before reporting completion; a successful checkpoint does not mean that observed out-of-scope findings have been reviewed."
     + (requireVerification ? ` awaiting_acceptance passes this recorded-work check and still awaits ${delegatedTo ? `the orchestrator ${delegatedTo}'s` : "the user's"} acceptance.` : "");
   const modelEffortNote = "Also add " + code("model") + " and " + code("effort") + " to that close call — what actually ran this task. Omit either one you do not know rather than guessing.";
-  const lessonAsk = askLesson
-    ? "If this task taught one durable fact about the code area, add " + code('"lesson":"one sentence, naming the file or symbol it concerns"') + " to that close call. If nothing generalizes, omit it. If you record one, quote it verbatim in the final report and say whether the close stored it."
-    : "";
   if (destination === "agent") {
     return [
       "Coordinator-owned roadmap protocol (the subagent must not run these mutations, stage, or commit; return findings and verification to the coordinator):",
-      opening, startStep, payloadNote, ...(reviewEachIncrement ? [splitStep] : []), closeIntro, closeCall, modelEffortNote, lessonAsk, checkStep,
+      opening, startStep, payloadNote, ...(reviewEachIncrement ? [splitStep] : []), closeIntro, closeCall, modelEffortNote, checkStep,
     ].filter(Boolean).join("\n");
   }
   if (investigation) {
     return [opening, startStep, payloadNote,
       "The investigation's project writes are limited to this Foreman lifecycle bookkeeping. Record findings in notes with add_touches:[]; do not stage, commit, or create implementation changes from a failed diagnostic check.",
-      splitStep, closeIntro, closeCall, modelEffortNote, lessonAsk, checkStep]
+      splitStep, closeIntro, closeCall, modelEffortNote, checkStep]
       .filter(Boolean).join("\n");
   }
-  return [opening, startStep, payloadNote, beginStep, splitStep, closeIntro, stageStep, closeCall, modelEffortNote, lessonAsk, checkStep]
+  return [opening, startStep, payloadNote, beginStep, splitStep, closeIntro, stageStep, closeCall, modelEffortNote, checkStep]
     .filter(Boolean).join("\n");
 }
 
@@ -1577,19 +1239,13 @@ function assemble(root, input) {
         reviewEachIncrement,
         destination,
         investigation: Boolean(judgment.question),
-        askLesson: isEntry && readLedger(root).enabled,
         host,
         ...close,
       });
 
   const taskContextBlock = holdUserRoot(taskContextText(config.usePersona, judgment, record));
   const backgroundInner = holdUserRoot(relevantFilesText(symbolResult.files, symbolResult.references, symbolResult.unresolved, record));
-  // One read of the roadmap and the archive for every history consumer below.
-  const history = historyEntries(root);
-  const priorWork = holdUserRoot(priorWorkText(history, record, root));
-  const lessons = holdUserRoot(ledgerText(root, record));
-  const anchors = holdUserRoot(anchorsText(root, record, config.ledger.dir, history));
-  const chain = holdUserRoot(symbolChainText(root, record, symbolResult.files, history));
+  const priorWork = holdUserRoot(priorWorkText(historyEntries(root), record, root));
   // [Foreman: 789] `resume` without an entry is ignored: no skill sends it.
   const recoveryCarriesNotes = isEntry && reviewEachIncrement && input.resume;
   // The user's text is held before the build, so the refresh command keeps
@@ -1678,20 +1334,7 @@ function assemble(root, input) {
       // Prior work rides in the background block itself, never in <context>:
       // it is recalled from other entries, not this entry's own evidence.
       const recallBlock = priorWork ? `${priorWork}\n` : "";
-      // Untagged, unlike <prior_work>: these are one-sentence claims, not a
-      // block of past-entry prose that needs a frame to stop it reading as
-      // instructions. Same both-profiles rule.
-      const lessonsBlock = lessons ? `${lessons}\n` : "";
-      // [Foreman: 287] The symbol chain, untagged like the lessons: history
-      // read from git, not a claim about the code as it stands, so it needs no
-      // staleness label — a commit that shaped a function did so whatever the
-      // function looks like today.
-      const chainBlock = chain ? `${chain}\n` : "";
-      // Same untagged treatment, same both-profiles rule: an anchor is a
-      // pointer at code the destination is about to read, and it is only worth
-      // anything before the reading starts.
-      const anchorsBlock = anchors ? `${anchors}\n` : "";
-      parts.push(`<background>\n<relevant_files>\n${backgroundInner}\n</relevant_files>\n${recallBlock}${lessonsBlock}${chainBlock}${anchorsBlock}</background>`);
+      parts.push(`<background>\n<relevant_files>\n${backgroundInner}\n</relevant_files>\n${recallBlock}</background>`);
     }
     if (ctxText) parts.push(`<context>\n${ctxText}\n</context>`);
     if (reinforced) parts.push(noInventionLine);
@@ -1799,31 +1442,6 @@ function assemble(root, input) {
   // opted in, no-op again on every later handoff, and never throws.
   if (gate.ok) recordFirstPick({ root });
 
-  // [Foreman: 283] One row per delivered handoff the lessons block could have
-  // reached, count 0 included — the zero rows are the denominator a served
-  // rate needs. Only while the ledger is on: a project with it off cannot
-  // serve, so its handoffs would dilute the rate with impossibilities. Same
-  // opt-in no-op as every other trial row.
-  if (gate.ok && isEntry && readLedger(root).enabled) {
-    const count = lessons ? lessons.split("\n").filter((line) => line.startsWith("- ")).length : 0;
-    recordTrial("lesson_served", { count, chars: lessons.length }, { root });
-  }
-
-  // The first moment the ledger could actually pay: a finished entry already
-  // touched files this one plans to, and nobody has been asked yet. An absent
-  // key is the record that the question was never put — a written `false` is
-  // what stops it being asked again, and either key `ledger` replaced counts
-  // as an answer already given. Just the fact; pick.md owns the question.
-  const ledgerConfig = readConfig(root).config;
-  const ledgerAsk =
-    isEntry
-    && ledgerConfig.ledger === undefined
-    && ledgerConfig.areaNotes === undefined
-    && ledgerConfig.decisionLog === undefined
-    && process.env.FOREMAN_LEDGER === undefined
-    && process.env.FOREMAN_AREA_NOTES === undefined
-    && notesOverlapExists(root, record, history);
-
   return {
     ok: gate.ok,
     prompt,
@@ -1832,7 +1450,6 @@ function assemble(root, input) {
     signals,
     ...(tasks ? { tasks } : {}),
     ...(reviewEachIncrement ? { reviewEachIncrement: true } : {}),
-    ...(ledgerAsk ? { ledger_ask: true } : {}),
     gate,
     warnings,
   };
@@ -1881,23 +1498,7 @@ module.exports = {
   SYMBOL_KEEP,
   priorWorkText,
   recallExcerpt,
-  ledgerText,
-  anchorsText,
-  ANCHOR_KEEP,
-  symbolChainText,
-  chainCandidates,
-  CHAIN_HEADER,
-  CHAIN_KEEP,
-  CHAIN_MAX_SYMBOLS,
-  CHAIN_MAX_CHARS,
   ENTRY_NOTES_MAX_CHARS,
-  ANCHOR_MAX_CHARS,
-  notesOverlapExists,
-  // An external benchmark generator parses this header and closer, so a
-  // reworded one fails its invariant check instead of silently measuring
-  // prose the product no longer ships.
-  NOTES_HEADER,
-  NOTES_CLOSER,
   taskContextText,
   taskRulesText,
   incrementReviewText,

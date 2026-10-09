@@ -82,9 +82,11 @@ describe("the Antigravity manifest and registration", () => {
     }
     const matches = (event, tool) => new RegExp(hooks.foreman[event][0].matcher).test(tool);
     for (const tool of ["write_to_file", "replace_file_content", "multi_replace_file_content"]) {
-      assert.ok(matches("PreToolUse", tool) && matches("PostToolUse", tool), tool);
+      assert.ok(matches("PreToolUse", tool), tool);
+      assert.ok(!matches("PostToolUse", tool), `no PostToolUse hook watches ${tool}`);
     }
-    assert.ok(matches("PostToolUse", "run_command") && matches("PostToolUse", "view_file"));
+    assert.ok(matches("PostToolUse", "run_command"));
+    assert.ok(!matches("PostToolUse", "view_file"), "opening a file runs no Foreman hook");
     assert.ok(!matches("PreToolUse", "run_command"), "the roadmap guard never parses shell writes");
     assert.ok(fs.existsSync(ENTRY));
   });
@@ -147,9 +149,9 @@ describe("PreToolUse guards the roadmap stores", () => {
   });
 
   test("replace_file_content and multi_replace_file_content are read as edits", () => {
-    const single = run("PreToolUse", call("replace_file_content", { TargetFile: inProject(".foreman", "notes.jsonl"), TargetContent: "a", ReplacementContent: "b" }));
+    const single = run("PreToolUse", call("replace_file_content", { TargetFile: inProject(".foreman", "archive.jsonl"), TargetContent: "a", ReplacementContent: "b" }));
     assert.equal(single.decision, "deny");
-    assert.match(single.reason, /notes\.jsonl/);
+    assert.match(single.reason, /archive\.jsonl/);
     const multi = run("PreToolUse", call("multi_replace_file_content", { TargetFile: inProject("ROADMAP.jsonl"), ReplacementChunks: [] }));
     assert.equal(multi.decision, "deny");
   });
@@ -375,14 +377,13 @@ describe("PostToolUse answers nothing and queues context for the next model call
     assert.deepEqual(run("PreInvocation", { invocationNum: 1 }), {});
   });
 
-  test("viewing a file with a decision anchor queues its documents", () => {
+  test("a file edit queues nothing, even beside a decision document and an anchor", () => {
     fs.mkdirSync(inProject("docs", "foreman"), { recursive: true });
     fs.writeFileSync(inProject("docs", "foreman", "001.md"), "decision");
     fs.mkdirSync(inProject("src"), { recursive: true });
     fs.writeFileSync(inProject("src", "a.js"), "// [Foreman: 001]\n");
-    assert.deepEqual(run("PostToolUse", call("view_file", { AbsolutePath: inProject("src", "a.js") })), {});
-    const next = run("PreInvocation", { invocationNum: 2 });
-    assert.match(injected(next)[0].ephemeralMessage, /decision docs \(docs\/foreman\/001\.md\)/);
+    assert.deepEqual(run("PostToolUse", call("write_to_file", { TargetFile: inProject("src", "a.js"), CodeContent: "" })), {});
+    assert.deepEqual(run("PreInvocation", { invocationNum: 2 }), {});
   });
 });
 

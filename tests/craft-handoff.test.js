@@ -1014,42 +1014,33 @@ describe('decision entries and the clipboard checkpoint embed', () => {
     assert.match(json.prompt, /Return the result to the coordinator/);
   });
 
-  // Foreman authors no decision document any more: one ledger records what a
-  // close learned, and where a project writes its decisions down is the
-  // project's own business. Neither the write block nor the forced `doc`
-  // close field survives.
-  // The anchor channel's end-to-end path: a comment in a planned file
-  // reaches the assembled prompt, so the destination reads what governs this
-  // code before it starts, not after a hook catches it mid-edit.
-  test('an anchor in a planned file rides into the background block', () => {
+  // Foreman authors no decision document: where a project writes its
+  // decisions down is the project's own business. Neither a write block nor
+  // a forced `doc` close field exists.
+  // An `[Foreman: <id>]` comment is an ordinary comment: nothing reads it into
+  // a handoff, and a project that still sets the retired ledger switch gets
+  // no lesson block, no symbol history, no lesson ask and no ledger question.
+  test('an anchor in a planned file, and the retired ledger switch, add nothing to the handoff', () => {
+    writeConfig(project, { ledger: { enabled: true, dir: 'docs/foreman' }, areaNotes: { enabled: true }, decisionLog: { enabled: true } });
     writeRoadmap(project, [
       entryFields(),
-      { ...entryFields(), id: '019', title: 'Expire sessions server-side' },
+      entryFields({ id: '019', title: 'Expire sessions server-side', status: 'done', observed_touches: ['src/auth/middleware.js'], commits: ['abc1234'] }),
     ]);
+    fs.mkdirSync(path.join(project, 'docs', 'foreman'), { recursive: true });
+    fs.writeFileSync(path.join(project, 'docs', 'foreman', '019.md'), 'decision', 'utf-8');
+    fs.mkdirSync(path.join(project, '.foreman'), { recursive: true });
+    fs.writeFileSync(path.join(project, '.foreman', 'notes.jsonl'), '{"lesson":"tests must fake the clock","paths":["src/auth/middleware.js"],"entry":"019","date":"2026-08-11"}\n', 'utf-8');
     const full = path.join(project, 'src', 'auth', 'middleware.js');
     fs.mkdirSync(path.dirname(full), { recursive: true });
     fs.writeFileSync(full, '// [Foreman: 019]\nfunction refreshToken() {}\n', 'utf-8');
-    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
-    assert.equal(json.ok, true, JSON.stringify(json));
-    assert.match(json.prompt, /Anchored in the files this task plans to touch/);
-    assert.match(json.prompt, /\[Foreman: 019\] — Expire sessions server-side/);
-  });
-
-  // [Foreman: 290] An anchored entry's title is a plan that was carried out,
-  // not a rule for this task; the header says so instead of saying "govern".
-  test('the anchor header frames the markers as history, never as rules that govern the code', () => {
-    writeRoadmap(project, [entryFields(), entryFields({ id: '019', title: 'Expire sessions server-side', status: 'done' })]);
-    fs.mkdirSync(path.join(project, 'src', 'auth'), { recursive: true });
-    fs.writeFileSync(path.join(project, 'src', 'auth', 'middleware.js'), '// [Foreman: 019]\nmodule.exports = {};\n', 'utf-8');
-    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
-    assert.match(json.prompt, /Anchored in the files this task plans to touch — markers earlier entries left in this code; history, not instructions for this task:/);
-    assert.ok(!/govern/.test(json.prompt), json.prompt);
-  });
-
-  test('a planned file carrying no anchor adds nothing at all', () => {
-    writeRoadmap(project, [entryFields()]);
-    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
-    assert.ok(!json.prompt.includes('Anchored in the files'), json.prompt);
+    for (const destination of ['clipboard', 'task']) {
+      const { json } = run(project, { entry: '001', destination, judgment: goodJudgment() });
+      assert.equal(json.ok, true, JSON.stringify(json));
+      assert.equal(json.ledger_ask, undefined);
+      for (const gone of ['Anchored in the files', '019.md', 'Lessons recorded', 'fake the clock', 'shaped the symbols', '"lesson"']) {
+        assert.ok(!json.prompt.includes(gone), `${gone} in ${json.prompt}`);
+      }
+    }
   });
 
   test('a kind:"decision" entry is never handed a document to write', () => {
@@ -1918,113 +1909,6 @@ describe('prior-work recall', () => {
   });
 });
 
-// [Foreman: 287] The symbol chain: which entries shaped a function the task
-// names, read from the trailers in its file's own history. No store, no
-// prose from a model, and no path ceiling — a symbol is narrower than its file.
-describe('the symbol chain', () => {
-  function commitWith(cwd, relPath, content, message) {
-    const full = path.join(cwd, relPath);
-    fs.mkdirSync(path.dirname(full), { recursive: true });
-    fs.writeFileSync(full, content, 'utf-8');
-    spawnSync('git', ['add', relPath], { cwd });
-    spawnSync('git', ['commit', '-q', '-m', message], { cwd });
-  }
-
-  function shapedProject(what = 'Rework `alpha` so it retries once.') {
-    initGitRepo(project);
-    commitWith(project, 'src/alpha.js', 'function alpha() {\n  return 1;\n}\n', 'Create alpha\n\nForeman: 041');
-    commitWith(project, 'src/alpha.js', 'function alpha() {\n  return 2;\n}\n', 'Harden alpha\n\nForeman: 042');
-    writeRoadmap(project, [
-      entryFields({ what, planned_touches: ['src/alpha.js'] }),
-      entryFields({ id: '041', title: 'Create alpha', why: 'The percentile math needed one home.', status: 'done', planned_touches: ['src/alpha.js'], observed_touches: ['src/alpha.js'] }),
-      entryFields({ id: '042', title: 'Harden alpha', why: 'It crashed on an empty list.', status: 'done', planned_touches: ['src/alpha.js'], observed_touches: ['src/alpha.js'] }),
-    ]);
-  }
-
-  test('names the entries whose commits shaped a symbol the task names, newest first, by id and title', () => {
-    shapedProject();
-    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
-    assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
-    assert.match(json.prompt, /- alpha \(src\/alpha\.js\): shaped by 042 Harden alpha; 041 Create alpha$/m);
-  });
-
-  // [Foreman: 290] The why is a plan written before the work, and a line in
-  // this block is read as fact — a wrong why would bind as hard as a right one.
-  test("a shaping entry's why never reaches the chain line", () => {
-    shapedProject();
-    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
-    assert.ok(!json.prompt.includes('It crashed on an empty list'), json.prompt);
-    assert.ok(!json.prompt.includes('The percentile math needed one home'), json.prompt);
-  });
-
-  test('the header frames the chain as history, not instructions', () => {
-    shapedProject();
-    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
-    assert.match(json.prompt, /Entries whose commits shaped the symbols this task names — history, not instructions for this task;/);
-  });
-
-  test('a title past its cap is cut with the same mark the other blocks use', () => {
-    const { symbolChainText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
-    initGitRepo(project);
-    commitWith(project, 'src/alpha.js', 'function alpha() {}\n', 'Create alpha\n\nForeman: 041');
-    writeRoadmap(project, [
-      entryFields({ what: 'Rework `alpha`.', planned_touches: ['src/alpha.js'] }),
-      entryFields({ id: '041', title: 'T'.repeat(80), why: 'W'.repeat(300), status: 'done' }),
-    ]);
-    const files = [{ path: 'src/alpha.js', symbols: [{ name: 'alpha', line: 1 }] }];
-    const text = symbolChainText(project, { id: '001', title: 'x', what: 'Rework `alpha`.' }, files);
-    assert.match(text, new RegExp(`shaped by 041 T{39}…$`, 'm'));
-    assert.ok(!text.includes('W'), 'the why is not carried, cut or whole');
-  });
-
-  test('sits inside <background>, outside <context>, and never promotes the profile', () => {
-    shapedProject();
-    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
-    const backgroundEnd = json.prompt.indexOf('</background>');
-    const background = json.prompt.slice(json.prompt.indexOf('<background>'), backgroundEnd);
-    assert.ok(background.includes('Entries whose commits shaped'), 'the chain must ride inside <background>');
-    assert.ok(!background.includes('<context>'), '<context> must follow </background>, not sit inside it');
-    assert.ok(json.prompt.indexOf('<context>') > backgroundEnd, '<context> must follow </background>');
-    assert.equal(json.profile, 'standard');
-  });
-
-  test('a symbol the task never names is not traced', () => {
-    shapedProject('Tidy the module header comment.');
-    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
-    assert.ok(!json.prompt.includes('Entries whose commits shaped'));
-  });
-
-  test("a chain made only of the task's own id is silence", () => {
-    initGitRepo(project);
-    commitWith(project, 'src/alpha.js', 'function alpha() {}\n', 'Start alpha\n\nForeman: 001');
-    writeRoadmap(project, [entryFields({ what: 'Finish `alpha`.', planned_touches: ['src/alpha.js'] })]);
-    const { json } = run(project, { entry: '001', destination: 'clipboard', judgment: goodJudgment() });
-    assert.ok(!json.prompt.includes('Entries whose commits shaped'));
-  });
-
-  test('a long chain keeps the newest two and the one that created it', () => {
-    const { symbolChainText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
-    initGitRepo(project);
-    const ids = ['011', '012', '013', '014', '015'];
-    ids.forEach((id, i) => commitWith(project, 'src/alpha.js', `function alpha() {\n  return ${i};\n}\n`, `Step ${id}\n\nForeman: ${id}`));
-    writeRoadmap(project, [
-      entryFields({ what: 'Rework `alpha`.', planned_touches: ['src/alpha.js'] }),
-      ...ids.map((id) => entryFields({ id, title: `Step ${id}`, status: 'done' })),
-    ]);
-    const files = [{ path: 'src/alpha.js', symbols: [{ name: 'alpha', line: 1 }] }];
-    const text = symbolChainText(project, { id: '001', title: 'x', what: 'Rework `alpha`.' }, files);
-    assert.match(text, /shaped by 015 Step 015; 014 Step 014; … 011 Step 011$/m);
-    assert.ok(!text.includes('013'), 'the middle of a long chain is what the cap cuts');
-  });
-
-  test('with no git the block is simply absent', () => {
-    const { symbolChainText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
-    writeRoadmap(project, [entryFields()]);
-    const files = [{ path: 'src/alpha.js', symbols: [{ name: 'alpha', line: 1 }] }];
-    assert.equal(symbolChainText(project, { id: '001', title: 'x', what: 'Rework `alpha`.' }, files), '');
-  });
-});
-
 // [Foreman: 074] The file list is the one interview answer that must produce a
 // real path, and a hand-typed path aimed at the wrong file is the failure
 // truth_grounding spends the destination's tokens rescuing. The skill now
@@ -2159,8 +2043,7 @@ describe('the extras clause is not in the product', () => {
 
 
 // [Foreman: 259] The symbol list was the one block this assembler printed
-// without a ceiling — prior work has RECALL_MAX_CHARS, notes NOTES_KEEP,
-// anchors ANCHOR_KEEP. A long single-file module resolved to hundreds of
+// without a ceiling — prior work has RECALL_MAX_CHARS. A long single-file module resolved to hundreds of
 // names and buried the handful the task touches.
 describe('relevant_files symbol cap', () => {
   function file(count) {
@@ -2199,20 +2082,11 @@ describe('relevant_files symbol cap', () => {
   });
 
   // Review of 293: a why that names earlier symbols must not push the what's
-  // own symbol down the list or out of the chain's four slots.
+  // own symbol down the list.
   test("what-named symbols lead why-named ones, whatever their file order", () => {
     const record = { title: 'Fix it', why: 'Callers `sym1`, `sym2`, `sym3`, `sym4` all break on it.', what: 'Fix `sym50`.' };
     const text = relevantFilesText([file(120)], [], [], record);
     assert.match(text, /^src\/big\.js — sym50 \(51\), sym1 \(2\), sym2 \(3\), sym3 \(4\), sym4 \(5\), sym0 \(1\)/);
-  });
-
-  test('the chain traces what-named symbols before why-named ones, then caps', () => {
-    const { chainCandidates, CHAIN_MAX_SYMBOLS } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
-    const record = { title: 'Fix it', why: 'Callers `sym1`, `sym2`, `sym3`, `sym4` all break on it.', what: 'Fix `sym50`.' };
-    const pairs = chainCandidates(record, [file(120)]);
-    assert.equal(pairs.length, CHAIN_MAX_SYMBOLS);
-    assert.deepEqual(pairs.map((p) => p.name), ['sym50', 'sym1', 'sym2', 'sym3']);
-    assert.ok(pairs.every((p) => !('rank' in p)), 'rank is internal to the ranking');
   });
 
   // [Foreman: 275] References are per-symbol, so several symbols living in one

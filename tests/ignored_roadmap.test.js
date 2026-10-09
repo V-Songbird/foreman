@@ -181,28 +181,10 @@ describe('a staged close', () => {
     assert.match(fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf-8'), /"status":"awaiting_acceptance"/);
   });
 
-  test('a recorded lesson in a private roadmap is named as not staged too', () => {
-    repo(PRIVATE);
-    writeConfig(project, { ledger: { enabled: true } });
-    startEntry();
-    writeFile('src/a.js', 'x\n');
-    git('add', 'src/a.js');
-
-    const close = roadmap(['update-status'], {
-      id: '001',
-      status: 'awaiting_acceptance',
-      staged: true,
-      lesson: 'src/a.js holds the thing',
-    });
-    assert.equal(close.lesson.stored, true, JSON.stringify(close.lesson));
-    assert.equal(close.roadmap_staged, false);
-    assert.match(close.warnings[0], /^git-ignored here, so not staged: ROADMAP\.jsonl, \.foreman\/notes\.jsonl\./);
-    assert.equal(git('diff', '--cached', '--name-only').trim(), 'src/a.js');
-  });
-
-  test('an ignored .foreman/ alone still stages the roadmap and names the notes file', () => {
+  test('a leftover lesson store under an ignored .foreman/ is never named', () => {
     repo(['.foreman/']);
     writeConfig(project, { ledger: { enabled: true } });
+    fs.writeFileSync(path.join(project, '.foreman', 'notes.jsonl'), '{"lesson":"old"}\n', 'utf-8');
     startEntry();
     writeFile('src/a.js', 'x\n');
     git('add', 'src/a.js');
@@ -214,7 +196,7 @@ describe('a staged close', () => {
       lesson: 'src/a.js holds the thing',
     });
     assert.equal(close.roadmap_staged, true);
-    assert.deepEqual(close.warnings, ['git-ignored here, so not staged: .foreman/notes.jsonl.']);
+    assert.equal(close.warnings, undefined);
     assert.deepEqual(git('diff', '--cached', '--name-only').split('\n').filter(Boolean).sort(), ['ROADMAP.jsonl', 'src/a.js']);
   });
 

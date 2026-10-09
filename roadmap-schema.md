@@ -110,7 +110,7 @@ its repair, never `doctor --fix`.
 | `created_at` | string (`YYYY-MM-DD`) | yes | Set once, at creation, never rewritten. |
 | `updated_at` | string (`YYYY-MM-DD`) | yes | Rewritten on every change to the entry. Doubles as `correct`'s staleness guard (`expected_updated_at`), and the split there is honest: it is **date-only**, so two corrections on the same day both match it — those are caught by `correct`'s per-field content check instead (`expected.<field>` must equal the stored value, so a correction composed against text it never saw is refused). What the date guard catches is the multi-day case: a session applying a correction composed against an entry it read days ago, on top of someone else's newer one. |
 | `notes` | string | yes (may be `""`) | Free text. **Append-only** — add to it, never overwrite what's already there. Each append lands on its own `YYYY-MM-DD`-stamped line, written by the script; don't hand-write a date into the note text. The embedded newlines are JSON-escaped, so the file stays one line per entry. This is the durable home for full findings, not a one-line breadcrumb — a dense paragraph of specific findings (exact paths/symbols, what was tried, what shipped) is expected and normal (warns past ~3000 chars). Still never a serialized JSON blob (e.g. dumping an imported/legacy record's full JSON as a string here defeats the point of a structured schema; if migrating from another tracker, map its fields onto `why`/`what`/`planned_touches` instead of stuffing the original object into `notes`). |
-| `doc` | string | no — omitted entirely when not set | An optional pointer at a document this project already keeps about this entry. Foreman authors no document and templates none: it only reads. Recorded on `add`/`update-status` as exactly `"none"` (nothing was written down outside the ledger) or a relative path ending in `.md` (no leading slash, no drive letter, no `..` segments), by convention `<ledger.dir>/<id>.md` (default `docs/foreman/<id>.md`, path configurable). Never backfilled onto existing entries and never defaulted, and nothing demands it — an entry where the field was never passed simply has no `doc` key. Direct dependencies' `doc` paths ride into a handoff as `depends_on_docs`. Code points back at an entry with an anchor comment, `[Foreman: <id>[, <id>...]]` (ids of three or more digits, zero-padded to at least three, comma-separated — e.g. `// [Foreman: 019]` or `// [Foreman: 019, 034]`); `DECISION_ANCHOR_RE`/`anchorIdsIn`/`anchorHasId` in `scripts/roadmap.js` are the one shared definition of that format. |
+| `doc` | string | no — omitted entirely when not set | An optional pointer at a document this project already keeps about this entry. Foreman authors no document and templates none: it only reads. Recorded on `add`/`update-status` as exactly `"none"` (nothing was written down outside the roadmap) or a relative path ending in `.md` (no leading slash, no drive letter, no `..` segments). Never backfilled onto existing entries and never defaulted, and nothing demands it — an entry where the field was never passed simply has no `doc` key. Direct dependencies' `doc` paths ride into a handoff as `depends_on_docs`. |
 | `model` | string | no — omitted entirely when not set | Which model **actually executed** this entry, recorded on `update-status` (typically the close), never on `add` (an entry being created hasn't run yet). Any identifier of 1–128 letters, digits, dots, underscores, colons, slashes or hyphens, starting with a letter or digit, is accepted (`isValidModel` in `scripts/roadmap.js`). A Claude Code session records its family label — `haiku \| sonnet \| opus \| fable` (`MODELS`) — because the handoff's close note asks for it, which keeps Claude Code history comparable; a Codex session records the exact id, such as `gpt-5.6-sol`. A valid identifier says nothing about whether that model exists. Nothing recommends a model at craft time — Foreman never asks which model should run a task — so this is a plain record of what did. Self-reported by whoever closes the entry: it cannot be detected, since hook input carries no model, and it is read back by `list --stats`, which counts each recorded value as written — family labels and exact ids side by side, so a count under one convention is not comparable with the other. |
 | `effort` | enum | no — omitted entirely when not set | `none \| minimal \| low \| medium \| high \| xhigh \| max \| ultra` — the reasoning effort the executing session ran at, recorded the same way and under the same rules as `model`, and read back by the same `list --stats`. `none`, `minimal` and `ultra` are tiers a Codex session may record, and which values exist at all depends on the host and model. Also self-reported and never dispatched: Claude Code's `Agent` tool takes no effort argument and a Codex handoff requests no override, so the record is only whatever the session was already set to. Accepted set is `EFFORTS` in `scripts/roadmap.js`. |
 | `kind` | enum | no — omitted entirely when `build` | The task's purpose: `"build"` (implement a slice — the default, so it's never written to the file) or `"decision"` (resolve an open question, producing a recorded decision rather than code). Set at `add`, `update-status`, or `correct` (reclassifying back to `"build"` drops the key), same omit-when-default shape as `doc`: only `"decision"` is stored, and an entry with no `kind` key is a build. The `roadmap` skill's pick flow reads it and, for a decision entry, adds a "decide, don't build" rule to the handoff prompt. It exists because a decision-shaped entry with no such rule gets implemented straight into code a measurable fraction of the time instead of decided; `kind` is what declares the difference once, on the entry, instead of hoping each session infers it. |
@@ -332,7 +332,7 @@ manage it. Concurrent commands serialize automatically; a crashed owner's
 lock is recovered, and a live lock that outlasts the short wait returns one
 error instead of risking a lost update. Read-only commands take no lock.
 
-**Credential-shaped text is refused.** Titles, notes and lessons come from
+**Credential-shaped text is refused.** Titles and notes come from
 conversations and land in files a project may commit, so four commands check
 the text fields they store before taking the lock:
 
@@ -341,7 +341,7 @@ the text fields they store before taking the lock:
 | `add` | `title`, `why`, `what`, `notes`, `planned_touches` (or `touches`), `doc` |
 | `annotate` | `notes` |
 | `correct` | the new `title`, `why`, `what` and `planned_touches` (or `touches`) |
-| `update-status` | `notes`, `lesson`, `add_touches`, `doc`, `model` |
+| `update-status` | `notes`, `add_touches`, `doc`, `model` |
 
 The check is a small closed set of shapes: a provider API key (an `sk-` key,
 a GitHub token, an AWS access key id, a Slack token), a private key block, an
@@ -355,8 +355,7 @@ through. Text already in the files is never checked, so an older entry stays
 readable.
 
 **Hidden characters are refused.** A handoff quotes an entry's `title`,
-`why`, `what` and `notes`, and a lesson reaches later sessions, so the same
-four commands refuse those fields when they carry a character the prompt gate
+`why`, `what` and `notes`, so the same four commands refuse those fields when they carry a character the prompt gate
 refuses: a zero-width character, the word joiner, a byte order mark, a bidi
 control or a Unicode tag. A byte order mark is refused even at a field's
 start, because a handoff never quotes a field at its own start. The joiner
@@ -370,8 +369,8 @@ tags without decoding them.
 ## Private roadmap — git-ignored files
 
 A project can keep its plan out of its repository by git-ignoring
-`ROADMAP.jsonl` and `.foreman/`, which holds the archive, the lesson ledger,
-the config and the trial log. Foreman then works on the files on disk and
+`ROADMAP.jsonl` and `.foreman/`, which holds the archive, the config and the
+trial log. Foreman then works on the files on disk and
 never puts them in a commit. There is no setting: `git check-ignore` decides
 it for each file. Git never reports a tracked file as ignored, so a project
 that commits its roadmap behaves exactly as before.
@@ -521,125 +520,6 @@ close writes the roadmap and never the archive.
 
 ---
 
-## The ledger — `.foreman/notes.jsonl`
-
-Off by default (`ledger.enabled`; the older `areaNotes` and `decisionLog`
-keys are read as the same setting). When on, a close may record **one durable
-sentence** about the code area it touched, and a later task whose planned
-files intersect that record's files is served it back.
-
-**Record shape.** One JSON object per line, after a
-`{"foreman_notes_format":1}` first line:
-
-```json
-{"area":"src/auth","paths":["src/Auth/session.js","test/helpers/clock.js"],
- "entry":"142","anchor":{"kind":"commit","sha":"a1b2c3d8"},"date":"2026-08-11",
- "lesson":"token refresh lives in src/Auth/session.js refresh(); tests MUST fake time via test/helpers/clock.js — real timers hang CI"}
-```
-
-- `paths` — the close's `observed_touches`, minus bookkeeping
-  (`ROADMAP.jsonl`, `.foreman/**`, `docs/foreman/**`). Separator-normalized
-  and **case-preserved**: these are handed to git and to the filesystem, where
-  a lowercased path reads wrong on a case-sensitive one.
-- `anchor` — `{"kind":"commit","sha":…}` when the close recorded a sha,
-  `{"kind":"entry"}` otherwise, resolved later through the entry's
-  `Foreman: <id>` trailers. A rebase splits a sha from its trailer, so
-  commit-kind falls through to trailer resolution when the sha is gone.
-- `lesson` — 500 characters, **hard refused** above it, never truncated. A
-  longer lesson still lets the close through and lands on the entry's notes
-  instead. A lesson that looks like a credential refuses the whole
-  `update-status` call, status included, and nothing is written (see
-  [Using roadmap.js](#using-roadmapjs)). So does one carrying a hidden
-  character, whether or not the ledger is on (same section).
-- `area` — derived, cosmetic, for readable grouping only. Selection is always
-  path-level.
-
-**Writing.** Only `update-status`, only on a close, only through a `lesson`
-field on the same stdin JSON — the append rides the close's existing lock.
-`hooks/guard-roadmap-edit.js` blocks direct file-tool edits of the file, the
-same way it blocks the roadmap and the archive. Append-only: sessions never
-rewrite it, so two branches merge line by line.
-
-**Retiring a record.** A lesson that proved wrong is retired by appending a
-marker naming it, never by editing the line:
-
-```json
-{"supersedes":"a91f0c33be21","by_entry":"151","date":"2026-08-19"}
-```
-
-`supersedes` holds the record's **key**, which is derived from that record's
-own `entry`, `date` and `lesson` — so every clone computes the same key and
-two clones retiring the same record still merge cleanly. `notes` reports the
-key of everything it serves, and `note-supersede` takes it. A retired record
-disappears from every read: it stops being served into handoffs, stops showing
-in `notes`, and stops spending the serving window. The line itself stays on
-disk until a prune.
-
-The `survey` skill is the flow that offers this, because it is the only one that
-has already read the code the claim describes. Retiring records nothing about
-what the truth is instead — the corrected fact belongs on the `lesson` of the
-next task to close in that code.
-
-**Pruning.** `note-prune` is the one operation that rewrites this file, and it
-is never automatic. It removes records whose every file is gone and records
-already retired; a marker whose target this file has never carried is kept,
-because that is the half-merged case and the line it retires is still inbound.
-`--dry-run` reports what would go and writes nothing. `doctor` reports the
-dead-record count and points here.
-
-**What is worth recording.** A fact a *future* task in this area would need
-and could not cheaply re-derive. Cite a decision document rather than
-restating it. A project-wide fact belongs in the project's instruction file
-(`CLAUDE.md` or `AGENTS.md`); a fact about one
-file belongs in that file; a finding specific to this task belongs in the
-entry's own `notes`. Omitting the lesson is a valid outcome, and the common
-one — most tasks teach nothing that generalizes.
-
-**Overlap rules.** A record is served when any of its `paths` overlaps any of
-the reading entry's `planned_touches`, folder-aware in both directions (the
-same rule collision detection uses). A record whose only match is a path that
-more than 20% of closed entries touched is dropped — a file everything
-reaches teaches nothing about this task. At most six records, newest first,
-under a 1000-character ceiling, each one whole or absent.
-
-**Freshness.** Every served record is resolved against git at serving time and
-labelled fresh, possibly-stale, or unknown. A record whose every stored file is
-gone is dropped rather than served.
-
-**Anchors at dispatch.** Beside the path-matched lessons, a handoff reads the
-entry's own `planned_touches` (at most twelve files, capped reads) for
-`[Foreman: <id>]` comments and names what each anchored id resolves to: that
-entry's title, and its document under `ledger.dir` when one exists there. An id
-with neither an entry nor a document is stray bracket text and is dropped — the
-same rule `hooks/ledger-recall.js` applies when the file is opened rather than
-planned — and the entry's own id is never quoted back at itself.
-
-Both bounds are on what is **served**, never on what is collected: at most six
-lines, under a 1000-character ceiling, each line whole or absent, in planned-file
-order. Counting collected ids instead bounds nothing a reader sees, since one
-file may carry any number of anchors and a file of stray brackets would spend
-the budget on lines that are then dropped. This channel is independent of
-`ledger.enabled`: an anchor is the project's own comment, not Foreman's state.
-
-**Reassign-id.** A record's `entry` is the id its trailers resolve through,
-and `reassign-id` renumbers holders while immutable commit trailers keep
-naming the old id. Because the id was duplicated, no record written while both
-holders existed can be attributed to either — so `reassign-id` **demotes**
-every record whose `entry` is the repaired id to
-`{"kind":"ambiguous","was":"<id>","since":"<date>"}` rather than repointing it
-at the holder that kept the id. A commit-kind anchor keeps its `sha` on the
-demoted anchor: a sha names one commit whichever holder wrote the record, so
-the record still resolves through it, and only the fallback through the id's
-trailers stops. The lesson, its `entry` and its `date` are true history and
-stay exactly as recorded; without a sha that resolves, the freshness verdict
-falls to unknown, which is the honest answer. The result reports
-`notes_anchors_demoted`. Demotion does not change the record's key, so an
-existing supersede marker keeps working. Moving the sole holder of an id that
-fails the id format demotes nothing: that holder wrote every record naming the
-id.
-
----
-
 ## `.foreman/config.json`
 
 Sibling runtime file at `.foreman/config.json`, also committed. Plain JSON,
@@ -752,8 +632,8 @@ transition `planned` → `in_progress`, through `roadmap.js`'s own
 
 - `foreman/hooks/antigravity-hook.js` — the one registered script. It
   translates `PreInvocation`, `PreToolUse` and `PostToolUse` and runs
-  `guard-roadmap-edit.js`, `session-start.js`, `post-commit.js` and
-  `ledger-recall.js` as child processes. It never writes this file.
+  `guard-roadmap-edit.js`, `session-start.js` and `post-commit.js` as child
+  processes. It never writes this file.
 - Opening and closing an entry is the handoff's own
   `foreman/hooks/codex-task.js` `start` and `check`, as in Codex. No `Stop`
   reminder exists there, so an unresolved `check` requests no continuation.

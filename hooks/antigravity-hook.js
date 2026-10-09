@@ -24,7 +24,6 @@ const { configPath, readConfigFile, delegatedOrchestrator } = require("../script
 
 const TOOLS = {
   run_command: (args) => ({ tool_name: "Bash", tool_input: { command: args.CommandLine || "" } }),
-  view_file: (args) => ({ tool_name: "Read", tool_input: { file_path: args.AbsolutePath } }),
   write_to_file: (args) => ({ tool_name: "Write", tool_input: { file_path: args.TargetFile } }),
   replace_file_content: (args) => ({ tool_name: "Edit", tool_input: { file_path: args.TargetFile } }),
   multi_replace_file_content: (args) => ({ tool_name: "Edit", tool_input: { file_path: args.TargetFile } }),
@@ -40,7 +39,7 @@ function translate(data) {
   const args = call && call.args && typeof call.args === "object" ? call.args : {};
   const absolute = (value) => (typeof value === "string" && path.isAbsolute(value) ? value : null);
   const workspace = Array.isArray(data.workspacePaths) ? absolute(data.workspacePaths[0]) : null;
-  const target = absolute(args.TargetFile) || absolute(args.AbsolutePath);
+  const target = absolute(args.TargetFile);
   const translated = call ? (TOOLS[call.name] || ((a) => ({ tool_name: call.name, tool_input: a })))(args) : {};
   return {
     workspace,
@@ -198,19 +197,15 @@ function preToolUse(data, { payload, workspace }) {
 }
 
 function postToolUse(data, { payload, workspace }) {
-  // A failed tool call bookkeeps nothing; a successful one runs the hooks
-  // that watch its tool and queues whatever they had to say.
-  if (!data.error && payload.tool_name) {
-    const state = readState(data.conversationId);
-    let queued = false;
-    for (const script of payload.tool_name === "Bash" ? ["post-commit.js"] : ["ledger-recall.js"]) {
-      const output = hookOutput(script, { ...payload, hook_event_name: "PostToolUse" }, workspace);
-      if (output && typeof output.additionalContext === "string" && output.additionalContext) {
-        state.pending.push(output.additionalContext);
-        queued = true;
-      }
+  // A failed command bookkeeps nothing; a successful one runs the commit hook
+  // and queues whatever it had to say.
+  if (!data.error && payload.tool_name === "Bash") {
+    const output = hookOutput("post-commit.js", { ...payload, hook_event_name: "PostToolUse" }, workspace);
+    if (output && typeof output.additionalContext === "string" && output.additionalContext) {
+      const state = readState(data.conversationId);
+      state.pending.push(output.additionalContext);
+      writeState(data.conversationId, state);
     }
-    if (queued) writeState(data.conversationId, state);
   }
   answer({});
 }
