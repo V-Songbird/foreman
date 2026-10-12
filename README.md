@@ -148,15 +148,15 @@ Codex functional tests establish specific behaviors, not a speed, cost or correc
 
 ### Claude Code results
 
-<!-- foundry:evidence {"platform":"Claude","status":"measured","models":["Claude Sonnet","Claude Opus"],"date":"2026-08-29"} -->
+<!-- foundry:evidence {"platform":"Claude","status":"measured","models":["Claude Sonnet 5","Claude Opus 5"],"date":"2026-08-29","reviewedAt":"2026-10-12"} -->
 | Model | Setup | Correct tasks | Mean session cost |
 | --- | --- | --- | --- |
-| Claude Sonnet | Written task paragraph | 100% | $0.0757 |
-| Claude Sonnet | Foreman | 100% | $0.0820 |
-| Claude Opus | Written task paragraph | 100% | $0.1627 |
-| Claude Opus | Foreman | 100% | $0.1746 |
+| Claude Sonnet 5 | Written task paragraph | 100% | $0.0757 |
+| Claude Sonnet 5 | Foreman | 100% | $0.0820 |
+| Claude Opus 5 | Written task paragraph | 100% | $0.1627 |
+| Claude Opus 5 | Foreman | 100% | $0.1746 |
 
-Foreman tied the well-written paragraph on correctness and cost more: 8.3% on Sonnet and 7.3% on Opus. These are historical comparisons, not a claim about the current release or another model.
+Measured on 2026-08-29 with Claude Sonnet 5 and Claude Opus 5, Foreman tied the well-written paragraph on correctness and cost more: 8.3% on Sonnet and 7.3% on Opus. These are historical comparisons, not a claim about the current release or another model.
 
 ### Antigravity results
 
