@@ -158,17 +158,10 @@ Codex functional tests establish specific behaviors, not a speed, cost or correc
 
 Measured on 2026-08-29 with Claude Sonnet 5 and Claude Opus 5, Foreman tied the well-written paragraph on correctness and cost more: 8.3% on Sonnet and 7.3% on Opus. These are historical comparisons, not a claim about the current release or another model.
 
-### Antigravity results
-
-<!-- foundry:evidence {"platform":"Antigravity","status":"pending","reason":"No Antigravity performance measurements are available."} -->
-| Model | Setup | Correct tasks | Mean session cost |
-| --- | --- | --- | --- |
-| Not measured | Not measured | Not measured | Not measured |
-
 *Results can vary between runs.*
 
 <!-- foundry:hero -->
-<p align="center"><img src="assets/hero.svg" alt="Nothing gets lost: one task id, 019, links its roadmap entry, the code anchor in the source, its decision note and its commit in git history." width="700"></p>
+<p align="center"><img src="assets/hero.svg" alt="Nothing gets lost: one task id, 019, appears at four checkpoints, the roadmap, the decision note, the code anchor and the commit, so it can be followed from the roadmap to git history." width="700"></p>
 
 The task trail above illustrates the workflow. The recorded demo below comes from Claude Code; it is not a Codex measurement.
 
@@ -179,6 +172,13 @@ The task trail above illustrates the workflow. The recorded demo below comes fro
 
 </details>
 <!-- /foundry:hero -->
+
+### Antigravity results
+
+<!-- foundry:evidence {"platform":"Antigravity","status":"pending","reason":"No Antigravity performance measurements are available."} -->
+| Model | Setup | Correct tasks | Mean session cost |
+| --- | --- | --- | --- |
+| Not measured | Not measured | Not measured | Not measured |
 
 ## Going deeper
 
