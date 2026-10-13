@@ -51,6 +51,8 @@ instead.
   `ledger`, `decisionLog` and `areaNotes` settings are accepted and do
   nothing, and a close that still passes `lesson` goes through with the
   field ignored.
+- The `assets/paper-trail.svg` graphic, which drew the ledger line in
+  `.foreman/notes.jsonl`, is removed with the ledger. No page used it.
 
 ### Codex
 
