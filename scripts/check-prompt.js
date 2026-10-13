@@ -59,9 +59,11 @@ const PLACEHOLDER_FRAGMENTS = [
 ];
 
 // Instructions asking the destination to echo its internal reasoning as
-// response text. The official Fable prompting guide (template source-d) says
-// these can trigger reasoning_extraction refusals on Fable-class models, and
-// Codex's guidance asks for outcomes and concise rationale instead. Warning,
+// response text. Anthropic's prompting guides (template source-d;
+// https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices)
+// say these can trigger reasoning_extraction refusals on Fable 5.1, Fable 5,
+// Opus 5.5, Opus 5 and Sonnet 5.5, and Codex's guidance asks for outcomes and
+// concise rationale instead. Warning,
 // not error: other targets tolerate them.
 const REASONING_ECHO_RE =
   /\b(?:show|explain|reproduce|transcribe|echo)\b[^.\n]{0,60}\b(?:your|its)\s+(?:reasoning|thought process|chain of thought|internal thinking)\b|\bthink(?:ing)? out loud\b/i;
@@ -663,7 +665,7 @@ function checkPrompt(prompt, opts) {
   if (echo) {
     warnings.push(codex
       ? `asks the destination to echo its reasoning ("${echo[0]}") — ask for the outcome, evidence, and concise decision rationale instead`
-      : `asks the destination to echo its reasoning ("${echo[0]}") — this can trigger reasoning_extraction refusals on Fable-class models; ask for the outcome instead`);
+      : `asks the destination to echo its reasoning ("${echo[0]}") — this can trigger reasoning_extraction refusals on Claude Fable, Opus 5.5 and Sonnet 5.5; ask for the outcome instead`);
   }
   const think = prompt.match(THINK_HARDER_RE);
   if (think) {

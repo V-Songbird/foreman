@@ -476,6 +476,12 @@ for (const host of HOSTS) {
         assert.ok(echo, JSON.stringify(json.warnings));
         // Each host's warning names its own reason and its own alternative.
         assert.match(echo, host === 'claude' ? /reasoning_extraction/ : /concise decision rationale/);
+        if (host === 'claude') {
+          assert.match(echo, /Fable/);
+          assert.match(echo, /Opus 5\.5/);
+          assert.match(echo, /Sonnet 5\.5/);
+          assert.doesNotMatch(echo, /Fable-class/);
+        }
       });
 
       test('the canonical closing paragraph does not trip the reasoning-echo warning', () => {
