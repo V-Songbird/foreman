@@ -48,3 +48,16 @@ describe('craft-prompt skill routes', () => {
     assert.match(flat, /Call 2 Q3 comes back as `I can only name the area` or names no file, read \[dont-know\.md\]\(dont-know\.md\)/);
   });
 });
+
+describe('craft-prompt review constraint', () => {
+  // Anthropic's prompting guidance for current models: a severity or
+  // conservatism filter in a review prompt lowers recall, so ask for every
+  // finding with confidence and severity, or give a concrete bar.
+  // https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5
+  test('assemble.md asks for every finding with location, confidence and severity', () => {
+    const flat = fs.readFileSync(path.join(DIR, 'assemble.md'), 'utf-8').replace(/\s+/g, ' ');
+    assert.match(flat, /Report every finding you identify, including uncertain or low-severity ones, each with its location, a confidence level and an estimated severity/);
+    assert.match(flat, /reporting that the work is sound is a valid outcome\. If a bar is given, apply it\./);
+    assert.doesNotMatch(flat, /Flag only gaps/);
+  });
+});

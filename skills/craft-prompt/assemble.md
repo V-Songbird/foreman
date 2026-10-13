@@ -55,9 +55,13 @@ acting as if it had.
   authorize implementation.
 - `judgment.constraints` ← Call 4's Constraints answers, if selected, plus
   one more line for a review-flavored task (the `Code reviewer` role, or a
-  task type the user described as a review or audit): "Flag only gaps
-  that affect correctness or security — reporting that the work is sound
-  is a valid outcome." Encode an explicitly read-only scope here too; a
+  task type the user described as a review or audit): "Report every
+  finding you identify, including uncertain or low-severity ones, each
+  with its location, a confidence level and an estimated severity, so
+  filtering happens afterwards; reporting that the work is sound is a
+  valid outcome. If a bar is given, apply it." Do not add a severity or
+  importance filter of your own; a bar the user stated narrows the
+  report. Encode an explicitly read-only scope here too; a
   file restriction goes here only when the user supplied one.
 - `judgment.expectedFileSurface` — usually omit it: the script fills the
   "Expected file surface:" constraint line from `touches` on its own. Pass
