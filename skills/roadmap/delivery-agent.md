@@ -51,7 +51,9 @@ model — never pass one.
   bookkeeping; its completion notification is its actual return, not a
   scheduled automation. When the collaboration tools can still send that live
   agent a follow-up message, an early stop gets the same bounded continuation
-  as in Claude Code, under the same cap and exceptions; when they cannot,
+  as in Claude Code, under the same cap and exceptions, except that an
+  entry not closed is never an open item, because the subagent returns its
+  evidence and the coordinator closes the entry; when they cannot,
   report the open items to the user as unfinished. Do not imply that a
   shared-tree subagent survives the host session.
 - In Antigravity, the same steps run through `invoke_subagent`, followed with
