@@ -26,7 +26,8 @@
 // variants: the coordinator paragraph in place of the entry paragraph and its
 // bookkeeping commands, no list-ids refresh command in <context>, the workflow-agent
 // <scope_discipline>, the stage <truth_grounding>, approval-source sentence,
-// closing, autonomy paragraph and <plan>, <task_rules> that name the
+// closing, autonomy paragraph, stop-and-report paragraph and <plan>,
+// <task_rules> that name the
 // coordinator instead of the user for an investigation's fix authorization
 // and for writes beyond the expected file surface, and the question sentence
 // that returns questions in the structured report.
@@ -199,8 +200,10 @@ function templateDefaults(host) {
   const defaultOutputFormat = norm(stripBracketed(outputFormatInner));
   const noInventionLine = fullLineContaining(xml, NO_INVENTION_SENTENCE);
   const fixCeilingLine = fullLineContaining(xml, FIX_CEILING_SENTENCE);
-  // Codex calibrates verification to the change on the line after the ceiling.
-  const verificationScope = canonical.host === "codex" ? extractHostBlock(xml, "verification_scope", "codex") : null;
+  // Each host calibrates verification to the change on the line after the
+  // ceiling: Codex in its own words, Claude Code in its 5.5 models' official
+  // paragraph [Foreman: 1063].
+  const verificationScope = extractHostBlock(xml, "verification_scope", canonical.host);
   // Each autonomy paragraph runs from its marker to the end of its bracket,
   // read inside the host's own variant, so no paragraph may contain a `]`.
   // A standard handoff drops <scope_discipline> and the closing, so a rule a
@@ -1344,6 +1347,8 @@ function assemble(root, input) {
     parts.push(requestSentence);
     if (destination === "agent" && autonomyParagraph) parts.push(workflowAgent ? stageAutonomyParagraph : autonomyParagraph);
     else if (destination !== "agent" && !workflowStage) parts.push(keepGoingParagraph);
+    // [Foreman: 1063] Both profiles, every destination, Claude Code only.
+    if (host === "claude") parts.push(workflowAgent ? canonical.stageStopAndReport : canonical.stopAndReport);
     if (reinforced) parts.push(workflowAgent ? canonical.stageClosing : canonical.closing);
     else parts.push(CLOSURE_EVIDENCE_SENTENCE);
     if (reinforced) {

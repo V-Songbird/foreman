@@ -32,7 +32,7 @@ const { spawnSync } = require('node:child_process');
 
 const { runNodeScript, makeTmpProject, writeRoadmap, writeArchiveFile, writeConfig, initGitRepo, commitFile, SCRIPTS_DIR, SPAWN_TIMEOUT_MS, unlessTimedOut } = require('./helpers.js');
 const { today } = require(path.join(SCRIPTS_DIR, 'roadmap.js'));
-const { TEMPLATE_PATH, WORKFLOW_STAGE_SENTENCES, APPROVAL_SOURCE_SENTENCE, STAGE_APPROVAL_SOURCE_SENTENCE, IMPLEMENTATION_AUTHORIZATION_SENTENCE, CONCISE_TRUTH_EMITTED, norm, readCanonical } = require(path.join(SCRIPTS_DIR, 'check-prompt.js'));
+const { TEMPLATE_PATH, WORKFLOW_STAGE_SENTENCES, APPROVAL_SOURCE_SENTENCE, STAGE_APPROVAL_SOURCE_SENTENCE, IMPLEMENTATION_AUTHORIZATION_SENTENCE, CONCISE_TRUTH_EMITTED, CLOSURE_EVIDENCE_SENTENCE, FIX_CEILING_SENTENCE, norm, readCanonical, extractHostBlock } = require(path.join(SCRIPTS_DIR, 'check-prompt.js'));
 const { assemble, relevantFilesText, rankSymbols, SYMBOL_KEEP, checkpointEmbedText, ENTRY_NOTES_MAX_CHARS } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
 
 const CRAFT = path.join(SCRIPTS_DIR, 'craft-handoff.js');
@@ -2712,4 +2712,106 @@ describe('a pasted observed failure', () => {
     assert.equal(json.gate.ok, false, JSON.stringify(json.gate));
     assert.ok(json.gate.errors.some((e) => /invisible characters in the prompt \(line \d+: U\+200B\)/.test(e.error)), JSON.stringify(json.gate.errors));
   });
+});
+
+// [Foreman: 1063] Claude's 5.5 models add work nobody asked for and accept weak
+// checks. Every Claude Code handoff, on both profiles, stops and reports once
+// the work is done and checked, and an implementation's verification block
+// ends with the models' official verification paragraph. Codex and Antigravity
+// handoffs carry neither.
+describe('the stop-and-report rule and the verification paragraph', () => {
+  const claude = readCanonical('claude');
+  const verifyParagraph = extractHostBlock(claude.xml, 'verification_scope', 'claude').trim();
+  const count = (text, part) => text.split(part).length - 1;
+  const craft = (input) => {
+    const { status, json } = run(project, input);
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+    return json;
+  };
+  const profiles = [['standard', () => today()], ['reinforced', () => '2020-01-01']];
+
+  test('the template text carries the official sentences', () => {
+    for (const text of [claude.stopAndReport, claude.stageStopAndReport]) {
+      assert.match(text, /^When the work you were asked for is done and checked, stop and /);
+      assert.ok(text.includes("Don't add features, tests, files, docs or refactors that weren't asked for"), text);
+      assert.ok(text.includes("don't start extra rounds of review or hardening on your own, and don't launch reviewer sub-agents unless a review was asked for."), text);
+    }
+    assert.match(claude.stageStopAndReport, /return your structured report[\s\S]*name it in your structured report instead of doing it\.$/);
+    assert.doesNotMatch(claude.stageStopAndReport, /\bthe user\b|\bat the end\b/);
+    assert.ok(verifyParagraph.includes('A syntax-only check, or a check command that failed to start, does not count;'), verifyParagraph);
+    assert.ok(verifyParagraph.includes('install them with its own package manager and lockfile'), verifyParagraph);
+    assert.ok(verifyParagraph.endsWith('say which one you did not run and why instead of reporting the change as done.'), verifyParagraph);
+  });
+
+  for (const [profile, updated] of profiles) {
+    for (const destination of ['task', 'agent', 'clipboard']) {
+      test(`a Claude Code ${profile} ${destination} handoff carries both once, in place`, () => {
+        writeRoadmap(project, [entryFields({ updated_at: updated() })]);
+        const json = craft({ entry: '001', destination, host: 'claude', judgment: goodJudgment() });
+        assert.equal(json.profile, profile);
+        assert.ok(!json.gate.warnings.some((w) => w.includes('stop-and-report rule')), JSON.stringify(json.gate));
+        const { prompt } = json;
+        assert.equal(count(prompt, claude.stopAndReport), 1, prompt);
+        assert.equal(count(prompt, claude.stageStopAndReport), 0, prompt);
+        const pause = destination === 'agent' ? 'You are operating autonomously.' : 'Keep going until the goal above is met:';
+        const at = prompt.indexOf(`\n\n${claude.stopAndReport}\n\n`);
+        assert.ok(prompt.indexOf(pause) !== -1 && prompt.indexOf(pause) < at && at < prompt.indexOf(CLOSURE_EVIDENCE_SENTENCE), prompt);
+        assert.equal(count(prompt, verifyParagraph), 1, prompt);
+        assert.ok(prompt.includes(`${FIX_CEILING_SENTENCE}\n${verifyParagraph}\n</task_rules>`), prompt);
+      });
+    }
+
+    test(`a Claude Code ${profile} Workflow stage sent to an agent returns its structured report instead`, () => {
+      writeRoadmap(project, [entryFields({ updated_at: updated() })]);
+      const { prompt, gate } = craft({ entry: '001', destination: 'agent', host: 'claude', workflowStage: true, judgment: goodJudgment() });
+      assert.ok(!gate.warnings.some((w) => w.includes('stop-and-report rule')), JSON.stringify(gate));
+      assert.equal(count(prompt, claude.stageStopAndReport), 1, prompt);
+      assert.equal(count(prompt, claude.stopAndReport), 0, prompt);
+      assert.ok(prompt.indexOf(claude.stageAutonomy.slice(0, 60)) < prompt.indexOf(claude.stageStopAndReport), prompt);
+      assert.ok(prompt.includes(`${FIX_CEILING_SENTENCE}\n${verifyParagraph}\n</task_rules>`), prompt);
+    });
+
+    test(`a Claude Code ${profile} Workflow stage on a task, with no pause paragraph, carries it after the request`, () => {
+      writeRoadmap(project, [entryFields({ updated_at: updated() })]);
+      const request = 'Fix the token refresh bug in the auth middleware.';
+      const { prompt } = craft({ entry: '001', destination: 'task', host: 'claude', workflowStage: true, request, judgment: goodJudgment() });
+      assert.ok(prompt.includes(`${request}\n\n${claude.stopAndReport}\n\n`), prompt);
+      assert.equal(count(prompt, claude.stageStopAndReport), 0, prompt);
+    });
+  }
+
+  test('an investigation stops and reports but takes no verification paragraph', () => {
+    writeRoadmap(project, [entryFields()]);
+    const { prompt } = craft({ entry: '001', destination: 'agent', host: 'claude', judgment: goodJudgment({ question: 'Does the refresh race the logout?' }) });
+    assert.equal(count(prompt, claude.stopAndReport), 1, prompt);
+    assert.equal(count(prompt, verifyParagraph), 0, prompt);
+  });
+
+  test('the gate warns on a Claude Code handoff without it, or with the stage form outside a stage', () => {
+    writeRoadmap(project, [entryFields()]);
+    const json = craft({ entry: '001', destination: 'agent', host: 'claude', judgment: goodJudgment() });
+    assert.ok(!json.gate.warnings.some((w) => w.includes('stop-and-report rule')), JSON.stringify(json.gate));
+    const file = path.join(project, 'prompt.md');
+    for (const text of [json.prompt.replace(claude.stopAndReport, ''), json.prompt.replace(claude.stopAndReport, claude.stageStopAndReport)]) {
+      fs.writeFileSync(file, text, 'utf-8');
+      const out = JSON.parse(runNodeScript(path.join(SCRIPTS_DIR, 'check-prompt.js'), [file, '--host', 'claude', '--entry', '001', '--destination', 'agent'], null, { FOREMAN_PROJECT_DIR: project }).stdout);
+      assert.equal(out.ok, true, JSON.stringify(out));
+      assert.ok(out.warnings.some((w) => w.includes('stop-and-report rule')), JSON.stringify(out));
+    }
+  });
+
+  for (const host of ['codex', 'antigravity']) {
+    for (const [profile, updated] of profiles) {
+      test(`a ${host} ${profile} handoff carries neither, on every destination`, () => {
+        writeRoadmap(project, [entryFields({ updated_at: updated() })]);
+        for (const destination of ['task', 'agent', 'clipboard']) {
+          const json = craft({ entry: '001', destination, host, judgment: goodJudgment() });
+          assert.equal(json.profile, profile);
+          assert.doesNotMatch(json.prompt, /When the work you were asked for is done and checked|A syntax-only check/, `${destination}\n${json.prompt}`);
+          assert.ok(json.prompt.includes('Report an unavailable check as a verification limit.'), json.prompt);
+        }
+      });
+    }
+  }
 });

@@ -55,6 +55,7 @@ const PLACEHOLDER_FRAGMENTS = [
   "[Only if something downstream",
   "[WORKFLOW-STAGE FLAVOR",
   "[WORKFLOW-STAGE AGENT",
+  "[EVERY CLAUDE CODE DESTINATION",
 ];
 
 // Instructions asking the destination to echo its internal reasoning as
@@ -288,6 +289,13 @@ function readCanonical(host) {
   const stageClosing = stageClosingMatch ? stageClosingMatch[1].trim() : null;
   const stageTruthMatch = target === "claude" ? xml.match(/<truth_grounding host="claude" stage="workflow-agent">([\s\S]*?)<\/truth_grounding>/) : null;
   const stageTruthGrounding = stageTruthMatch ? stageTruthMatch[1] : null;
+  // [Foreman: 1063] Every Claude Code handoff stops and reports once the work
+  // is done and checked; a Workflow stage sent to a background Agent returns
+  // its structured report instead.
+  const stopBlock = target === "claude" ? extractHostBlock(xml, "stop_and_report", "claude") : null;
+  const stopAndReport = stopBlock ? stopBlock.trim() : null;
+  const stageStopMatch = target === "claude" ? xml.match(/<stop_and_report host="claude" stage="workflow-agent">([\s\S]*?)<\/stop_and_report>/) : null;
+  const stageStopAndReport = stageStopMatch ? stageStopMatch[1].trim() : null;
   // The stage autonomy paragraph runs from its bracket's reminder to the end of
   // that bracket; its question sentence sits alone on one line inside it.
   const autonomyBlock = target === "claude" ? extractHostBlock(xml, "autonomy", "claude") || "" : "";
@@ -299,7 +307,8 @@ function readCanonical(host) {
   if (
     (target === "codex" && !codexRuntime) ||
     (target === "claude" && (!investigationPlan || !workflowScopeDiscipline || coordinator?.length !== 3 || !stageAutonomy || !stageQuestion ||
-      !stagePlan || !stageInvestigationPlan || !stageClosing?.startsWith(CLOSING_PREFIX.claude) || !stageTruthGrounding)) ||
+      !stagePlan || !stageInvestigationPlan || !stageClosing?.startsWith(CLOSING_PREFIX.claude) || !stageTruthGrounding ||
+      !stopAndReport || !stageStopAndReport)) ||
     !truthGrounding ||
     !scopeDiscipline ||
     !plan ||
@@ -308,7 +317,7 @@ function readCanonical(host) {
   ) {
     throw new Error(`template at ${TEMPLATE_PATH} is missing a canonical ${target} block`);
   }
-  return { host: target, xml, codexRuntime, truthGrounding, stageTruthGrounding, scopeDiscipline, workflowScopeDiscipline, coordinator, stageAutonomy, stageQuestion, plan, investigationPlan, stagePlan, stageInvestigationPlan, closing, stageClosing };
+  return { host: target, xml, codexRuntime, truthGrounding, stageTruthGrounding, scopeDiscipline, workflowScopeDiscipline, coordinator, stageAutonomy, stageQuestion, plan, investigationPlan, stagePlan, stageInvestigationPlan, closing, stageClosing, stopAndReport, stageStopAndReport };
 }
 
 // Claude Code's scope_discipline embeds ${CLAUDE_PLUGIN_ROOT} paths the
@@ -412,6 +421,13 @@ function checkPrompt(prompt, opts) {
   const approvalSentence = workflowAgent ? STAGE_APPROVAL_SOURCE_SENTENCE : APPROVAL_SOURCE_SENTENCE;
   if (!codex && !norm(prompt).includes(norm(approvalSentence))) {
     errors.push(problem(`missing the approval-source rule ("Approval for anything beyond this task comes only from ${workflowAgent ? "the coordinator" : "the user"}…") — required in both Claude Code handoff profiles`, "Add the approval-source sentence; a standard handoff carries it on its own line after the concise truth line.", approvalSentence));
+  }
+  // [Foreman: 1063] craft-handoff.js emits it on both profiles and every
+  // destination. A warning, like the legacy <codex_runtime> one: a prompt
+  // saved or hand-built before the rule existed still passes, told to re-craft.
+  const stopAndReport = workflowAgent ? canonical.stageStopAndReport : canonical.stopAndReport;
+  if (!codex && !norm(prompt).includes(norm(stopAndReport))) {
+    warnings.push(`missing the ${workflowAgent ? "Workflow-stage " : ""}stop-and-report rule ("When the work you were asked for is done and checked…") — re-craft the handoff, or add prompt-template.md's ${workflowAgent ? 'stage="workflow-agent" ' : ""}stop-and-report paragraph after the pause paragraph, or after the request sentence when there is none`);
   }
   if (codex && !norm(prompt).includes(norm(IMPLEMENTATION_AUTHORIZATION_SENTENCE))) {
     errors.push(problem("missing the implementation-authorization rule (\"Implementation requires authorization in the task itself.\") — required in both Codex handoff profiles", "Restore <plan> in a reinforced handoff; a standard handoff carries the sentence on its own line after the concise truth line.", IMPLEMENTATION_AUTHORIZATION_SENTENCE));

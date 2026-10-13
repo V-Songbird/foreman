@@ -54,7 +54,27 @@
      source-k: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5
                Their keep-working sentence stops only when the work cannot go
                on without the user or before a risky step, which the three
-               pauses already name; no fixed block quotes either page.
+               pauses already name.
+               The Claude `stop_and_report` paragraph joins their
+               stop-and-report paragraph, in source-j's wording, which also
+               names tests and files, with source-j's paragraph against
+               self-started review rounds and reviewer sub-agents. "The user
+               asked for" becomes "you were asked for", because a handoff's
+               request is the prompt, and a review is exempt whoever asked
+               for it. The Workflow-stage variant returns the structured
+               report and names a suggestion there, as its scope_discipline
+               does. Both profiles carry it: the pages see unrequested
+               additions at every effort level, which no profile signal
+               predicts, and ordinary fresh work, the standard profile's, is
+               where an addition goes unnoticed.
+               The Claude `verification_scope` quotes their coding-verification
+               paragraph verbatim. It follows the fix-ceiling line, so both
+               profiles carry it on an implementation's verification block; an
+               investigation or a decision, which changes no code, closes its
+               verification block another way and takes none, as on Codex.
+               Codex keeps its own wording:
+               CODEX-PROMPTING.md bases its verification scope on OpenAI's
+               guidance, and these pages are Claude model guidance.
      codex sources: CODEX-PROMPTING.md, checked 2026-09-06 -->
 
 The handed-off session — whether run here in this session, by a background
@@ -77,16 +97,19 @@ so they appear once per host inside the template, tagged `host="claude"` or
 `host="codex"`:
 `codex_runtime` (Codex only), `truth_grounding`, `scope_discipline`, `tone`,
 the closing paragraph (`closing`), `plan`, the autonomy paragraph
-(`autonomy`), the verification-scope line (`verification_scope`, Codex
-only) and the coordinator paragraph (`coordinator`, Claude Code only).
+(`autonomy`), the verification-scope paragraph (`verification_scope`), the
+stop-and-report paragraph (`stop_and_report`, Claude Code only) and the
+coordinator paragraph (`coordinator`, Claude Code only).
 `craft-handoff.js` emits the variant for the host its `host` input
 names — or the host it detects when none is given — and `check-prompt.js
 --host` holds a prompt to that same variant. An assembled prompt carries the
 plain tag, never the `host` or `stage` attribute, and never the `closing`,
-`autonomy`, `verification_scope` or `coordinator` wrappers. Every untagged
+`autonomy`, `verification_scope`, `stop_and_report` or `coordinator`
+wrappers. Every untagged
 block is shared by every host. A Claude Code Workflow stage sent to a
 background `Agent` takes the `stage="workflow-agent"` variants of
-`truth_grounding`, `scope_discipline`, `closing` and `plan`, the
+`truth_grounding`, `scope_discipline`, `closing`, `plan` and
+`stop_and_report`, the
 `coordinator` paragraph and its
 own autonomy paragraph, because the Workflow that launched it owns the
 roadmap entry.
@@ -497,6 +520,9 @@ then implement. A test written after the change encodes the
 implementation instead of the contract and will pass a broken change.
 Omit the ordering for a task whose failure is loud.]
 Do NOT claim success without running this. If it fails, fix and re-run — but after two failed fix attempts, stop and report what is still failing instead of widening the change to make the check pass.
+<verification_scope host="claude">
+When you change code that can be run, built, or type-checked, run a real check that exercises the change before reporting it done: the project's tests, type-checker, or build, or the changed command itself. A syntax-only check, or a check command that failed to start, does not count; if all that is missing is the project's declared dependencies, install them with its own package manager and lockfile (e.g. npm install, pip install -r requirements.txt), never via sudo or the system package manager, unless told not to. Only if no real check can run here, say which one you did not run and why instead of reporting the change as done.
+</verification_scope>
 <verification_scope host="codex">
 Complete the required checks and any additional checks justified by the change. Once they pass, repeat or broaden testing only for new changes, failures, or unresolved concerns. Report an unavailable check as a verification limit.
 </verification_scope>
@@ -651,6 +677,18 @@ have a different cause.]
 You are operating autonomously. Complete this bounded subtask using the context and permissions supplied by the coordinator. For necessary reversible work, proceed without redundant questions. If a decision, authorization, or input blocks progress, report it to the coordinator using the available collaboration tools. Do not create user-owned tasks, switch branches, stage files, or commit; the coordinator owns integration and roadmap closure. Return the concrete changes, verification evidence, and unresolved findings.]
 </autonomy>
 
+[EVERY CLAUDE CODE DESTINATION — a Claude Code handoff, on either profile,
+carries the first paragraph below verbatim right after its pause paragraph,
+or right after the request sentence when it takes none. A Workflow stage sent
+to a background `Agent` carries the `stage="workflow-agent"` one instead,
+which returns the structured report. Codex and Antigravity carry neither.]
+<stop_and_report host="claude">
+When the work you were asked for is done and checked, stop and report. Don't add features, tests, files, docs or refactors that weren't asked for, don't start extra rounds of review or hardening on your own, and don't launch reviewer sub-agents unless a review was asked for. If you think an addition or a deeper review would help, mention it at the end instead of doing it.
+</stop_and_report>
+<stop_and_report host="claude" stage="workflow-agent">
+When the work you were asked for is done and checked, stop and return your structured report. Don't add features, tests, files, docs or refactors that weren't asked for, don't start extra rounds of review or hardening on your own, and don't launch reviewer sub-agents unless a review was asked for. If you think an addition or a deeper review would help, name it in your structured report instead of doing it.
+</stop_and_report>
+
 [If `"output_format"` is in `omit`, drop this whole block unconditionally,
 even if the interview selected `Custom output format`.]
 <output_format>
@@ -679,7 +717,8 @@ blocks above instead of using them:
   returning it.
 - Claude Code, background `Agent` destination only: carry the
   `stage="workflow-agent"` `<truth_grounding>`, `<scope_discipline>`,
-  closing paragraph and `<plan>`, the `coordinator` paragraph in place of the entry paragraph, and
+  closing paragraph, `<plan>` and stop-and-report paragraph, the
+  `coordinator` paragraph in place of the entry paragraph, and
   the Workflow-stage autonomy paragraph. The worker then runs no roadmap bookkeeping and
   returns its commit, checks and questions in the structured report the
   attached schema defines.
@@ -750,8 +789,10 @@ the crafter supplied one or pasted an observed failure, or the entry has
 `notes` or names `depends_on_docs`, `<invariants>`
 when the crafter supplied them, `<task_rules>`
 (constraints plus the `Verification (REQUIRED):` Run:/Expected: and
-Look:/Expected: pairs and the bounded fix ceiling that closes them), the
-`autonomy` paragraph that fits the destination, the closure-evidence
+Look:/Expected: pairs, the bounded fix ceiling that closes them and the
+host's `verification_scope` paragraph after it), the
+`autonomy` paragraph that fits the destination, a Claude Code handoff's
+stop-and-report paragraph, the closure-evidence
 sentence, a Claude Code handoff's approval-source sentence or a Codex
 handoff's implementation-authorization sentence, and the
 ROADMAP.jsonl entry paragraph when the handoff carries one. In Claude Code
@@ -843,6 +884,10 @@ A block a standard prompt does keep is still held to the template verbatim —
       `Agent`, its coordinator variant), and a Codex handoff the
       implementation-authorization sentence ("Implementation requires
       authorization in the task itself."), unmodified, in either profile
+- [ ] a Claude Code handoff carries the stop-and-report paragraph ("When the
+      work you were asked for is done and checked"), unmodified, in either
+      profile and for every destination (a Workflow stage sent to a
+      background `Agent`, its structured-report variant)
 - [ ] `task_rules` has analyze/implement steps AND a runnable
       verification command with expected output, or a Look:/Expected: human
       check (a pure-investigation handoff carries the question plus exact

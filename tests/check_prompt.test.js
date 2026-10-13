@@ -91,6 +91,9 @@ function fixtures(host) {
   // [Foreman: 516] What a task or clipboard handoff carries after the request:
   // Claude Code's keep-going paragraph, nothing on Codex.
   const userPresent = host === 'claude' ? KEEP_GOING : '';
+  // [Foreman: 1063] What every Claude Code handoff carries after its pause
+  // paragraph, on both profiles; nothing on Codex.
+  const stop = host === 'claude' ? canonical.stopAndReport : '';
 
   function goodPrompt(overrides = {}) {
     const parts = {
@@ -107,6 +110,7 @@ function fixtures(host) {
       task_rules: `<task_rules>\n- Check the refresh path against the failing test.\n- Fix the bug.\n\nConstraints:\n- Do not modify the public API.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\n${FIX_CEILING_LINE}\n</task_rules>`,
       request: 'Fix the token refresh bug in the auth middleware.',
       autonomy: userPresent,
+      stop,
       closing: canonical.closing,
       plan: `<plan>${canonical.plan}</plan>`,
       output_format: '<output_format>\nGive a concise, human-readable summary: what changed, and the verification result. No XML tags in the visible response.\n</output_format>',
@@ -134,6 +138,7 @@ function fixtures(host) {
       task_rules: `<task_rules>\n- Fix the bug.\n\nConstraints:\n- Do not modify the public API.\n\nVerification (REQUIRED):\nRun: npm test\nExpected: all tests pass\n${FIX_CEILING_LINE}\n</task_rules>`,
       request: 'Fix the token refresh bug in the auth middleware.',
       autonomy: userPresent,
+      stop,
       closure: CLOSURE_EVIDENCE_SENTENCE,
       ...overrides,
     };
@@ -821,6 +826,31 @@ for (const host of HOSTS) {
         assert.ok(!hasError(short.json, otherRule) && !hasError(long.json, otherRule));
       });
 
+      // [Foreman: 1063] Claude's 5.5 models add unrequested work at every
+      // effort level, so every Claude Code handoff carries the stop-and-report
+      // rule; Codex keeps its own verification scope and carries none. The gate
+      // warns rather than refuses, so a prompt saved before the rule still runs.
+      test(host === 'claude'
+        ? 'a missing stop-and-report rule is warned on in BOTH profiles, for every destination'
+        : 'no stop-and-report rule is asked of a Codex handoff', () => {
+        const project = makeTmpProject();
+        const warned = (json) => (json.warnings || []).some((w) => w.includes('stop-and-report rule'));
+        for (const dest of ['task', 'agent', 'clipboard']) {
+          const autonomy = dest === 'agent' ? AUTONOMY : userPresent;
+          const short = check(project, standardPrompt({ autonomy, stop: '' }), ['--destination', dest, '--profile', 'standard']);
+          const long = check(project, goodPrompt({ autonomy, stop: '' }), ['--destination', dest, '--profile', 'reinforced']);
+          for (const run of [short, long]) {
+            assert.equal(run.status, 0, JSON.stringify(run.json));
+            assert.equal(warned(run.json), host === 'claude', `${dest}: ${JSON.stringify(run.json)}`);
+          }
+          if (host === 'claude') {
+            const kept = check(project, standardPrompt({ autonomy }), ['--destination', dest, '--profile', 'standard']);
+            assert.equal(warned(kept.json), false, JSON.stringify(kept.json));
+          }
+        }
+        assert.equal(canonical.stopAndReport === null, host === 'codex');
+      });
+
       // [Foreman: 231]
       test('the fix ceiling is required in BOTH profiles — it belongs to the verification block', () => {
         const project = makeTmpProject();
@@ -933,6 +963,7 @@ describe('host claude: a Workflow stage sent to an agent', () => {
     entry_paragraph: coordinator,
     tone: '',
     autonomy: canonical.stageAutonomy,
+    stop: canonical.stageStopAndReport,
     closing: canonical.stageClosing,
     plan: `<plan>${canonical.stagePlan}</plan>`,
     output_format: WORKFLOW_STAGE_SENTENCES.claude,
@@ -1036,8 +1067,19 @@ describe('host claude: a Workflow stage sent to an agent', () => {
     assert.ok(canonical.stageAutonomy.startsWith('You are operating autonomously.'));
     assert.ok(canonical.stageAutonomy.includes(canonical.stageQuestion));
     assert.ok(canonical.stageClosing.includes(CLOSURE_EVIDENCE_SENTENCE));
-    for (const text of [canonical.stageTruthGrounding, canonical.stageAutonomy, canonical.stageClosing]) {
+    for (const text of [canonical.stageTruthGrounding, canonical.stageAutonomy, canonical.stageClosing, canonical.stageStopAndReport]) {
       assert.doesNotMatch(text, /\bthe user\b|\bthey\b|roadmap entry/, text);
+    }
+  });
+
+  // [Foreman: 1063] The stage's stop-and-report rule returns the structured
+  // report; the ordinary one, which mentions a suggestion "at the end", fails.
+  test('the ordinary stop-and-report rule, or none, is warned on', () => {
+    const warningsOf = (prompt) => runCheck(makeTmpProject(), prompt, args).json.warnings || [];
+    assert.ok(!warningsOf(stage()).some((w) => w.includes('stop-and-report rule')));
+    for (const stop of [canonical.stopAndReport, '']) {
+      const warnings = warningsOf(stage({ stop }));
+      assert.ok(warnings.some((w) => w.includes('Workflow-stage stop-and-report rule')), JSON.stringify(warnings));
     }
   });
 
