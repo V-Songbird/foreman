@@ -34,8 +34,9 @@
                recommendation, which a background agent gives in its final
                message. Left out: the "standing instruction from the user"
                framing, since a handoff is a task, not a system prompt;
-               "Status notes are welcome", since the Claude tone and closing
-               keep a background agent silent between tool calls; the
+               "Status notes are welcome", since a handoff leaves how much to
+               narrate to the session's output style and says nothing about
+               it; the
                self-check that deletes an offer to wait, since the
                last-paragraph check already does that work; its wanted stop
                where nothing can move without the user and its confirmation
@@ -401,8 +402,7 @@ extend to this flavor.]
 <tone host="claude">
 [If Tone was selected as an optional section: the user's custom tone,
 full stop — it replaces everything below. Otherwise include: "Minimal,
-professional conversation — silent by default, say only what the user
-actually needs to know, simplify technical explanations, avoid unnecessary
+professional conversation — say only what the user actually needs to know, simplify technical explanations, avoid unnecessary
 jargon. If an output style already governs this session's voice, defer to
 it — this tone applies only in its absence."]
 </tone>
@@ -538,10 +538,10 @@ if the interview selected it.]
 [The immediate, specific request in one sentence.]
 
 <closing host="claude">
-Don't reason in prose between tool calls. The steps and commands above are a working plan, not a narration script: whatever output style governs this session decides what you say aloud, so don't announce step transitions or restate command results in chat. The same style governs the register of your final message. Full evidence and findings belong in their durable home — the roadmap entry, the commit message, or the artifact the task names — with the final message stating the outcome and pointing there. Closure notes and findings describe only observed work and cite supporting files, commands, commits, or outcomes; never restate planned scope as evidence that it was executed.
+Don't write out a transcript of your internal reasoning. Whatever output style governs this session decides what you say aloud and the register of your final message. Full evidence and findings belong in their durable home — the roadmap entry, the commit message, or the artifact the task names — with the final message stating the outcome and pointing there. Closure notes and findings describe only observed work and cite supporting files, commands, commits, or outcomes; never restate planned scope as evidence that it was executed.
 </closing>
 <closing host="claude" stage="workflow-agent">
-Don't reason in prose between tool calls. The steps and commands above are a working plan, not a narration script, so don't announce step transitions or restate command results. Full evidence and findings belong in their durable home — your structured report, the commit message, or the artifact the task names — and the Workflow that launched you records your report. Closure notes and findings describe only observed work and cite supporting files, commands, commits, or outcomes; never restate planned scope as evidence that it was executed.
+Don't write out a transcript of your internal reasoning. Full evidence and findings belong in their durable home — your structured report, the commit message, or the artifact the task names — and the Workflow that launched you records your report. Closure notes and findings describe only observed work and cite supporting files, commands, commits, or outcomes; never restate planned scope as evidence that it was executed.
 </closing>
 <closing host="codex">
 Complete the requested outcome and verify it with the checks above. Share concise progress when useful and report the outcome, evidence, and remaining limits. Explain decisions briefly when they help the user assess the result; do not provide a transcript of internal reasoning. Closure notes and findings describe only observed work and cite supporting files, commands, commits, or outcomes; never restate planned scope as evidence that it was executed.

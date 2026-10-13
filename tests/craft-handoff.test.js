@@ -2069,6 +2069,32 @@ describe('the extras clause is not in the product', () => {
   });
 });
 
+// [Foreman: 1066] How much a session narrates belongs to its output style, not
+// to the handoff: no Claude handoff tells the destination to stay silent or
+// what to say between tool calls, and the closing still defers to the style.
+describe('Claude handoffs carry no narration rule', () => {
+  test('no destination or Workflow stage tells the session how much to narrate', () => {
+    // A recorded commit selects the reinforced profile, the one with the closing.
+    writeRoadmap(project, [entryFields({ commits: ['a1b2c3d'] })]);
+    const claudeSession = { CLAUDE_CODE_SESSION_ID: '', CODEX_SESSION_ID: '', CODEX_THREAD_ID: '', ANTIGRAVITY_CONVERSATION_ID: '' };
+    for (const destination of ['task', 'agent', 'clipboard']) {
+      for (const workflowStage of [false, true]) {
+        const input = { entry: '001', destination, host: 'claude', judgment: goodJudgment(), ...(workflowStage ? { workflowStage } : {}) };
+        const { status, json } = run(project, input, claudeSession);
+        assert.equal(status, 0, JSON.stringify(json));
+        assert.equal(json.profile, 'reinforced');
+        const label = `${destination}${workflowStage ? ' stage' : ''}`;
+        for (const phrase of ['silent by default', 'between tool calls', 'narration script', 'step transitions', 'restate command results']) {
+          assert.ok(!json.prompt.includes(phrase), `${label} handoff still says "${phrase}"`);
+        }
+        assert.ok(json.prompt.includes("Don't write out a transcript of your internal reasoning."), `${label} handoff lost its closing`);
+        // Only a Workflow stage sent to an Agent has no output style to defer to.
+        if (!(workflowStage && destination === 'agent')) assert.ok(json.prompt.includes('Whatever output style governs this session decides what you say aloud'), `${label} closing no longer defers to the output style`);
+      }
+    }
+  });
+});
+
 
 // [Foreman: 259] The symbol list was the one block this assembler printed
 // without a ceiling — prior work has RECALL_MAX_CHARS. A long single-file module resolved to hundreds of

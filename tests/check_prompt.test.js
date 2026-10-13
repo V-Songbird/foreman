@@ -102,7 +102,7 @@ function fixtures(host) {
       truth_grounding: `<truth_grounding>${canonical.truthGrounding}</truth_grounding>`,
       scope_discipline: `<scope_discipline>${scopeText}</scope_discipline>`,
       entry_paragraph: '',
-      tone: '<tone>\nMinimal, professional conversation — silent by default. If an output style already governs this session\'s voice, defer to it.\n</tone>',
+      tone: '<tone>\nMinimal, professional conversation — say only what the user actually needs to know. If an output style already governs this session\'s voice, defer to it.\n</tone>',
       background: '<background>\n<relevant_files>\nsrc/auth/middleware.ts — refreshToken (42), verifySession (77)\n</relevant_files>\n</background>',
       context: '<context>\nUses JWT tokens in httpOnly cookies. No third-party auth libs.\n</context>',
       no_invention: NO_INVENTION_LINE,

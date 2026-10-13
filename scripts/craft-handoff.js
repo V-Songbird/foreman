@@ -143,7 +143,7 @@ const AUTONOMY_MARKER = "You are operating autonomously.";
 const KEEP_GOING_MARKER = "Keep going until the goal above is met:";
 // Used only if a template's tone block loses its quoted default.
 const DEFAULT_TONE_FALLBACK = {
-  claude: "Minimal, professional conversation — silent by default, say only what the user actually needs to know.",
+  claude: "Minimal, professional conversation — say only what the user actually needs to know.",
   codex: "Be concise and direct. Report useful progress and the final outcome.",
 };
 // A reviewed run's intermediate decisions stay notes on an open parent.

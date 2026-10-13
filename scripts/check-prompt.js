@@ -108,7 +108,7 @@ const STAGE_QUESTION_MARKER = "If you hit one of these, put the question";
 
 // How each host's closing paragraph starts; the gate names it in its error.
 const CLOSING_PREFIX = {
-  claude: "Don't reason in prose between tool calls.",
+  claude: "Don't write out a transcript of your internal reasoning.",
   codex: "Complete the requested outcome",
 };
 
@@ -577,7 +577,7 @@ function checkPrompt(prompt, opts) {
         : "Add <tone> with the template default, or the tone the user asked for.",
       codex
         ? "<tone>\nBe concise and direct. Report useful progress and the final outcome; follow the user's communication instructions.\n</tone>"
-        : "<tone>\nMinimal, professional conversation — silent by default. If an output style already governs this session's voice, defer to it.\n</tone>"
+        : "<tone>\nMinimal, professional conversation — say only what the user actually needs to know. If an output style already governs this session's voice, defer to it.\n</tone>"
     ));
   }
 
