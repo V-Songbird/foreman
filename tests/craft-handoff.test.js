@@ -1342,6 +1342,34 @@ describe('background-agent autonomy paragraph — pause policy', () => {
     const task = run(project, { entry: '001', destination: 'task', host: 'claude', judgment: goodJudgment() }).json;
     for (const prompt of [agent.prompt, task.prompt]) assert.ok(prompt.includes(PAUSES));
   });
+
+  // [Foreman: 1061] The Claude agent paragraph also names the four early stops
+  // of the Opus 5.5 page's unattended-run paragraph (template source-i); the
+  // user-present and Workflow-stage paragraphs do not carry them.
+  test('the Claude agent paragraph names the Opus 5.5 early stops; other destinations do not', () => {
+    writeRoadmap(project, [entryFields()]);
+    const STOPS = [
+      'A message with no tool call in it ends your turn, and the work stops there.',
+      'a summary of what was done that closes by announcing the next step;',
+      'an offer to carry on unless the user would prefer otherwise;',
+      'a list of decisions for the user when none of them blocks the rest of the work;',
+      'deciding this is a good place to report because the turn has been long or a milestone is done.',
+      'Give your recommendation on an open decision in your final message, and carry on meanwhile with whatever does not depend on it.',
+    ];
+    const agent = run(project, { entry: '001', destination: 'agent', host: 'claude', judgment: goodJudgment() }).json;
+    assert.equal(agent.ok, true, JSON.stringify(agent));
+    for (const line of STOPS) assert.ok(agent.prompt.includes(line), line);
+    // The early stops sit between the pause policy and the last-paragraph check.
+    const at = agent.prompt.indexOf(STOPS[0]);
+    assert.ok(agent.prompt.indexOf('ask and end the turn, rather than ending on a promise.') < at);
+    assert.ok(at < agent.prompt.indexOf('Before ending your turn, check your last paragraph.'));
+    assert.deepEqual(agent.warnings.filter((w) => /echo its reasoning|think harder/.test(w)), []);
+    for (const [destination, workflowStage] of [['task', false], ['clipboard', false], ['agent', true]]) {
+      const other = run(project, { entry: '001', destination, host: 'claude', workflowStage, judgment: goodJudgment() }).json;
+      assert.equal(other.ok, true, JSON.stringify(other));
+      assert.ok(!other.prompt.includes('Four such endings stop work that is still owed'), `${destination} stage=${workflowStage}`);
+    }
+  });
 });
 
 // Reviewer style note (a): a malformed judgment field must fail loudly at

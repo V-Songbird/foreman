@@ -1,6 +1,6 @@
 # Foreman — prompt template
 
-<!-- foreman:practices lastmod:2026-09-23
+<!-- foreman:practices lastmod:2026-10-13
      source-a: https://code.claude.com/docs/en/best-practices.md
      source-b: https://code.claude.com/docs/en/sub-agents.md
      source-c: Anthropic Prompting 101 — Code w/ Claude 2025-05-22
@@ -26,6 +26,29 @@
      source-h: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices
                (the living reference for every current Claude model; no
                fixed block quotes it)
+     source-i: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5
+               The background-agent autonomy paragraph adds the early-stop
+               part of its "Unattended agentic runs" standing paragraph: a
+               message with no tool call ends the turn, the four early stops
+               it names, and carrying on past an open decision with a
+               recommendation, which a background agent gives in its final
+               message. Left out: the "standing instruction from the user"
+               framing, since a handoff is a task, not a system prompt;
+               "Status notes are welcome", since the Claude tone and closing
+               keep a background agent silent between tool calls; the
+               self-check that deletes an offer to wait, since the
+               last-paragraph check already does that work; and the stops it
+               does want and its confirmation sentence, since the three
+               pauses cover both and stay the ones the user-present paragraph
+               names. The page leaves the addition out where someone is there
+               to answer, so the user-present paragraph does not take it. The
+               Workflow-stage paragraph is not yet evaluated against it and
+               keeps the source-d wording.
+     source-j: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5
+     source-k: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5
+               Their keep-working sentence stops only when the work cannot go
+               on without the user or before a risky step, which the three
+               pauses already name; no fixed block quotes either page.
      codex sources: CODEX-PROMPTING.md, checked 2026-09-06 -->
 
 The handed-off session — whether run here in this session, by a background
@@ -542,7 +565,8 @@ Return the commit's full sha when you made one, each check you ran with its resu
 [BACKGROUND-AGENT DESTINATION — if the chosen destination is a background
 `Agent`, include the following paragraph verbatim right here. It is the
 official autonomous-operation reminder plus the pause policy that lists
-its stops; the agent harness carries neither (probe-confirmed), and a
+its stops and the early stops it rules out; the agent harness carries
+neither (probe-confirmed), and a
 background agent has no user to answer a question. Ship the pair — the
 reminder alone bans asking without saying when asking is still right,
 which is the one thing `scope_discipline` needs on this destination.
@@ -557,6 +581,14 @@ Pause for the user only when the work genuinely requires them: a
 destructive or irreversible action, a real scope change, or input that
 only they can provide. If you hit one of these, ask and end the turn,
 rather than ending on a promise.
+A message with no tool call in it ends your turn, and the work stops
+there. Four such endings stop work that is still owed: a summary of what
+was done that closes by announcing the next step; an offer to carry on
+unless the user would prefer otherwise; a list of decisions for the user
+when none of them blocks the rest of the work; and deciding this is a good
+place to report because the turn has been long or a milestone is done.
+Give your recommendation on an open decision in your final message, and
+carry on meanwhile with whatever does not depend on it.
 Before ending your turn, check your last paragraph. If it is a plan, an
 analysis, a question outside those three pauses, a list of next steps, or
 a promise about work you have not done ('I'll…', 'let me know when…'), do
@@ -582,9 +614,9 @@ change, or input only the user can provide.]
 [WORKFLOW-STAGE AGENT — a Workflow stage sent to a background `Agent` has
 no user to ask: its final text is the return value, read by the Workflow
 that launched it. It carries the following paragraph verbatim in place of
-the background-agent paragraph above: the same reminder and pauses, with the
-coordinator in place of the user and the question returned in the report
-instead of asked.
+the background-agent paragraph above: the same reminder and pauses, without
+its list of early stops, with the coordinator in place of the user and the
+question returned in the report instead of asked.
 You are operating autonomously. The Workflow that launched you is not
 watching in real time and cannot answer questions mid-task, so asking 'Want
 me to…?' or 'Shall I…?' will block the work. For reversible actions that
