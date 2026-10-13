@@ -473,6 +473,19 @@ describe('skill contracts', () => {
     assert.match(readSkill('skills', 'roadmap', 'resume.md'), /\]\(delivery-agent\.md\) says for a completion notification/);
   });
 
+  // [Foreman: 1062] An agent that stops with open items and no blocker gets a
+  // bounded continuation, never one past a blocker, decision, approval or a
+  // destructive step.
+  test('an early-stopping agent gets at most two continuations, never past a blocker', () => {
+    const flat = readSkill('skills', 'roadmap', 'delivery-agent.md').replace(/\s+/g, ' ');
+    assert.match(flat, /names no blocker, pending decision or approval, call `SendMessage` with `to: "<agent-id>"`/);
+    assert.match(flat, /Send at most two such continuations per dispatch; when the agent still stops with open items, report the work to the user as unfinished/);
+    assert.match(flat, /Never send one past a named blocker, a pending decision or approval, or a destructive or irreversible step/);
+    assert.match(flat, /When the collaboration tools can still send that live agent a follow-up message, an early stop gets the same bounded continuation/);
+    assert.match(flat, /including the bounded continuation only where it can message the live subagent/);
+    assert.match(readSkill('skills', 'roadmap', 'SKILL.md'), /^allowed-tools:.*\bSendMessage\b/m);
+  });
+
   test('the schema documents the lifecycle and the downgrade cost', () => {
     const schema = readSkill('roadmap-schema.md');
 

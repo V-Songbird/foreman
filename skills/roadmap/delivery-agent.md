@@ -28,6 +28,16 @@ model — never pass one.
   `delegatedAcceptance` names for it, as
   [Close and acceptance](delivery.md#close-and-acceptance) says; the
   agent's report never gives it.
+
+  A report is not proof the work is done. When it leaves items unfinished,
+  `Expected:` results unmet or, for a roadmap entry, the entry not closed, and
+  names no blocker, pending decision or approval, call `SendMessage` with
+  `to: "<agent-id>"` and a short message naming those open items, telling it
+  to continue with them and to say what blocks any it cannot finish. Send at
+  most two such continuations per dispatch; when the agent still stops with
+  open items, report the work to the user as unfinished, naming them. Never
+  send one past a named blocker, a pending decision or approval, or a
+  destructive or irreversible step; report those to the user instead.
 - In Codex, use the available collaboration tools for a bounded task, passing
   the returned prompt and the shared-tree ownership restriction. Name a
   roadmap entry's subagent `task_name` `foreman_<id>`, so its finish maps to
@@ -39,10 +49,14 @@ model — never pass one.
   supplies one, so a later resume knows whether the handle can still be live.
   Wait for the agent, inspect its verification, and perform the coordinator
   bookkeeping; its completion notification is its actual return, not a
-  scheduled automation. Do not imply that a shared-tree subagent survives the
-  host session.
+  scheduled automation. When the collaboration tools can still send that live
+  agent a follow-up message, an early stop gets the same bounded continuation
+  as in Claude Code, under the same cap and exceptions; when they cannot,
+  report the open items to the user as unfinished. Do not imply that a
+  shared-tree subagent survives the host session.
 - In Antigravity, the same steps run through `invoke_subagent`, followed with
-  `manage_subagents`; the annotate marker is `dispatched to Antigravity
+  `manage_subagents`, including the bounded continuation only where it can
+  message the live subagent; the annotate marker is `dispatched to Antigravity
   subagent <id>`.
 
 ## Explicit new Codex task
