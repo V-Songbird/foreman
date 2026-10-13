@@ -37,10 +37,16 @@
                "Status notes are welcome", since the Claude tone and closing
                keep a background agent silent between tool calls; the
                self-check that deletes an offer to wait, since the
-               last-paragraph check already does that work; and the stops it
-               does want and its confirmation sentence, since the three
-               pauses cover both and stay the ones the user-present paragraph
-               names. The page leaves the addition out where someone is there
+               last-paragraph check already does that work; its wanted stop
+               where nothing can move without the user and its confirmation
+               sentence, since the pauses for input only the user can provide
+               and for a destructive or irreversible action cover both; and
+               its wanted stop where the block is deliberately protected from
+               the agent, which no pause names. That stop is not carried
+               because the three pauses stay the ones the user-present
+               paragraph names, and the host's permission system already
+               refuses an action it denies; adding it would change the shared
+               pause policy. The page leaves the addition out where someone is there
                to answer, so the user-present paragraph does not take it. The
                Workflow-stage paragraph is not yet evaluated against it and
                keeps the source-d wording.
