@@ -2853,7 +2853,8 @@ describe('the stop-and-report rule and the verification paragraph', () => {
 
   // [Foreman: 1070] A prompt with no trace of the rule predates it and is
   // warned on; one that carries the stage form outside a stage, or a reworded
-  // paragraph, was edited by hand and is refused.
+  // paragraph, was edited by hand or crafted under an earlier wording, and is
+  // refused so it is crafted again.
   test('the gate warns on a Claude Code handoff without it, and refuses the stage form outside a stage', () => {
     writeRoadmap(project, [entryFields()]);
     const json = craft({ entry: '001', destination: 'agent', host: 'claude', judgment: goodJudgment() });

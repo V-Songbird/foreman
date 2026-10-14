@@ -83,7 +83,9 @@
                prompt saved before the rule still runs, while one that carries
                its last sentence ("If you think an addition or a deeper
                review would help") in a reworded paragraph, or the other
-               variant, is refused, since only a hand edit produces that.
+               variant, is refused: such a prompt was edited by hand or
+               crafted under an earlier wording of the paragraph, and either
+               way it must be crafted again.
                The Claude `verification_scope` quotes their coding-verification
                paragraph verbatim. It follows the fix-ceiling line, so both
                profiles carry it on an implementation's verification block; an

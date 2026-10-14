@@ -857,8 +857,9 @@ for (const host of HOSTS) {
         assert.equal(canonical.stopAndReport === null, host === 'codex');
       });
 
-      // [Foreman: 1070] Only a hand edit leaves the paragraph's last sentence
-      // in a reworded paragraph, so that one is refused, not warned on.
+      // [Foreman: 1070] A reworded paragraph that keeps the last sentence was
+      // edited by hand or crafted under an earlier wording; either way it must
+      // be crafted again, so it is refused, not warned on.
       if (host === 'claude') {
         test('a reworded stop-and-report paragraph is refused in BOTH profiles', () => {
           const project = makeTmpProject();

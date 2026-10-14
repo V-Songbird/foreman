@@ -433,12 +433,13 @@ function checkPrompt(prompt, opts) {
   // [Foreman: 1063, 1070] craft-handoff.js emits it on both profiles and every
   // destination. Like <codex_runtime>: absent, a warning, since a prompt saved
   // or hand-built before the rule existed still passes, told to re-craft;
-  // present but reworded, or the other variant, an error.
+  // present but reworded, or the other variant, an error: that prompt was
+  // edited by hand or crafted under an earlier wording, and is crafted again.
   const stopAndReport = workflowAgent ? canonical.stageStopAndReport : canonical.stopAndReport;
   if (!codex && !norm(prompt).includes(norm(stopAndReport))) {
     if (norm(prompt).includes(norm(STOP_AND_REPORT_MARKER))) errors.push(problem(
       `the ${workflowAgent ? "Workflow-stage " : ""}stop-and-report paragraph ("When the work you were asked for is done and checked…") differs from the template — it must be carried verbatim`,
-      `Restore prompt-template.md's ${workflowAgent ? 'stage="workflow-agent" ' : ""}stop-and-report paragraph word for word.`,
+      `Re-craft the handoff, or restore prompt-template.md's ${workflowAgent ? 'stage="workflow-agent" ' : ""}stop-and-report paragraph word for word.`,
       stopAndReport
     ));
     else warnings.push(`missing the ${workflowAgent ? "Workflow-stage " : ""}stop-and-report rule ("When the work you were asked for is done and checked…") — re-craft the handoff, or add prompt-template.md's ${workflowAgent ? 'stage="workflow-agent" ' : ""}stop-and-report paragraph after the pause paragraph, or after the request sentence when there is none`);
