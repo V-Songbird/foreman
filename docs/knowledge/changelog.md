@@ -25,6 +25,57 @@ listings pin a release commit and carry no version of their own. Claude Code
 releases up to 2.7.0 kept their number in the foundry marketplace listing
 instead.
 
+## Unreleased
+
+### Every host
+
+- A background agent that ends its turn with a report while items are still
+  open now gets a short follow-up message from the coordinator that names the
+  open items. This applies when the report leaves items unfinished, expected
+  results unmet or the entry unclosed, and names no blocker, pending decision
+  or approval. The coordinator sends at most two follow-ups per agent, then
+  reports the work as unfinished, and never continues past a named blocker, a
+  pending decision or approval, or a destructive step. A resumed agent gets
+  the same follow-up as a newly started one. On Codex and Antigravity the rule
+  applies only where the host can still message the live agent, and an entry
+  that the coordinator closes is not counted as an open item there.
+- A handoff for a review now asks for every finding with its location, its
+  confidence and an estimated severity, instead of only gaps that affect
+  correctness or security. A review that finds nothing wrong is a valid
+  result, and a bar you state narrows the report.
+
+### Claude Code
+
+- Every Claude Code handoff now ends with a stop-and-report paragraph: once
+  the work is done and checked, including any commit or close step the
+  handoff gives, stop and report. Do not add anything that was not asked for,
+  do not start extra review rounds or reviewer sub-agents unless a review was
+  requested, and mention a suggestion at the end. A handoff for a Workflow
+  stage sent to a background agent returns that report in its structured
+  report. Codex and Antigravity handoffs are unchanged.
+- The verification block of an implementation handoff now ends with a
+  paragraph that asks for a real check of the work instead of a syntax-only
+  check or a check that never ran.
+- The autonomy paragraph of a handoff sent to a background agent, and of a
+  Workflow stage, now names four ways Claude Opus 5.5 ends an unattended turn
+  too early: a summary that announces the next step, an offer to carry on
+  unless told otherwise, a list of non-blocking decisions, and stopping
+  because the turn was long. The agent keeps working and puts a
+  recommendation on an open decision in its final message or structured
+  report.
+- The prompt check warns when a Claude Code handoff lacks the stop-and-report
+  paragraph, so a prompt saved earlier still runs and is told to be crafted
+  again. It refuses a handoff whose stop-and-report paragraph was reworded,
+  whether it was edited by hand or crafted under an earlier wording; craft it
+  again. Its reasoning-echo warning now names Claude Fable, Opus 5.5 and
+  Sonnet 5.5 as the models that can refuse such requests.
+- A handoff no longer tells the session how much to narrate. The closing
+  opens with "Don't write out a transcript of your internal reasoning." and
+  leaves the rest to the active output style, and the default tone no longer
+  says "silent by default". The craft-prompt skill describes the default tone
+  as minimal, professional conversation. The prompt check requires the new
+  opening sentence.
+
 ## 4.0.0 — 2026-10-13
 
 ### Every host
