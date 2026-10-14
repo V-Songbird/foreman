@@ -105,6 +105,10 @@ const KEEP_GOING_SENTENCE = "Keep going until the goal above is met:";
 // opens with this, in place of the one with the ask sentence.
 const ASK_SENTENCE_RE = /If you hit one of these, ask and end the turn[^.]*\./;
 const STAGE_QUESTION_MARKER = "If you hit one of these, put the question";
+// [Foreman: 1070] How the last sentence of both stop-and-report variants
+// starts: a prompt that carries it but not the whole paragraph had the
+// paragraph reworded, or carries the other variant.
+const STOP_AND_REPORT_MARKER = "If you think an addition or a deeper review would help";
 
 // How each host's closing paragraph starts; the gate names it in its error.
 const CLOSING_PREFIX = {
@@ -312,7 +316,7 @@ function readCanonical(host) {
     (target === "codex" && !codexRuntime) ||
     (target === "claude" && (!investigationPlan || !workflowScopeDiscipline || coordinator?.length !== 3 || !stageAutonomy || !stageQuestion ||
       !stagePlan || !stageInvestigationPlan || !stageClosing?.startsWith(CLOSING_PREFIX.claude) || !stageTruthGrounding ||
-      !stopAndReport || !stageStopAndReport)) ||
+      !stopAndReport?.includes(STOP_AND_REPORT_MARKER) || !stageStopAndReport?.includes(STOP_AND_REPORT_MARKER))) ||
     !truthGrounding ||
     !scopeDiscipline ||
     !plan ||
@@ -426,12 +430,18 @@ function checkPrompt(prompt, opts) {
   if (!codex && !norm(prompt).includes(norm(approvalSentence))) {
     errors.push(problem(`missing the approval-source rule ("Approval for anything beyond this task comes only from ${workflowAgent ? "the coordinator" : "the user"}…") — required in both Claude Code handoff profiles`, "Add the approval-source sentence; a standard handoff carries it on its own line after the concise truth line.", approvalSentence));
   }
-  // [Foreman: 1063] craft-handoff.js emits it on both profiles and every
-  // destination. A warning, like the legacy <codex_runtime> one: a prompt
-  // saved or hand-built before the rule existed still passes, told to re-craft.
+  // [Foreman: 1063, 1070] craft-handoff.js emits it on both profiles and every
+  // destination. Like <codex_runtime>: absent, a warning, since a prompt saved
+  // or hand-built before the rule existed still passes, told to re-craft;
+  // present but reworded, or the other variant, an error.
   const stopAndReport = workflowAgent ? canonical.stageStopAndReport : canonical.stopAndReport;
   if (!codex && !norm(prompt).includes(norm(stopAndReport))) {
-    warnings.push(`missing the ${workflowAgent ? "Workflow-stage " : ""}stop-and-report rule ("When the work you were asked for is done and checked…") — re-craft the handoff, or add prompt-template.md's ${workflowAgent ? 'stage="workflow-agent" ' : ""}stop-and-report paragraph after the pause paragraph, or after the request sentence when there is none`);
+    if (norm(prompt).includes(norm(STOP_AND_REPORT_MARKER))) errors.push(problem(
+      `the ${workflowAgent ? "Workflow-stage " : ""}stop-and-report paragraph ("When the work you were asked for is done and checked…") differs from the template — it must be carried verbatim`,
+      `Restore prompt-template.md's ${workflowAgent ? 'stage="workflow-agent" ' : ""}stop-and-report paragraph word for word.`,
+      stopAndReport
+    ));
+    else warnings.push(`missing the ${workflowAgent ? "Workflow-stage " : ""}stop-and-report rule ("When the work you were asked for is done and checked…") — re-craft the handoff, or add prompt-template.md's ${workflowAgent ? 'stage="workflow-agent" ' : ""}stop-and-report paragraph after the pause paragraph, or after the request sentence when there is none`);
   }
   if (codex && !norm(prompt).includes(norm(IMPLEMENTATION_AUTHORIZATION_SENTENCE))) {
     errors.push(problem("missing the implementation-authorization rule (\"Implementation requires authorization in the task itself.\") — required in both Codex handoff profiles", "Restore <plan> in a reinforced handoff; a standard handoff carries the sentence on its own line after the concise truth line.", IMPLEMENTATION_AUTHORIZATION_SENTENCE));

@@ -835,7 +835,7 @@ for (const host of HOSTS) {
       // [Foreman: 1063] Claude's 5.5 models add unrequested work at every
       // effort level, so every Claude Code handoff carries the stop-and-report
       // rule; Codex keeps its own verification scope and carries none. The gate
-      // warns rather than refuses, so a prompt saved before the rule still runs.
+      // warns on a missing one, so a prompt saved before the rule still runs.
       test(host === 'claude'
         ? 'a missing stop-and-report rule is warned on in BOTH profiles, for every destination'
         : 'no stop-and-report rule is asked of a Codex handoff', () => {
@@ -856,6 +856,21 @@ for (const host of HOSTS) {
         }
         assert.equal(canonical.stopAndReport === null, host === 'codex');
       });
+
+      // [Foreman: 1070] Only a hand edit leaves the paragraph's last sentence
+      // in a reworded paragraph, so that one is refused, not warned on.
+      if (host === 'claude') {
+        test('a reworded stop-and-report paragraph is refused in BOTH profiles', () => {
+          const project = makeTmpProject();
+          const stop = canonical.stopAndReport.replace(', including any commit or close step given above,', ',');
+          assert.notEqual(stop, canonical.stopAndReport);
+          for (const [prompt, profile] of [[standardPrompt({ stop }), 'standard'], [goodPrompt({ stop }), 'reinforced']]) {
+            const run = check(project, prompt, ['--destination', 'task', '--profile', profile]);
+            assert.notEqual(run.status, 0, JSON.stringify(run.json));
+            assert.ok(run.json.errors.some((e) => e.error.includes('stop-and-report paragraph') && e.example === canonical.stopAndReport), JSON.stringify(run.json.errors));
+          }
+        });
+      }
 
       // [Foreman: 231]
       test('the fix ceiling is required in BOTH profiles — it belongs to the verification block', () => {
@@ -1078,15 +1093,16 @@ describe('host claude: a Workflow stage sent to an agent', () => {
     }
   });
 
-  // [Foreman: 1063] The stage's stop-and-report rule returns the structured
-  // report; the ordinary one, which mentions a suggestion "at the end", fails.
-  test('the ordinary stop-and-report rule, or none, is warned on', () => {
+  // [Foreman: 1063, 1070] The stage's stop-and-report rule returns the
+  // structured report; none is warned on, and the ordinary one, which mentions
+  // a suggestion "at the end", is refused.
+  test('a missing stop-and-report rule is warned on, the ordinary one refused', () => {
     const warningsOf = (prompt) => runCheck(makeTmpProject(), prompt, args).json.warnings || [];
     assert.ok(!warningsOf(stage()).some((w) => w.includes('stop-and-report rule')));
-    for (const stop of [canonical.stopAndReport, '']) {
-      const warnings = warningsOf(stage({ stop }));
-      assert.ok(warnings.some((w) => w.includes('Workflow-stage stop-and-report rule')), JSON.stringify(warnings));
-    }
+    const warnings = warningsOf(stage({ stop: '' }));
+    assert.ok(warnings.some((w) => w.includes('Workflow-stage stop-and-report rule')), JSON.stringify(warnings));
+    const errors = errorsOf(stage({ stop: canonical.stopAndReport }));
+    assert.ok(errors.some((e) => e.error.includes('Workflow-stage stop-and-report paragraph') && e.example === canonical.stageStopAndReport), JSON.stringify(errors));
   });
 
   test('the ordinary truth_grounding, closing or autonomy paragraph fails', () => {

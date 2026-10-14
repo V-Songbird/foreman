@@ -68,17 +68,33 @@
                self-started review rounds and reviewer sub-agents. "The user
                asked for" becomes "you were asked for", because a handoff's
                request is the prompt, and a review is exempt whoever asked
-               for it. The Workflow-stage variant returns the structured
+               for it. The trigger adds "including any commit or close step
+               given above": the paragraph follows the entry or coordinator
+               paragraph, and "done and checked" alone could be read as
+               stopping before the entry's close or the commit. The
+               Workflow-stage variant returns the structured
                report and names a suggestion there, as its scope_discipline
                does. Both profiles carry it: the pages see unrequested
                additions at every effort level, which no profile signal
                predicts, and ordinary fresh work, the standard profile's, is
                where an addition goes unnoticed.
+               The gate treats it as it treats `codex_runtime`: a Claude Code
+               handoff with no trace of it passes with a warning, since a
+               prompt saved before the rule still runs, while one that carries
+               its last sentence ("If you think an addition or a deeper
+               review would help") in a reworded paragraph, or the other
+               variant, is refused, since only a hand edit produces that.
                The Claude `verification_scope` quotes their coding-verification
                paragraph verbatim. It follows the fix-ceiling line, so both
                profiles carry it on an implementation's verification block; an
                investigation or a decision, which changes no code, closes its
                verification block another way and takes none, as on Codex.
+               The gate does not check it: the gate knows no entry kind, so it
+               cannot tell an implementation from a decision that also carries
+               a verification block, and the parts of that block that bind,
+               the Run:/Expected: pairs and the fix ceiling, are already
+               refused when missing. `craft-handoff.js` is its only source,
+               and its tests pin where it goes and where it does not.
                Codex keeps its own wording:
                CODEX-PROMPTING.md bases its verification scope on OpenAI's
                guidance, and these pages are Claude model guidance.
@@ -699,10 +715,10 @@ or right after the request sentence when it takes none. A Workflow stage sent
 to a background `Agent` carries the `stage="workflow-agent"` one instead,
 which returns the structured report. Codex and Antigravity carry neither.]
 <stop_and_report host="claude">
-When the work you were asked for is done and checked, stop and report. Don't add features, tests, files, docs or refactors that weren't asked for, don't start extra rounds of review or hardening on your own, and don't launch reviewer sub-agents unless a review was asked for. If you think an addition or a deeper review would help, mention it at the end instead of doing it.
+When the work you were asked for is done and checked, including any commit or close step given above, stop and report. Don't add features, tests, files, docs or refactors that weren't asked for, don't start extra rounds of review or hardening on your own, and don't launch reviewer sub-agents unless a review was asked for. If you think an addition or a deeper review would help, mention it at the end instead of doing it.
 </stop_and_report>
 <stop_and_report host="claude" stage="workflow-agent">
-When the work you were asked for is done and checked, stop and return your structured report. Don't add features, tests, files, docs or refactors that weren't asked for, don't start extra rounds of review or hardening on your own, and don't launch reviewer sub-agents unless a review was asked for. If you think an addition or a deeper review would help, name it in your structured report instead of doing it.
+When the work you were asked for is done and checked, including any commit or close step given above, stop and return your structured report. Don't add features, tests, files, docs or refactors that weren't asked for, don't start extra rounds of review or hardening on your own, and don't launch reviewer sub-agents unless a review was asked for. If you think an addition or a deeper review would help, name it in your structured report instead of doing it.
 </stop_and_report>
 
 [If `"output_format"` is in `omit`, drop this whole block unconditionally,

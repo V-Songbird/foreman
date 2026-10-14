@@ -2783,7 +2783,9 @@ describe('the stop-and-report rule and the verification paragraph', () => {
 
   test('the template text carries the official sentences', () => {
     for (const text of [claude.stopAndReport, claude.stageStopAndReport]) {
-      assert.match(text, /^When the work you were asked for is done and checked, stop and /);
+      // [Foreman: 1070] The work includes the entry's close or the commit the
+      // entry or coordinator paragraph above gives.
+      assert.match(text, /^When the work you were asked for is done and checked, including any commit or close step given above, stop and /);
       assert.ok(text.includes("Don't add features, tests, files, docs or refactors that weren't asked for"), text);
       assert.ok(text.includes("don't start extra rounds of review or hardening on your own, and don't launch reviewer sub-agents unless a review was asked for."), text);
     }
@@ -2838,17 +2840,35 @@ describe('the stop-and-report rule and the verification paragraph', () => {
     assert.equal(count(prompt, verifyParagraph), 0, prompt);
   });
 
-  test('the gate warns on a Claude Code handoff without it, or with the stage form outside a stage', () => {
+  test('a decision stops and reports but takes no verification paragraph', () => {
+    writeRoadmap(project, [entryFields({ kind: 'decision' })]);
+    for (const destination of ['task', 'agent', 'clipboard']) {
+      const { prompt } = craft({ entry: '001', destination, host: 'claude', judgment: goodJudgment() });
+      assert.ok(prompt.includes('Verification (REQUIRED):'), prompt);
+      assert.equal(count(prompt, claude.stopAndReport), 1, prompt);
+      assert.equal(count(prompt, verifyParagraph), 0, prompt);
+      assert.doesNotMatch(prompt, /A syntax-only check/, prompt);
+    }
+  });
+
+  // [Foreman: 1070] A prompt with no trace of the rule predates it and is
+  // warned on; one that carries the stage form outside a stage, or a reworded
+  // paragraph, was edited by hand and is refused.
+  test('the gate warns on a Claude Code handoff without it, and refuses the stage form outside a stage', () => {
     writeRoadmap(project, [entryFields()]);
     const json = craft({ entry: '001', destination: 'agent', host: 'claude', judgment: goodJudgment() });
     assert.ok(!json.gate.warnings.some((w) => w.includes('stop-and-report rule')), JSON.stringify(json.gate));
     const file = path.join(project, 'prompt.md');
-    for (const text of [json.prompt.replace(claude.stopAndReport, ''), json.prompt.replace(claude.stopAndReport, claude.stageStopAndReport)]) {
+    const gate = (text) => {
       fs.writeFileSync(file, text, 'utf-8');
-      const out = JSON.parse(runNodeScript(path.join(SCRIPTS_DIR, 'check-prompt.js'), [file, '--host', 'claude', '--entry', '001', '--destination', 'agent'], null, { FOREMAN_PROJECT_DIR: project }).stdout);
-      assert.equal(out.ok, true, JSON.stringify(out));
-      assert.ok(out.warnings.some((w) => w.includes('stop-and-report rule')), JSON.stringify(out));
-    }
+      return JSON.parse(runNodeScript(path.join(SCRIPTS_DIR, 'check-prompt.js'), [file, '--host', 'claude', '--entry', '001', '--destination', 'agent'], null, { FOREMAN_PROJECT_DIR: project }).stdout);
+    };
+    const missing = gate(json.prompt.replace(claude.stopAndReport, ''));
+    assert.equal(missing.ok, true, JSON.stringify(missing));
+    assert.ok(missing.warnings.some((w) => w.includes('stop-and-report rule')), JSON.stringify(missing));
+    const crossed = gate(json.prompt.replace(claude.stopAndReport, claude.stageStopAndReport));
+    assert.equal(crossed.ok, false, JSON.stringify(crossed));
+    assert.ok(crossed.errors.some((e) => e.error.includes('stop-and-report paragraph')), JSON.stringify(crossed));
   });
 
   for (const host of ['codex', 'antigravity']) {
