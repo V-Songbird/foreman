@@ -1100,6 +1100,12 @@ describe('host claude: a Workflow stage sent to an agent', () => {
     assert.ok(norm(swapped).includes(norm(canonical.stageQuestion)));
     errors = errorsOf(stage({ autonomy: swapped }));
     assert.ok(errors.some((e) => e.error.includes('Workflow-stage autonomy paragraph')), JSON.stringify(errors));
+    // [Foreman: 1068] The stage paragraph with its early stops dropped fails too.
+    const from = canonical.stageAutonomy.indexOf('A message with no tool call');
+    const to = canonical.stageAutonomy.indexOf('Before ending your turn');
+    assert.ok(from > 0 && to > from);
+    errors = errorsOf(stage({ autonomy: canonical.stageAutonomy.slice(0, from) + canonical.stageAutonomy.slice(to) }));
+    assert.ok(errors.some((e) => e.error.includes('Workflow-stage autonomy paragraph')), JSON.stringify(errors));
   });
 
   test('the plan and the approval rule name no entry paragraph and no user', () => {

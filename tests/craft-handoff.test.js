@@ -1345,8 +1345,8 @@ describe('background-agent autonomy paragraph — pause policy', () => {
 
   // [Foreman: 1061] The Claude agent paragraph also names the four early stops
   // of the Opus 5.5 page's unattended-run paragraph (template source-i); the
-  // user-present and Workflow-stage paragraphs do not carry them.
-  test('the Claude agent paragraph names the Opus 5.5 early stops; other destinations do not', () => {
+  // user-present paragraphs do not carry them.
+  test('the Claude agent paragraph names the Opus 5.5 early stops; user-present destinations do not', () => {
     writeRoadmap(project, [entryFields()]);
     const STOPS = [
       'A message with no tool call in it ends your turn, and the work stops there.',
@@ -1364,11 +1364,35 @@ describe('background-agent autonomy paragraph — pause policy', () => {
     assert.ok(agent.prompt.indexOf('ask and end the turn, rather than ending on a promise.') < at);
     assert.ok(at < agent.prompt.indexOf('Before ending your turn, check your last paragraph.'));
     assert.deepEqual(agent.warnings.filter((w) => /echo its reasoning|think harder/.test(w)), []);
-    for (const [destination, workflowStage] of [['task', false], ['clipboard', false], ['agent', true]]) {
-      const other = run(project, { entry: '001', destination, host: 'claude', workflowStage, judgment: goodJudgment() }).json;
+    for (const destination of ['task', 'clipboard']) {
+      const other = run(project, { entry: '001', destination, host: 'claude', judgment: goodJudgment() }).json;
       assert.equal(other.ok, true, JSON.stringify(other));
-      assert.ok(!other.prompt.includes('Four such endings stop work that is still owed'), `${destination} stage=${workflowStage}`);
+      assert.ok(!other.prompt.includes('Four such endings stop work that is still owed'), destination);
     }
+  });
+
+  // [Foreman: 1068] A Workflow stage sent to a background Agent is unattended
+  // too: its paragraph names the same early stops, with the coordinator in
+  // place of the user and the recommendation in the structured report.
+  test('the Workflow-stage agent paragraph names the early stops for the coordinator', () => {
+    writeRoadmap(project, [entryFields()]);
+    const stage = run(project, { entry: '001', destination: 'agent', host: 'claude', workflowStage: true, judgment: goodJudgment() }).json;
+    assert.equal(stage.ok, true, JSON.stringify(stage));
+    const flat = norm(stage.prompt);
+    for (const line of [
+      'A message with no tool call in it ends your turn, and the work stops there.',
+      'a summary of what was done that closes by announcing the next step;',
+      'an offer to carry on unless the coordinator would prefer otherwise;',
+      'a list of decisions for the coordinator when none of them blocks the rest of the work;',
+      'deciding this is a good place to report because the turn has been long or a milestone is done.',
+      'Give your recommendation on an open decision in your structured report, and carry on meanwhile with whatever does not depend on it.',
+    ]) assert.ok(flat.includes(line), line);
+    assert.ok(!flat.includes('in your final message'), 'the stage gives its recommendation in the report');
+    // Between the structured-report question sentence and the last-paragraph check.
+    const at = flat.indexOf('A message with no tool call');
+    assert.ok(flat.indexOf('such as needs_owner — and end the turn there') < at);
+    assert.ok(at < flat.indexOf('Before ending your turn, check your last paragraph.'));
+    assert.deepEqual(stage.warnings.filter((w) => /echo its reasoning|think harder/.test(w)), []);
   });
 });
 

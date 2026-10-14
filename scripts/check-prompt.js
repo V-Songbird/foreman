@@ -300,6 +300,8 @@ function readCanonical(host) {
   const stageStopAndReport = stageStopMatch ? stageStopMatch[1].trim() : null;
   // The stage autonomy paragraph runs from its bracket's reminder to the end of
   // that bracket; its question sentence sits alone on one line inside it.
+  // [Foreman: 1068] The gate pins the whole paragraph, so the early stops it
+  // carries since then (template source-i) are pinned with it.
   const autonomyBlock = target === "claude" ? extractHostBlock(xml, "autonomy", "claude") || "" : "";
   const stageBracket = autonomyBlock.indexOf("[WORKFLOW-STAGE AGENT");
   const stageAt = stageBracket === -1 ? -1 : autonomyBlock.indexOf(AUTONOMY_SENTENCE, stageBracket);
