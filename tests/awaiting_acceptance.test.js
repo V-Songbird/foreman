@@ -487,6 +487,16 @@ describe('skill contracts', () => {
     assert.match(readSkill('skills', 'roadmap', 'SKILL.md'), /^allowed-tools:.*\bSendMessage\b/m);
   });
 
+  // [Foreman: 1069] A resumed agent gets the same bounded continuation by
+  // reference, not a copy.
+  test('a resumed agent gets the bounded continuation by reference', () => {
+    const resume = readSkill('skills', 'roadmap', 'resume.md');
+    const flat = resume.replace(/\s+/g, ' ');
+    assert.match(flat, /If it stops with open items, apply the bounded continuation that \[delivery-agent\.md\]\(delivery-agent\.md\) gives a dispatched agent/);
+    assert.match(flat, /its cap of two, its blocker, decision, approval and destructive-step exceptions and, in Codex, its rule that the coordinator closes the entry/);
+    assert.doesNotMatch(flat, /Send at most two such continuations/);
+  });
+
   test('the schema documents the lifecycle and the downgrade cost', () => {
     const schema = readSkill('roadmap-schema.md');
 
