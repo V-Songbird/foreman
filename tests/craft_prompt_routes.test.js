@@ -47,6 +47,14 @@ describe('craft-prompt skill routes', () => {
     const flat = skill.slice(at, next).replace(/\s+/g, ' ');
     assert.match(flat, /Call 2 Q3 comes back as `I can only name the area` or names no file, read \[dont-know\.md\]\(dont-know\.md\)/);
   });
+
+  test('call-1.md does not call the default tone silent', () => {
+    const call1 = fs.readFileSync(path.join(DIR, 'call-1.md'), 'utf-8');
+    const line = call1.split('\n').find((l) => l.startsWith('- `Tone`'));
+    assert.ok(line, 'the Tone option line is missing');
+    assert.doesNotMatch(line, /silent/i);
+    assert.match(line, /minimal, professional conversation/);
+  });
 });
 
 describe('craft-prompt review constraint', () => {

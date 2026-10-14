@@ -7,7 +7,7 @@ Options: `Implement a feature`, `Fix a bug`, `Investigate / research`, `Refactor
 
 **Q2** — "Which optional sections do you want in the prompt?" (several may be picked; `multiSelect: true` in Claude Code)
 Options:
-- `Tone` — override the default (minimal/professional, silent-by-default; projects opt out entirely via `omitSections: ["tone"]`)
+- `Tone` — override the default (minimal, professional conversation; projects opt out entirely via `omitSections: ["tone"]`)
 - `Example` — a before/after or input→output snippet (good for fixes and transformations)
 - `Constraints` — hard limits on files or interfaces the agent must NOT touch
 - `Background context` — architectural decisions, patterns, or environment details
