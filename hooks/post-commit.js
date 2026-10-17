@@ -142,7 +142,7 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false) {
     // A bare `-` is `cd -`, the previous directory: an argument that names no
     // folder, so the shell reads as staying put.
     const args = tokens.filter((t) => t === "-" || !t.startsWith("-"));
-    if (POP_COMMANDS.has(head)) dir = pushed.pop() ?? dir;
+    if (POP_COMMANDS.has(head)) dir = pushed.length ? pushed.pop() : dir;
     else if (PUSH_COMMANDS.has(head)) {
       pushed.push(dir);
       if (args.length === 1) dir = moveTo(dir, target(args[0]));
@@ -163,7 +163,7 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false) {
       // tree this can find, so the commit stays where the shell is.
       if (workTree) gitDir = moveTo(gitDir, workTree);
       else if (repo && path.basename(repo) === ".git") gitDir = moveTo(gitDir, path.dirname(repo));
-      if (tokens[0] === "commit") targets.push(gitDir);
+      if (tokens[0] === "commit" && gitDir !== null) targets.push(gitDir);
     }
     for (; closes && subshells.length; closes--) dir = subshells.pop();
   }
@@ -176,14 +176,18 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false) {
 // would otherwise apply a relative `cd` twice. `$NAME`, `${NAME}`, `$env:NAME`
 // and `~` expand from this process; Git Bash's `/d/...` reads as `d:/...`, and
 // its `/tmp/...`, when no such folder sits on the drive, as this process's
-// temp directory, where Git for Windows mounts it. A variable assigned earlier
-// in the same command is not expanded.
+// temp directory, where Git for Windows mounts it. What stays unexpanded, such
+// as a variable assigned earlier in the same command or a `$(...)`, names a
+// folder this hook cannot see: the directory becomes unknown (null), and a
+// commit there is nobody's, until an absolute path names a folder again.
 function moveTo(dir, arg = "~") {
   let value = arg
     .replace(/^~(?=$|[\\/])/, os.homedir())
     .replace(/\$(?:env:)?\{?(\w+)\}?/g, (match, name) => process.env[name] ?? match);
+  if (/\$[\w{(]/.test(value)) return null;
   if (process.platform === "win32") value = value.replace(/^\/([a-z])(?=\/|$)/i, "$1:/");
-  let next = path.resolve(dir, value);
+  if (dir === null && !path.isAbsolute(value)) return null;
+  let next = path.resolve(dir ?? "", value);
   if (!fs.existsSync(next) && process.platform === "win32" && /^\/tmp(?=\/|$)/.test(value)) {
     next = path.join(os.tmpdir(), value.slice(4));
   }
@@ -349,6 +353,20 @@ function headTrailerIds(cwd) {
   }
 }
 
+// HEAD's short sha, so a reminder can carry the exact command. Only Claude Code
+// reports a failed command to this hook (commitFailed); elsewhere HEAD may be an
+// older commit, so the caller asks for it only there. Fail-soft: null.
+function headSha(cwd) {
+  try {
+    return runGit(cwd, ["rev-parse", "--short", "HEAD"], {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 // HEAD's changed files, read from the resolved scope's own repo rather than
 // always the root. filesTouchedByCommit/filesFromGit walk root-then-
 // submodules and return the FIRST scope with files -- correct for a
@@ -377,9 +395,8 @@ function scopeTouchedFiles(scope) {
 // files it never listed. Without this, precision labeling could induce the
 // one thing the design forbids — a missed real completion (false negative).
 const OVERLAP_CAVEAT =
-  "(The [...planned files] tags compare this commit's changed files to each " +
-  "task's planned_touches — a ranking hint, not proof: that field is a " +
-  "prediction, so a task tagged no-overlap can still be the one this commit completes.)";
+  "(The [...planned files] tags are a ranking hint, not proof: a task tagged " +
+  "no-overlap can still be the one this commit completes.)";
 
 // [Foreman: 696] A dispatch marker is the notes line a dispatching session
 // writes with `annotate` when it hands an entry to another session:
@@ -421,10 +438,18 @@ function dispatchedIds(entries) {
 // [Foreman: 825] Under delegatedAcceptance the record step stays and the
 // question goes: the named orchestrator accepts, whatever requireVerification
 // says, since a session that closes its own work would skip it.
-function statusSyncBlock(inProgress, freshlyDone, requireVerification, committedFiles, trailerIds, host = hostName(), delegatedTo = null) {
+//
+// The messages are written for the model that reads them: the facts, then the
+// one command to run. With `sha` known the command carries it, and with one
+// candidate its id, so nothing is left to look up or fill in.
+function statusSyncBlock(inProgress, freshlyDone, requireVerification, committedFiles, trailerIds, host = hostName(), delegatedTo = null, sha = null) {
   const parts = [];
   const trailerSet = new Set(trailerIds || []);
+  const commit = sha ? `Commit ${sha}` : "This commit";
+  const shaValue = sha || "<sha>";
+  const getSha = sha ? "" : "Run `git rev-parse --short HEAD` for the SHA, then: ";
   if (inProgress.length) {
+    const id = inProgress.length === 1 ? inProgress[0].id : "<id>";
     const committedSet = new Set(committedFiles || []);
     // A trailer naming the entry outranks any touches heuristic — the
     // commit message says which entry it meant, the staged close just
@@ -439,9 +464,9 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
     const dispatched = dispatchedIds(inProgress);
     if (delegatedTo) {
       parts.push(
-        `This commit may complete an in-progress ROADMAP.jsonl task (${list}). ` +
-          "If it does, record the work now: run `git rev-parse --short HEAD` for the SHA, then: " +
-          `echo '{"id":"<id>","status":"awaiting_acceptance","commit":"<sha>"}' | node "${SCRIPT_PATH}" update-status ` +
+        `${commit} may complete an in-progress ROADMAP.jsonl task (${list}). ` +
+          `If it does, record the work now. ${getSha}` +
+          `echo '{"id":"${id}","status":"awaiting_acceptance","commit":"${shaValue}"}' | node "${SCRIPT_PATH}" update-status ` +
           "(observed_touches auto-folds from the commit's diff). " +
           `Acceptance for this session belongs to the orchestrator ${delegatedTo}; don't ask the user. ` +
           "Unless this session is that orchestrator, don't close it yourself." +
@@ -449,20 +474,18 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
       );
     } else if (requireVerification) {
       parts.push(
-        `This commit may complete an in-progress ROADMAP.jsonl task (${list}), ` +
-          "but requireVerification is on for this project — record the work now, " +
-          "don't close it out yet. Run `git rev-parse --short HEAD` for the SHA, then: " +
-          `echo '{"id":"<id>","status":"awaiting_acceptance","commit":"<sha>"}' | node "${SCRIPT_PATH}" update-status ` +
-          "(keeps commits[]/observed_touches accurate — observed_touches still " +
-          "auto-folds from the commit's diff, same as always — and says what is true: finished, " +
-          `waiting on the user). Then ask the user ${host === "claude" ? "(AskUserQuestion) " : ""}` +
-          "whether this is actually verified and working. Only on confirmation, " +
-          "close it out: " +
-          `echo '{"id":"<id>","status":"done"}' | node "${SCRIPT_PATH}" update-status. ` +
+        `${commit} may complete an in-progress ROADMAP.jsonl task (${list}). ` +
+          "requireVerification is on: if it does, record the work and don't close it out yet. " +
+          getSha +
+          `echo '{"id":"${id}","status":"awaiting_acceptance","commit":"${shaValue}"}' | node "${SCRIPT_PATH}" update-status ` +
+          "(observed_touches auto-folds from the commit's diff). " +
+          `Then ask the user ${host === "claude" ? "(AskUserQuestion) " : ""}` +
+          "whether it is verified and working. Only on their confirmation, close it: " +
+          `echo '{"id":"${id}","status":"done"}' | node "${SCRIPT_PATH}" update-status. ` +
           "If they say it's not ready, send it back: " +
-          `echo '{"id":"<id>","status":"in_progress","notes":"<what they said>"}' | node "${SCRIPT_PATH}" update-status ` +
-          "— don't mark done. If this session has no user to ask (a background " +
-          "agent), leave it awaiting_acceptance — the user confirms later." +
+          `echo '{"id":"${id}","status":"in_progress","notes":"<what they said>"}' | node "${SCRIPT_PATH}" update-status. ` +
+          "With no user to ask (a background " +
+          "agent), leave it awaiting_acceptance." +
           (dispatched.length
             ? ` Entries whose notes carry a dispatch marker: ${dispatched.join(", ")}. ` +
               "A session dispatched to work one of these records awaiting_acceptance as above " +
@@ -474,12 +497,10 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
       );
     } else {
       parts.push(
-        `This commit may complete an in-progress ROADMAP.jsonl task (${list}). ` +
-          "If it does, run `git rev-parse --short HEAD` for the commit SHA, then: " +
-          `echo '{"id":"<id>","status":"done","commit":"<sha>"}' | node "${SCRIPT_PATH}" update-status. ` +
-          "The script computes updated_at, appends the SHA, and auto-folds that " +
-          "commit's actual changed files into observed_touches — don't hand-edit the file, " +
-          "and no need to list touched files yourself, the script derives them." +
+        `${commit} may complete an in-progress ROADMAP.jsonl task (${list}). ` +
+          `If it does, close it. ${getSha}` +
+          `echo '{"id":"${id}","status":"done","commit":"${shaValue}"}' | node "${SCRIPT_PATH}" update-status ` +
+          "(observed_touches auto-folds from the commit's diff). Don't hand-edit the file." +
           caveat
       );
     }
@@ -493,20 +514,13 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
     // recording command must keep, not overwrite.
     const list = freshlyDone.map((e) => `${e.id} ("${e.title}", status: ${e.status})`).join(", ");
     parts.push(
-      `This commit might also be a follow-up fix for a task that recently ` +
+      `${commit} might also be a follow-up fix for a task that recently ` +
         `finished its work — marked done earlier today, or still waiting on ` +
-        `${delegatedTo ? `the orchestrator ${delegatedTo}'s` : "your"} acceptance (${list}) — a bugfix right after finishing a task is ` +
-        "easy to lose track of, since nothing else nudges about a task once it " +
-        "leaves in_progress. If this commit actually relates to one of those, " +
-        "append its SHA rather than letting it go unrecorded: run " +
-        "`git rev-parse --short HEAD`, then, keeping the status shown above " +
-        "for that id (an awaiting_acceptance entry must stay " +
-        "awaiting_acceptance — recording a follow-up SHA does not close it): " +
-        `echo '{"id":"<id>","status":"<its status above>","commit":"<sha>"}' | node "${SCRIPT_PATH}" update-status ` +
-        "(only adds the SHA, and auto-folds this commit's changed files into " +
-        "observed_touches; commits[] and observed_touches both only grow, never " +
-        "shrink). Most commits won't relate to an already-finished task — say " +
-        "nothing if this one doesn't."
+        `${delegatedTo ? `the orchestrator ${delegatedTo}'s` : "your"} acceptance (${list}). ` +
+        `If it relates to one of those, record its SHA and keep the status shown for that id. ${getSha}` +
+        `echo '{"id":"${freshlyDone.length === 1 ? freshlyDone[0].id : "<id>"}","status":"${freshlyDone.length === 1 ? freshlyDone[0].status : "<its status above>"}","commit":"${shaValue}"}' | node "${SCRIPT_PATH}" update-status ` +
+        "(observed_touches auto-folds from the commit's diff). Recording a SHA never closes an awaiting_acceptance entry. " +
+        "Say nothing if this commit doesn't relate to one."
     );
   }
   return "[Foreman] " + parts.join(" ");
@@ -530,6 +544,70 @@ function discoveryBlock(host = hostName(), requireVerification = true, delegated
   return host === "claude"
     ? claudeDiscoveryBlock(requireVerification)
     : "[Foreman] Roadmap discovery is enabled for this project.\n" + discoveryInstructions();
+}
+
+// Claude Code's discovery rules are the same text on every commit. After the
+// first full copy in a session, later commits get one line that points back to
+// it. A compaction can drop that copy from context, so the full rules come back
+// once the transcript shows a compaction after it. A payload without a session
+// id or a transcript path always gets the full rules, and so does every other
+// host: nothing there shows whether the first copy is still in view.
+const COMPACT_MARKER = Buffer.from('"subtype":"compact_boundary"');
+
+function discoveryStatePath(root, sessionId) {
+  const safe = crypto.createHash("sha1").update(`${root}\0${sessionId}`).digest("hex").slice(0, 12);
+  return path.join(os.tmpdir(), `foreman-discovery-${safe}.json`);
+}
+
+// Whether the transcript holds a compaction at or after byte `offset`, read in
+// chunks that overlap by the marker's length so one split across two is found.
+function compactedSince(transcript, offset) {
+  const fd = fs.openSync(transcript, "r");
+  try {
+    const chunk = Buffer.alloc(1024 * 1024);
+    for (let pos = offset; ; ) {
+      const read = fs.readSync(fd, chunk, 0, chunk.length, pos);
+      if (!read) return false;
+      if (chunk.subarray(0, read).includes(COMPACT_MARKER)) return true;
+      if (read < chunk.length) return false;
+      pos += read - COMPACT_MARKER.length;
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+// True when this session already got the full rules and has not compacted
+// since. Whenever it answers false, the caller emits the full rules, so it
+// records the transcript's size: the next commit reads only what came after.
+// Best-effort: any failure answers false.
+function discoveryRulesInView(root, data) {
+  const sessionId = data?.session_id;
+  const transcript = data?.transcript_path;
+  if (typeof sessionId !== "string" || !sessionId || typeof transcript !== "string" || !transcript) return false;
+  const statePath = discoveryStatePath(root, sessionId);
+  try {
+    const size = fs.statSync(transcript).size;
+    let offset = null;
+    try {
+      offset = JSON.parse(fs.readFileSync(statePath, "utf-8")).offset;
+    } catch {
+      // no state yet — this is the session's first full copy
+    }
+    if (Number.isInteger(offset) && offset >= 0 && offset <= size && !compactedSince(transcript, offset)) return true;
+    fs.writeFileSync(statePath, JSON.stringify({ offset: size }));
+  } catch {
+    // unreadable transcript or unwritable state — the full rules again
+  }
+  return false;
+}
+
+function discoveryReminder(sha) {
+  return (
+    `[Foreman] Roadmap discovery is enabled for this project. Scan ${sha ? `commit ${sha}` : "this commit"} ` +
+    "for CONFIRMED findings outside the task, under the full discovery rules given earlier in this " +
+    "session: check-duplicate first, ask before adding, and say nothing if nothing is confirmed."
+  );
 }
 
 // An inline scope-creep log closes with the status the project's acceptance
@@ -674,12 +752,17 @@ function main() {
   // matter (an in_progress task to tag).
   const committedFiles = inProgress.length ? scopeTouchedFiles(scope) : [];
 
+  const host = hostName();
+  const statusSync = inProgress.length || freshlyDone.length;
+  const sha = host === "claude" && (statusSync || config.discoverySuggestions) ? headSha(scope.cwd) : null;
+
   const blocks = [];
-  if (inProgress.length || freshlyDone.length) {
-    blocks.push(statusSyncBlock(inProgress, freshlyDone, config.requireVerification, committedFiles, trailerIds, hostName(), config.delegatedTo));
+  if (statusSync) {
+    blocks.push(statusSyncBlock(inProgress, freshlyDone, config.requireVerification, committedFiles, trailerIds, host, config.delegatedTo, sha));
   }
   if (config.discoverySuggestions) {
-    blocks.push(discoveryBlock(hostName(), config.requireVerification, config.delegatedTo));
+    const inView = host === "claude" && !config.delegatedTo && discoveryRulesInView(root, data);
+    blocks.push(inView ? discoveryReminder(sha) : discoveryBlock(host, config.requireVerification, config.delegatedTo));
     const dispatched = config.delegatedTo ? [] : dispatchedIds([...inProgress, ...followUpAll]);
     if (dispatched.length) {
       blocks.push(
@@ -694,7 +777,7 @@ function main() {
 
   // A Codex payload carries model and turn_id; Antigravity's carries no exit
   // status at all. Neither host confirms the commit landed.
-  const nativeCaveat = data.model || data.turn_id || hostName() === "antigravity"
+  const nativeCaveat = data.model || data.turn_id || host === "antigravity"
     ? "[Foreman] A git commit command was invoked. This hook cannot reliably observe this host's exit status; confirm the actual command succeeded and the intended commit is HEAD before acting on these advisory hints. Do not record an older HEAD as a new commit after a failed command.\n\n"
     : "";
   emit(nativeCaveat + blocks.join("\n\n"));
@@ -722,6 +805,7 @@ module.exports = {
   headTrailerIds,
   scopeTouchedFiles,
   discoveryBlock,
+  discoveryStatePath,
   CORRUPT_ROADMAP_MESSAGE,
   SCRIPT_PATH,
 };

@@ -382,6 +382,95 @@ describe('requireVerification gate', () => {
   });
 });
 
+// The reminder hands the model the exact command: the commit's own sha where
+// the host reports a failed commit (Claude Code), and the id when there is one
+// candidate.
+describe('reminder commands carry known values', () => {
+  function headShort() {
+    return spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: project, encoding: 'utf-8' }).stdout.trim();
+  }
+
+  test('Claude Code gets the real sha and the one candidate id', () => {
+    commitFile(project, 'a.js', 'a');
+    const sha = headShort();
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    writeConfig(project, { discoverySuggestions: false });
+    const out = context(bashPayload('git commit -m "finish task"'));
+    assert.match(out, new RegExp(`^\\[Foreman\\] Commit ${sha} may complete`));
+    assert.ok(out.includes(`"id":"001","status":"awaiting_acceptance","commit":"${sha}"`), out);
+    assert.ok(out.includes('"id":"001","status":"done"'), out);
+    assert.doesNotMatch(out, /rev-parse|<sha>|<id>/);
+  });
+
+  test('Codex keeps the placeholders, since HEAD may predate a failed commit', () => {
+    commitFile(project, 'a.js', 'a');
+    writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
+    writeConfig(project, { discoverySuggestions: false });
+    const out = context(bashPayload('git commit -m "finish task"'), 'codex');
+    assert.match(out, /git rev-parse --short HEAD/);
+    assert.match(out, /"id":"001","status":"awaiting_acceptance","commit":"<sha>"/);
+  });
+
+  test('two candidates leave the id to the model', () => {
+    commitFile(project, 'a.js', 'a');
+    writeRoadmap(project, [
+      { id: '001', status: 'in_progress' },
+      { id: '002', status: 'in_progress' },
+    ]);
+    writeConfig(project, { discoverySuggestions: false });
+    const out = context(bashPayload('git commit -m "finish task"'));
+    assert.match(out, /"id":"<id>","status":"awaiting_acceptance","commit":"[0-9a-f]+"/);
+  });
+});
+
+// The full discovery rules reach a Claude Code session once; later commits
+// point back to them until a compaction may have dropped them.
+describe('discovery rules once per session', () => {
+  const crypto = require('crypto');
+  const { discoveryStatePath } = require('../hooks/post-commit');
+  const FULL = /CONFIRMED opportunities/;
+  const SHORT = /full discovery rules given earlier in this session/;
+  let sessionId;
+  let transcript;
+
+  beforeEach(() => {
+    sessionId = `test-${crypto.randomUUID()}`;
+    transcript = path.join(project, 'transcript.jsonl');
+    fs.writeFileSync(transcript, '{"type":"user"}\n', 'utf-8');
+    writeRoadmap(project, [{ id: '001', status: 'planned' }]);
+  });
+
+  function commit(host = 'claude', extra = { session_id: sessionId, transcript_path: transcript }) {
+    const out = context(bashPayload('git commit -m "wip"', extra), host);
+    fs.appendFileSync(transcript, '{"type":"assistant"}\n', 'utf-8');
+    return out;
+  }
+
+  test('the second commit gets the short form, and a compaction brings the rules back', (t) => {
+    t.after(() => fs.rmSync(discoveryStatePath(project, sessionId), { force: true }));
+    assert.match(commit(), FULL);
+    const second = commit();
+    assert.match(second, SHORT);
+    assert.doesNotMatch(second, FULL);
+    fs.appendFileSync(transcript, '{"type":"system","subtype":"compact_boundary"}\n', 'utf-8');
+    assert.match(commit(), FULL);
+    assert.match(commit(), SHORT);
+  });
+
+  test('without a session id or a transcript, every commit gets the full rules', () => {
+    assert.match(commit('claude', { transcript_path: transcript }), FULL);
+    assert.match(commit('claude', { transcript_path: transcript }), FULL);
+    assert.match(commit('claude', { session_id: sessionId }), FULL);
+    assert.match(commit('claude', { session_id: sessionId }), FULL);
+  });
+
+  test('Codex always gets its full policy', (t) => {
+    t.after(() => fs.rmSync(discoveryStatePath(project, sessionId), { force: true }));
+    assert.ok(commit('codex').includes(discoveryInstructions()));
+    assert.ok(commit('codex').includes(discoveryInstructions()));
+  });
+});
+
 // [Foreman: 825] delegatedAcceptance names an orchestrator and the sessions
 // it accepts for. A listed session records the sha and is never told to ask
 // the user; any other session, the owner's own included, keeps today's text.
@@ -393,7 +482,7 @@ describe('delegatedAcceptance', () => {
       writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
       writeConfig(project, delegated);
       const out = context(bashPayload('git commit -m "finish task"', { session_id: 'worker-a' }), host);
-      assert.match(out, /"id":"<id>","status":"awaiting_acceptance","commit":"<sha>"/);
+      assert.match(out, /"id":"001","status":"awaiting_acceptance","commit":"<sha>"/);
       assert.match(out, /belongs to the orchestrator orch-1/);
       assert.match(out, /check-duplicate/);
       assert.match(out, new RegExp(`"source":"${host}-suggested","status":"planned"`));
@@ -417,7 +506,7 @@ describe('delegatedAcceptance', () => {
     writeConfig(project, { ...delegated, discoverySuggestions: false });
     const out = context(bashPayload('git commit -m "fix after"', { session_id: 'worker-a' }));
     assert.match(out, /waiting on the orchestrator orch-1's acceptance/);
-    assert.match(out, /"status":"<its status above>","commit":"<sha>"/);
+    assert.match(out, /"id":"001","status":"awaiting_acceptance","commit":"<sha>"/);
     assert.doesNotMatch(out, /your acceptance|AskUserQuestion/);
   });
 
@@ -1020,6 +1109,16 @@ describe('commit directory edge cases', () => {
     assert.deepEqual(commitDirs(`pushd "${other}"; popd; git commit -m x`, project), [project]);
     assert.deepEqual(commitDirs(`Push-Location '${other}'; Pop-Location; git commit -m x`, project), [project]);
     assert.deepEqual(commitDirs(`pushd "${other}" && git commit -m x`, project), [other]);
+  });
+
+  test('a folder named by a variable the hook cannot expand claims no commit', () => {
+    assert.deepEqual(commitDirs(`$p = '${other}'; Push-Location $p; git commit -m x; Pop-Location`, project, true, true), []);
+    assert.deepEqual(commitDirs('p=/x; cd "$p" && git commit -m x', project), []);
+    assert.deepEqual(commitDirs('cd "$(git rev-parse --show-toplevel)/sub" && git -C . commit -m x', project), []);
+    assert.deepEqual(commitDirs('git -C "$p" commit -m x', project), []);
+    // an absolute path names a folder again, and popd returns to the known one
+    assert.deepEqual(commitDirs(`cd "$p" && cd "${other}" && git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs('pushd "$p"; popd; git commit -m x', project), [project]);
   });
 
   test('a subshell commits where it moved, and the shell returns after it', () => {

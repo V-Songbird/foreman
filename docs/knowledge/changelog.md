@@ -37,6 +37,23 @@ instead.
   `destination-question.md`, so a pick loads about a third less text: about
   9,400 tokens instead of 14,100 in Claude Code. The questions, their options
   and their rules are the same as before.
+- A commit made after a `cd`, `pushd`, `Push-Location` or `git -C` whose folder
+  is a shell variable or a `$(...)` that Foreman cannot expand no longer draws
+  this project's commit reminders. Foreman used to read such a commit as made in
+  the session's folder, so a commit in another repository could ask to close an
+  unrelated roadmap entry. Such a commit now gets no reminder, including one
+  made in the project itself.
+- The reminders after a commit are shorter. When one entry is the candidate,
+  its id is already in the command to run.
+
+### Claude Code
+
+- The commit reminder also carries the commit's short SHA, so there is no
+  `git rev-parse` step left to run.
+- The full roadmap discovery rules arrive once per session. Later commits get
+  one line that points back to them. After the conversation is compacted, the
+  next commit brings the full rules again. A session whose hook input names no
+  session or transcript still gets the full rules on every commit.
 
 ## 4.1.0 — 2026-10-14
 
