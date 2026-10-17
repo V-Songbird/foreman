@@ -2,8 +2,8 @@
 
 <!-- [Foreman: 141] -->
 If a caller handed over a set of ids, that set **is** the scope — args naming
-specific tasks, or **Reconcile and pick**'s near-term set (the pick flow in
-[pick.md](../roadmap/pick.md) derives it from one `next-candidates --menu`
+specific tasks, or **Reconcile and pick**'s near-term set (its first step in
+[reconcile.md](../roadmap/reconcile.md) derives it from one `next-candidates --menu`
 result: the candidate rows plus the `in_progress` and `awaiting_acceptance`
 rows). Run `list --ids <those ids>`, drop any that don't exist or are terminal
 (`done`/`dropped`/`rejected` — history its commits already describe) and say

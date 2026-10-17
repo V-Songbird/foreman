@@ -25,6 +25,19 @@ listings pin a release commit and carry no version of their own. Claude Code
 releases up to 2.7.0 kept their number in the foundry marketplace listing
 instead.
 
+## Unreleased
+
+### Every host
+
+- Picking a task now runs `roadmap.js step pick`, which decides each step of
+  the pick and tells the skill what to do next with a short code. The script
+  builds the task menu and its labels, records the pick in the trial log,
+  checks the working tree and works out the destination question's
+  recommendation and cautions. The pick skill no longer reads
+  `destination-question.md`, so a pick loads about a third less text: about
+  9,400 tokens instead of 14,100 in Claude Code. The questions, their options
+  and their rules are the same as before.
+
 ## 4.1.0 — 2026-10-14
 
 ### Every host

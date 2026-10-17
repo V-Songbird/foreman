@@ -1,7 +1,9 @@
 # How to run it — the shared destination question
 
-The one copy of the destination question both prompt-crafting flows ask
-(roadmap pick's Q2, craft-prompt's Call 5) — a fix here reaches both.
+The destination question craft-prompt's Call 5 asks. Roadmap pick's Q2 asks
+the same question through `roadmap.js step pick`, which applies these rules
+as code (`destinationOptions` in `scripts/roadmap.js`): the two copies change
+together.
 `prompt-template.md`'s delivery-mechanics section names the same step for
 script authors and points here; the exact wording lives here. There is no
 follow-up question about which model runs the work: Foreman never asks and

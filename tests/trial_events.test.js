@@ -14,7 +14,7 @@
 // Covers:
 //   - every event the skills name is a real event, and every flow a real flow
 //   - each branch records its own flow, and doctor.md records nothing
-//   - pick.md records only the model-side pick events and leaves menu_shown/
+//   - pick.md leaves the pick events to roadmap.js step pick, and menu_shown/
 //     hint_used to next-candidates --menu, which records exactly one of each
 //   - one definition of a question interaction for both hosts
 //   - init/SKILL.md carries init_started, and init/write.md init_completed
@@ -91,7 +91,9 @@ describe('the model-side trial events', () => {
       ['roadmap/add.md', 'add'],
       ['roadmap/correct.md', 'correct'],
       ['survey/SKILL.md', 'survey'],
-      ['roadmap/pick.md', 'pick'],
+      // Q1 and Q2 are recorded by roadmap.js step pick; the accept question
+      // is the one pick question the script does not see.
+      ['roadmap/accept.md', 'pick'],
       ['init/SKILL.md', 'init'],
     ];
     for (const [rel, flow] of expected) {
@@ -112,18 +114,19 @@ describe('the model-side trial events', () => {
     );
   });
 
-  test('pick.md records only the pick events and leaves the menu events to the CLI', () => {
+  test('pick.md leaves every pick event to step pick, except a paged question\'s extra call', () => {
     const text = skill('roadmap', 'pick.md');
-    const modelEvents = invocations().filter((inv) => inv.file === 'roadmap/pick.md').map((inv) => inv.event);
-    // next-candidates --menu records menu_shown and hint_used itself; a prose copy counts every menu twice.
-    assert.deepEqual(modelEvents.sort(), ['pick_accepted', 'pick_overridden', 'question_asked']);
-    assert.match(text, /events are emitted by the CLI; do not record them\s+again/);
+    // roadmap.js step pick records them (tests/step_pick.test.js); a prose copy counts each twice.
+    // It counts one question per answer, so only the extra call of a paged question is the skill's.
+    assert.deepEqual(
+      invocations().filter((inv) => inv.file === 'roadmap/pick.md').map((inv) => [inv.event, inv.fields]),
+      [['question_asked', '{"flow":"pick"}']]
+    );
+    assert.match(text.replace(/\s+/g, ' '), /when Q1 paged with More tasks, or Codex split Q2 over two calls, record each extra call yourself/);
+    assert.match(text, /events are emitted by the CLI; do not record\s+them again/);
     const flat = text.replace(/\s+/g, ' ');
-    assert.match(flat, /`next-candidates --menu` has already recorded `menu_shown`/);
-    // The branches that must NOT record a pick are named out loud.
-    assert.ok(/settles existing work rather than answering "what next", so it records neither/.test(flat));
-    assert.ok(/defer\*\* sub-branch records neither/.test(flat));
-    assert.ok(/A skipped question is never logged/.test(flat));
+    assert.ok(/Pass `--after` only when the user actually saw that question, so a skipped question is never logged/.test(flat));
+    assert.ok(/An accept, resume, or defer choice settles existing work, so the step records no pick event/.test(flat));
   });
 
   test('one question interaction means the same thing on both hosts', () => {

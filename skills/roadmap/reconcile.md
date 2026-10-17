@@ -7,7 +7,8 @@ asks for it, in this order:
 It is composition, not a second pick flow — a survey pass scoped to the
 near-term entries, then Fast pick unchanged on the repaired data:
 
-1. **Investigate** — run pick.md's step 1, `next-candidates --menu`, first
+1. **Investigate** — run
+   `node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js next-candidates --menu` first
    and take the **near-term set** from that one result:
    every `candidates[].id`, plus every
    `in_progress[].id`, plus every `awaiting_acceptance[].id`. That is the
@@ -22,8 +23,9 @@ near-term entries, then Fast pick unchanged on the repaired data:
    ground. Nothing here overrides any of it: let its evidence, review, and
    authorized repairs finish. A pass that finds nothing is a clean result, not
    a failure — say so and go on to 3.
-3. **Recommend** — re-run `next-candidates --menu`, because the approved
-   repairs may have changed statuses, dependencies, and planned surfaces, so
-   the menu from 1 is stale. Then continue through pick.md's Fast pick steps
-   exactly as written, with this menu as its step 1. The pick is not a
+3. **Recommend** — start pick.md's loop from its first step, because the
+   approved repairs may have changed statuses, dependencies, and planned
+   surfaces, so the menu from 1 is stale; that first step builds a fresh one.
+   Then continue through pick.md's Fast pick steps
+   exactly as written. The pick is not a
    different pick; it just reads repaired data.

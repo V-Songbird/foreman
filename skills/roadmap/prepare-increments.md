@@ -65,8 +65,11 @@ plus Look checks. A mixed row counts once. Human-only rows may justify a local
 split when they carry distinct work, but they never satisfy the runnable check
 that rule 2 of `destination-question.md` needs. A recommendation involving an
 executable check needs an actual `run`, not merely a nonempty verification
-array. Follow the remaining clean-tree, collision, context and capability
-conditions in `destination-question.md`; count alone does not pick a destination.
+array. In a roadmap pick, pass that count as `--checks` and the rows with a
+`run` as `--runnable`; `roadmap.js step pick` applies the remaining
+clean-tree, collision, context and capability conditions. In craft-prompt,
+follow them in `destination-question.md`; count alone does not pick a
+destination.
 
 For explicit review, set the top-level `reviewEachIncrement:true` in the
 assembler input. Keep `split` as the user's local execution choice: true for

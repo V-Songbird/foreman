@@ -152,9 +152,11 @@ count of dirty files, never which files were unexpected.
 ### Recommendation events
 
 `menu_shown` and `hint_used` are recorded by `roadmap.js next-candidates --menu`
-itself, where the facts already are. `skills/roadmap/pick.md` (Fast pick, and
-unchanged whenever Reconcile and pick composes it) records the pick events and
-never repeats the menu ones:
+itself, where the facts already are. The pick events are recorded by
+`roadmap.js step pick`, the script `skills/roadmap/pick.md` runs (Fast pick, and
+unchanged whenever Reconcile and pick composes it): its menu call goes through
+`next-candidates --menu`, and the call after Q1's answer, made with
+`--after q1`, records the pick. The skill records none of them itself:
 
 - **`menu_shown`** — inside every `next-candidates --menu` call, before Q1 is
   asked. `candidates` counts every row the user will see: `candidates[]` plus
@@ -169,8 +171,8 @@ never repeats the menu ones:
 - **`pick_overridden`** — the same branch, when the answer is any other row
   (`chosen_rank` = its 1-based position), or the standard escape describing
   something not on the list (`chosen_rank: null`). The **defer** sub-branch
-  ("not yet", "later") is not a pick: it writes no event and re-runs the menu,
-  whose `next-candidates --menu` call records a fresh `menu_shown`.
+  ("not yet", "later") is not a pick: it writes no pick event and re-runs the
+  menu, which records a fresh `menu_shown`.
 - **`hint_used`** — inside the same call, once per menu built with `--hint`.
   `hit` is the script's own `hint_matched`, which is already exactly this fact:
   `false` means no candidate matched any hint word and the order is just the
@@ -213,8 +215,9 @@ nothing else:
   event per interaction, `flow` naming the
   branch it sits in and never the question:
   `init` for every question the init skill (`skills/init/`) asks, `pick` / `add` /
-  `correct` / `status` for `skills/roadmap/pick.md`, `add.md`, `correct.md` and
-  `status.md` (Call 1's menu and the archive-finished-work ask stay in
+  `correct` / `status` for `skills/roadmap/pick.md` (Q1 and Q2 through
+  `roadmap.js step pick --after`, and the accept question in `accept.md`),
+  `add.md`, `correct.md` and `status.md` (Call 1's menu and the archive-finished-work ask stay in
   `SKILL.md` and belong to the branch the user ends up in), and `survey`. The
   fifth branch file, `doctor.md`, has no `flow` value in `scripts/trial-log.js`
   and records nothing. A question batched

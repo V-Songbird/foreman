@@ -9,6 +9,6 @@ outside the dependency graph, mark it `deferred` so it stops resurfacing as a
 recommendation; their words are the authorization:
 `echo '{"id":"<id>","status":"deferred","notes":"deferred: <trigger>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
 (capture the trigger they named in `notes`, sent the way the runtime says
-user-written text travels). Then re-run
-`next-candidates --menu` and re-ask Q1. Don't defer on your own judgment —
+user-written text travels). Then run the step's `then`, which builds a fresh
+menu, and go on with pick.md's loop. Don't defer on your own judgment —
 a task that merely ranks lower stays `planned`.

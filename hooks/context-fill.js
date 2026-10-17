@@ -36,7 +36,8 @@ const { readInput, hostName } = require("./lib");
 const WATCHED_TOOLS = new Set(["Bash", "PowerShell"]);
 
 // The scripts a crafting flow runs before it asks the destination question:
-// `roadmap.js` (pick's menu and its selected-entry read), `resolve-symbols.js`
+// `roadmap.js` (pick's `step pick` calls, which report the selected entry
+// before Q2), `resolve-symbols.js`
 // (craft-prompt's pre-question read), and `safe-commit.js` (the tree probe the
 // destination question itself takes before offering the split). Anything else
 // — including `craft-handoff.js`, which runs *after* the answer — is past the
@@ -146,7 +147,8 @@ function message(reading) {
     `this session's ${reading.window.toLocaleString("en-US")}-token compaction point), ` +
     `at or above Foreman's ${Math.round(CONTEXT_SHARE * 100)}% line. ` +
     `If you reach "How do you want to run this?" this turn, apply the high-context ` +
-    `rule in skills/roadmap/destination-question.md. This is a reading, not an ` +
+    `rule in skills/roadmap/destination-question.md; in a roadmap pick, pass ` +
+    `--context-high to roadmap.js step pick. This is a reading, not an ` +
     `instruction to the user — never quote the number at them unless they ask.`
   );
 }

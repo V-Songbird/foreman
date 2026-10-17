@@ -83,6 +83,7 @@ describe("two confidence modes", () => {
     assert.match(roadmap, /age alone never starts a survey/);
     assert.match(roadmap, /survey \(unconfirmed\):` breadcrumb/);
     assert.match(roadmap, /more\s+than \*\*30 days\*\* before today/);
+    assert.match(roadmap, /`stale:true` on two mechanical signals/);
     assert.match(roadmap, /If the user says yes,\s+read \[reconcile\.md\]\(reconcile\.md\) and start at its step 1/);
     // The entrance holds the same rule from its side.
     assert.match(entrance, /the\s+user asks for that or it doesn't happen/);
@@ -97,8 +98,11 @@ describe("two confidence modes", () => {
 describe("the shared destination question", () => {
   // [Foreman: 353] A pick reads the question only when it asks it, and each
   // destination's steps only when that destination was picked.
-  test("a pick reads the question only when it asks it", () => {
-    assert.match(roadmap, /When the user already named a\s+destination, use it and skip the question\. Otherwise read\s+\[destination-question\.md\]/);
+  // A pick gets the question from roadmap.js step pick, which applies the
+  // shared file's rules as code, and skips it for a named destination.
+  test("a pick asks the question only when the user named no destination", () => {
+    assert.match(roadmap, /When the user already named a destination, add `--dest/);
+    assert.doesNotMatch(roadmap, /read\s+\[destination-question\.md\]/);
     const delivery = read("skills", "roadmap", "delivery.md");
     for (const file of ["delivery-split.md", "delivery-agent.md", "delivery-clipboard.md"]) {
       assert.ok(delivery.includes(`](${file})`), `delivery.md does not send its destination to ${file}`);

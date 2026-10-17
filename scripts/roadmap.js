@@ -38,7 +38,7 @@ const {
   resolveSha,
 } = require("./commit-evidence");
 
-const { projectDir, parseFlags } = require("./runtime");
+const { projectDir, parseFlags, detectHost } = require("./runtime");
 
 function roadmapPath(root) {
   return path.join(root, "ROADMAP.jsonl");
@@ -1780,10 +1780,10 @@ function touchesOverlap(left, right) {
 // this entry, directly and down the chain) is a derived proxy for
 // importance instead.
 // [Foreman: 208] How many accept/resume rows the finish-first check puts in
-// front of the ranked candidates, per skills/roadmap/pick.md ("at most 2 of
-// each; oldest updated_at first"). Only the trial log's menu-size count reads
-// it — the arrays themselves are returned whole, since the branch needs the
-// full list to pick its two from.
+// front of the ranked candidates ("at most 2 of each; oldest updated_at
+// first"), as pickRows below builds Q1. The trial log's menu-size count reads
+// it too — the arrays themselves are returned whole, since pickRows picks
+// its two from the full list.
 const MENU_SETTLE_ROWS = 2;
 
 function cmdNextCandidates(root, filters) {
@@ -2002,7 +2002,7 @@ function cmdNextCandidates(root, filters) {
   // never throws.
   //
   // `candidates` is rows the user is OFFERED, not rows this call returned.
-  // The finish-first check in skills/roadmap/pick.md promotes "at most 2 of
+  // The finish-first check in pickRows promotes "at most 2 of
   // each" accept/resume row above the ranked candidates, so the arrays are
   // capped the same way here — a project sitting on five in-progress entries
   // still only ever shows two of them, and counting all five would report a
@@ -2019,6 +2019,229 @@ function cmdNextCandidates(root, filters) {
     }
   }
   return result;
+}
+
+// `step pick`: the pick branch's decisions as data, so skills/roadmap/pick.md
+// carries a table of codes instead of the rules. Each call reads the roadmap
+// and its flags, records the trial events the last answer settled, and names
+// the skill's next action in `next`, with the command after it in `then`.
+// Nothing is kept between calls. The destination rules below mirror
+// skills/roadmap/destination-question.md, which craft-prompt still reads: a
+// change to one goes into both.
+const PICK_MENU_CANDIDATES = 3;
+const STALE_DAYS = 30;
+const DESTINATIONS = {
+  here: { label: "Execute here", destination: "task", text: "Work the whole prompt in this session; it changes nothing about your branches." },
+  split: { label: "Execute here, split by check", destination: "task", split: true, text: "One task per check, each finished one committed on a foreman/<slug> branch." },
+  agent: { label: "Execute with a background agent", destination: "agent", text: "Offload it and get notified when it finishes; best for orchestration, where this session owns the commits." },
+  clipboard: { label: "Copy prompt to clipboard", destination: "clipboard", text: "Just get the text, no execution." },
+};
+
+function daysOld(date) {
+  return (Date.parse(today()) - Date.parse(String(date || "").slice(0, 10))) / 86400000;
+}
+
+// Q1's rows from a next-candidates result of either shape: up to two
+// awaiting_acceptance and two in_progress rows, oldest first, then the
+// ranked candidates. The first row is the recommendation. A Codex option
+// string leads with the id (skills/foreman/questions.md).
+function pickRows(ready, host) {
+  const oldest = (rows) =>
+    [...(rows || [])]
+      .sort((a, b) => String(a.updated_at).localeCompare(String(b.updated_at)))
+      .slice(0, MENU_SETTLE_ROWS);
+  const label = (id, text) => (host === "codex" ? `${id} - ${text}` : `${text} (${id})`);
+  const rows = [
+    ...oldest(ready.awaiting_acceptance).map((e) => ({
+      id: e.id, kind: "accept", label: label(e.id, `Accept: ${e.title}`), why: menuExcerpt(e.why),
+      reason: `finished, waiting on you since ${e.updated_at}`, updated_at: e.updated_at,
+    })),
+    ...oldest(ready.in_progress).map((e) => ({
+      id: e.id, kind: "resume", label: label(e.id, `Resume: ${e.title}`), why: menuExcerpt(e.why),
+      reason: `in progress since ${e.updated_at}`, updated_at: e.updated_at,
+    })),
+    ...ready.candidates.slice(0, PICK_MENU_CANDIDATES).map((c) => ({
+      id: c.id, kind: "planned", label: label(c.id, c.title), why: menuExcerpt(c.why), reason: c.reason,
+    })),
+  ];
+  if (rows.length) rows[0].label += " (Recommended)";
+  return rows;
+}
+
+// The tree probe of `safe-commit.js begin`: only dirty:false lets a split
+// commit. A git failure or no repository counts as dirty. Required lazily:
+// safe-commit.js requires this module.
+function treeDirty(root) {
+  try {
+    return require("./safe-commit").beginUnit(root).dirty !== false;
+  } catch {
+    return true;
+  }
+}
+
+// Q2's four options, always all four and in this order. One carries
+// (Recommended) by the first rule that holds; an option with a live reason
+// against it carries (Caution), with the shortest reason when several hold.
+// `checks` counts every verification row, `runnable` the rows with a run
+// command, and `slices` the rows after the first that name their own slice.
+function destinationOptions({ otherWork, collision, dirty, checks, runnable, slices, contextHigh, canDelegate, reviewer }) {
+  const shortest = (reasons) => reasons.filter(Boolean).sort((a, b) => a.length - b.length)[0];
+  const caution = {
+    split: shortest([
+      dirty && "No commits and no branch: your tree already has uncommitted changes.",
+      checks < 2 && "Only one task, so this is Execute here under another name.",
+      checks >= 2 && slices === 0 && "The later tasks would only run a command; one task holds everything.",
+    ]),
+    agent: shortest([
+      collision === true && "It edits files another running task also plans to touch.",
+      runnable < 1 && "Nothing runnable, so it cannot tell whether it succeeded.",
+      dirty && "It edits this same tree, around your uncommitted changes.",
+      !canDelegate && "This session cannot start one; the prompt can still be copied.",
+      !reviewer && "Nobody would be there to accept each result.",
+    ]),
+  };
+  // A resume row has no collision flag, and unknown is not false.
+  const recommended = contextHigh
+    ? "clipboard"
+    : otherWork && collision === false && !dirty && runnable >= 1 && canDelegate && reviewer
+      ? "agent"
+      : checks >= 2 && slices >= checks - 1 && !dirty
+        ? "split"
+        : "here";
+  const because = {
+    clipboard: "This session is filling up; a fresh one will do better.",
+    agent: "Other work is running and this task stays clear of it.",
+    split: "The work verifies in stages, so it can commit in stages.",
+  };
+  return Object.entries(DESTINATIONS).map(([dest, d]) => ({
+    dest,
+    label: d.label + (dest === recommended ? " (Recommended)" : "") + (caution[dest] ? " (Caution)" : ""),
+    description: [d.text, dest === recommended && because[dest], caution[dest]].filter(Boolean).join(" "),
+  }));
+}
+
+function cmdStepPick(root, flags) {
+  if (flags.flow !== "pick") {
+    throw new Error(`step takes one flow, pick${flags.flow ? `, not ${flags.flow}` : ""}. Run roadmap.js step pick`);
+  }
+  if (flags.after !== undefined && !["q1", "q2"].includes(flags.after)) {
+    throw new Error(`invalid value for step pick: --after ${flags.after}. Give q1 after the task question or q2 after the destination question`);
+  }
+  const host = detectHost();
+  // Single quotes run unchanged in bash and PowerShell. The hint keeps only
+  // the letters, digits and marks its ranking reads, so it needs no escaping.
+  const file = __filename.replaceAll("\\", "/");
+  const step = `node ${file.includes("'") ? JSON.stringify(file) : `'${file}'`} step pick`;
+  const hint = flags.hint !== undefined
+    ? ` --hint '${String(flags.hint).replace(/[^\p{L}\p{N}\p{M}]+/gu, " ").trim()}'`
+    : "";
+  const entries = readEntries(root);
+  // A named pick may start a deferred entry; done or dropped work cannot start.
+  const holder = (id, flag) => {
+    const row = soleHolder(entries, id, "ROADMAP.jsonl");
+    if (!row) throw new Error(`no entry ${named(id)} in ROADMAP.jsonl for ${flag}. Run step pick again and choose a listed id`);
+    if (!["planned", "deferred", "in_progress", "awaiting_acceptance"].includes(row.status)) {
+      throw new Error(`entry ${named(row.id)} is ${row.status}, so there is nothing to start. Ask the user to choose another entry`);
+    }
+    if (flag !== "--chose" && row.status === "awaiting_acceptance") {
+      throw new Error(`entry ${named(row.id)} is awaiting_acceptance, so it is accepted, not crafted. Run step pick --chose ${row.id}`);
+    }
+    return row;
+  };
+  const sentence = (text) => (/[.!?]$/.test(text) ? text : `${text}.`);
+  const intro = (row) => (flags.intro ? { intro: { id: row.id, title: row.title, why: menuExcerpt(row.why) } } : {});
+  const count = (flag, fallback) => {
+    const v = flags[flag] ?? fallback;
+    if (!/^\d+$/.test(String(v ?? ""))) {
+      throw new Error(`step pick --${flag} takes a whole number, not ${v}`);
+    }
+    return Number(v);
+  };
+
+  if (flags.dest !== undefined) {
+    const dest = DESTINATIONS[flags.dest];
+    if (!dest) throw new Error(`invalid value for step pick: --dest ${flags.dest}. Give here, split, agent or clipboard`);
+    if (flags.entry === undefined) throw new Error("step pick --dest needs --entry <id>, the entry the user chose");
+    const row = holder(flags.entry, "--entry");
+    if (flags.after === "q2") recordTrial("question_asked", { flow: "pick" }, { root });
+    return {
+      next: "craft",
+      dest: flags.dest,
+      craft: { entry: row.id, host, destination: dest.destination, resume: row.status === "in_progress", split: dest.split === true },
+      ...intro(row),
+    };
+  }
+
+  if (flags.entry !== undefined) {
+    const row = holder(flags.entry, "--entry");
+    if (flags.checks === undefined) {
+      throw new Error("step pick --entry needs --checks <n>, the number of verification rows (0 when there are none), or --dest <destination>");
+    }
+    const checks = count("checks");
+    const ready = cmdNextCandidates(root, { limit: String(Number.MAX_SAFE_INTEGER) });
+    const candidate = ready.candidates.find((c) => c.id === row.id);
+    // A pick that skipped Q1 names its entry inside the question itself, so
+    // the user can still veto or redirect it there.
+    const ask = "How do you want to run this?";
+    return {
+      next: "ask_q2",
+      question: flags.intro ? `${row.title} (${row.id}): ${sentence(menuExcerpt(row.why))} ${ask}` : ask,
+      options: destinationOptions({
+        otherWork: ready.in_progress.some((e) => e.id !== row.id),
+        collision: candidate ? candidate.collision : undefined,
+        dirty: treeDirty(root),
+        checks,
+        runnable: count("runnable", checks),
+        slices: count("slices", 0),
+        contextHigh: flags["context-high"] === true,
+        canDelegate: flags["no-delegate"] !== true,
+        reviewer: flags["no-reviewer"] !== true,
+      }),
+      then: `${step} --entry ${row.id} --dest <dest> --after q2`,
+    };
+  }
+
+  if (flags.chose !== undefined) {
+    const afterQ1 = flags.after === "q1";
+    // Checked before anything is recorded, so a retry logs no second question.
+    const row = ["defer", "other"].includes(flags.chose) ? null : holder(flags.chose, "--chose");
+    if (afterQ1) recordTrial("question_asked", { flow: "pick" }, { root });
+    // An accept, resume or defer choice settles existing work rather than
+    // answering "what next", so it records neither pick event.
+    if (flags.chose === "defer") return { next: "defer", then: `${step}${hint}` };
+    if (flags.chose === "other") {
+      if (afterQ1) recordTrial("pick_overridden", { chosen_rank: null }, { root });
+      throw new Error("the answer names no listed entry. Find the entry the user described with roadmap.js list --summary and run step pick --chose <id>; work that is not on the roadmap is added first");
+    }
+    if (afterQ1 && row.status === "planned") {
+      const at = pickRows(cmdNextCandidates(root, { hint: flags.hint }), host).findIndex((r) => r.id === row.id);
+      if (at === 0) recordTrial("pick_accepted", { rank: 1 }, { root });
+      else recordTrial("pick_overridden", { chosen_rank: at > 0 ? at + 1 : null }, { root });
+    }
+    const [selected] = cmdList(root, { ids: row.id }).entries;
+    const stale = /survey \(unconfirmed\):/.test(String(row.notes || "")) ? { stale: true } : {};
+    const then = `${step} --entry ${row.id}${afterQ1 ? "" : " --intro"} --checks <n>`;
+    if (row.status === "awaiting_acceptance") return { next: "accept", entry: selected };
+    if (row.status === "in_progress") return { next: "resume", entry: selected, ...stale, then };
+    return { next: "gather_checks", entry: selected, ...stale, then };
+  }
+
+  // next-candidates --menu records menu_shown, and hint_used on a hint.
+  const menu = cmdNextCandidates(root, { menu: true, hint: flags.hint });
+  const rows = pickRows(menu, host);
+  if (!rows.length) return { next: "empty" };
+  const signals = {
+    ...(menu.hint_matched === false ? { hint_matched: false } : {}),
+    ...(rows.some((r) => r.updated_at && daysOld(r.updated_at) > STALE_DAYS) ? { stale: true } : {}),
+  };
+  if (rows.length === 1) return { ...cmdStepPick(root, { flow: "pick", chose: rows[0].id }), ...signals };
+  return {
+    next: "ask_q1",
+    question: "Which task next?",
+    options: rows.map(({ updated_at, ...row }) => row),
+    ...signals,
+    then: `${step} --chose <id> --after q1${hint}`,
+  };
 }
 
 // [Foreman: 342] Letters and digits of every script count, so "sesión" stays
@@ -2706,6 +2929,31 @@ naming the field, each line and code point.
                     user's yes -- same in both shapes, omitted when empty.
                     Separate from in_progress: the action is accept, not
                     resume
+  step              argument: pick   (the one flow; skills/roadmap/pick.md
+                    runs it). Each call names the next action in "next" and
+                    the command after it in "then"; nothing is kept between
+                    calls. next is ask_q1 (question, options rows of id/kind/
+                    label/why/reason, hint_matched:false when a hint found
+                    nothing, stale:true when a settle row is over 30 days
+                    old), accept, resume, defer, gather_checks (entry: the
+                    selected row as list --ids gives it), ask_q2 (question,
+                    the four options with dest/label/description), craft
+                    (craft: the craft-handoff.js fields it settles) or
+                    empty. No flags: the menu, recorded like next-candidates
+                    --menu; one option is taken as the pick
+                    flag: --hint "words"   (the menu's ranking)
+                    flag: --chose <id|other|defer>   (with --after q1 once
+                    Q1 was asked: records question_asked and pick_accepted
+                    or pick_overridden; other fails with what to do)
+                    flag: --entry <id> --checks <n> [--runnable <r>]
+                    [--slices <s>] [--intro] [--context-high]
+                    [--no-delegate] [--no-reviewer]
+                    (probes the tree like safe-commit.js begin and returns
+                    Q2; n counts verification rows, r those with a run
+                    command (default n), s the rows after the first that
+                    name their own slice (default 0))
+                    flag: --entry <id> --dest here|split|agent|clipboard
+                    [--after q2]   (craft; --after q2 records the question)
   check-duplicate   stdin JSON: {title, why}
                     word-overlap match against ALL entries regardless of
                     status, archived ones included (archived:true on those);
@@ -2833,6 +3081,20 @@ const SUBCOMMAND_FLAGS = {
   restore: {},
   list: { status: "list", ids: "list", summary: "switch", stats: "switch", archived: "switch" },
   "next-candidates": { limit: "value", menu: "switch", hint: "value" },
+  step: {
+    hint: "value",
+    chose: "value",
+    after: "value",
+    entry: "value",
+    checks: "value",
+    runnable: "value",
+    slices: "value",
+    intro: "switch",
+    "context-high": "switch",
+    "no-delegate": "switch",
+    "no-reviewer": "switch",
+    dest: "value",
+  },
   "check-duplicate": {},
   doctor: { fix: "switch" },
   migrate: {},
@@ -2857,7 +3119,7 @@ function main() {
     process.stdout.write(lines.slice(start, end).join("\n") + "\n");
     return;
   }
-  const flags = parseFlags(sub, SUBCOMMAND_FLAGS[sub], rest);
+  const flags = parseFlags(sub, SUBCOMMAND_FLAGS[sub], rest, sub === "step" ? "flow" : undefined);
   const root = projectDir();
   let result;
   switch (sub) {
@@ -2890,6 +3152,9 @@ function main() {
       break;
     case "next-candidates":
       result = cmdNextCandidates(root, flags);
+      break;
+    case "step":
+      result = cmdStepPick(root, flags);
       break;
     case "check-duplicate":
       result = cmdCheckDuplicate(root, readStdinJSON());
@@ -2935,6 +3200,8 @@ module.exports = {
   cmdRestore,
   cmdList,
   cmdNextCandidates,
+  cmdStepPick,
+  destinationOptions,
   cmdCheckDuplicate,
   cmdDoctor,
   cmdMigrate,

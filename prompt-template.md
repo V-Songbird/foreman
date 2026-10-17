@@ -1020,8 +1020,8 @@ together, in a single question the crafting skill owns, before the prompt
 exists — `AskUserQuestion` in Claude Code, the available question tool (or a
 plain question when none is usable) in Codex. Its exact wording, its options,
 the split option's caution and the `(Recommended)` placement all live in
-`skills/roadmap/destination-question.md` — the one copy both crafting flows
-read at that step. Gather the verification rows *before* asking: that
+`skills/roadmap/destination-question.md`, which craft-prompt reads at that
+step; a roadmap pick gets the same rules from `roadmap.js step pick`. Gather the verification rows *before* asking: that
 question reads them.
 
 **Execute here** — work the accepted prompt in this session. A split run

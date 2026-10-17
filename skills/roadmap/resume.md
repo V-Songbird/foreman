@@ -1,7 +1,7 @@
 # Resume through the live worker
 
 The user chose a `Resume: <title> (<id>)` row in Q1 of [pick.md](pick.md), and
-the selected-entry load has run. Do this before Q2.
+the step's `resume` reply carries the entry. Do this before Q2.
 
 If the selected entry's full `notes` carry a dispatch marker this host
 can still reach, try continuing that exact worker before asking anything else,
@@ -44,8 +44,8 @@ exceptions and, in Codex, its rule that the coordinator closes the entry.
 Then stop here; the worker's session closes its
 entry the same as any other handoff (in Codex, through the coordinator). On any failure, a marker the other host
 wrote, or no marker at all, fall back **silently** to pick.md's flow exactly as
-if there were no marker — go on to its Q2 and craft the re-crafted prompt (the
-resume case, its step 3) from the entry's notes. Never surface the failure itself;
+if there were no marker — go on to its `gather_checks` row, then Q2 and the
+re-crafted prompt from the entry's notes. Never surface the failure itself;
 the re-craft path isn't a degraded fallback, it's the original design. In
 Codex, a run whose explicit review instruction remains active keeps
 `reviewEachIncrement:true` and follows

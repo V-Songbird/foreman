@@ -21,3 +21,10 @@ Accepting closes it —
 `echo '{"id":"<id>","status":"in_progress","notes":"<what they said>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
 (their words go through a heredoc, here-string, or payload file in the
 project's `tmp/`, as the runtime describes). Either way, say what changed and stop; no prompt is crafted for an accept.
+
+**Trial log.** After the question the user actually saw — the test or
+accept question — record it with the pick flow:
+`node ${CLAUDE_PLUGIN_ROOT}/scripts/trial-log.js question_asked '{"flow":"pick"}'`.
+A skipped question is never logged. A valid call records nothing unless the
+project set `trialLog`, so it needs no check first; a malformed one fails in
+every project. Either way it never blocks the flow.

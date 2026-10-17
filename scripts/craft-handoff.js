@@ -1472,7 +1472,7 @@ Takes no flags: stdin JSON in, one JSON line out:
 The input is {"entry":"<id>", ...} for a roadmap pick, or title, what and
 touches given inline for an entry-less prompt (judgment.purpose carries the
 why), plus host, destination and judgment.
-skills/roadmap/pick.md step 3 and skills/craft-prompt/assemble.md give the full payload.
+skills/roadmap/pick.md's Craft section and skills/craft-prompt/assemble.md give the full payload.
 `;
 
 function main() {

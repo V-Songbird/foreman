@@ -372,10 +372,10 @@ describe('skill contracts', () => {
     const skill = readSkill('skills', 'roadmap', 'pick.md');
     const accept = readSkill('skills', 'roadmap', 'accept.md');
 
-    assert.match(skill, /`Accept: <title> \(<id>\)`/);
-    assert.match(skill, /that choice \(\*\*Accept\*\*\), read \[accept\.md\]\(accept\.md\)/);
-    assert.match(skill, /`awaiting_acceptance` entries, then up to two `in_progress` entries/);
-    assert.match(skill, /accept options lead/);
+    // The Accept rows and their place at the top of Q1 come from
+    // roadmap.js step pick (tests/step_pick.test.js); the skill maps the code.
+    assert.match(skill, /\| `accept` \| Read \[accept\.md\]\(accept\.md\)/);
+    assert.match(accept, /`Accept: <title> \(<id>\)`/);
     assert.ok(accept.includes(`echo '{"id":"<id>","status":"done"}'`));
     assert.match(accept, /declining sends it back/);
     assert.ok(accept.includes(`echo '{"id":"<id>","status":"in_progress","notes":"<what they said>"}'`));
