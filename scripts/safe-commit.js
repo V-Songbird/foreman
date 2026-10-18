@@ -43,7 +43,9 @@ const { projectDir, parseFlags, printHelp } = require("./runtime");
 // [Foreman: 967] Git through the Codex sandbox's pipe-refusal fallback.
 const { runGit } = require("./run-git");
 
-function git(root, args) {
+// `options` overrides the defaults: task.js commits with timeout 0, because a
+// project's pre-commit hook may run its whole suite.
+function git(root, args, options = {}) {
   return runGit(root, args, {
     encoding: "utf-8",
     stdio: ["ignore", "pipe", "pipe"],
@@ -51,6 +53,7 @@ function git(root, args) {
     // finish runs on the close path; a hung git must not hang it -- same
     // rationale as commit-evidence.js's read timeout.
     timeout: 30000,
+    ...options,
   });
 }
 
@@ -366,7 +369,9 @@ function finishUnit(root, options) {
   const bookkeeping = (file) => isSharedLedger(file) && !(roadmapClose && file === ROADMAP_FILE);
   const changed = changedAll.filter((file) => !bookkeeping(file));
   const ledgerExcluded = changedAll.filter(bookkeeping);
-  if (!changed.length) return { ok: false, reason: "no_task_changes", baseline };
+  // [Foreman: 1112] A declared close's ROADMAP.jsonl alone is not a task
+  // change: the entry's own in_progress flip always leaves it changed.
+  if (changed.every(isSharedLedger)) return { ok: false, reason: "no_task_changes", baseline };
 
   // [Foreman: 410] A gitlink is staged only when `expected` names that exact
   // path. An area hint is not enough — `lib/a.js` overlaps `lib` in both
@@ -589,4 +594,8 @@ module.exports = {
   attestCommit,
   changedSinceBaseline,
   isOwned,
+  git,
+  stagedSince,
+  CLOSE_BOOKKEEPING,
+  ROADMAP_FILE,
 };

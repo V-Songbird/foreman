@@ -911,7 +911,9 @@ function claudeEntryParagraphText({ id, resume, notesPlace = null, requireVerifi
     '"notes":"<findings>"',
     ...(splitStep ? ['"unverified":[]'] : []),
   ];
-  const closeCall = `When the work concludes, close the entry with the status it actually earned (\`done\`, \`dropped\`, \`rejected\`) and your full findings in \`notes\`, by piping this JSON into start's \`then\`:\n\`echo '{${fields.join(",")}}' | <start's then>\``;
+  // [Foreman: 1112] A quoted heredoc, not a single-quoted echo: an apostrophe
+  // in the message or the notes would end the echo's quoting.
+  const closeCall = `When the work concludes, close the entry with the status it actually earned (\`done\`, \`dropped\`, \`rejected\`) and your full findings in \`notes\`, by sending this JSON to start's \`then\` through a quoted heredoc, which keeps every apostrophe as written (in PowerShell, pipe a literal here-string \`@'...'@\` into it instead):\n<start's then> <<'EOF'\n{${fields.join(",")}}\nEOF`;
   const hold = requireVerification
     ? ` It records an earned \`done\` as \`awaiting_acceptance\`: this project holds finished work for ${delegatedTo ? `the orchestrator ${delegatedTo}'s` : "the user's"} acceptance.`
     : "";
@@ -924,7 +926,7 @@ function claudeEntryParagraphText({ id, resume, notesPlace = null, requireVerifi
     requireVerification && (agent || delegatedTo) && "- `report_acceptance`: do what its `say` says.",
     "- `closed`: the entry is closed; nothing more to record.",
     !investigation && "- `report_dirty`: nothing was staged or committed; tell the user its `say` in one line, then act on its `after`.",
-    !investigation && "- `refused`: follow its `fix`.",
+    !investigation && "- `refused`: follow its `fix`, then act on its `after` when it has one.",
   ].filter(Boolean);
   const finishCodes = `It prints one JSON line; act on its \`next\`:\n${codes.join("\n")}`;
 

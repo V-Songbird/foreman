@@ -34,11 +34,10 @@ const {
   normalizedTouch,
   submodulePaths,
 } = require("./roadmap");
-const { beginUnit, finishUnit, attestCommit, isOwned } = require("./safe-commit");
+const { beginUnit, finishUnit, attestCommit, isOwned, git, stagedSince, CLOSE_BOOKKEEPING, ROADMAP_FILE } = require("./safe-commit");
 const { render } = require("./render-sections");
 const { record: recordTrial } = require("./trial-log");
 const { projectDir, parseFlags, printHelp } = require("./runtime");
-const { runGit } = require("./run-git");
 
 // Single quotes run unchanged in bash and PowerShell; a path holding one is
 // written as a JSON string instead, as `step pick` does.
@@ -103,11 +102,17 @@ function cmdStart(root, flags) {
   const boundary = beginUnit(sub ? path.join(root, sub) : root);
   if (boundary.dirty) {
     recordTrial("commit_interrupted", { hook: "safe-commit", reason_class: "dirty_tree" }, { root });
+    const where = sub ? `submodule ${sub}` : "project";
+    // [Foreman: 1112] Only a tree with changes is blamed on someone else's.
+    const cause = {
+      working_tree_has_changes: `The ${sub ? `submodule ${sub}` : "tree"} already holds changes that are not this task's`,
+      not_a_git_worktree: `The ${where} is not a git work tree`,
+    }[boundary.reason] || `Git could not read the ${where}'s status`;
     return {
       next: "report_dirty",
       reason: boundary.reason,
       ...(boundary.cause ? { cause: boundary.cause } : {}),
-      say: `The ${sub ? `submodule ${sub}` : "tree"} already holds changes that are not this task's, so this run stages and commits nothing; the task's changes stay in the tree for you to commit.`,
+      say: `${cause}, so this run stages and commits nothing; the task's changes stay in the tree for you to commit.`,
       then: finishCommand(id, flags),
     };
   }
@@ -131,14 +136,10 @@ function withTrailer(message, id) {
   return `${text}${block ? "\n" : "\n\n"}${trailer}`;
 }
 
-function gitText(cwd, args, extra = {}) {
-  return runGit(cwd, args, { encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 8 * 1024 * 1024, ...extra });
-}
-
 function commit(cwd, message) {
   // No timeout: a project's pre-commit hook may run its whole suite.
-  gitText(cwd, ["commit", "-q", "-m", message]);
-  return gitText(cwd, ["rev-parse", "HEAD"]).trim();
+  git(cwd, ["commit", "-q", "-m", message], { timeout: 0 });
+  return git(cwd, ["rev-parse", "HEAD"]).trim();
 }
 
 // What the session does once the entry is closed.
@@ -191,8 +192,6 @@ function acceptance(entry, recorded, unverified, flags) {
 }
 
 const STATUSES = ["done", "dropped", "rejected"];
-// The bookkeeping a staged close may already hold in the index.
-const CLOSE_BOOKKEEPING = ["ROADMAP.jsonl", ".foreman/archive.jsonl"];
 
 function stringList(value, field) {
   if (value === undefined) return [];
@@ -250,15 +249,15 @@ function cmdFinish(root, flags, payload) {
   const sub = plannedSubmodule(root, entry.planned_touches);
   const cwd = sub ? path.join(root, sub) : root;
   const owned = sub ? files.map((file) => (normalizedTouch(file).startsWith(`${sub}/`) ? normalizedTouch(file).slice(sub.length + 1) : file)) : files;
+  // The staged close: a tracked roadmap at the root rides in the task's commit.
+  const stagedClose = !sub && ignoredPaths(root, [ROADMAP_FILE]).length === 0;
   // [Foreman: 1078] Someone else's changes in the tree, seen at start (no
   // baseline) or staged in the index since: the close is recorded without
   // touching the index, so nothing of the task's lands in their pending
   // commit, and nothing of theirs in a Foreman one.
   const foreignStaged = () => {
     try {
-      return gitText(cwd, ["diff", "--cached", "--name-only", "--no-renames", "-z"])
-        .split("\0").filter(Boolean).map((file) => file.replaceAll("\\", "/"))
-        .filter((file) => !isOwned(file, sub ? owned : [...owned, ...CLOSE_BOOKKEEPING]));
+      return stagedSince(cwd, "HEAD").filter((file) => !isOwned(file, stagedClose ? [...owned, ...CLOSE_BOOKKEEPING] : owned));
     } catch {
       return null;
     }
@@ -275,11 +274,16 @@ function cmdFinish(root, flags, payload) {
     };
   };
   const staged = flags.baseline ? foreignStaged() : null;
-  if (!flags.baseline) return unstaged("dirty_at_start", "The tree held changes that are not this task's");
+  // [Foreman: 1112] No baseline says only that start took no boundary: it
+  // found the tree holding changes or unreadable, or this ran by hand.
+  if (!flags.baseline) return unstaged("no_baseline", "This close has no --baseline from start to tell the task's changes from anyone else's");
   if (staged === null) return unstaged("git_status_unavailable", "Git could not list the staged changes");
   if (staged.length) return unstaged("index_has_other_changes", `The index already holds staged changes that are not this task's (${staged.join(", ")})`, { staged_files: staged });
 
-  const unit = finishUnit(cwd, { id, expected: owned, baseline: flags.baseline, noCommit: true, allowUnexpected: flags["allow-unexpected"] === true });
+  // [Foreman: 1112] roadmap_close lets bookkeeping the index already holds
+  // stay staged, as foreignStaged does; without it finish read that as an
+  // unexpected file and reset the whole index.
+  const unit = finishUnit(cwd, { id, expected: owned, baseline: flags.baseline, noCommit: true, roadmap_close: stagedClose, allowUnexpected: flags["allow-unexpected"] === true });
   // [Foreman: 1078] A commit since start makes the delta no longer this
   // task's alone, so the close is recorded unstaged under its own reason.
   if (unit.reason === "head_moved_since_baseline") {
@@ -301,10 +305,9 @@ function cmdFinish(root, flags, payload) {
 
   annotate();
   const text = withTrailer(message, id);
-  const privateRoadmap = !sub && ignoredPaths(root, ["ROADMAP.jsonl"]).length > 0;
   let closed;
   let sha;
-  if (!sub && !privateRoadmap) {
+  if (stagedClose) {
     // The staged close: ROADMAP.jsonl rides in the task's own commit.
     closed = cmdUpdateStatus(root, { ...close, staged: true });
     try {
@@ -313,7 +316,9 @@ function cmdFinish(root, flags, payload) {
       return refusal(root, "commit_failed", {
         error: String(error.stderr || error.message).trim(),
         closed: true,
-        fix: `The close is recorded and staged with the task's files. Fix what stopped the commit, then commit once with \`git commit\`, with \`${commitTrailerFor(id)}\` as the final line of the message.`,
+        fix: `The close is recorded and staged with the task's files. Fix what stopped the commit, then commit once with \`git commit\`, with \`${commitTrailerFor(id)}\` as the final line of the message. Then act on after.`,
+        // [Foreman: 1112] The close is recorded, so its acceptance step follows.
+        after: after(),
       });
     }
   } else {
@@ -331,7 +336,7 @@ function cmdFinish(root, flags, payload) {
     }
     closed = cmdUpdateStatus(root, { ...close, commit: sha });
   }
-  const attested = attestCommit(cwd, { baseline: flags.baseline, commit: sha, id, roadmapClose: !sub && !privateRoadmap });
+  const attested = attestCommit(cwd, { baseline: flags.baseline, commit: sha, id, roadmapClose: stagedClose });
   const warnings = [...(closed.warnings || []), ...(attested.ok ? [] : [`the commit did not pass attestation: ${attested.reasons.join(", ")}`])];
   return {
     ...after(),
@@ -361,8 +366,9 @@ error, with {"ok":false,"error":"..."}.
           in_progress stays as it is) and takes the commit boundary, inside
           the submodule when every planned file sits in one.
           next work: do the task; baseline is the boundary.
-          next report_dirty: the tree holds someone else's changes; tell
-            the user say, do the work, and the close commits nothing.
+          next report_dirty: no boundary, because the tree holds someone
+            else's changes or git could not read it (reason says which);
+            tell the user say, do the work, and the close commits nothing.
           then: the finish command, with the boundary and these flags.
 
   finish  --id <id> [--baseline <sha>] [--investigation] [--agent]
@@ -379,11 +385,12 @@ error, with {"ok":false,"error":"..."}.
             option's then, or do what its do says.
           next report_acceptance: do what say says.
           next closed: nothing more to record.
-          next report_dirty: the tree held someone else's changes, or HEAD
-            moved since start (reason says which); the close is recorded,
-            nothing was staged or committed; tell the user say, then act
-            on after.
-          next refused: nothing was closed unless closed says so; follow fix.
+          next report_dirty: no --baseline, the index held someone else's
+            changes, or HEAD moved since start (reason says which); the
+            close is recorded, nothing was staged or committed; tell the
+            user say, then act on after.
+          next refused: nothing was closed unless closed says so; follow
+            fix, and act on after when it is given.
 `;
 
 const SUBCOMMAND_FLAGS = {

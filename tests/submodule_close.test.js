@@ -174,8 +174,8 @@ describe('the handoff close for work inside a submodule', () => {
       assert.equal(json.tasks.length, 2);
       const rows = json.tasks.map((row) => row.description).join('\n');
       if (host === 'claude') {
-        assert.equal(rows.split("| <start's then>").length, 2, 'one close across the rows');
-        assert.ok(json.tasks[1].description.includes("| <start's then>"));
+        assert.equal(rows.split("<start's then> <<'EOF'").length, 2, 'one close across the rows');
+        assert.ok(json.tasks[1].description.includes("<start's then> <<'EOF'"));
       } else {
         assert.equal(rows.split('"commit":"<the submodule commit sha>"').length, 2, 'one close across the rows');
         assert.match(json.tasks[1].description, /git -C '?lib'? rev-parse HEAD/);

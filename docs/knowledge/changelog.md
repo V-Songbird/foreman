@@ -65,6 +65,18 @@ instead.
   instead of mixing in someone else's changes. In a multi-task run, the
   prompt says to run `start` again right after the previous task's commit,
   before the last task changes any file.
+- `task.js finish` handles more cases. Roadmap files that were already
+  staged now go into the task's commit; before, `finish` refused the close
+  and unstaged everything in the index. When the commit itself fails, for
+  example because a pre-commit hook refuses it, `finish` still says whether
+  to ask for acceptance, and the trial log records the failure. When Git
+  cannot read the tree at `start`, or `finish` runs without the `--baseline`
+  that `start` returned, the message no longer says that someone else changed
+  the tree. The prompt now passes the close's JSON through a quoted heredoc,
+  so an apostrophe in the commit message or the notes no longer breaks the
+  command. A Workflow-stage prompt for a background agent that runs
+  `task.js start` or `task.js finish` now fails the prompt check, as
+  `roadmap.js` and `safe-commit.js` commands already did.
 - The commit reminder also carries the commit's short SHA, so there is no
   `git rev-parse` step left to run.
 - The full roadmap discovery rules arrive once per session. Later commits get

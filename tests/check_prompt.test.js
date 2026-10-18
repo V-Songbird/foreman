@@ -1056,6 +1056,23 @@ describe('host claude: a Workflow stage sent to an agent', () => {
     }
   });
 
+  // [Foreman: 1112] task.js start and finish are the Claude Code entry
+  // paragraph's bookkeeping, so they fail too; a project's own task.js with
+  // another verb passes.
+  test('a task.js start or finish command fails; another task.js verb passes', () => {
+    for (const command of [
+      '`node ${CLAUDE_PLUGIN_ROOT}/scripts/task.js start --id 001`',
+      '`node "/opt/my plugins/foreman/scripts/task.js" finish --id 001 --baseline abc1234`',
+    ]) {
+      const errors = runCheck(makeTmpProject(), stage({ entry_paragraph: command }), entryLess).json.errors || [];
+      assert.ok(errors.some((e) => e.error.includes('roadmap bookkeeping')), `${command}\n${JSON.stringify(errors)}`);
+    }
+    for (const command of ['`node scripts/task.js build`', '`node tools/my-task.js start`']) {
+      const errors = runCheck(makeTmpProject(), stage({ entry_paragraph: command }), entryLess).json.errors || [];
+      assert.ok(!errors.some((e) => e.error.includes('roadmap bookkeeping')), `${command}\n${JSON.stringify(errors)}`);
+    }
+  });
+
   test('a project script whose name ends in roadmap.js, or prose after a node command, passes', () => {
     for (const command of [
       '`node scripts/build-roadmap.js`',

@@ -74,6 +74,9 @@ const REASON_CLASSES = [
   // [Foreman: 497] finish refusing a submodule gitlink its expected list does
   // not name exactly.
   "gitlink_not_expected",
+  // [Foreman: 1112] task.js finish when git commit itself fails, as when a
+  // project's pre-commit hook refuses.
+  "commit_failed",
   "verification_declined",
 ];
 const RECOVERY_KINDS = ["reinit-snapshot", "resume-in-progress"];

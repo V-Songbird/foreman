@@ -13,7 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const { makeTmpProject, writeRoadmap, writeConfig, initGitRepo, runNodeScript, SCRIPTS_DIR } = require('./helpers.js');
+const { makeTmpProject, writeRoadmap, writeArchiveFile, writeConfig, initGitRepo, runNodeScript, SCRIPTS_DIR } = require('./helpers.js');
 const { withTrailer, plannedSubmodule } = require(path.join(SCRIPTS_DIR, 'task.js'));
 const { claudeEntryParagraphText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
 
@@ -131,6 +131,16 @@ describe('task.js start', () => {
     assert.match(task(['start']).json.error, /needs --id <entry id>/);
     assert.match(task(['start', '--id', '001', '--baseline', 'x']).json.error, /unknown flag for task\.js start: --baseline/);
   });
+
+  // [Foreman: 1112] Only a tree that holds changes is blamed on someone else.
+  test('outside git, start says git could not read the project', () => {
+    writeRoadmap(project, [entry()]);
+    const start = ok(['start', '--id', '001']);
+    assert.equal(start.next, 'report_dirty');
+    assert.ok(['git_status_unavailable', 'not_a_git_worktree'].includes(start.reason), start.reason);
+    assert.match(start.say, /^(Git could not read the project's status|The project is not a git work tree), so this run stages and commits nothing/);
+    assert.doesNotMatch(start.say, /not this task's/);
+  });
 });
 
 describe('task.js finish', () => {
@@ -213,7 +223,7 @@ describe('task.js finish', () => {
     write('src/a.js', 'two\n');
     const result = runThen(start.then, { status: 'done', files: ['src/a.js'], message: 'Change a', notes: 'changed a' });
     assert.equal(result.next, 'report_dirty');
-    assert.equal(result.reason, 'dirty_at_start');
+    assert.equal(result.reason, 'no_baseline');
     assert.equal(result.after.next, 'ask_acceptance');
     assert.equal(head(), before, 'no commit');
     assert.deepEqual(stagedNames(), ['notes.txt'], 'the index holds only what the user staged');
@@ -312,6 +322,62 @@ describe('task.js finish', () => {
     assert.match(stored().notes, /the cause is x/);
   });
 
+  // [Foreman: 1112] finish staged without roadmap_close, so bookkeeping the
+  // index already held read as unexpected_files and the whole index was reset.
+  test('bookkeeping already in the index rides in the staged close', () => {
+    repo();
+    const start = ok(['start', '--id', '001']);
+    write('src/a.js', 'two\n');
+    writeArchiveFile(project, []);
+    git('add', 'ROADMAP.jsonl', '.foreman/archive.jsonl');
+    const result = runThen(start.then, { status: 'done', files: ['src/a.js'], message: 'Change a' });
+    assert.equal(result.next, 'ask_acceptance', JSON.stringify(result));
+    assert.equal(result.commit, head());
+    assert.ok(!result.warnings, JSON.stringify(result.warnings));
+    assert.deepEqual(git('show', '--name-only', '--format=', 'HEAD').split('\n').filter(Boolean).sort(), ['.foreman/archive.jsonl', 'ROADMAP.jsonl', 'src/a.js']);
+  });
+
+  test('listed files that did not change are still refused at the root', () => {
+    repo();
+    const start = ok(['start', '--id', '001']);
+    const result = runThen(start.then, { status: 'done', files: ['src/a.js'], message: 'Change a' });
+    assert.equal(result.next, 'refused');
+    assert.equal(result.reason, 'no_task_changes');
+    assert.equal(stored().status, 'in_progress');
+  });
+
+  // [Foreman: 1112] commit_failed was missing from trial-log's vocabulary, so
+  // the event was dropped, and the recorded close came back without after.
+  test('a commit refused after the close is recorded is logged and still leads to acceptance', () => {
+    repo({ config: { trialLog: true } });
+    const hooks = path.join(path.dirname(project), 'hooks');
+    fs.mkdirSync(hooks);
+    fs.writeFileSync(path.join(hooks, 'pre-commit'), '#!/bin/sh\necho refused >&2\nexit 1\n', { mode: 0o755 });
+    git('config', 'core.hooksPath', hooks);
+    const start = ok(['start', '--id', '001']);
+    write('src/a.js', 'two\n');
+    const result = runThen(start.then, { status: 'done', files: ['src/a.js'], message: 'Change a' });
+    assert.equal(result.next, 'refused');
+    assert.equal(result.reason, 'commit_failed');
+    assert.equal(result.closed, true);
+    assert.equal(result.after?.next, 'ask_acceptance', JSON.stringify(result));
+    const events = fs.readFileSync(path.join(project, '.foreman', 'trial-log.jsonl'), 'utf-8').split('\n').filter(Boolean).map((line) => JSON.parse(line));
+    assert.ok(events.some((e) => e.event === 'commit_interrupted' && e.reason_class === 'commit_failed'), JSON.stringify(events));
+  });
+
+  // [Foreman: 1112] Without a baseline, finish knows only that start took no
+  // boundary, not that someone else's changes were there.
+  test('a hand-run finish without --baseline names the missing boundary, not foreign changes', () => {
+    repo();
+    ok(['start', '--id', '001']);
+    write('src/a.js', 'two\n');
+    const result = ok(['finish', '--id', '001'], { status: 'done', files: ['src/a.js'], message: 'Change a' });
+    assert.equal(result.next, 'report_dirty');
+    assert.equal(result.reason, 'no_baseline');
+    assert.match(result.say, /no --baseline from start/);
+    assert.doesNotMatch(result.say, /changes that are not this task's/);
+  });
+
   test('refuses a bad status, files without a message and an entry that is not open', () => {
     repo();
     ok(['start', '--id', '001']);
@@ -348,7 +414,10 @@ describe('the Claude Code entry paragraph drives task.js', () => {
     const start = /`node \$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/task\.js (start [^`]+)`/.exec(paragraph);
     assert.ok(start, paragraph);
     const opened = ok(start[1].split(' '));
-    const payload = JSON.parse(/`echo '(\{[^']+\})' \| <start's then>`/.exec(paragraph)[1]);
+    // [Foreman: 1112] A quoted heredoc: in a single-quoted echo an apostrophe
+    // in the message or notes ended the quoting.
+    assert.doesNotMatch(paragraph, /echo '\{/);
+    const payload = JSON.parse(/\n<start's then> <<'EOF'\n(\{.+\})\nEOF$/m.exec(paragraph)[1]);
     assert.deepEqual(Object.keys(payload), ['status', 'files', 'message', 'notes', 'unverified']);
     write('src/a.js', 'two\n');
     const closed = runThen(opened.then, { ...payload, status: 'done', files: ['src/a.js'], message: 'Change a', notes: 'done' });

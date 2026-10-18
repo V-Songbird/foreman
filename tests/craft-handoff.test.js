@@ -2653,7 +2653,7 @@ describe('the entry close in each roadmap mode', () => {
       assert.equal(status, 0, JSON.stringify(json));
       assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
       assert.ok(json.prompt.includes('`node ${CLAUDE_PLUGIN_ROOT}/scripts/task.js start --id 001`'), json.prompt);
-      assert.ok(json.prompt.includes(`| <start's then>\``), json.prompt);
+      assert.ok(json.prompt.includes("\n<start's then> <<'EOF'\n"), json.prompt);
       assert.doesNotMatch(json.prompt, /safe-commit\.js|git-ignores ROADMAP\.jsonl|"?staged"?:true|"commit":"</);
       const split = run(project, {
         entry: '001', destination: 'task', host: 'claude', split: true,
@@ -2663,8 +2663,8 @@ describe('the entry close in each roadmap mode', () => {
         ] }),
       }).json;
       const rows = split.tasks.map((row) => row.description).join('\n');
-      assert.equal(rows.split("| <start's then>").length, 2, 'one close across the rows');
-      assert.ok(split.tasks[1].description.includes("| <start's then>"));
+      assert.equal(rows.split("<start's then> <<'EOF'").length, 2, 'one close across the rows');
+      assert.ok(split.tasks[1].description.includes("<start's then> <<'EOF'"));
     }
   });
 
