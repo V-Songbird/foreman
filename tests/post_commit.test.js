@@ -1200,6 +1200,19 @@ describe('commit directory edge cases', () => {
     assert.deepEqual(commitDirs('HUSKY=0 git log --grep commit', project), []);
   });
 
+  // [Foreman: 1101]
+  test('a $(...) or backtick in a later leading assignment still finds the commit', () => {
+    assert.deepEqual(commitDirs('A=1 B=$(date) git commit -m x', project), [project]);
+    assert.deepEqual(commitDirs('GIT_COMMITTER_DATE="$d" GIT_AUTHOR_DATE="$(date)" git commit -m x', project), [project]);
+    assert.deepEqual(commitDirs('A=1 B=`date` C=3 git commit -m x', project), [project]);
+    assert.deepEqual(commitDirs(`A=1 B=$(date) git -C "${other}" commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`cd "${other}" && A=$(x) B=1 git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs('env A=1 B=$(date) git commit -m x', project), [project]);
+    // a GIT_DIR or GIT_WORK_TREE taken from a substitution names an unknown folder
+    assert.deepEqual(commitDirs('A=1 GIT_DIR=$(x)/.git git commit -m x', project), []);
+    assert.deepEqual(commitDirs('GIT_WORK_TREE=`x` git commit -m x', project), []);
+  });
+
   test('git.exe, a path to git and the common wrappers still read as git', () => {
     for (const command of [
       'git.exe commit -m x',

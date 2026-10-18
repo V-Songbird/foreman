@@ -37,8 +37,8 @@ instead.
   `destination-question.md`, so a pick loads about a third less text: about
   9,400 tokens instead of 14,100 in Claude Code. The questions, their options
   and their rules are the same as before.
-- A commit made after a `cd`, `pushd`, `Push-Location` or `git -C` whose folder
-  is a shell variable, a `$(...)`, a backtick command or a PowerShell `( ... )`
+- A commit made after a `cd`, `pushd`, `Push-Location` or `git -C`, or with a
+  `GIT_DIR` or `GIT_WORK_TREE` assignment, whose folder is a shell variable, a `$(...)`, a backtick command or a PowerShell `( ... )`
   expression that Foreman cannot expand, quoted or not, no longer draws this
   project's commit reminders. Codex and Antigravity also read a Bash command as
   PowerShell, where a backtick is an escape, so there a backtick command still

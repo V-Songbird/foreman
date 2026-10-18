@@ -129,11 +129,17 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false) {
     // `( ... )` expression names a folder nobody knows, so its token becomes
     // OPAQUE, which moveTo reads as unknown. Unquoted, it also splits into
     // several tokens, so a `cd` holding one moves to an unknown folder.
+    // [Foreman: 1101] A `NAME=value` token keeps its name and takes OPAQUE in
+    // front of its value, so a later leading assignment such as `B=$(date)` is
+    // still skipped and its GIT_DIR or GIT_WORK_TREE value reads as unknown.
     const tokens = raw.map((t, i) => {
       const token = t.replace(shell.quoted, (match, double, single, escaped) =>
         double !== undefined ? double.replace(shell.escape, (m, c) => shell.unescape(c)) : single !== undefined ? single.replace(/''/g, "'").replace(/\$/g, LITERAL_DOLLAR) : shell.unescape(escaped)
       );
-      return i > 0 && (token.includes("$(") || (!powershell && token.includes("`")) || t.startsWith("(")) ? OPAQUE : token;
+      const substituted = token.includes("$(") || (!powershell && token.includes("`"));
+      const [, name, value] = token.match(ASSIGNMENT_RE) || [];
+      if (name) return substituted ? `${name}=${OPAQUE}${value}` : token;
+      return i > 0 && (substituted || t.startsWith("(")) ? OPAQUE : token;
     });
     const opaque = tokens.includes(OPAQUE);
     const assigned = {};
