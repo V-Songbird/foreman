@@ -38,8 +38,9 @@ instead.
   9,400 tokens instead of 14,100 in Claude Code. The questions, their options
   and their rules are the same as before.
 - A commit made after a `cd`, `pushd`, `Push-Location` or `git -C` whose folder
-  is a shell variable or a `$(...)` that Foreman cannot expand no longer draws
-  this project's commit reminders. Foreman used to read such a commit as made in
+  is a shell variable, a `$(...)`, a backtick command or a PowerShell `( ... )`
+  expression that Foreman cannot expand, quoted or not, no longer draws this
+  project's commit reminders. A `$` inside single quotes is read as literal. Foreman used to read such a commit as made in
   the session's folder, so a commit in another repository could ask to close an
   unrelated roadmap entry. Such a commit now gets no reminder, including one
   made in the project itself.

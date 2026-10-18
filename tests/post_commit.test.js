@@ -1130,6 +1130,26 @@ describe('commit directory edge cases', () => {
     assert.deepEqual(commitDirs('pushd "$p"; popd; git commit -m x', project), [project]);
   });
 
+  // [Foreman: 1093]
+  test('an unquoted $(...), a backtick or a ( ) expression in a cd names an unknown folder', () => {
+    assert.deepEqual(commitDirs('cd $(git -C ../other rev-parse --show-toplevel) && git commit -m x', project), []);
+    assert.deepEqual(commitDirs('cd `git -C ../other rev-parse --show-toplevel` && git commit -m x', project), []);
+    assert.deepEqual(commitDirs('pushd $(git rev-parse --show-toplevel) && git commit -m x', project), []);
+    assert.deepEqual(commitDirs('Set-Location (Join-Path $root sub); git commit -m x', project, true, true), []);
+    assert.deepEqual(commitDirs('Push-Location $(git rev-parse --show-toplevel); git commit -m x', project, true, true), []);
+    // the ) of the substitution does not close the subshell around it
+    assert.deepEqual(commitDirs('(cd $(git rev-parse --show-toplevel) && git commit -m x)', project), []);
+    assert.deepEqual(commitDirs('(cd $(git rev-parse --show-toplevel) && git status); git commit -m x', project), [project]);
+  });
+
+  test('a $ inside single quotes is literal', () => {
+    const literal = path.join(project, '$HOME');
+    fs.mkdirSync(literal);
+    assert.deepEqual(commitDirs("cd '$HOME' && git commit -m x", project), [literal]);
+    assert.deepEqual(commitDirs("Set-Location '$HOME'; git commit -m x", project, true, true), [literal]);
+    assert.deepEqual(commitDirs("cd '$(x)' && git commit -m x", project), [project]);
+  });
+
   test('a subshell commits where it moved, and the shell returns after it', () => {
     assert.deepEqual(commitDirs(`(cd "${other}" && git commit -m x)`, project), [other]);
     assert.deepEqual(commitDirs(`(cd "${other}" && git status); git commit -m x`, project), [project]);

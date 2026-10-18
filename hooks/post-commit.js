@@ -91,6 +91,7 @@ const WRAPPERS = new Set(["&", "command", "env", "exec", "nohup", "sudo", "time"
 const WRAPPER_CHDIR = { env: /^(?:-[^-CSu]*C|--chdir(?:=|$))/, sudo: /^(?:-[^-aCcDghpRrTtUu]*D|--chdir(?:=|$))/ };
 const GIT_RE = /(?:^|[\\/])git(?:\.exe)?$/i;
 const ASSIGNMENT_RE = /^(\w+)=([\s\S]*)$/;
+const LITERAL_DOLLAR = "\0";
 
 // [Foreman: 827] The payload's cwd is the session's directory, not always the
 // commit's: `cd /elsewhere && git commit` or `git -C /elsewhere commit` lands
@@ -115,13 +116,22 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false) {
   const text = command.replace(HEREDOC_RE, (match, heredoc) => heredoc ?? "''");
   for (let part of text.match(shell.part) || []) {
     for (part = part.trim(); part.startsWith("("); part = part.slice(1).trimStart()) subshells.push(dir);
+    // [Foreman: 1093] A `)` that closes a `$(` or `(` of the same command is
+    // not the end of a subshell.
     let closes = 0;
-    for (; part.endsWith(")"); part = part.slice(0, -1).trimEnd()) closes++;
-    const tokens = (part.match(shell.token) || []).map((t) =>
+    for (; part.endsWith(")") && part.split("(").length < part.split(")").length; part = part.slice(0, -1).trimEnd()) closes++;
+    const raw = part.match(shell.token) || [];
+    // A `$` inside single quotes is literal, so it travels as LITERAL_DOLLAR
+    // until moveTo has expanded the rest.
+    const tokens = raw.map((t) =>
       t.replace(shell.quoted, (match, double, single, escaped) =>
-        double !== undefined ? double.replace(shell.escape, (m, c) => shell.unescape(c)) : single !== undefined ? single.replace(/''/g, "'") : shell.unescape(escaped)
+        double !== undefined ? double.replace(shell.escape, (m, c) => shell.unescape(c)) : single !== undefined ? single.replace(/''/g, "'").replace(/\$/g, LITERAL_DOLLAR) : shell.unescape(escaped)
       )
     );
+    // [Foreman: 1093] An unquoted `$(...)`, a Bash backtick substitution or a
+    // PowerShell `( ... )` expression splits into several tokens, and the
+    // folder it names is unknown, as is a quoted one.
+    const opaque = tokens.some((t, i) => i > 0 && (t.includes("$(") || (!powershell && t.includes("`")) || raw[i].startsWith("(")));
     const assigned = {};
     let head = "";
     let here = dir;
@@ -145,9 +155,11 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false) {
     if (POP_COMMANDS.has(head)) dir = pushed.length ? pushed.pop() : dir;
     else if (PUSH_COMMANDS.has(head)) {
       pushed.push(dir);
-      if (args.length === 1) dir = moveTo(dir, target(args[0]));
+      if (opaque) dir = null;
+      else if (args.length === 1) dir = moveTo(dir, target(args[0]));
     } else if (CD_COMMANDS.has(head)) {
-      if (args.length < 2) dir = moveTo(dir, target(args[0]));
+      if (opaque) dir = null;
+      else if (args.length < 2) dir = moveTo(dir, target(args[0]));
     } else if (GIT_RE.test(head)) {
       let gitDir = here;
       let workTree = assigned.GIT_WORK_TREE;
@@ -180,11 +192,13 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false) {
 // as a variable assigned earlier in the same command or a `$(...)`, names a
 // folder this hook cannot see: the directory becomes unknown (null), and a
 // commit there is nobody's, until an absolute path names a folder again.
+// [Foreman: 1093] A `$` that commitDirs read inside single quotes is literal.
 function moveTo(dir, arg = "~") {
   let value = arg
     .replace(/^~(?=$|[\\/])/, os.homedir())
     .replace(/\$(?:env:)?\{?(\w+)\}?/g, (match, name) => process.env[name] ?? match);
   if (/\$[\w{(]/.test(value)) return null;
+  value = value.replaceAll(LITERAL_DOLLAR, "$");
   if (process.platform === "win32") value = value.replace(/^\/([a-z])(?=\/|$)/i, "$1:/");
   if (dir === null && !path.isAbsolute(value)) return null;
   let next = path.resolve(dir ?? "", value);
