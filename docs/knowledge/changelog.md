@@ -40,8 +40,10 @@ instead.
 - A commit made after a `cd`, `pushd`, `Push-Location` or `git -C` whose folder
   is a shell variable, a `$(...)`, a backtick command or a PowerShell `( ... )`
   expression that Foreman cannot expand, quoted or not, no longer draws this
-  project's commit reminders. A `$` inside single quotes is read as literal. Foreman used to read such a commit as made in
-  the session's folder, so a commit in another repository could ask to close an
+  project's commit reminders. Codex and Antigravity also read a Bash command as
+  PowerShell, where a backtick is an escape, so there a backtick command still
+  draws them. A `$` inside single quotes is read as literal. Foreman used to
+  read such a commit as made in the session's folder, so a commit in another repository could ask to close an
   unrelated roadmap entry. Such a commit now gets no reminder, including one
   made in the project itself.
 - The reminders after a commit are shorter. When one entry is the candidate,

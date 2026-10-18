@@ -92,6 +92,7 @@ const WRAPPER_CHDIR = { env: /^(?:-[^-CSu]*C|--chdir(?:=|$))/, sudo: /^(?:-[^-aC
 const GIT_RE = /(?:^|[\\/])git(?:\.exe)?$/i;
 const ASSIGNMENT_RE = /^(\w+)=([\s\S]*)$/;
 const LITERAL_DOLLAR = "\0";
+const OPAQUE = "$(";
 
 // [Foreman: 827] The payload's cwd is the session's directory, not always the
 // commit's: `cd /elsewhere && git commit` or `git -C /elsewhere commit` lands
@@ -117,21 +118,24 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false) {
   for (let part of text.match(shell.part) || []) {
     for (part = part.trim(); part.startsWith("("); part = part.slice(1).trimStart()) subshells.push(dir);
     // [Foreman: 1093] A `)` that closes a `$(` or `(` of the same command is
-    // not the end of a subshell.
+    // not the end of a subshell; parentheses inside quotes are text.
+    const bare = part.replace(shell.quoted, "");
     let closes = 0;
-    for (; part.endsWith(")") && part.split("(").length < part.split(")").length; part = part.slice(0, -1).trimEnd()) closes++;
+    for (let open = bare.split(")").length - bare.split("(").length; open > 0 && part.endsWith(")"); open--, closes++) part = part.slice(0, -1).trimEnd();
     const raw = part.match(shell.token) || [];
     // A `$` inside single quotes is literal, so it travels as LITERAL_DOLLAR
     // until moveTo has expanded the rest.
-    const tokens = raw.map((t) =>
-      t.replace(shell.quoted, (match, double, single, escaped) =>
+    // [Foreman: 1093] A `$(...)`, a Bash backtick substitution or a PowerShell
+    // `( ... )` expression names a folder nobody knows, so its token becomes
+    // OPAQUE, which moveTo reads as unknown. Unquoted, it also splits into
+    // several tokens, so a `cd` holding one moves to an unknown folder.
+    const tokens = raw.map((t, i) => {
+      const token = t.replace(shell.quoted, (match, double, single, escaped) =>
         double !== undefined ? double.replace(shell.escape, (m, c) => shell.unescape(c)) : single !== undefined ? single.replace(/''/g, "'").replace(/\$/g, LITERAL_DOLLAR) : shell.unescape(escaped)
-      )
-    );
-    // [Foreman: 1093] An unquoted `$(...)`, a Bash backtick substitution or a
-    // PowerShell `( ... )` expression splits into several tokens, and the
-    // folder it names is unknown, as is a quoted one.
-    const opaque = tokens.some((t, i) => i > 0 && (t.includes("$(") || (!powershell && t.includes("`")) || raw[i].startsWith("(")));
+      );
+      return i > 0 && (token.includes("$(") || (!powershell && token.includes("`")) || t.startsWith("(")) ? OPAQUE : token;
+    });
+    const opaque = tokens.includes(OPAQUE);
     const assigned = {};
     let head = "";
     let here = dir;

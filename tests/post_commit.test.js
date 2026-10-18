@@ -1140,6 +1140,17 @@ describe('commit directory edge cases', () => {
     // the ) of the substitution does not close the subshell around it
     assert.deepEqual(commitDirs('(cd $(git rev-parse --show-toplevel) && git commit -m x)', project), []);
     assert.deepEqual(commitDirs('(cd $(git rev-parse --show-toplevel) && git status); git commit -m x', project), [project]);
+    // a paren inside quotes neither opens nor closes anything
+    assert.deepEqual(commitDirs(`(cd "${other}" && git commit -m "a (b"); git commit -m y`, project), [other, project]);
+    assert.deepEqual(commitDirs(`(cd "${other}" && git commit -m 'a (b'); git commit -m y`, project), [other, project]);
+    assert.deepEqual(commitDirs(`(cd "${other}" && git commit -m "a (b"); git commit -m y`, project, true, true), [other, project]);
+    // the same goes for the folder of git -C
+    assert.deepEqual(commitDirs('git -C `pwd` commit -m x', project), []);
+    assert.deepEqual(commitDirs('git -C "$(pwd)" commit -m x', project), []);
+    assert.deepEqual(commitDirs('git -C (Get-Location) commit -m x', project, true, true), []);
+    // PowerShell reads a backtick as an escape, so its reading of the same
+    // Bash-named command on Codex or Antigravity still finds a folder
+    assert.deepEqual(commitDirs('cd `git -C ../other rev-parse --show-toplevel` && git commit -m x', project, true), [project]);
   });
 
   test('a $ inside single quotes is literal', () => {
