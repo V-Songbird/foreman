@@ -111,6 +111,15 @@ describe("anchorsIn", () => {
     const md = "[a](#a) `[b](#b)` ``[c](#c) ` x`` and\n```md\n[d](#d)\n````\n[e](#e)\n";
     assert.deepEqual(anchorsIn(md), ["a", "e"]);
   });
+
+  test("does not join the text around a removed code span into a link", () => {
+    assert.deepEqual(anchorsIn("[a]`x`(#b)"), []);
+  });
+
+  test("reads a backslash-escaped backtick as text, not as a code span", () => {
+    assert.deepEqual(anchorsIn("\\`[a](#a) [b](#b)`"), ["a", "b"]);
+    assert.deepEqual(anchorsIn("\\\\`[a](#a)` [b](#b)"), ["b"]);
+  });
 });
 
 describe("linkedAnchorsIn", () => {
@@ -133,6 +142,12 @@ describe("navRegion", () => {
     const region = navRegion("[a](#a)\n\n## First\n\n[b](#b)\n");
     assert.match(region, /#a/);
     assert.doesNotMatch(region, /#b/);
+  });
+
+  test("does not stop at a fenced \"## \" line above the first section", () => {
+    const md = "```\n## Example\n```\n~~~\n## Another\n~~~\n[a](#a) [b](#b) [c](#c)\n\n## A\n## B\n## C\n";
+    assert.deepEqual(anchorsIn(navRegion(md)), ["a", "b", "c"]);
+    assert.deepEqual(checkMarkdown(md, "README.md"), []);
   });
 
   test("is the whole file when there are no sections", () => {

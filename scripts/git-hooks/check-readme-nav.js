@@ -39,6 +39,8 @@ function slug(text) {
 }
 
 // The lines outside fenced blocks. A fenced block is content, not structure.
+// Each fenced line becomes a blank one, so a fence still ends a paragraph and
+// no code span can open before it and close after it.
 function linesOutsideFences(markdown) {
   const lines = [];
   let fence = null;
@@ -47,18 +49,23 @@ function linesOutsideFences(markdown) {
     if (marker) {
       if (!fence) fence = marker[1];
       else if (marker[1][0] === fence[0] && marker[1].length >= fence.length && !marker[2].trim()) fence = null;
+      lines.push("");
       continue;
     }
-    if (!fence) lines.push(line);
+    lines.push(fence ? "" : line);
   }
   return lines;
 }
 
 // A link written in code is an example, not a link -- hush's voice shows the
 // app's `[title](#terminal/<id>)` form, which no heading could ever match.
-// An inline span closes on a backtick run of its own length, within a paragraph.
+// An inline span opens on a whole backtick run and closes on a run of exactly
+// its length, within a paragraph. A backslash-escaped backtick is text, and a
+// run with no closer is text. A removed span leaves a space, so [a]`x`(#b)
+// does not turn into a link.
+const CODE_SPAN = /\\[\\`]|(`+)(?!`)(?:[^\n]|\n(?!\s*\n))*?(?<!`)\1(?!`)|`+/g;
 function withoutCode(markdown) {
-  return linesOutsideFences(markdown).join("\n").replace(/(`+)(?:[^\n]|\n(?!\s*\n))*?\1(?!`)/g, "");
+  return linesOutsideFences(markdown).join("\n").replace(CODE_SPAN, (match, run) => (run ? " " : match));
 }
 
 // Headings inside a fenced block are content, not sections -- flint's README
@@ -101,8 +108,9 @@ function linkedAnchorsIn(markdown) {
 }
 
 // "Under the badges" in practice means before the page's own first section.
+// A "## " line inside a fenced block is an example, not that section.
 function navRegion(markdown) {
-  const lines = markdown.split(/\r?\n/);
+  const lines = linesOutsideFences(markdown);
   const firstSection = lines.findIndex((l) => /^##\s+/.test(l));
   return (firstSection === -1 ? lines : lines.slice(0, firstSection)).join("\n");
 }
