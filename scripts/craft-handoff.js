@@ -882,7 +882,7 @@ function claudeEntryParagraphText({ id, resume, notesPlace = null, requireVerifi
     : `This task is ROADMAP.jsonl entry \`${id}\`. Mark it \`in_progress\`${investigation ? "" : " and take the commit boundary"} before doing anything else:\n${startCall}`;
   const startCodes = investigation
     ? "It prints one JSON line; its `then` is your close command."
-    : "It prints one JSON line. With `next` `work`, do the task. With `report_dirty`, the tree already carries someone else's changes: tell the user its `say` in one line, then do the work; the close will stage and commit nothing. Either way, its `then` is your close command.";
+    : "It prints one JSON line. With `next` `work`, do the task. With `report_dirty`, start took no commit boundary (`reason` says why): tell the user its `say` in one line, then do the work; the close will stage and commit nothing. Either way, its `then` is your close command.";
 
   // [Foreman] What makes the Test option mechanical rather than a mood: it
   // appears only when the close lists an `unverified` check, and a check with

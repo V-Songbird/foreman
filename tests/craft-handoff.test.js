@@ -276,6 +276,10 @@ describe('entry mode', () => {
     assert.equal(json.ok, true, JSON.stringify(json));
     // [Foreman: 1078] The paragraph opens the entry with task.js start.
     assert.ok(json.prompt.includes('Mark it `in_progress` and take the commit boundary before doing anything else:\n`node ${CLAUDE_PLUGIN_ROOT}/scripts/task.js start --id 001`'), json.prompt);
+    // [Foreman: 1112] report_dirty is not always someone else's changes: git
+    // may be unreadable or the folder not a work tree.
+    assert.ok(json.prompt.includes('With `report_dirty`, start took no commit boundary (`reason` says why): tell the user its `say` in one line'), json.prompt);
+    assert.ok(!json.prompt.includes("already carries someone else's changes"), json.prompt);
   });
 });
 
