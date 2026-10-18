@@ -15,8 +15,8 @@
 //           needs: the staged close at the root, a commit inside the
 //           submodule, or a commit before the close when git ignores
 //           ROADMAP.jsonl. It never stages into a tree that held someone
-//           else's changes: it records the close without staging and
-//           returns report_dirty.
+//           else's changes, or after a commit since start: it records the
+//           close without staging and returns report_dirty.
 //
 // The Codex form of a handoff keeps hooks/codex-task.js and its own spelled-
 // out steps; this script is what the Claude Code entry paragraph runs.
@@ -263,26 +263,32 @@ function cmdFinish(root, flags, payload) {
       return null;
     }
   };
-  const staged = flags.baseline ? foreignStaged() : null;
-  if (!flags.baseline || staged === null || staged.length) {
+  const unstaged = (reason, cause, extra = {}) => {
     annotate();
     cmdUpdateStatus(root, { ...close, add_touches: files });
     return {
       next: "report_dirty",
-      reason: !flags.baseline ? "dirty_at_start" : staged === null ? "git_status_unavailable" : "index_has_other_changes",
-      ...(staged && staged.length ? { staged_files: staged } : {}),
-      say: !flags.baseline
-        ? "The tree held changes that are not this task's, so nothing was staged or committed; the task's changes stay in the tree for you to commit."
-        : `The index already holds staged changes that are not this task's (${staged ? staged.join(", ") : "git could not list them"}), so nothing was staged or committed; the task's changes stay in the tree for you to commit.`,
+      reason,
+      ...extra,
+      say: `${cause}, so nothing was staged or committed; the task's changes stay in the tree for you to commit.`,
       after: after(),
     };
-  }
+  };
+  const staged = flags.baseline ? foreignStaged() : null;
+  if (!flags.baseline) return unstaged("dirty_at_start", "The tree held changes that are not this task's");
+  if (staged === null) return unstaged("git_status_unavailable", "Git could not list the staged changes");
+  if (staged.length) return unstaged("index_has_other_changes", `The index already holds staged changes that are not this task's (${staged.join(", ")})`, { staged_files: staged });
 
   const unit = finishUnit(cwd, { id, expected: owned, baseline: flags.baseline, noCommit: true, allowUnexpected: flags["allow-unexpected"] === true });
+  // [Foreman: 1078] A commit since start makes the delta no longer this
+  // task's alone, so the close is recorded unstaged under its own reason.
+  if (unit.reason === "head_moved_since_baseline") {
+    recordTrial("commit_interrupted", { hook: "safe-commit", reason_class: unit.reason }, { root });
+    return unstaged(unit.reason, `Something was committed since this task started (HEAD moved from ${unit.baseline.slice(0, 7)} to ${unit.head.slice(0, 7)})`, { baseline: unit.baseline, head: unit.head });
+  }
   if (!unit.ok) {
     const fixes = {
       unexpected_files: "Show the user these changed files that `files` does not list. Add the ones that are this task's to `files` and run the close again; with the user's approval of the rest, run it with --allow-unexpected. Nothing was staged or closed.",
-      head_moved_since_baseline: "Something was committed since start, so nothing is safe to stage. Tell the user in one line, then close without a commit: run the close again without --baseline. Nothing was staged or closed.",
       no_task_changes: "Nothing changed since start. Run the close again without `files` to record it without a commit. Nothing was staged or closed.",
     };
     const { ok, reason, ...details } = unit;
@@ -290,7 +296,6 @@ function cmdFinish(root, flags, payload) {
       ...details,
       fix: fixes[reason] || `${unit.error || reason}. Tell the user; nothing was closed.`,
       ...(reason === "unexpected_files" ? { then: rerun(" --allow-unexpected") } : {}),
-      ...(reason === "head_moved_since_baseline" ? { then: finishCommand(id, flags) } : {}),
     });
   }
 
@@ -374,8 +379,10 @@ error, with {"ok":false,"error":"..."}.
             option's then, or do what its do says.
           next report_acceptance: do what say says.
           next closed: nothing more to record.
-          next report_dirty: nothing was staged or committed; tell the user
-            say, then act on after.
+          next report_dirty: the tree held someone else's changes, or HEAD
+            moved since start (reason says which); the close is recorded,
+            nothing was staged or committed; tell the user say, then act
+            on after.
           next refused: nothing was closed unless closed says so; follow fix.
 `;
 

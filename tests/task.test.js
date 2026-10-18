@@ -236,6 +236,47 @@ describe('task.js finish', () => {
     assert.deepEqual(stagedNames(), ['notes.txt']);
   });
 
+  test('a commit since start closes unstaged with its own reason, not as foreign changes', () => {
+    repo();
+    const start = ok(['start', '--id', '001']);
+    write('notes.txt', 'theirs\n');
+    git('add', 'notes.txt');
+    git('commit', '-q', '-m', 'someone else');
+    write('src/a.js', 'two\n');
+    const before = head();
+    const result = runThen(start.then, { status: 'done', files: ['src/a.js'], message: 'Change a' });
+    assert.equal(result.next, 'report_dirty');
+    assert.equal(result.reason, 'head_moved_since_baseline');
+    assert.equal(result.baseline, start.baseline);
+    assert.equal(result.head, before);
+    assert.match(result.say, /^Something was committed since this task started/);
+    assert.doesNotMatch(result.say, /not this task's/);
+    assert.equal(result.after.next, 'ask_acceptance');
+    assert.equal(head(), before, 'no commit');
+    assert.deepEqual(stagedNames(), []);
+    assert.equal(stored().status, 'awaiting_acceptance');
+    assert.deepEqual(stored().observed_touches, ['src/a.js']);
+  });
+
+  // [Foreman: 1078] The checkpoint embed's order: the second start comes
+  // right after task 1's checkpoint commit, before task 2 touches a file.
+  test('a two-task run takes the second boundary before the last task\'s edits', () => {
+    repo({ fields: { planned_touches: ['src/a.js', 'src/b.js'] } });
+    ok(['start', '--id', '001']);
+    write('src/a.js', 'two\n');
+    git('add', '--', 'src/a.js');
+    git('commit', '-q', '-m', 'task 1/2: change a');
+    const second = ok(['start', '--id', '001']);
+    assert.equal(second.next, 'work');
+    assert.equal(second.baseline, head());
+    write('src/b.js', 'two\n');
+    const result = runThen(second.then, { status: 'done', files: ['src/b.js'], message: 'Change b' });
+    assert.equal(result.next, 'ask_acceptance');
+    assert.equal(result.commit, head());
+    assert.deepEqual(git('show', '--name-only', '--format=', 'HEAD').split('\n').filter(Boolean).sort(), ['ROADMAP.jsonl', 'src/b.js']);
+    assert.match(git('log', '-1', '--format=%B'), /\nForeman: 001\n*$/);
+  });
+
   test('a changed file outside files is refused before anything is staged or closed', () => {
     repo();
     const start = ok(['start', '--id', '001']);

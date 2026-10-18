@@ -1089,8 +1089,11 @@ the pasted session to:
   accepts that result, following the embedded review protocol;
 - the last task carries the roadmap close instead of a `task
   <n>/<total>` commit, when this handoff carries an entry paragraph —
-  in Claude Code, run `task.js start` again for a fresh boundary and pipe
-  the close into its `then`, which stages, closes and makes that one
+  in Claude Code, run `task.js start` again for a fresh boundary right
+  after the previous task's checkpoint commit, before touching the last
+  task's files (run later, it reads those edits as someone else's changes
+  and the close commits nothing), and once the work is done pipe the
+  close into its `then`, which stages, closes and makes that one
   commit with the baked `Foreman: <id>` as its final line; in Codex, stage
   with `safe-commit.js finish --no-commit`, close with `staged:true`, then
   make that one commit; omit this line entirely when there is no entry;
@@ -1235,9 +1238,10 @@ explicitly authorized decision artifact.
   unchanged. When subagents help, the coordinator owns these writes.
 <!-- [Foreman: 1078] -->
 - **A close never stages into someone else's changes.** When `begin`
-  found the tree dirty, or the index holds staged files the task does not
-  own, `task.js finish` records the close without touching the index and
-  commits nothing, and returns `report_dirty`.
+  found the tree dirty, the index holds staged files the task does not
+  own, or something was committed since `start`, `task.js finish` records
+  the close without touching the index and commits nothing, and returns
+  `report_dirty` with a `reason` naming which.
 <!-- [Foreman: 410] -->
 - **An entry whose planned files all sit inside one submodule closes
   there.** `craft-handoff.js` and `task.js` read the submodule paths from

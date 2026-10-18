@@ -57,10 +57,12 @@ instead.
   by hand. `start` opens the entry and records which files were already
   changed. `finish` stages only the task's own files, closes the entry,
   commits once with the `Foreman:` line and says whether to ask for
-  acceptance. When the working tree was already dirty at the start, or other
-  changes are staged, `finish` records the close without staging or
-  committing anything and says so, instead of mixing in someone else's
-  changes.
+  acceptance. When the working tree was already dirty at the start, other
+  changes are staged, or something was committed since the start, `finish`
+  records the close without staging or committing anything and says which,
+  instead of mixing in someone else's changes. In a multi-task run, the
+  prompt says to run `start` again right after the previous task's commit,
+  before the last task changes any file.
 - The commit reminder also carries the commit's short SHA, so there is no
   `git rev-parse` step left to run.
 - The full roadmap discovery rules arrive once per session. Later commits get

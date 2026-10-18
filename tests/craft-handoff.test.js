@@ -2698,7 +2698,7 @@ describe('the entry close in each roadmap mode', () => {
       assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
       assert.match(json.prompt, /Checkpoint protocol for this multi-task run/);
       assert.match(json.prompt, host === 'claude'
-        ? /the last task carries the roadmap close instead of a `task <n>\/<total>` commit: run the entry paragraph's `task\.js start` again/
+        ? /the last task carries the roadmap close instead of a `task <n>\/<total>` commit: right after the previous task's checkpoint commit, before touching any of the last task's files, run the entry paragraph's `task\.js start` again/
         : /the last task carries the roadmap close instead of a `task <n>\/<total>` commit: this project git-ignores ROADMAP\.jsonl/);
       assert.doesNotMatch(json.prompt, /--no-commit/);
       assert.doesNotMatch(json.prompt, /"?staged"?:true/);

@@ -825,7 +825,7 @@ function checkpointEmbedText(cfg, checkCount, entryId, hasReview = false, review
         ? `- after each task's check passes, stage only the files that task changed inside ${sub} (\`git -C ${submodule} add -- <those paths>\`, never \`git add -A\` and never the ${sub} gitlink at the project root) and commit there with \`git -C ${submodule} commit\` as \`task <n>/<total>: <task subject>\`; leave it local, never push`
         : "- after each task's check passes, stage only the files that task changed (`git add -- <those paths>`, never `git add -A`) and commit `task <n>/<total>: <task subject>`; leave it local, never push",
     ...(entryId && !codex
-      ? [`- the last task carries the roadmap close instead of a \`task <n>/<total>\` commit: run the entry paragraph's \`task.js start\` again for a fresh boundary, then pipe the close JSON into its \`then\`, which stages the task's files${submodule ? ` inside ${sub}` : ""}, closes the entry and commits once with \`Foreman: ${entryId}\` as the final line`]
+      ? [`- the last task carries the roadmap close instead of a \`task <n>/<total>\` commit: right after the previous task's checkpoint commit, before touching any of the last task's files, run the entry paragraph's \`task.js start\` again for a fresh boundary (run later, it reads the last task's own edits as someone else's changes and the close commits nothing); when the last task's work is done, pipe the close JSON into its \`then\`, which stages the task's files${submodule ? ` inside ${sub}` : ""}, closes the entry and commits once with \`Foreman: ${entryId}\` as the final line`]
       : entryId
       ? [
           submodule
