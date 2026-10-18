@@ -37,17 +37,24 @@ const WATCHED_TOOLS = new Set(["Bash", "PowerShell"]);
 // a backtick before a newline included, and in both places `n, `t, `u{41}
 // and the like stand for their own characters.
 const PS_ESCAPES = { 0: "\0", a: "\x07", b: "\b", e: "\x1b", f: "\f", n: "\n", r: "\r", t: "\t", v: "\v" };
+// [Foreman: 1110] An unquoted `$(date +%s)`, a Bash `` `date +%s` `` or a
+// PowerShell `(Get-Date -f x)` is one token, whatever spaces it holds. Its
+// parentheses nest up to three deep, with quotes and escapes read as `atom`
+// reads them.
+const group = (atom, depth = 3) => String.raw`\((?:${atom}|${depth > 1 ? group(atom, depth - 1) : "(?!)"})*\)`;
+const BASH_GROUP = group(String.raw`"(?:\\[\s\S]|[^"\\])*"|'[^']*'|\\[\s\S]|[^()"'\\]`);
+const PS_GROUP = group(String.raw`"(?:\`[\s\S]|[^"\`])*"|'[^']*'|\`[\s\S]|[^()"'\`]`);
 const SHELLS = {
   bash: {
     part: /(?:"(?:\\[\s\S]|[^"\\])*"|'[^']*'|\\[\s\S]|(?<!&)&(?!&)|[^;&|\n])+/g,
-    token: /(?:"(?:\\[\s\S]|[^"\\])*"|'[^']*'|\\[^\n]|[^\s\\])+/g,
+    token: new RegExp(String.raw`(?:\$${BASH_GROUP}|\`(?:\\[\s\S]|[^\`\\])*\`|"(?:\\[\s\S]|[^"\\])*"|'[^']*'|\\[^\n]|[^\s\\])+`, "g"),
     quoted: /"((?:\\[\s\S]|[^"\\])*)"|'([^']*)'|\\([\s\S])/g,
     escape: /\\(["\\$`])/g,
     unescape: (c) => c,
   },
   powershell: {
     part: /(?:"(?:`[\s\S]|[^"`])*"|'[^']*'|`\r?\n|`[\s\S]|(?<!&)&(?!&)|[^;&|\n])+/g,
-    token: /(?:"(?:`[\s\S]|[^"`])*"|'[^']*'|`[^\r\n]|[^\s`])+/g,
+    token: new RegExp(String.raw`(?:\$?${PS_GROUP}|"(?:\`[\s\S]|[^"\`])*"|'[^']*'|\`[^\r\n]|[^\s\`])+`, "g"),
     quoted: /"((?:`[\s\S]|[^"`])*)"|'((?:[^']|'')*)'|`(u\{[0-9a-fA-F]{1,6}\}|[\s\S])/g,
     escape: /`(u\{[0-9a-fA-F]{1,6}\}|[\s\S])/g,
     unescape: (c) => {
@@ -127,8 +134,7 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false) {
     // until moveTo has expanded the rest.
     // [Foreman: 1093] A `$(...)`, a Bash backtick substitution or a PowerShell
     // `( ... )` expression names a folder nobody knows, so its token becomes
-    // OPAQUE, which moveTo reads as unknown. Unquoted, it also splits into
-    // several tokens, so a `cd` holding one moves to an unknown folder.
+    // OPAQUE, which moveTo reads as unknown.
     // [Foreman: 1101] A `NAME=value` token keeps its name and takes OPAQUE in
     // front of its value, so a later leading assignment such as `B=$(date)` is
     // still skipped and its GIT_DIR or GIT_WORK_TREE value reads as unknown.
@@ -183,8 +189,11 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false) {
       }
       // A `--git-dir` outside the usual `<repo>/.git` layout names no work
       // tree this can find, so the commit stays where the shell is.
+      // [Foreman: 1110] Unless it cannot be expanded: then, as for
+      // GIT_WORK_TREE and -C, the commit's folder is unknown.
       if (workTree) gitDir = moveTo(gitDir, workTree);
       else if (repo && path.basename(repo) === ".git") gitDir = moveTo(gitDir, path.dirname(repo));
+      else if (repo && moveTo(gitDir, repo) === null) gitDir = null;
       if (tokens[0] === "commit" && gitDir !== null) targets.push(gitDir);
     }
     for (; closes && subshells.length; closes--) dir = subshells.pop();

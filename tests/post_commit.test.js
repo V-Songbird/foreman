@@ -1213,6 +1213,25 @@ describe('commit directory edge cases', () => {
     assert.deepEqual(commitDirs('GIT_WORK_TREE=`x` git commit -m x', project), []);
   });
 
+  // [Foreman: 1110]
+  test('an unquoted substitution with spaces stays one token', () => {
+    assert.deepEqual(commitDirs('A=$(date +%s) git commit -m x', project), [project]);
+    assert.deepEqual(commitDirs('A=1 B=$(echo $(date +%s) b) C=`date +%s` git commit -m x', project), [project]);
+    assert.deepEqual(commitDirs(`cd "${other}" && A=$(echo "a ) b") git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs('A=$(date +%s) git log --grep commit', project), []);
+    assert.deepEqual(commitDirs('git -C $(echo a b) commit -m x', project), []);
+    assert.deepEqual(commitDirs("git commit -m $(Get-Date -f 'yyyy MM'); git status", project, true, true), [project]);
+  });
+
+  test('a GIT_DIR or --git-dir that cannot be expanded names an unknown folder', () => {
+    assert.deepEqual(commitDirs('GIT_DIR="$(x)" git commit -m x', project), []);
+    assert.deepEqual(commitDirs('git --git-dir "$(x)" commit -m x', project), []);
+    assert.deepEqual(commitDirs('git --git-dir "$(x)/.git" commit -m x', project), []);
+    assert.deepEqual(commitDirs(`cd "${other}" && GIT_DIR=$p git commit -m x`, project), []);
+    // a known work tree still names the commit's folder
+    assert.deepEqual(commitDirs(`GIT_DIR="$(x)" GIT_WORK_TREE="${other}" git commit -m x`, project), [other]);
+  });
+
   test('git.exe, a path to git and the common wrappers still read as git', () => {
     for (const command of [
       'git.exe commit -m x',
