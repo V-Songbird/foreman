@@ -464,6 +464,15 @@ describe('discovery rules once per session', () => {
     assert.match(commit('claude', { session_id: sessionId }), FULL);
   });
 
+  test('a subagent gets the full rules and leaves the main thread its short form', (t) => {
+    t.after(() => fs.rmSync(discoveryStatePath(project, sessionId), { force: true }));
+    const agent = { session_id: sessionId, transcript_path: transcript, agent_id: 'agent-1', agent_type: 'general-purpose' };
+    assert.match(commit('claude', agent), FULL);
+    assert.match(commit(), FULL);
+    assert.match(commit('claude', agent), FULL);
+    assert.match(commit(), SHORT);
+  });
+
   test('Codex always gets its full policy', (t) => {
     t.after(() => fs.rmSync(discoveryStatePath(project, sessionId), { force: true }));
     assert.ok(commit('codex').includes(discoveryInstructions()));

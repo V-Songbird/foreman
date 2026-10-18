@@ -580,8 +580,11 @@ function compactedSince(transcript, offset) {
 // True when this session already got the full rules and has not compacted
 // since. Whenever it answers false, the caller emits the full rules, so it
 // records the transcript's size: the next commit reads only what came after.
-// Best-effort: any failure answers false.
+// Best-effort: any failure answers false. A subagent's payload carries
+// agent_id beside its parent's session_id, and neither saw the other's rules,
+// so it always gets the full rules and leaves the parent's state alone.
 function discoveryRulesInView(root, data) {
+  if (data?.agent_id) return false;
   const sessionId = data?.session_id;
   const transcript = data?.transcript_path;
   if (typeof sessionId !== "string" || !sessionId || typeof transcript !== "string" || !transcript) return false;

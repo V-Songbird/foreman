@@ -53,7 +53,8 @@ instead.
 - The full roadmap discovery rules arrive once per session. Later commits get
   one line that points back to them. After the conversation is compacted, the
   next commit brings the full rules again. A session whose hook input names no
-  session or transcript still gets the full rules on every commit.
+  session or transcript still gets the full rules on every commit, and so does
+  a commit made by a subagent.
 
 ## 4.1.0 — 2026-10-14
 
