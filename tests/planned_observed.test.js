@@ -726,6 +726,42 @@ describe('observed_touches past the cap collapse into folder prefixes', () => {
     assert.deepEqual(json.entry.observed_touch_counts, { 'src/a/': 40, 'src/b/': 61 });
   });
 
+  test('a path under a stored prefix is dropped and adds no weight, at any length', () => {
+    const short = collapseObservedTouches({
+      observed_touches: ['src/a/', 'src/a/f1.js', 'src/a/f2.js'],
+      observed_touch_counts: { 'src/a/': 40 },
+    });
+    assert.deepEqual(short, { observed_touches: ['src/a/'], observed_touch_counts: { 'src/a/': 40 } });
+
+    // An older close re-appends every counted path, then a later one passes the cap.
+    const collapsed = collapseObservedTouches({ observed_touches: overCap() });
+    const reappended = collapseObservedTouches({
+      observed_touches: [
+        ...collapsed.observed_touches,
+        ...overCap().filter((t) => t.startsWith('src/')),
+        ...range(CAP, (i) => `lib/x/f${i}.js`),
+      ],
+      observed_touch_counts: { ...collapsed.observed_touch_counts },
+    });
+    assert.deepEqual(reappended.observed_touch_counts, { 'src/a/': 40, 'src/b/': 40, 'lib/x/': CAP });
+    assert.equal(weight(reappended), CAP + 1 + CAP);
+  });
+
+  test('migrate drops paths an older close appended under a stored prefix', () => {
+    writeRoadmap(project, [
+      entry('001', {
+        observed_touches: ['src/a/', 'README.md', 'src/a/f1.js'],
+        observed_touch_counts: { 'src/a/': 40 },
+      }),
+    ]);
+    const { json } = run(['migrate']);
+    assert.equal(json.changed, true);
+    const stored = JSON.parse(lines(roadmapFile())[1]);
+    assert.deepEqual(stored.observed_touches, ['src/a/', 'README.md']);
+    assert.deepEqual(stored.observed_touch_counts, { 'src/a/': 40 });
+    assert.equal(run(['migrate']).json.changed, false);
+  });
+
   test('migrate collapses over-cap entries in a current roadmap and archive, once', () => {
     writeRoadmap(project, [entry('001', { observed_touches: overCap() })]);
     writeArchiveFile(project, [entry('002', { observed_touches: overCap() })]);

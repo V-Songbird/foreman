@@ -953,18 +953,29 @@ function scopeDrift(predicted, actual) {
 // ending in "/", at the deepest folder level that fits, and
 // observed_touch_counts maps each prefix to how many paths it stands for.
 // commits[] (or the commit carrying the entry's trailer) keeps the exact
-// list. The count never goes into the string: every overlap check and git
-// pathspec reads a trailing "/" as the folder, which keeps format 2 and a
-// 4.1.0 reader working. Mutates and returns the entry; a list at or under the
-// cap, or one with no folder left to collapse, passes through, so it is
-// idempotent. A missing or invalid stored count weighs 1.
+// list, except add_touches paths, which no commit holds. The count never
+// goes into the string: every overlap check and git pathspec reads a
+// trailing "/" as the folder, which keeps format 2 and a 4.1.0 reader
+// working. Mutates and returns the entry. At any length, a path under a
+// stored prefix is dropped and adds no weight, which repairs what a 4.1.0
+// close appended; a list then at or under the cap, or one with no folder
+// left to collapse, passes through, so it is idempotent. A missing or
+// invalid stored count weighs 1.
 function collapseObservedTouches(entry) {
-  const list = entry && entry.observed_touches;
-  if (!Array.isArray(list) || list.length <= OBSERVED_TOUCHES_CAP) return entry;
-  if (!list.every((t) => typeof t === "string")) return entry;
+  const all = entry && entry.observed_touches;
+  if (!Array.isArray(all) || !all.every((t) => typeof t === "string")) return entry;
   const counts = entry.observed_touch_counts && typeof entry.observed_touch_counts === "object"
     ? entry.observed_touch_counts
     : {};
+  const prefixes = all.filter((t) => t.endsWith("/"));
+  const list = all.filter((t) => !prefixes.some((p) => coversPath(p, t) && !coversPath(t, p)));
+  if (list.length < all.length) {
+    entry.observed_touches = list;
+    const kept = Object.fromEntries(Object.entries(counts).filter(([key]) => list.includes(key)));
+    if (Object.keys(kept).length) entry.observed_touch_counts = kept;
+    else delete entry.observed_touch_counts;
+  }
+  if (list.length <= OBSERVED_TOUCHES_CAP) return entry;
   const segs = (t) => t.replace(/\/+$/, "").split("/");
   const weight = (t) => (t.endsWith("/") && Number.isInteger(counts[t]) && counts[t] > 0 ? counts[t] : 1);
   const maxDepth = list.reduce((max, t) => Math.max(max, segs(t).length), 0);
@@ -1311,14 +1322,11 @@ function cmdUpdateStatusUnlocked(root, payload) {
   const newTouches = [...(add_touches || []), ...derivedTouches];
   if (newTouches.length) {
     entry.observed_touches = Array.isArray(entry.observed_touches) ? entry.observed_touches : [];
-    // [Foreman: 1080] A path under a stored folder prefix adds nothing and
-    // leaves that prefix's count as it is, so a repeated close is a no-op.
-    const stored = new Set(entry.observed_touches);
-    const prefixes = entry.observed_touches.filter((o) => typeof o === "string" && o.endsWith("/"));
+    // [Foreman: 1080] collapseObservedTouches drops a path under a stored
+    // folder prefix and leaves that prefix's count as it is, so a repeated
+    // close is a no-op.
     for (const t of newTouches) {
-      if (typeof t !== "string" || !t || stored.has(t) || prefixes.some((o) => coversPath(o, t))) continue;
-      stored.add(t);
-      entry.observed_touches.push(t);
+      if (typeof t === "string" && t && !entry.observed_touches.includes(t)) entry.observed_touches.push(t);
     }
     collapseObservedTouches(entry);
   }
@@ -2817,12 +2825,14 @@ naming the field, each line and code point.
                     with commit (which records one that already landed).
                     A file git ignores (a private roadmap) is never
                     staged: warnings names each file left out, and
-                    roadmap_staged is false when ROADMAP.jsonl is one
-                    past ${OBSERVED_TOUCHES_CAP} paths, observed_touches is collapsed
+                    roadmap_staged is false when ROADMAP.jsonl is one.
+                    Past ${OBSERVED_TOUCHES_CAP} paths, observed_touches is collapsed
                     into folder prefixes ending in "/", with their counts
                     in observed_touch_counts; a path under a stored prefix
-                    adds nothing. commits[] (or, for a staged close, the
-                    commit found by its "Foreman:" trailer) is the full list
+                    adds nothing and is dropped. commits[] (or, for a
+                    staged close, the commit found by its "Foreman:"
+                    trailer) holds every path but add_touches ones, which
+                    no commit records
                     add_touches: array of paths to fold into observed_touches
                     (dedup, a path under a stored folder prefix adds
                     nothing) -- for a file the commit's own diff cannot show

@@ -32,10 +32,12 @@ instead.
 - An entry that closes with more than 100 files now stores them as folder
   prefixes with a count each, such as `brand/icons/` for 412 files, so a
   large entry keeps a short line in `ROADMAP.jsonl`. A later file under a
-  stored folder adds nothing. `roadmap.js migrate` shrinks entries already
-  past 100 files, in the roadmap and the archive. The entry's commits still
-  hold the full file list. The roadmap stays format 2, and Foreman 4.1.0
-  still reads it.
+  stored folder adds nothing, and the next close or `roadmap.js migrate`
+  drops one that an older Foreman added. `migrate` also shrinks entries
+  already past 100 files, in the roadmap and the archive. The entry's
+  commits still hold every file they changed; a file named only through
+  `add_touches` is kept only in the folder count. The roadmap stays format
+  2, and Foreman 4.1.0 still reads it.
 - Picking a task now runs `roadmap.js step pick`, which decides each step of
   the pick and tells the skill what to do next with a short code. The script
   builds the task menu and its labels, records the pick in the trial log,
