@@ -133,10 +133,22 @@ describe("anchorsIn", () => {
     assert.deepEqual(anchorsIn("- item\n\nText\n\n    [a](#a)\n"), []);
   });
 
-  test("ignores links inside an HTML <code> element, nested ones included", () => {
-    assert.deepEqual(anchorsIn('<code>[a](#a) <a href="#b">b</a></code> [c](#c)'), ["c"]);
-    assert.deepEqual(anchorsIn("<code>x <code>y</code> [a](#a)</code> [b](#b)"), ["b"]);
-    assert.deepEqual(anchorsIn("<code>[a](#a)\n\n[b](#b)</code> <codex>[c](#c)</codex>"), ["a", "b", "c"]);
+  test("ignores Markdown links inside an HTML <code> element in an HTML block, nested ones included", () => {
+    assert.deepEqual(anchorsIn('<p>\n<code>[a](#a) <a href="#b">b</a></code> [c](#c)\n</p>'), ["b", "c"]);
+    assert.deepEqual(anchorsIn("<div><code>x <code>y</code> [a](#a)</code> [b](#b)"), ["b"]);
+    assert.deepEqual(anchorsIn("<code>\n[a](#a)\n</code>\n\n[b](#b)"), ["b"]);
+    assert.deepEqual(anchorsIn("<p><code>[a](#a)\n\n[b](#b)</code> <codex>[c](#c)</codex>"), ["a", "b", "c"]);
+  });
+
+  test("keeps links inside an inline HTML <code> element, which GitHub renders live", () => {
+    assert.deepEqual(anchorsIn("See <code>[a](#a)</code> and <code>x <code>[b](#b)</code></code>"), ["a", "b"]);
+    assert.deepEqual(anchorsIn("<code>[a](#a)</code> text"), ["a"]);
+  });
+
+  test("keeps links in a paragraph that continues a nested list item", () => {
+    assert.deepEqual(anchorsIn("- a\n    - b\n\n      [x](#x) more\n"), ["x"]);
+    assert.deepEqual(anchorsIn("  - a\n\n      - b\n\n        [x](#x)\n\n            [y](#y)\n"), ["x"]);
+    assert.deepEqual(anchorsIn("- a\n  - b\n\n  [x](#x)\n\n      [y](#y)\n"), ["x"]);
   });
 });
 
