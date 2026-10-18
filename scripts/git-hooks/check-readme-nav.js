@@ -38,21 +38,36 @@ function slug(text) {
   return text.toLowerCase().replace(slugCharacters, "").replace(/ /g, "-");
 }
 
-// The lines outside fenced blocks. A fenced block is content, not structure.
-// Each fenced line becomes a blank one, so a fence still ends a paragraph and
-// no code span can open before it and close after it.
+// The lines outside code blocks. A code block is content, not structure. Each
+// code line becomes a blank one, so a block still ends a paragraph and no code
+// span can open before it and close after it.
+//
+// A backtick fence's info string holds no backtick, so "```x``` text" is a
+// line of text. An indented block opens after a blank line, four columns past
+// the list item it sits in, if any; a less indented line after a blank one
+// ends that list. A paragraph's lazy continuation is never code.
 function linesOutsideFences(markdown) {
   const lines = [];
-  let fence = null;
+  let fence = null, code = false, list = 0, blank = true;
   for (const line of markdown.split(/\r?\n/)) {
     const marker = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
-    if (marker) {
+    if (marker && (fence || marker[1][0] === "~" || !marker[2].includes("`"))) {
       if (!fence) fence = marker[1];
       else if (marker[1][0] === fence[0] && marker[1].length >= fence.length && !marker[2].trim()) fence = null;
       lines.push("");
+      code = false;
+      blank = true;
       continue;
     }
-    lines.push(fence ? "" : line);
+    if (fence) { lines.push(""); continue; }
+    const indent = line.replace(/\t/g, "    ").search(/\S/);
+    if (indent === -1) { lines.push(line); blank = true; continue; }
+    if ((code || blank) && indent >= list + 4) { lines.push(""); code = true; continue; }
+    const item = line.match(/^( {0,3})([-+*]|\d{1,9}[.)])( {1,4})\S/);
+    if (item) list = item[1].length + item[2].length + item[3].length;
+    else if (blank && indent < list) list = 0;
+    lines.push(line);
+    code = blank = false;
   }
   return lines;
 }
@@ -62,10 +77,15 @@ function linesOutsideFences(markdown) {
 // An inline span opens on a whole backtick run and closes on a run of exactly
 // its length, within a paragraph. A backslash-escaped backtick is text, and a
 // run with no closer is text. A removed span leaves a space, so [a]`x`(#b)
-// does not turn into a link.
+// does not turn into a link. An HTML <code> element is code too: the innermost
+// one goes first, so a nested element leaves its parent whole, and one with no
+// closer within its paragraph is text.
 const CODE_SPAN = /\\[\\`]|(`+)(?!`)(?:[^\n]|\n(?!\s*\n))*?(?<!`)\1(?!`)|`+/g;
+const CODE_ELEMENT = /<code(?=[\s>])[^>]*>(?:(?!<\/?code[\s>])(?:[^\n]|\n(?!\s*\n)))*<\/code\s*>/gi;
 function withoutCode(markdown) {
-  return linesOutsideFences(markdown).join("\n").replace(CODE_SPAN, (match, run) => (run ? " " : match));
+  let text = linesOutsideFences(markdown).join("\n").replace(CODE_SPAN, (match, run) => (run ? " " : match));
+  for (let prev; prev !== text;) [prev, text] = [text, text.replace(CODE_ELEMENT, " ")];
+  return text;
 }
 
 // Headings inside a fenced block are content, not sections -- flint's README
@@ -111,7 +131,7 @@ function linkedAnchorsIn(markdown) {
 // A "## " line inside a fenced block is an example, not that section.
 function navRegion(markdown) {
   const lines = linesOutsideFences(markdown);
-  const firstSection = lines.findIndex((l) => /^##\s+/.test(l));
+  const firstSection = lines.findIndex((l) => /^ {0,3}##\s+/.test(l));
   return (firstSection === -1 ? lines : lines.slice(0, firstSection)).join("\n");
 }
 
