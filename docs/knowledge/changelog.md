@@ -52,6 +52,15 @@ instead.
 
 ### Claude Code
 
+- A handoff now opens and closes its roadmap entry with two commands,
+  `task.js start` and `task.js finish`, instead of a block of steps to follow
+  by hand. `start` opens the entry and records which files were already
+  changed. `finish` stages only the task's own files, closes the entry,
+  commits once with the `Foreman:` line and says whether to ask for
+  acceptance. When the working tree was already dirty at the start, or other
+  changes are staged, `finish` records the close without staging or
+  committing anything and says so, instead of mixing in someone else's
+  changes.
 - The commit reminder also carries the commit's short SHA, so there is no
   `git rev-parse` step left to run.
 - The full roadmap discovery rules arrive once per session. Later commits get

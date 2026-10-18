@@ -406,15 +406,18 @@ describe('skill contracts', () => {
       });
 
       const held = paragraph({});
-      assert.match(held, /"status":"done"/);
       assert.doesNotMatch(held, /Say so in your final message too/);
       if (host === 'claude') {
-        assert.match(held, /write\s+`awaiting_acceptance` instead/);
+        // [Foreman: 1078] task.js finish records the hold and builds the
+        // question and its options (tests/task.test.js); the paragraph names
+        // the hold and the code that carries the question.
+        assert.match(held, /records an earned `done` as `awaiting_acceptance`/);
         // A destination with a user in it asks; it never falls back to prose.
-        assert.match(held, /The first option is Test/);
-        // The Test option is gated on a recorded line, so the same paragraph has
-        // to say how one gets recorded — and that a runnable check never is one.
-        assert.match(held, /"unverified: <the check, and what to look for>"/);
+        assert.match(held, /- `ask_acceptance`: put its `question` and `options` to the user in the same turn, with AskUserQuestion/);
+        // The Test option is gated on a listed check, so the same paragraph has
+        // to say how one gets listed — and that a runnable check never is one.
+        assert.match(held, /"unverified":\[\]/);
+        assert.match(held, /list it in the close's `unverified`, one string per check: the check, and what to look for/);
         assert.match(held, /never hand a command to the user to run for you/);
         // Two more bars: a check blocked on unbuilt work is not an
         // `unverified:` line, and neither is a check the session could reach
@@ -422,6 +425,7 @@ describe('skill contracts', () => {
         assert.match(held, /answerable today/);
         assert.match(held, /genuinely past your reach/);
       } else {
+        assert.match(held, /"status":"done"/);
         assert.match(held, /record `awaiting_acceptance`/);
         assert.match(held, /offer Test first/);
         assert.match(held, /"unverified: <the check and what to look for>"/);
@@ -434,7 +438,7 @@ describe('skill contracts', () => {
       // Claude Code's in its final message, Codex's through the coordinator.
       const agentHeld = paragraph({ destination: 'agent' });
       assert.match(agentHeld, host === 'claude'
-        ? /Say so in your final message too/
+        ? /task\.js start --id 001 --agent`[\s\S]*- `report_acceptance`: do what its `say` says\./
         : /Return the result to the coordinator so they can request the user's acceptance/);
       assert.doesNotMatch(agentHeld, /AskUserQuestion/);
       assert.doesNotMatch(agentHeld, /unverified:/);

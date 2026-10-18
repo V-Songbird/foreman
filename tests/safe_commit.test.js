@@ -884,7 +884,9 @@ describe('the close and checkpoint choreography is documented without git add -A
       const embed = checkpointEmbedText({ baseBranch: 'main', branch: true, onFinish: 'ask' }, 2, '001', false, false, host);
       assert.ok(embed.includes('never `git add -A`'));
       assert.doesNotMatch(embed, /`git add -A` and commit/);
-      assert.ok(embed.includes('stage with `safe-commit.js finish --no-commit`'), 'the last task no longer closes through the primitive');
+      assert.ok(embed.includes(host === 'claude'
+        ? "pipe the close JSON into its `then`, which stages the task's files"
+        : 'stage with `safe-commit.js finish --no-commit`'), 'the last task no longer closes through the primitive');
     });
   }
 
@@ -895,7 +897,9 @@ describe('the close and checkpoint choreography is documented without git add -A
     test(`the clipboard embed reads safe-commit begin only when an entry opens first, on host ${host}`, () => {
       const cfg = { baseBranch: 'main', branch: true, onFinish: 'ask' };
       const withEntry = checkpointEmbedText(cfg, 2, '001', false, false, host);
-      assert.match(withEntry, /before task 1, run `safe-commit\.js begin` and read only its `dirty` field/);
+      assert.match(withEntry, host === 'claude'
+        ? /before task 1, run the entry paragraph's `task\.js start` and read its `next` \(Foreman's own roadmap bookkeeping never counts\); with `report_dirty`, say so once and make no checkpoint commits at all/
+        : /before task 1, run `safe-commit\.js begin` and read only its `dirty` field/);
       assert.doesNotMatch(withEntry, /git status --porcelain/);
       const withoutEntry = checkpointEmbedText(cfg, 2, null, false, false, host);
       assert.match(withoutEntry, /before task 1, (?:check|inspect) `git status --porcelain`/);
@@ -924,8 +928,15 @@ describe('the close and checkpoint choreography is documented without git add -A
         host,
       });
       const command = SAFE_COMMIT_COMMAND[host];
-      assert.ok(paragraph.includes(`${command} begin`), paragraph);
-      assert.ok(paragraph.includes(`${command} finish --baseline <baseline.head> --no-commit`), paragraph);
+      if (host === 'claude') {
+        // [Foreman: 1078] task.js start takes the boundary and task.js finish
+        // stages through the primitive (tests/task.test.js).
+        assert.ok(paragraph.includes('`node ${CLAUDE_PLUGIN_ROOT}/scripts/task.js start --id 001`'), paragraph);
+        assert.ok(!paragraph.includes(command), paragraph);
+      } else {
+        assert.ok(paragraph.includes(`${command} begin`), paragraph);
+        assert.ok(paragraph.includes(`${command} finish --baseline <baseline.head> --no-commit`), paragraph);
+      }
       assert.ok(paragraph.includes('never `git add -A`'));
       assert.doesNotMatch(paragraph, /stage everything \(`git add -A`\)/);
       const other = SAFE_COMMIT_COMMAND[HOSTS.find((h) => h !== host)];

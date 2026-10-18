@@ -48,11 +48,10 @@ const {
   readArchive,
   cmdList,
   touchesOverlap,
-  normalizedTouch,
-  submodulePaths,
   ignoredPaths,
   today,
 } = require("./roadmap.js");
+const { plannedSubmodule, carriedFlags } = require("./task.js");
 
 // [Foreman: 285] Every finished entry this project ever had, active file
 // first. Recall is a reading of history, and the archive is exactly that
@@ -814,7 +813,7 @@ function checkpointEmbedText(cfg, checkCount, entryId, hasReview = false, review
     entryId
       ? (codex
         ? "- before task 1, run `safe-commit.js begin` and read only its `dirty` field (Foreman's own roadmap bookkeeping is reported separately); with `dirty:true`, preserve existing changes and continue the work without checkpoint commits for this run"
-        : "- before task 1, run `safe-commit.js begin` and read only its `dirty` field (Foreman's own roadmap bookkeeping comes back under `ledger_dirty`); with `dirty:true`, say so once and make no checkpoint commits at all for this run")
+        : "- before task 1, run the entry paragraph's `task.js start` and read its `next` (Foreman's own roadmap bookkeeping never counts); with `report_dirty`, say so once and make no checkpoint commits at all for this run")
       : (codex
         ? "- before task 1, inspect `git status --porcelain`; if non-empty, preserve existing changes and continue the work without checkpoint commits for this run"
         : "- before task 1, check `git status --porcelain`; if it is non-empty, say so once and make no checkpoint commits at all for this run"),
@@ -825,7 +824,9 @@ function checkpointEmbedText(cfg, checkCount, entryId, hasReview = false, review
       : submodule
         ? `- after each task's check passes, stage only the files that task changed inside ${sub} (\`git -C ${submodule} add -- <those paths>\`, never \`git add -A\` and never the ${sub} gitlink at the project root) and commit there with \`git -C ${submodule} commit\` as \`task <n>/<total>: <task subject>\`; leave it local, never push`
         : "- after each task's check passes, stage only the files that task changed (`git add -- <those paths>`, never `git add -A`) and commit `task <n>/<total>: <task subject>`; leave it local, never push",
-    ...(entryId
+    ...(entryId && !codex
+      ? [`- the last task carries the roadmap close instead of a \`task <n>/<total>\` commit: run the entry paragraph's \`task.js start\` again for a fresh boundary, then pipe the close JSON into its \`then\`, which stages the task's files${submodule ? ` inside ${sub}` : ""}, closes the entry and commits once with \`Foreman: ${entryId}\` as the final line`]
+      : entryId
       ? [
           submodule
             ? `- the last task carries the roadmap close instead of a \`task <n>/<total>\` commit: commit its files inside ${sub} with \`Foreman: ${entryId}\` as the final line, then close the entry with \`update-status\` and that commit's sha from \`git -C ${submodule} rev-parse HEAD\``
@@ -854,20 +855,6 @@ function entryParagraphText(options) {
     : claudeEntryParagraphText(options);
 }
 
-// [Foreman: 410] The submodule every planned path sits inside, as .gitmodules
-// spells it, or null. Work there commits in the submodule's own repository,
-// where a staged close at the project root would see only the gitlink. A
-// surface that is empty, at the root or spread across repositories keeps the
-// root close.
-function plannedSubmodule(root, touches) {
-  const paths = (touches || []).map(normalizedTouch).filter(Boolean);
-  if (!paths.length) return null;
-  return submodulePaths(root).find((sub) => {
-    const base = normalizedTouch(sub);
-    return paths.every((file) => file === base || file.startsWith(`${base}/`));
-  }) || null;
-}
-
 // [Foreman: 775, 783, 784] A resume opening says where this handoff quotes the
 // entry's notes, and outside increment review, whose block carries its own
 // refresh command, how to read notes recorded after it was written.
@@ -878,35 +865,30 @@ function resumeNotesText(notesPlace, refresh) {
     : ` It had no recorded notes when this handoff was written; check for newer ones before re-deriving anything:\n${refresh}`;
 }
 
-function claudeEntryParagraphText({ id, resume, notesPlace = null, requireVerification, destination, investigation, reviewEachIncrement = false, submodule = null, privateRoadmap = false, delegatedTo = null }) {
+// [Foreman: 1078] Claude Code runs the bookkeeping through scripts/task.js:
+// `start` opens the entry and takes the commit boundary, and `finish` stages,
+// closes and commits in the form the project needs (the staged close, a
+// commit inside the submodule, or a commit before the close for a git-ignored
+// roadmap) and names the acceptance step. So the paragraph carries the two
+// commands and the codes they return; what stays prose is what only the
+// session can judge. `finish` never stages into a tree that held someone
+// else's changes, which the staged close used to do.
+function claudeEntryParagraphText({ id, resume, notesPlace = null, requireVerification, destination, investigation, reviewEachIncrement = false, delegatedTo = null }) {
+  const agent = destination === "agent";
+  const startCall = `\`node ${CLAUDE_ROOT}/scripts/task.js start --id ${id}${carriedFlags({ investigation, agent, orchestrator: delegatedTo })}\``;
   const opening = resume
     ? `This task is ROADMAP.jsonl entry \`${id}\`, already marked \`in_progress\` by an earlier session — don't re-mark it.` + resumeNotesText(notesPlace, listIdsCommand("claude", id))
-    : `This task is ROADMAP.jsonl entry \`${id}\`. Mark it \`in_progress\` before doing anything else — Foreman's picking flow deliberately leaves it \`planned\` until you do:\n\`echo '{"id":"${id}","status":"in_progress"}' | node ${CLAUDE_ROOT}/scripts/roadmap.js update-status\``;
+      + `\n${investigation ? "Before anything else, run" : "Take the commit boundary before touching any file"}:\n${startCall}`
+    : `This task is ROADMAP.jsonl entry \`${id}\`. Mark it \`in_progress\`${investigation ? "" : " and take the commit boundary"} before doing anything else:\n${startCall}`;
+  const startCodes = investigation
+    ? "It prints one JSON line; its `then` is your close command."
+    : "It prints one JSON line. With `next` `work`, do the task. With `report_dirty`, the tree already carries someone else's changes: tell the user its `say` in one line, then do the work; the close will stage and commit nothing. Either way, its `then` is your close command.";
 
-  const beginStep = `Then take the commit boundary before touching any file:\n\`node ${CLAUDE_ROOT}/scripts/safe-commit.js begin\`\nKeep its \`baseline.head\`. A \`dirty:true\` result means the tree already carries someone else's changes: tell the user in one line, then do the work and make NO commit at all — leave everything in the tree for them. Never stage around it.`;
-
-  // [Foreman] A background agent has no one to ask, so it keeps the prose
-  // hand-back; every other destination lands in a session with a user in it,
-  // and that session puts the accept/review choice in front of them rather
-  // than leaving it for the next pick to raise days later.
-  const acceptCall = `\`echo '{"id":"${id}","status":"done"}' | node ${CLAUDE_ROOT}/scripts/roadmap.js update-status\``;
-  // [Foreman: 837] A session delegatedAcceptance lists reports to the
-  // orchestrator it names instead of asking the user.
-  const askSentence = delegatedTo
-    ? destination === "agent"
-      ? ` Say so in your final message too — name the entry and say it now needs the orchestrator ${delegatedTo}'s acceptance, not the user's, before you start anything new.`
-      : ` Acceptance for this session belongs to the orchestrator ${delegatedTo}, so don't ask the user: ${reviewEachIncrement ? "reconcile recorded omissions with later evidence for the same result using the embedded close protocol, then " : ""}report the evidence and any \`unverified:\` lines to ${delegatedTo} and leave the entry awaiting for it to accept. Unless this session is that orchestrator, don't close it yourself, and start nothing new until it answers.`
-    : destination === "agent"
-      ? ` Say so in your final message too — name the entry and say it now needs the user's accept or decline before you start anything new.`
-      : reviewEachIncrement
-        ? ` Then reconcile recorded omissions with later evidence for the same result using the embedded close protocol, and put the final choice to them in the same turn, with AskUserQuestion: offer Test first only for checks still unverified. Accepting the integrated result closes it — ${acceptCall}. Start nothing new until they answer.`
-        : ` Then put the choice to them in the same turn, with AskUserQuestion. Wrote at least one \`unverified:\` line? The first option is Test — you read those lines back to them and stop, the entry still awaiting. With none, offer accept-the-entry and review-it-first only. Accepting closes it — ${acceptCall}. Review leaves it awaiting and you walk them through what changed. Start nothing new until they answer.`;
   // [Foreman] What makes the Test option mechanical rather than a mood: it
-  // can only appear where a `unverified:` line was actually recorded, and a
-  // check with a runnable command is never one — the session runs those
-  // itself instead of handing the user its own homework. One `annotate` per
-  // check, because one append is exactly one line (roadmap.js appendNote
-  // folds embedded newlines).
+  // appears only when the close lists an `unverified` check, and a check with
+  // a runnable command is never one — the session runs those itself instead
+  // of handing the user its own homework. finish writes one `annotate` per
+  // check, because one append is exactly one line.
   //
   // [Foreman] Two bars on top of "has no command". A check blocked on unbuilt
   // work is not an `unverified:` line, since nobody can answer it yet. Nor is
@@ -914,37 +896,37 @@ function claudeEntryParagraphText({ id, resume, notesPlace = null, requireVerifi
   // script or harness. A note is for what the session cannot reach, not for
   // what it did not try.
   const splitStep = reviewEachIncrement
-    ? INCREMENT_SPLIT_STEP
-    : requireVerification && destination !== "agent"
-      ? `Before you close, split your checks in two. Anything with a command, you run — never hand a command to the user to run for you. Anything that can only be settled by a human's eyes or hands — how it renders, how it feels to use, whether the motion looks right — has no command, so record it on the entry, one call per check:\n\`echo '{"id":"${id}","notes":"unverified: <the check, and what to look for>"}' | node ${CLAUDE_ROOT}/scripts/roadmap.js annotate\`\nTwo bars before you write one of those lines. It has to be answerable today: a check that waits on work nobody has built yet goes in your findings, not here. And it has to be genuinely past your reach: where a skill, script or harness in this project already drives the thing, use it and answer the check yourself, and where none exists but one could, say that in your findings instead of sending the user to look by hand again.\nWrite none at all when every check ran — an empty list is the normal outcome and is what tells the user there is nothing to look at.`
+    ? `${INCREMENT_SPLIT_STEP} Before you close, reconcile recorded omissions with later evidence for the same result using the embedded close protocol, and list in the close's \`unverified\` only the checks still unverified.`
+    : requireVerification && !agent
+      ? "Before you close, split your checks in two. Anything with a command, you run — never hand a command to the user to run for you. Anything that can only be settled by a human's eyes or hands — how it renders, how it feels to use, whether the motion looks right — has no command, so list it in the close's `unverified`, one string per check: the check, and what to look for.\nTwo bars before you list one. It has to be answerable today: a check that waits on work nobody has built yet goes in your findings, not here. And it has to be genuinely past your reach: where a skill, script or harness in this project already drives the thing, use it and answer the check yourself, and where none exists but one could, say that in your findings instead of sending the user to look by hand again.\nList none when every check ran — an empty list is the normal outcome and is what tells the user there is nothing to look at."
       : "";
-
-  const holdSentence = requireVerification
-    ? ` When that earned status is \`done\`, write \`awaiting_acceptance\` instead — this project holds finished work for ${delegatedTo ? `the orchestrator ${delegatedTo}'s acceptance, and its confirmation` : "the user's acceptance, and their confirmation"} makes it \`done\`; \`dropped\` and \`rejected\` close as themselves.${askSentence}`
-    : "";
-  const closeIntro = `When the work concludes, close the entry the same way — the status it actually earned (\`done\`, \`dropped\`, \`rejected\`) and your full findings in \`notes\`.${holdSentence}`;
-
-  // [Foreman: 469] A git-ignored roadmap cannot ride in the commit, so the
-  // close commits first — safe-commit appends the trailer — and records the
-  // returned sha, which also gives doctor its recorded evidence.
-  const stageStep = submodule
-    ? `The planned files sit inside the submodule \`${submodule}\`, so commit there, not at the project root — never stage the \`${submodule}\` gitlink, and never \`git add -A\`:\n\`git -C ${submodule} add -- <the files this task owns>\`\nThen commit once with \`git -C ${submodule} commit\`, with \`Foreman: ${id}\` as the final line of the message, and close with that commit's full sha from \`git -C ${submodule} rev-parse HEAD\`. The script resolves it inside the submodule and folds its files into \`observed_touches\` with the \`${submodule}/\` prefix.`
-    : privateRoadmap
-      ? `This project git-ignores ROADMAP.jsonl, so the close cannot ride in the commit: commit the task's own files first with the safe-commit primitive — never \`git add -A\`:\n\`echo '{"id":"${id}","expected":["<the files this task owns>"],"message_title":"<one-line summary>"}' | node ${CLAUDE_ROOT}/scripts/safe-commit.js finish --baseline <baseline.head>\`\nIt commits with \`Foreman: ${id}\` as the final line of the message and returns the new sha as \`commit\`. Then close with that sha — the script folds the commit's files into \`observed_touches\`.`
-      : `Stage the task's own files with the safe-commit primitive — never \`git add -A\`:\n\`echo '{"id":"${id}","expected":["<the files this task owns>"]}' | node ${CLAUDE_ROOT}/scripts/safe-commit.js finish --baseline <baseline.head> --no-commit\`\nThen close with \`staged:true\` (the script folds the staged files into \`observed_touches\` and stages ROADMAP.jsonl alongside), then commit once with \`Foreman: ${id}\` as the final line of the message.`;
 
   // An investigation writes findings, not code: no commit boundary, no staging,
   // and a close that records notes instead of staged files.
   const investigationStep = "This task is an investigation: its only project writes are this roadmap bookkeeping. Record your findings in `notes`; do not stage, commit, or change implementation files, even when a diagnostic check fails.";
 
-  const fields = investigation
-    ? ['"status":"<status>"', '"notes":"<findings>"']
-    : submodule
-      ? ['"status":"<status>"', '"commit":"<the submodule commit sha>"', '"notes":"<findings>"']
-      : privateRoadmap
-        ? ['"status":"<status>"', '"commit":"<the commit sha from finish>"', '"notes":"<findings>"']
-        : ['"status":"<status>"', '"staged":true', '"notes":"<findings>"'];
-  const closeCall = `\`echo '{"id":"${id}",${fields.join(",")}}' | node ${CLAUDE_ROOT}/scripts/roadmap.js update-status\``;
+  const fields = [
+    '"status":"<status>"',
+    ...(investigation ? [] : ['"files":["<the files this task owns>"]', '"message":"<commit message>"']),
+    '"notes":"<findings>"',
+    ...(splitStep ? ['"unverified":[]'] : []),
+  ];
+  const closeCall = `When the work concludes, close the entry with the status it actually earned (\`done\`, \`dropped\`, \`rejected\`) and your full findings in \`notes\`, by piping this JSON into start's \`then\`:\n\`echo '{${fields.join(",")}}' | <start's then>\``;
+  const hold = requireVerification
+    ? ` It records an earned \`done\` as \`awaiting_acceptance\`: this project holds finished work for ${delegatedTo ? `the orchestrator ${delegatedTo}'s` : "the user's"} acceptance.`
+    : "";
+  const closeExplain = investigation
+    ? `It closes the entry through \`roadmap.js update-status\`.${hold}`
+    : `\`files\` are the files this task owns, from the project root, and \`message\` is the whole commit message. It stages those files alone — never \`git add -A\` — closes the entry through \`roadmap.js update-status\` and commits once with \`Foreman: ${id}\` as the message's final line, inside the submodule when the planned files sit in one.${hold}`;
+  const codes = [
+    requireVerification && !agent && !delegatedTo
+      && "- `ask_acceptance`: put its `question` and `options` to the user in the same turn, with AskUserQuestion, then run the chosen option's `then` or do what its `do` says. Start nothing new until they answer.",
+    requireVerification && (agent || delegatedTo) && "- `report_acceptance`: do what its `say` says.",
+    "- `closed`: the entry is closed; nothing more to record.",
+    !investigation && "- `report_dirty`: nothing was staged or committed; tell the user its `say` in one line, then act on its `after`.",
+    !investigation && "- `refused`: follow its `fix`.",
+  ].filter(Boolean);
+  const finishCodes = `It prints one JSON line; act on its \`next\`:\n${codes.join("\n")}`;
 
   // [Foreman: 260] roadmap-schema.md:112-113 — model/effort are self-reported
   // at close, never guessed, and now always: Foreman stopped asking which model
@@ -954,10 +936,8 @@ function claudeEntryParagraphText({ id, resume, notesPlace = null, requireVerifi
   // history comparable in `list --stats`.
   const modelEffortNote = "Also add `model` and `effort` to that close call — what actually ran this task. Record a Claude model by its family label: `haiku`, `sonnet`, `opus` or `fable`. Omit either one you genuinely don't know rather than guessing — an absent field reads as unrecorded, a wrong one silently poisons the corpus.";
 
-  const steps = investigation
-    ? [opening, investigationStep, splitStep, closeIntro, closeCall, modelEffortNote]
-    : [opening, beginStep, splitStep, closeIntro, stageStep, closeCall, modelEffortNote];
-  return steps.filter(Boolean).join("\n");
+  return [opening, startCodes, investigation && investigationStep, splitStep, closeCall, closeExplain, modelEffortNote, finishCodes]
+    .filter(Boolean).join("\n");
 }
 
 // A Claude Code Workflow stage sent to a background Agent: the Workflow that

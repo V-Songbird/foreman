@@ -116,10 +116,12 @@ describe('delegatedAcceptance close', () => {
   test('a listed Claude Code session reports to the orchestrator and asks the user nothing', () => {
     writeConfig(project, { ...delegated, requireVerification: false });
     const prompt = craft('task', 'claude', claudeSession('worker-a'));
-    assert.match(prompt, /write `awaiting_acceptance` instead — this project holds finished work for the orchestrator orch-1's acceptance/);
-    assert.match(prompt, /belongs to the orchestrator orch-1, so don't ask the user: report the evidence/);
-    assert.doesNotMatch(prompt, /AskUserQuestion|the user's acceptance/);
-    assert.match(craft('agent', 'claude', claudeSession('worker-a')), /needs the orchestrator orch-1's acceptance, not the user's/);
+    assert.match(prompt, /records an earned `done` as `awaiting_acceptance`: this project holds finished work for the orchestrator orch-1's acceptance/);
+    // task.js finish words the report to the orchestrator from the baked flag.
+    assert.ok(prompt.includes('task.js start --id 001 --orchestrator orch-1`'), prompt);
+    assert.match(prompt, /- `report_acceptance`: do what its `say` says\./);
+    assert.doesNotMatch(prompt, /AskUserQuestion|the user's acceptance|ask_acceptance/);
+    assert.ok(craft('agent', 'claude', claudeSession('worker-a')).includes('task.js start --id 001 --agent --orchestrator orch-1`'));
   });
 
   test('a listed Codex session reports to the orchestrator in its close, checkpoint and discovery', () => {
@@ -153,7 +155,7 @@ describe('delegatedAcceptance close', () => {
     assert.doesNotMatch(claude, /orch-1/);
     assert.match(claude, /AskUserQuestion/, 'the Claude Code form');
     const listed = craft('task', undefined, { ...claudeSession('worker-a'), ANTIGRAVITY_CONVERSATION_ID: 'conversation', CLAUDECODE: '1' });
-    assert.match(listed, /write `awaiting_acceptance` instead — this project holds finished work for the orchestrator orch-1's acceptance/);
+    assert.match(listed, /records an earned `done` as `awaiting_acceptance`: this project holds finished work for the orchestrator orch-1's acceptance/);
   });
 
   for (const host of ['claude', 'codex', 'antigravity']) {
@@ -272,7 +274,8 @@ describe('entry mode', () => {
     writeRoadmap(project, [entryFields()]);
     const { json } = run(project, { entry: '001', destination: 'task', host: 'claude', judgment: goodJudgment() });
     assert.equal(json.ok, true, JSON.stringify(json));
-    assert.ok(json.prompt.includes(`echo '{"id":"001","status":"in_progress"}' | node \${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`), json.prompt);
+    // [Foreman: 1078] The paragraph opens the entry with task.js start.
+    assert.ok(json.prompt.includes('Mark it `in_progress` and take the commit boundary before doing anything else:\n`node ${CLAUDE_PLUGIN_ROOT}/scripts/task.js start --id 001`'), json.prompt);
   });
 });
 
@@ -725,7 +728,7 @@ describe('${CLAUDE_PLUGIN_ROOT} travels literal in a Claude Code task or agent h
     for (const destination of ['task', 'agent']) {
       const { json } = run(project, { entry: '001', destination, host: 'claude', judgment: goodJudgment() }, env);
       assert.equal(json.ok, true, JSON.stringify(json));
-      assert.ok(json.prompt.includes('${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js'), destination);
+      assert.ok(json.prompt.includes('${CLAUDE_PLUGIN_ROOT}/scripts/task.js'), destination);
       assert.ok(!json.prompt.includes('plugins\\cache\\foundry'));
       assert.ok(!json.prompt.includes('plugins/cache/foundry'));
     }
@@ -737,8 +740,7 @@ describe('${CLAUDE_PLUGIN_ROOT} travels literal in a Claude Code task or agent h
     const { json } = run(project, { entry: '001', destination: 'clipboard', host: 'claude', judgment: goodJudgment() }, env);
     assert.equal(json.ok, true, JSON.stringify(json));
     const root = path.resolve(SCRIPTS_DIR, '..').replace(/\\/g, '/');
-    assert.ok(json.prompt.includes(`${root}/scripts/roadmap.js`), json.prompt);
-    assert.ok(json.prompt.includes(`${root}/scripts/safe-commit.js`));
+    assert.ok(json.prompt.includes(`${root}/scripts/task.js start --id 001`), json.prompt);
     assert.ok(!json.prompt.includes('${CLAUDE_PLUGIN_ROOT}'));
     assert.ok(!json.prompt.includes('plugins\\cache\\foundry'));
   });
@@ -754,7 +756,7 @@ describe('${CLAUDE_PLUGIN_ROOT} travels literal in a Claude Code task or agent h
       const lookup = "use the directory this session's `[Foreman] Plugin root:` line names, if its context has one; otherwise the `installPath` recorded for `foreman@<marketplace>` in `~/.claude/plugins/installed_plugins.json`, or, in a session started with `--plugin-dir`, that directory.";
       assert.equal(json.prompt.split(lookup).length, 2, destination);
       const at = json.prompt.indexOf(lookup);
-      const firstCommand = json.prompt.indexOf('/scripts/roadmap.js');
+      const firstCommand = json.prompt.indexOf('/scripts/task.js');
       assert.ok(at < firstCommand, `${destination}: the sentence comes before the first command`);
       assert.ok(!/plugins[\\/]cache[\\/]/.test(json.prompt), destination);
       assert.equal(json.prompt.includes('were resolved when this prompt was written'), destination === 'clipboard', destination);
@@ -779,7 +781,7 @@ describe('${CLAUDE_PLUGIN_ROOT} travels literal in a Claude Code task or agent h
       assert.ok(json.prompt.includes(`- ${step}`), destination);
       const resolver = json.prompt.search(/below is Foreman's plugin root|were resolved when this prompt was written/);
       assert.ok(resolver > json.prompt.indexOf('</task_context>'), `${destination}: the resolver sentence moved above the user's text`);
-      assert.ok(json.prompt.includes(destination === 'clipboard' ? `${root}/scripts/roadmap.js` : '${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js'), destination);
+      assert.ok(json.prompt.includes(destination === 'clipboard' ? `${root}/scripts/task.js` : '${CLAUDE_PLUGIN_ROOT}/scripts/task.js'), destination);
       if (destination === 'clipboard') assert.ok(!json.prompt.includes('${CLAUDE_PLUGIN_ROOT}/scripts/'), destination);
       assert.ok(!json.prompt.includes('\u0000'), destination);
     }
@@ -810,8 +812,8 @@ describe('${CLAUDE_PLUGIN_ROOT} travels literal in a Claude Code task or agent h
       entry: '001', destination: 'clipboard', host: 'claude', judgment: goodJudgment(),
     }, { FOREMAN_PROJECT_DIR: project });
     assert.equal(crafted.status, 0, crafted.stdout + crafted.stderr);
-    const script = `${plugin.replace(/\\/g, '/')}/scripts/roadmap.js`;
-    assert.ok(JSON.parse(crafted.stdout).prompt.includes(`node '${script}' update-status`), crafted.stdout);
+    const script = `${plugin.replace(/\\/g, '/')}/scripts/task.js`;
+    assert.ok(JSON.parse(crafted.stdout).prompt.includes(`node '${script}' start --id 001`), crafted.stdout);
   });
 });
 
@@ -1162,6 +1164,7 @@ describe('decision entries and the clipboard checkpoint embed', () => {
     const { json } = run(project, {
       entry: '001',
       destination: 'clipboard',
+      host: 'claude',
       judgment: goodJudgment({
         verification: [
           { run: 'npm test -- auth', expected: 'auth tests pass' },
@@ -1171,7 +1174,7 @@ describe('decision entries and the clipboard checkpoint embed', () => {
     });
     assert.equal(json.ok, true, JSON.stringify(json));
     assert.ok(json.prompt.includes("the last task carries the roadmap close instead of a `task <n>/<total>` commit"), json.prompt);
-    assert.ok(json.prompt.includes("make that one commit with `Foreman: 001` as its final line"), json.prompt);
+    assert.ok(json.prompt.includes("commits once with `Foreman: 001` as the final line"), json.prompt);
   });
 
   test('a handoff with no roadmap entry gets no roadmap-close bullet', () => {
@@ -1607,7 +1610,7 @@ describe('workflow-stage flavor', () => {
       writeRoadmap(project, [entryFields()]);
       const { json } = run(project, { entry: '001', destination: 'agent', host: 'claude', judgment: goodJudgment() }, session);
       assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
-      assert.match(json.prompt, /Mark it `in_progress`[\s\S]*safe-commit\.js begin/);
+      assert.match(json.prompt, /Mark it `in_progress` and take the commit boundary before doing anything else:\n`node \$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/task\.js start --id 001 --agent[ `]/);
       assert.match(json.prompt, /If you hit one of these, ask and end the turn, rather than ending on a promise\./);
       assert.doesNotMatch(json.prompt, /structured report/);
     });
@@ -2640,7 +2643,32 @@ describe('the entry close in each roadmap mode', () => {
     writeRoadmap(project, [entryFields()]);
   }
 
-  for (const host of ['claude', 'codex']) {
+  // [Foreman: 1078] Claude Code's paragraph names task.js, which picks the
+  // close form at run time (tests/task.test.js), so it reads the same in both.
+  test('a Claude Code paragraph carries the task.js close whatever git ignores', () => {
+    for (const ignore of [true, false]) {
+      fs.rmSync(path.join(project, '.git'), { recursive: true, force: true });
+      roadmapRepo(ignore);
+      const { status, json } = run(project, { entry: '001', destination: 'task', host: 'claude', judgment: goodJudgment() });
+      assert.equal(status, 0, JSON.stringify(json));
+      assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
+      assert.ok(json.prompt.includes('`node ${CLAUDE_PLUGIN_ROOT}/scripts/task.js start --id 001`'), json.prompt);
+      assert.ok(json.prompt.includes(`| <start's then>\``), json.prompt);
+      assert.doesNotMatch(json.prompt, /safe-commit\.js|git-ignores ROADMAP\.jsonl|"?staged"?:true|"commit":"</);
+      const split = run(project, {
+        entry: '001', destination: 'task', host: 'claude', split: true,
+        judgment: goodJudgment({ verification: [
+          { run: 'npm test', expected: 'all tests pass', goal: 'first slice' },
+          { run: 'npm run lint', expected: 'no lint errors', goal: 'second slice' },
+        ] }),
+      }).json;
+      const rows = split.tasks.map((row) => row.description).join('\n');
+      assert.equal(rows.split("| <start's then>").length, 2, 'one close across the rows');
+      assert.ok(split.tasks[1].description.includes("| <start's then>"));
+    }
+  });
+
+  for (const host of ['codex']) {
     test(`a git-ignored roadmap commits first and closes with the sha, on host ${host}`, () => {
       roadmapRepo(true);
       const { status, json } = run(project, { entry: '001', destination: 'task', host, judgment: goodJudgment() });
@@ -2654,7 +2682,11 @@ describe('the entry close in each roadmap mode', () => {
       assert.doesNotMatch(json.prompt, /"?staged"?:true/);
     });
 
-    // [Foreman: 496] The clipboard checkpoint embed's last close follows suit.
+  }
+
+  // [Foreman: 496] The clipboard checkpoint embed's last close follows suit;
+  // Claude Code's runs task.js again, which commits first itself.
+  for (const host of ['claude', 'codex']) {
     test(`a git-ignored roadmap's checkpoint embed closes with the sha too, on host ${host}`, () => {
       roadmapRepo(true);
       const verification = [
@@ -2665,11 +2697,15 @@ describe('the entry close in each roadmap mode', () => {
       assert.equal(status, 0, JSON.stringify(json));
       assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
       assert.match(json.prompt, /Checkpoint protocol for this multi-task run/);
-      assert.match(json.prompt, /the last task carries the roadmap close instead of a `task <n>\/<total>` commit: this project git-ignores ROADMAP\.jsonl/);
+      assert.match(json.prompt, host === 'claude'
+        ? /the last task carries the roadmap close instead of a `task <n>\/<total>` commit: run the entry paragraph's `task\.js start` again/
+        : /the last task carries the roadmap close instead of a `task <n>\/<total>` commit: this project git-ignores ROADMAP\.jsonl/);
       assert.doesNotMatch(json.prompt, /--no-commit/);
       assert.doesNotMatch(json.prompt, /"?staged"?:true/);
     });
+  }
 
+  for (const host of ['codex']) {
     // [Foreman: 554] An in-session split carries one close, on its last row.
     test(`a git-ignored roadmap's split rows carry one sha close and no staged close, on host ${host}`, () => {
       roadmapRepo(true);
