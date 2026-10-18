@@ -958,9 +958,10 @@ function scopeDrift(predicted, actual) {
 // trailing "/" as the folder, which keeps format 2 and a 4.1.0 reader
 // working. Mutates and returns the entry. At any length, a path under a
 // stored prefix is dropped and adds no weight, which repairs what a 4.1.0
-// close appended; a list then at or under the cap, or one with no folder
-// left to collapse, passes through, so it is idempotent. A missing or
-// invalid stored count weighs 1.
+// close appended; a list then at or under the cap, or one that even the
+// top folder level would not shorten, passes through, so it is idempotent.
+// A path no deeper than the chosen level stays exact. A missing or invalid
+// stored count weighs 1.
 function collapseObservedTouches(entry) {
   const all = entry && entry.observed_touches;
   if (!Array.isArray(all) || !all.every((t) => typeof t === "string")) return entry;
@@ -989,7 +990,7 @@ function collapseObservedTouches(entry) {
     }
     if (keys.size <= OBSERVED_TOUCHES_CAP) break;
   }
-  if (!keys) return entry;
+  if (!keys || keys.size >= list.length) return entry;
   entry.observed_touches = [...keys.keys()];
   const sums = Object.fromEntries([...keys].filter(([key]) => key.endsWith("/")));
   if (Object.keys(sums).length) entry.observed_touch_counts = sums;

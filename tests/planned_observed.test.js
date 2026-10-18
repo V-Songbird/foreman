@@ -666,6 +666,11 @@ describe('observed_touches past the cap collapse into folder prefixes', () => {
     assert.deepEqual(mixed.observed_touch_counts, { 'src/': CAP });
   });
 
+  test('a list the top folder level would not shorten stays as it is', () => {
+    const list = range(CAP + 1, (i) => `d${i}/x.js`);
+    assert.deepEqual(collapseObservedTouches({ observed_touches: [...list] }), { observed_touches: list });
+  });
+
   test('collapsing its own output changes nothing', () => {
     for (const list of [overCap(), range(CAP + 1, (i) => `src/d${i}/x.js`)]) {
       const once = collapseObservedTouches({ observed_touches: list });
