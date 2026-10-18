@@ -1092,8 +1092,9 @@ the pasted session to:
   in Claude Code, run `task.js start` again for a fresh boundary right
   after the previous task's checkpoint commit, before touching the last
   task's files (run later, it reads those edits as someone else's changes
-  and the close commits nothing), and once the work is done pipe the
-  close into its `then`, which stages, closes and makes that one
+  and the close commits nothing), and once the work is done send the
+  close JSON to its `then` through a quoted heredoc, as the entry
+  paragraph shows, which stages, closes and makes that one
   commit with the baked `Foreman: <id>` as its final line; in Codex, stage
   with `safe-commit.js finish --no-commit`, close with `staged:true`, then
   make that one commit; omit this line entirely when there is no entry;
@@ -1237,11 +1238,14 @@ explicitly authorized decision artifact.
   task completed. The entry-paragraph and gate rules above are
   unchanged. When subagents help, the coordinator owns these writes.
 <!-- [Foreman: 1078] -->
-- **A close never stages into someone else's changes.** When `begin`
-  found the tree dirty, the index holds staged files the task does not
-  own, or something was committed since `start`, `task.js finish` records
-  the close without touching the index and commits nothing, and returns
-  `report_dirty` with a `reason` naming which.
+- **A close never stages into someone else's changes.** When the close
+  has no `--baseline` from `start` (`start` found the tree holding changes
+  or unreadable, or the close ran by hand), the index holds staged files
+  the task does not own, or something was committed since `start`,
+  `task.js finish` records the close without touching the index and
+  commits nothing, and returns `report_dirty` with a `reason` naming which:
+  `no_baseline`, `index_has_other_changes` or `head_moved_since_baseline`,
+  or `git_status_unavailable` when git could not list the index.
 <!-- [Foreman: 410] -->
 - **An entry whose planned files all sit inside one submodule closes
   there.** `craft-handoff.js` and `task.js` read the submodule paths from

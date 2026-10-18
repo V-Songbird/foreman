@@ -142,7 +142,9 @@ returns — `dirty_tree` (its `begin` reporting `dirty: true`),
 `head_moved_since_baseline`, `no_task_changes`, `unexpected_files`,
 `staging_incomplete`, `staging_failed`, `post_commit_attestation_failed`,
 `gitlink_not_expected` (a submodule pointer `finish` was not given by its
-exact path) — plus `verification_declined` for the `requireVerification`
+exact path) — plus `commit_failed` (`scripts/task.js finish` when `git
+commit` itself fails, as when a pre-commit hook refuses) and
+`verification_declined` for the `requireVerification`
 hold (written by Claude Code's `hooks/task-completed.js`; Codex's stop
 reminder records none, and Antigravity has neither). Names only: never the
 count of dirty files, never which files were unexpected.

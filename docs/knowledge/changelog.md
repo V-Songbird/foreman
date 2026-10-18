@@ -51,16 +51,21 @@ instead.
   substitution holds a space, does draw its reminders.
 - The reminders after a commit are shorter. When one entry is the candidate,
   its id is already in the command to run.
+- `safe-commit.js finish` with `roadmap_close` now refuses with
+  `no_task_changes` when `ROADMAP.jsonl` is the only file that changed.
+  Opening the entry always changes that file, so before, such a close made a
+  commit that held only the roadmap and none of the task's work.
 
 ### Claude Code
 
 - A handoff now opens and closes its roadmap entry with two commands,
   `task.js start` and `task.js finish`, instead of a block of steps to follow
-  by hand. `start` opens the entry and records which files were already
-  changed. `finish` stages only the task's own files, closes the entry,
-  commits once with the `Foreman:` line and says whether to ask for
-  acceptance. When the working tree was already dirty at the start, other
-  changes are staged, or something was committed since the start, `finish`
+  by hand. `start` opens the entry, records the commit the task starts
+  from, and says whether the working tree already held changes. `finish`
+  stages only the task's own files, closes the entry, commits once with the
+  `Foreman:` line and says whether to ask for acceptance. When `start`
+  recorded no starting commit, other changes are staged, or something was
+  committed since the start, `finish`
   records the close without staging or committing anything and says which,
   instead of mixing in someone else's changes. In a multi-task run, the
   prompt says to run `start` again right after the previous task's commit,
@@ -72,7 +77,8 @@ instead.
   to ask for acceptance, and the trial log records the failure. When Git
   cannot read the tree at `start`, or `finish` runs without the `--baseline`
   that `start` returned, the message no longer says that someone else changed
-  the tree. The prompt now passes the close's JSON through a quoted heredoc,
+  the tree, and `finish` names the reason `no_baseline` instead of
+  `dirty_at_start`. The prompt now passes the close's JSON through a quoted heredoc,
   so an apostrophe in the commit message or the notes no longer breaks the
   command. A Workflow-stage prompt for a background agent that runs
   `task.js start` or `task.js finish` now fails the prompt check, as

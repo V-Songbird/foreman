@@ -105,9 +105,18 @@ after verification, with the returned baseline and the owned file surface. A
 back under `ledger_dirty` and does not count. A moved HEAD, unexpected files, or
 failed staging needs inspection, never a broader staging command.
 
+- In Claude Code, a handoff's entry paragraph runs that boundary through
+  `scripts/task.js`: `start` opens the entry and takes the boundary, and
+  `finish` stages the owned files, closes the entry and commits once, in the
+  form the project needs (the staged close at the root, a commit inside the
+  submodule, or a commit before the close when git ignores ROADMAP.jsonl).
+  Each prints one JSON line; act on its `next`. A `report_dirty` answer means
+  nothing was staged or committed.
+
 Every roadmap-owned commit carries the exact final trailer `Foreman: <id>`. For
-a staged close, `finish --no-commit` stages the owned work, `update-status` with
-`staged:true` includes the close, then one commit carries that trailer. Record
+a staged close by hand, `finish --no-commit` stages the owned work,
+`update-status` with `staged:true` includes the close, then one commit carries
+that trailer. Record
 follow-up commits without changing `awaiting_acceptance` to `done`. Record
 model and effort only as the executing environment knows them — a Claude family
 label (`haiku`, `sonnet`, `opus`, `fable`) in Claude Code, the exact model id in

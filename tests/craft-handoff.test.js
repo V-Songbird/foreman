@@ -265,12 +265,13 @@ describe('entry mode', () => {
 
   // [Foreman: 613] A Claude Code session without TaskCreate creates no row, so
   // the task-created hook never opens the entry: delivery.md sends it to the
-  // update-status call the handoff already embeds.
-  test('Execute here without TaskCreate opens the entry with the embedded update-status (claude)', () => {
+  // task.js start call the handoff already embeds.
+  test('Execute here without TaskCreate opens the entry with the embedded task.js start (claude)', () => {
     const delivery = fs.readFileSync(path.join(SCRIPTS_DIR, '..', 'skills', 'roadmap', 'delivery.md'), 'utf-8');
     const executeHere = delivery.slice(delivery.indexOf('## Execute here'), delivery.indexOf('## Close and acceptance')).replace(/\s+/g, ' ');
     assert.match(executeHere, /A Claude Code session without `TaskCreate`, such as a desktop session started from a task chip, creates no row, so the hook never opens the entry\./);
-    assert.match(executeHere, /Say once that the task could not be tracked, open the entry yourself with the `update-status` `in_progress` call its entry paragraph embeds, before any other step, then work the prompt, or each `tasks\[\]` row, in order with every check\./);
+    assert.match(executeHere, /Say once that the task could not be tracked, run the `task\.js start` call its entry paragraph embeds before any other step, which opens the entry, then work the prompt, or each `tasks\[\]` row, in order with every check\./);
+    assert.doesNotMatch(executeHere, /update-status/);
     writeRoadmap(project, [entryFields()]);
     const { json } = run(project, { entry: '001', destination: 'task', host: 'claude', judgment: goodJudgment() });
     assert.equal(json.ok, true, JSON.stringify(json));

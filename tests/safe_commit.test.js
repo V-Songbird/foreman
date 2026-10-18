@@ -885,7 +885,7 @@ describe('the close and checkpoint choreography is documented without git add -A
       assert.ok(embed.includes('never `git add -A`'));
       assert.doesNotMatch(embed, /`git add -A` and commit/);
       assert.ok(embed.includes(host === 'claude'
-        ? "pipe the close JSON into its `then`, which stages the task's files"
+        ? "send the close JSON to its `then` through a quoted heredoc, as the entry paragraph shows, which stages the task's files"
         : 'stage with `safe-commit.js finish --no-commit`'), 'the last task no longer closes through the primitive');
     });
   }

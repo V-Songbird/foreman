@@ -38,7 +38,7 @@ a wrong one is removed with `TaskUpdate` `status: "deleted"`).
 (`${CLAUDE_PLUGIN_ROOT}/prompt-template.md`), section "Checkpointing a
 task-split run". Read that section before an implementation split run, or a
 run producing explicitly authorized decision artifacts, and follow it exactly:
-it owns the config defaults, the `safe-commit.js begin` boundary, the branch
+it owns the config defaults, the commit boundary, the branch
 rule, the per-task commit — including the `unexpected_files` refusal, which is
 shown to the user and re-run with `--allow-unexpected` only on their approval
 (an explicit earlier authorization of those files counts) — the rule that
