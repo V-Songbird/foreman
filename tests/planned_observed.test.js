@@ -20,6 +20,8 @@
 //   - correct replaces planned_touches and refuses observed_touches outright
 //   - add accepts `touches` as an input alias, but stores the new fields
 //   - --hint scans BOTH surfaces (an entry is findable by where it has been)
+//   - [Foreman: 1080] past the cap, observed_touches collapses into folder
+//     prefixes with counts, at close and on migrate, and stays format 2
 //
 // The post-commit tag's own decision (it compares planned_touches, never the
 // accumulated observed half) is pinned in post_commit.test.js.
@@ -36,7 +38,9 @@ const {
   writeRoadmap,
   initGitRepo,
   commitFile,
+  writeArchiveFile,
 } = require('./helpers');
+const { collapseObservedTouches, OBSERVED_TOUCHES_CAP } = require('../scripts/roadmap.js');
 
 const META = '{"foreman_roadmap_format":2}';
 
@@ -580,5 +584,191 @@ describe('--hint scans both surfaces', () => {
     ]);
     const { json } = run(['next-candidates', '--hint', 'tokenizer']);
     assert.equal(json.candidates[0].id, '002');
+  });
+});
+
+// [Foreman: 1080]
+describe('observed_touches past the cap collapse into folder prefixes', () => {
+  const CAP = OBSERVED_TOUCHES_CAP;
+  const range = (n, fn) => Array.from({ length: n }, (_, i) => fn(i));
+
+  function entry(id, overrides = {}) {
+    return {
+      id,
+      title: `task ${id}`,
+      why: 'w',
+      what: 'x',
+      status: 'done',
+      source: 'user',
+      depends_on: [],
+      planned_touches: [],
+      observed_touches: [],
+      commits: [],
+      created_at: '2026-07-01',
+      updated_at: '2026-07-01',
+      notes: '',
+      ...overrides,
+    };
+  }
+
+  // Every recorded path is either still listed or counted under a prefix.
+  function weight(e) {
+    const counts = e.observed_touch_counts || {};
+    return e.observed_touches.reduce((sum, t) => sum + (t.endsWith('/') ? counts[t] : 1), 0);
+  }
+
+  const overCap = () => [
+    ...range(40, (i) => `src/a/f${i}.js`),
+    ...range(40, (i) => `src/b/f${i}.js`),
+    ...range(CAP + 1 - 80, (i) => `docs/p${i}.md`),
+  ];
+
+  test('a list past the cap collapses to at most the cap, deterministically', () => {
+    const first = collapseObservedTouches({ observed_touches: overCap() });
+    const second = collapseObservedTouches({ observed_touches: overCap() });
+    assert.ok(first.observed_touches.length <= CAP);
+    assert.deepEqual(first, second);
+    assert.deepEqual(first.observed_touches.slice(0, 2), ['src/a/', 'src/b/']);
+    assert.deepEqual(first.observed_touch_counts, { 'src/a/': 40, 'src/b/': 40 });
+    assert.equal(weight(first), CAP + 1);
+    for (const key of Object.keys(first.observed_touch_counts)) assert.ok(key.endsWith('/'));
+  });
+
+  test('when no deeper level fits, the top folder takes every path', () => {
+    const out = collapseObservedTouches({ observed_touches: range(CAP + 1, (i) => `src/d${i}/x.js`) });
+    assert.deepEqual(out.observed_touches, ['src/']);
+    assert.deepEqual(out.observed_touch_counts, { 'src/': CAP + 1 });
+  });
+
+  test('a list at the cap is left as it is, with no counts', () => {
+    const list = range(CAP, (i) => `src/a/f${i}.js`);
+    const out = collapseObservedTouches({ observed_touches: [...list] });
+    assert.deepEqual(out.observed_touches, list);
+    assert.equal('observed_touch_counts' in out, false);
+  });
+
+  test('a stored prefix count is carried into a shallower prefix', () => {
+    const out = collapseObservedTouches({
+      observed_touches: ['pkg/one/deep/', ...range(CAP, (i) => `pkg/two/f${i}.js`)],
+      observed_touch_counts: { 'pkg/one/deep/': 50 },
+    });
+    assert.deepEqual(out.observed_touches, ['pkg/one/', 'pkg/two/']);
+    assert.deepEqual(out.observed_touch_counts, { 'pkg/one/': 50, 'pkg/two/': CAP });
+  });
+
+  test('root-level files that cannot collapse further stay as they are', () => {
+    const roots = range(CAP + 1, (i) => `f${i}.md`);
+    assert.deepEqual(collapseObservedTouches({ observed_touches: [...roots] }), { observed_touches: roots });
+    const mixed = collapseObservedTouches({
+      observed_touches: ['README.md', ...range(CAP, (i) => `src/d${i}/x.js`)],
+    });
+    assert.deepEqual(mixed.observed_touches, ['README.md', 'src/']);
+    assert.deepEqual(mixed.observed_touch_counts, { 'src/': CAP });
+  });
+
+  test('collapsing its own output changes nothing', () => {
+    for (const list of [overCap(), range(CAP + 1, (i) => `src/d${i}/x.js`)]) {
+      const once = collapseObservedTouches({ observed_touches: list });
+      const snapshot = JSON.parse(JSON.stringify(once));
+      assert.deepEqual(collapseObservedTouches(once), snapshot);
+    }
+  });
+
+  test('a close past the cap stores prefixes and counts, still format 2', () => {
+    writeRoadmap(project, [entry('001', { status: 'in_progress' })]);
+    const { status, json } = run(['update-status'], { id: '001', status: 'done', add_touches: overCap() });
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.deepEqual(json.entry.observed_touch_counts, { 'src/a/': 40, 'src/b/': 40 });
+    const [meta, line] = lines(roadmapFile());
+    assert.equal(meta, META);
+    const stored = JSON.parse(line);
+    assert.ok(stored.observed_touches.length <= CAP);
+    assert.ok(stored.observed_touches.every((t) => typeof t === 'string' && t.length > 0));
+    assert.deepEqual(stored.observed_touch_counts, { 'src/a/': 40, 'src/b/': 40 });
+  });
+
+  test('a commit past the cap is recorded whole in commits[] and derived_touches', () => {
+    initGitRepo(project);
+    writeRoadmap(project, [entry('001', { status: 'in_progress' })]);
+    for (const i of range(CAP, (n) => n)) {
+      const file = path.join(project, 'src', i % 2 ? 'a' : 'b', `f${i}.js`);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, `${i}\n`, 'utf-8');
+    }
+    spawnSync('git', ['add', 'src'], { cwd: project });
+    const sha = commitFile(project, 'src/a/last.js', 'last\n');
+
+    const { json } = run(['update-status'], { id: '001', status: 'done', commit: sha });
+    assert.deepEqual(json.entry.commits, [sha]);
+    assert.equal(json.derived_touches.length, CAP + 1);
+    assert.deepEqual(json.entry.observed_touches, ['src/a/', 'src/b/']);
+    assert.deepEqual(json.entry.observed_touch_counts, { 'src/a/': CAP / 2 + 1, 'src/b/': CAP / 2 });
+
+    const again = run(['update-status'], { id: '001', status: 'done', commit: sha }).json;
+    assert.equal(JSON.stringify(again.entry.observed_touches), JSON.stringify(json.entry.observed_touches));
+    assert.equal(JSON.stringify(again.entry.observed_touch_counts), JSON.stringify(json.entry.observed_touch_counts));
+  });
+
+  test('a later close adds only paths outside every stored prefix', () => {
+    writeRoadmap(project, [
+      entry('001', {
+        status: 'in_progress',
+        observed_touches: ['src/a/', 'src/b/'],
+        observed_touch_counts: { 'src/a/': 40, 'src/b/': 61 },
+      }),
+    ]);
+    const { json } = run(['update-status'], {
+      id: '001',
+      status: 'done',
+      add_touches: ['src/a/new.js', 'README.md'],
+    });
+    assert.deepEqual(json.entry.observed_touches, ['src/a/', 'src/b/', 'README.md']);
+    assert.deepEqual(json.entry.observed_touch_counts, { 'src/a/': 40, 'src/b/': 61 });
+  });
+
+  test('migrate collapses over-cap entries in a current roadmap and archive, once', () => {
+    writeRoadmap(project, [entry('001', { observed_touches: overCap() })]);
+    writeArchiveFile(project, [entry('002', { observed_touches: overCap() })]);
+
+    const { json } = run(['migrate']);
+    assert.equal(json.changed, true);
+    assert.equal(fs.existsSync(json.backup), true);
+    assert.equal(json.archive.changed, true);
+    assert.equal(fs.existsSync(json.archive.backup), true);
+    for (const file of [roadmapFile(), archiveFile()]) {
+      const [meta, line] = lines(file);
+      assert.equal(meta, META);
+      assert.deepEqual(JSON.parse(line).observed_touch_counts, { 'src/a/': 40, 'src/b/': 40 });
+    }
+
+    const second = run(['migrate']).json;
+    assert.equal(second.changed, false);
+    assert.equal(second.backup, undefined);
+    assert.equal(second.archive.changed, false);
+    assert.equal(backupsIn(project, 'ROADMAP.jsonl.backup-').length, 1);
+    assert.equal(backupsIn(path.dirname(archiveFile()), 'archive.jsonl.backup-').length, 1);
+  });
+
+  test('doctor, list and next-candidates accept a collapsed entry; collision stays planned-only', () => {
+    const collapsed = collapseObservedTouches(entry('001', { observed_touches: overCap(), commits: ['abc1234'] }));
+    writeRoadmap(project, [
+      collapsed,
+      entry('002', { status: 'in_progress', planned_touches: ['src/other.js'], observed_touches: ['src/a/'] }),
+      entry('003', { status: 'planned', planned_touches: ['src/a/x.js'] }),
+    ]);
+
+    const doctor = run(['doctor']).json;
+    assert.equal(doctor.ok, true);
+    assert.equal(doctor.summary.errors, 0);
+    assert.deepEqual(doctor.findings.filter((f) => (f.ids || []).includes('001')), []);
+
+    const list = run(['list', '--ids', '001']).json;
+    assert.equal(list.ok, true);
+    assert.deepEqual(list.entries[0].observed_touch_counts, collapsed.observed_touch_counts);
+
+    const next = run(['next-candidates']).json;
+    assert.equal(next.ok, true);
+    assert.equal(next.candidates[0].id, '003');
+    assert.equal(next.candidates[0].collision, false);
   });
 });

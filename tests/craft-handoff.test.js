@@ -1712,6 +1712,20 @@ describe('prior-work recall', () => {
     assert.equal(text, '');
   });
 
+  // [Foreman: 1080] A close past the cap stores folder prefixes; the entry
+  // stays recallable for any path under them.
+  test('a collapsed folder prefix is still recalled for a path beneath it', () => {
+    const rows = [
+      finished('300', ['src/auth/'], {
+        planned_touches: ['src/elsewhere.js'],
+        observed_touch_counts: { 'src/auth/': 40 },
+      }),
+      ...pad(4, 900),
+    ];
+    const text = priorWorkText(rows, { id: '001', planned_touches: ['src/auth/middleware.js'] });
+    assert.match(text, /- 300 Earlier work 300 — /);
+  });
+
   test('open entries and evidence-less closes are not corpus', () => {
     const rows = [
       finished('300', ['src/auth/middleware.js'], { status: 'planned' }),
