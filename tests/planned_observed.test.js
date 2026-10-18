@@ -767,6 +767,14 @@ describe('observed_touches past the cap collapse into folder prefixes', () => {
     assert.equal(run(['migrate']).json.changed, false);
   });
 
+  test('an uncounted folder path keeps its exact children, and migrate leaves it alone', () => {
+    const list = ['docs/', 'docs/a.md', 'docs/b.md', 'src/x.js'];
+    assert.deepEqual(collapseObservedTouches({ observed_touches: [...list] }), { observed_touches: list });
+    writeRoadmap(project, [entry('001', { observed_touches: [...list] })]);
+    assert.equal(run(['migrate']).json.changed, false);
+    assert.deepEqual(JSON.parse(lines(roadmapFile())[1]).observed_touches, list);
+  });
+
   test('migrate collapses over-cap entries in a current roadmap and archive, once', () => {
     writeRoadmap(project, [entry('001', { observed_touches: overCap() })]);
     writeArchiveFile(project, [entry('002', { observed_touches: overCap() })]);

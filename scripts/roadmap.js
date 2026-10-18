@@ -957,8 +957,10 @@ function scopeDrift(predicted, actual) {
 // goes into the string: every overlap check and git pathspec reads a
 // trailing "/" as the folder, which keeps format 2 and a 4.1.0 reader
 // working. Mutates and returns the entry. At any length, a path under a
-// stored prefix is dropped and adds no weight, which repairs what a 4.1.0
-// close appended; a list then at or under the cap, or one that even the
+// stored prefix (one with a key in observed_touch_counts, which every
+// collapse writes) is dropped and adds no weight, which repairs what a 4.1.0
+// close appended; a folder path given through add_touches has no count and
+// keeps its children. A list then at or under the cap, or one that even the
 // top folder level would not shorten, passes through, so it is idempotent.
 // A path no deeper than the chosen level stays exact. A missing or invalid
 // stored count weighs 1.
@@ -968,7 +970,7 @@ function collapseObservedTouches(entry) {
   const counts = entry.observed_touch_counts && typeof entry.observed_touch_counts === "object"
     ? entry.observed_touch_counts
     : {};
-  const prefixes = all.filter((t) => t.endsWith("/"));
+  const prefixes = all.filter((t) => t.endsWith("/") && Object.hasOwn(counts, t));
   const list = all.filter((t) => !prefixes.some((p) => coversPath(p, t) && !coversPath(t, p)));
   if (list.length < all.length) {
     entry.observed_touches = list;

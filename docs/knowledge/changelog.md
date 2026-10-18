@@ -32,8 +32,10 @@ instead.
 - An entry that closes with more than 100 files now stores them as folder
   prefixes with a count each, such as `brand/icons/` for 412 files, so a
   large entry keeps a short line in `ROADMAP.jsonl`. A later file under a
-  stored folder adds nothing, and the next close or `roadmap.js migrate`
-  drops one that an older Foreman added. `migrate` also shrinks entries
+  collapsed folder adds nothing, and the next close or `roadmap.js migrate`
+  drops one that an older Foreman added; a folder you named through
+  `add_touches` is not collapsed, so the files under it stay listed.
+  `migrate` also shrinks entries
   already past 100 files, in the roadmap and the archive. The entry's
   commits still hold every file they changed; a file named only through
   `add_touches` is kept only in the folder count. The roadmap stays format
