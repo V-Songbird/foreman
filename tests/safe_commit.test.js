@@ -409,6 +409,16 @@ describe('safe-commit finish staging discipline', () => {
     assert.equal(json.reason, 'no_task_changes');
   });
 
+  test('the usage text gives the close-in-commit order task.js runs', () => {
+    const r = runNodeScript(SAFE_COMMIT, ['--help'], null, env);
+    assert.equal(r.status, 0, r.stderr);
+    const usage = r.stdout.replace(/\s+/g, ' ');
+    assert.match(usage, /finish stages ROADMAP\.jsonl with the task's files, and update-status staged:true runs after it/);
+    assert.match(usage, /no_task_changes; a roadmap_close whose only change is ROADMAP\.jsonl too/);
+    assert.match(usage, /finish --no-commit, then update-status staged:true, then one git commit/);
+    assert.doesNotMatch(usage, /has already staged ROADMAP\.jsonl/);
+  });
+
   test('a commit landing between begin and finish is refused', () => {
     cleanRepo();
     const baseline = begin().baseline.head;

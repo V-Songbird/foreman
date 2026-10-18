@@ -512,13 +512,16 @@ error; a refusal is a successful call reporting ok:false).
             expected: declared surface, prefix-aware ("src/api" owns every
               file beneath it). Required.
             message_title: commit subject. Required unless --no-commit.
-            roadmap_close: true only for the close-in-commit flow, where
-              update-status staged:true has already staged ROADMAP.jsonl.
+            roadmap_close: true only for the close-in-commit flow: finish
+              stages ROADMAP.jsonl with the task's files, and update-status
+              staged:true runs after it to record and stage the close.
               When git ignores ROADMAP.jsonl (a private roadmap), the
               commit carries the task's files alone and warnings says so.
             Refuses (ok:false, nothing staged) when HEAD moved since the
-            baseline, when nothing changed, or when a changed file matches
-            no expected entry -- unexpected_files names them. Re-run with
+            baseline, when nothing but shared-ledger files changed
+            (no_task_changes; a roadmap_close whose only change is
+            ROADMAP.jsonl too), or when a changed file matches no expected
+            entry -- unexpected_files names them. Re-run with
             --allow-unexpected only after the user approved those files.
             A changed submodule gitlink is refused as gitlink_not_expected
             unless expected names that exact path; neither an area hint
