@@ -87,7 +87,7 @@ function isFormatMeta(value) {
 // a commit-derived history, so a close could only ever grow it and a
 // collision check could not tell forecast from footprint. It becomes two
 // fields: `planned_touches` (the prediction, replaceable by `correct`) and
-// `observed_touches` (append-only, derived at close).
+// `observed_touches` (derived at close, never hand-edited).
 //
 // Purely mechanical, and deliberately no git: everything a v1 entry recorded
 // was reached through the one array, and nothing in the file says which paths
@@ -956,31 +956,54 @@ function scopeDrift(predicted, actual) {
 // list, except add_touches paths, which no commit holds. The count never
 // goes into the string: every overlap check and git pathspec reads a
 // trailing "/" as the folder, which keeps format 2 and a 4.1.0 reader
-// working. Mutates and returns the entry. At any length, a path under a
-// stored prefix (one with a key in observed_touch_counts, which every
-// collapse writes) is dropped and adds no weight, which repairs what a 4.1.0
-// close appended; a folder path given through add_touches has no count and
-// keeps its children. A list then at or under the cap, or one that even the
-// top folder level would not shorten, passes through, so it is idempotent.
-// A path no deeper than the chosen level stays exact. A missing or invalid
-// stored count weighs 1.
+// working. Mutates and returns the entry.
+//
+// The fold rule, in one place:
+// - A stored prefix is a path ending in "/" with a key in
+//   observed_touch_counts. Only a collapse writes such a key, and only for a
+//   prefix that stood for at least one deeper path (or already carried a
+//   count). A folder path given through add_touches has no key, so it is an
+//   ordinary exact path: it never absorbs, drops or weighs another path.
+// - At any length, a path under a stored prefix is dropped: an exact path adds
+//   no weight (it repairs what a 4.1.0 close re-appended, and a later file
+//   under a collapsed folder adds nothing); a stored prefix under another
+//   merges its count into the outermost one, so no weight is lost.
+// - Past the cap, every path deeper than the chosen folder level folds into
+//   its prefix at that level, the deepest level whose key set fits under the
+//   cap, or the top level when none does. A path no deeper than that level
+//   stays exact. A list the top level would not shorten passes through.
+// - Comparisons are case-sensitive, like the keys; git reports exact paths.
+// - A second pass over the output changes nothing: nothing exact is left under
+//   a stored prefix, and a list under the cap is not touched.
+// A missing or invalid stored count weighs 1.
 function collapseObservedTouches(entry) {
   const all = entry && entry.observed_touches;
   if (!Array.isArray(all) || !all.every((t) => typeof t === "string")) return entry;
   const counts = entry.observed_touch_counts && typeof entry.observed_touch_counts === "object"
     ? entry.observed_touch_counts
     : {};
-  const prefixes = all.filter((t) => t.endsWith("/") && Object.hasOwn(counts, t));
-  const list = all.filter((t) => !prefixes.some((p) => coversPath(p, t) && !coversPath(t, p)));
+  const stored = (t) => t.endsWith("/") && Object.hasOwn(counts, t);
+  const under = (prefix, t) => t !== prefix && t.startsWith(prefix);
+  const prefixes = all.filter(stored).sort((a, b) => a.length - b.length);
+  const weights = {};
+  const list = [];
+  for (const t of all) {
+    const outer = prefixes.find((p) => under(p, t));
+    const w = stored(t) && Number.isInteger(counts[t]) && counts[t] > 0 ? counts[t] : 1;
+    if (!outer) {
+      list.push(t);
+      if (stored(t)) weights[t] = (weights[t] || 0) + w;
+    } else if (stored(t)) {
+      weights[outer] = (weights[outer] || 0) + w;
+    }
+  }
   if (list.length < all.length) {
     entry.observed_touches = list;
-    const kept = Object.fromEntries(Object.entries(counts).filter(([key]) => list.includes(key)));
-    if (Object.keys(kept).length) entry.observed_touch_counts = kept;
+    if (Object.keys(weights).length) entry.observed_touch_counts = weights;
     else delete entry.observed_touch_counts;
   }
   if (list.length <= OBSERVED_TOUCHES_CAP) return entry;
   const segs = (t) => t.replace(/\/+$/, "").split("/");
-  const weight = (t) => (t.endsWith("/") && Number.isInteger(counts[t]) && counts[t] > 0 ? counts[t] : 1);
   const maxDepth = list.reduce((max, t) => Math.max(max, segs(t).length), 0);
   let keys = null;
   for (let depth = maxDepth - 1; depth >= 1; depth--) {
@@ -988,13 +1011,16 @@ function collapseObservedTouches(entry) {
     for (const t of list) {
       const s = segs(t);
       const key = s.length > depth ? `${s.slice(0, depth).join("/")}/` : t;
-      keys.set(key, (keys.get(key) || 0) + weight(t));
+      const k = keys.get(key) || { weight: 0, folds: false };
+      k.weight += weights[t] || 1;
+      k.folds = k.folds || key !== t || Object.hasOwn(weights, t);
+      keys.set(key, k);
     }
     if (keys.size <= OBSERVED_TOUCHES_CAP) break;
   }
   if (!keys || keys.size >= list.length) return entry;
   entry.observed_touches = [...keys.keys()];
-  const sums = Object.fromEntries([...keys].filter(([key]) => key.endsWith("/")));
+  const sums = Object.fromEntries([...keys].filter(([, k]) => k.folds).map(([key, k]) => [key, k.weight]));
   if (Object.keys(sums).length) entry.observed_touch_counts = sums;
   else delete entry.observed_touch_counts;
   return entry;
@@ -1307,9 +1333,10 @@ function cmdUpdateStatusUnlocked(root, payload) {
     // append-only invariant: never replace existing notes
     entry.notes = appendNote(entry.notes, notes);
   }
-  // [Foreman: 130] observed_touches is the growing footprint, same
-  // append-only spirit as commits: what the commit's diff actually shows (or,
-  // for a staged close, the index), plus whatever add_touches names on top.
+  // [Foreman: 130] observed_touches is the footprint, mechanical in the same
+  // spirit as commits: what the commit's diff actually shows (or, for a
+  // staged close, the index), plus whatever add_touches names on top; past
+  // the cap it is folded into folder prefixes (collapseObservedTouches).
   // It lands HERE and not in planned_touches — the prediction is the entry's
   // forecast and stays exactly as its author left it, which is what makes the
   // drift below (and every collision check) mean something.
@@ -1628,7 +1655,7 @@ function cmdCorrectUnlocked(root, payload) {
     else delete entry.kind;
     changed.push("kind");
   }
-  // Full replacement, unlike update-status' append-only fold into
+  // Full replacement, unlike update-status' mechanical fold into
   // observed_touches: this field is the mutable prediction of the surface the
   // work will touch, and a prediction that was wrong has to be able to shrink.
   // [Foreman: 202] Compared as a SET, exactly like the expected-value guard

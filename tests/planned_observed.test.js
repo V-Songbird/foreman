@@ -614,7 +614,7 @@ describe('observed_touches past the cap collapse into folder prefixes', () => {
   // Every recorded path is either still listed or counted under a prefix.
   function weight(e) {
     const counts = e.observed_touch_counts || {};
-    return e.observed_touches.reduce((sum, t) => sum + (t.endsWith('/') ? counts[t] : 1), 0);
+    return e.observed_touches.reduce((sum, t) => sum + (Object.hasOwn(counts, t) ? counts[t] : 1), 0);
   }
 
   const overCap = () => [
@@ -623,7 +623,7 @@ describe('observed_touches past the cap collapse into folder prefixes', () => {
     ...range(CAP + 1 - 80, (i) => `docs/p${i}.md`),
   ];
 
-  test('a list past the cap collapses to at most the cap, deterministically', () => {
+  test('a list past the cap collapses at the deepest level that fits, deterministically', () => {
     const first = collapseObservedTouches({ observed_touches: overCap() });
     const second = collapseObservedTouches({ observed_touches: overCap() });
     assert.ok(first.observed_touches.length <= CAP);
@@ -676,6 +676,94 @@ describe('observed_touches past the cap collapse into folder prefixes', () => {
       const once = collapseObservedTouches({ observed_touches: list });
       const snapshot = JSON.parse(JSON.stringify(once));
       assert.deepEqual(collapseObservedTouches(once), snapshot);
+    }
+  });
+
+  test('when only the top level shortens the list, it is stored even over the cap', () => {
+    const roots = range(150, (i) => `f${i}.md`);
+    const out = collapseObservedTouches({ observed_touches: [...roots, ...range(10, (i) => `src/x/f${i}.js`)] });
+    assert.deepEqual(out.observed_touches, [...roots, 'src/']);
+    assert.deepEqual(out.observed_touch_counts, { 'src/': 10 });
+    const folders = collapseObservedTouches({ observed_touches: range(150, (i) => `d${i}/x.js`).flatMap((t) => [t, `${t}on`]) });
+    assert.equal(folders.observed_touches.length, 150);
+    assert.deepEqual(collapseObservedTouches(JSON.parse(JSON.stringify(folders))), folders);
+  });
+
+  test('an uncounted folder kept exact past the cap gets no count, so a second collapse keeps its children', () => {
+    const one = collapseObservedTouches({
+      observed_touches: ['src/', 'src/a/x.js', ...range(CAP, (i) => `src/b/f${i}.js`), ...range(5, (i) => `docs/d${i}/z.md`)],
+    });
+    assert.deepEqual(one.observed_touches, ['src/', 'src/a/', 'src/b/', ...range(5, (i) => `docs/d${i}/`)]);
+    assert.equal('src/' in one.observed_touch_counts, false);
+    assert.equal(weight(one), CAP + 7);
+    assert.deepEqual(collapseObservedTouches(JSON.parse(JSON.stringify(one))), one);
+
+    const two = collapseObservedTouches({ observed_touches: ['docs/', 'docs/a.md', ...range(CAP, (i) => `src/x/f${i}.js`)] });
+    assert.deepEqual(two.observed_touches, ['docs/', 'docs/a.md', 'src/x/']);
+    assert.deepEqual(two.observed_touch_counts, { 'src/x/': CAP });
+    assert.deepEqual(collapseObservedTouches(JSON.parse(JSON.stringify(two))), two);
+  });
+
+  test('a stored prefix under another stored prefix merges its count into the outer one', () => {
+    const out = collapseObservedTouches({
+      observed_touches: ['src/', 'src/a/', 'x.js'],
+      observed_touch_counts: { 'src/': 3, 'src/a/': 200 },
+    });
+    assert.deepEqual(out, { observed_touches: ['src/', 'x.js'], observed_touch_counts: { 'src/': 203 } });
+  });
+
+  test('the fold compares paths case-sensitively, like its keys', () => {
+    const list = ['Src/', 'src/x.js', 'src/A/', 'src/a/x.js', 'SRC/A/y.js'];
+    const counts = { 'Src/': 2, 'src/A/': 5 };
+    const out = collapseObservedTouches({ observed_touches: [...list], observed_touch_counts: { ...counts } });
+    assert.deepEqual(out, { observed_touches: list, observed_touch_counts: counts });
+    const under = collapseObservedTouches({ observed_touches: ['Src/', 'Src/A/y.js'], observed_touch_counts: { 'Src/': 2 } });
+    assert.deepEqual(under, { observed_touches: ['Src/'], observed_touch_counts: { 'Src/': 2 } });
+  });
+
+  // Generated lists mixing exact files, uncounted folder paths, nested counted
+  // prefixes and case variants: a second collapse changes nothing, and every
+  // recorded weight outside a stored prefix survives in the output.
+  test('collapse keeps the total weight and is idempotent on generated lists', () => {
+    let seed = 1080;
+    const rand = (n) => ((seed = (seed * 1103515245 + 12345) % 2147483648), seed % n);
+    const folders = ['src/a', 'src/A', 'src/b/c', 'Src/b', 'docs', 'lib/x/y', 'lib', 'brand/icons/ember'];
+    const inputWeight = (e) => {
+      const counts = e.observed_touch_counts || {};
+      const stored = (t) => t.endsWith('/') && Object.hasOwn(counts, t);
+      const covered = (t) => e.observed_touches.some((p) => stored(p) && t !== p && t.startsWith(p));
+      return e.observed_touches.reduce((sum, t) => sum + (stored(t) ? counts[t] : covered(t) ? 0 : 1), 0);
+    };
+    for (let round = 0; round < 60; round++) {
+      const observed_touches = new Set();
+      const observed_touch_counts = {};
+      const size = 20 + rand(400);
+      for (let i = 0; i < size; i++) {
+        const folder = folders[rand(folders.length)];
+        const kind = rand(10);
+        if (kind < 6) observed_touches.add(`${rand(4) ? `${folder}/` : ''}f${rand(300)}.js`);
+        else if (kind < 8) observed_touches.add(`${folder}/`);
+        else {
+          const prefix = `${rand(2) ? folder : folder.split('/')[0]}/`;
+          observed_touches.add(prefix);
+          observed_touch_counts[prefix] = 1 + rand(300);
+        }
+      }
+      const input = { observed_touches: [...observed_touches], observed_touch_counts };
+      const expected = inputWeight(input);
+      const once = collapseObservedTouches(JSON.parse(JSON.stringify(input)));
+      const snapshot = JSON.parse(JSON.stringify(once));
+      assert.deepEqual(collapseObservedTouches(once), snapshot, JSON.stringify(input));
+      assert.equal(weight(once), expected, JSON.stringify(input));
+      const counts = once.observed_touch_counts || {};
+      for (const [key, n] of Object.entries(counts)) {
+        assert.ok(key.endsWith('/') && once.observed_touches.includes(key) && Number.isInteger(n) && n > 0, key);
+        assert.equal(once.observed_touches.some((t) => t !== key && t.startsWith(key)), false, key);
+      }
+      if (input.observed_touches.length <= CAP) {
+        const dropped = input.observed_touches.filter((t) => !once.observed_touches.includes(t));
+        assert.ok(dropped.every((t) => Object.keys(input.observed_touch_counts).some((p) => t !== p && t.startsWith(p))));
+      }
     }
   });
 

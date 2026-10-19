@@ -35,11 +35,12 @@ instead.
   collapsed folder adds nothing, and the next close or `roadmap.js migrate`
   drops one that an older Foreman added; a folder you named through
   `add_touches` is not collapsed, so the files under it stay listed.
-  `migrate` also shrinks entries
-  already past 100 files, in the roadmap and the archive. The entry's
-  commits still hold every file they changed; a file named only through
-  `add_touches` is kept only in the folder count. The roadmap stays format
-  2, and Foreman 4.1.0 still reads it.
+  `migrate` also shrinks entries already past 100 files, in the roadmap and
+  the archive, and a second run changes nothing. The entry's commits still
+  hold every file they changed; a file named only through `add_touches` is
+  kept only in the folder count, and `next-candidates --hint` finds the
+  entry by the folder's name, not by a collapsed file's. The roadmap stays
+  format 2, and Foreman 4.1.0 still reads it.
 - Picking a task now runs `roadmap.js step pick`, which decides each step of
   the pick and tells the skill what to do next with a short code. The script
   builds the task menu and its labels, records the pick in the trial log,
