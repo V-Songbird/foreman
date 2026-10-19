@@ -1349,6 +1349,30 @@ describe('drift pins', () => {
     assert.equal(logged, subject);
   });
 
+  // [Foreman: 1118] Claude Code's scope_discipline logs extra work through
+  // quoted heredocs, so a title holding an apostrophe runs through bash as written.
+  test('the scope_discipline add and update-status keep an apostrophe through bash', (t) => {
+    const scope = readCanonical('claude').scopeDiscipline;
+    const heredoc = (verb) => scope.match(new RegExp(`\\n(node \\$\\{CLAUDE_PLUGIN_ROOT\\}/scripts/roadmap\\.js ${verb} <<'EOF'\\n[^\\n]+\\nEOF)\\n`));
+    const add = heredoc('add');
+    const update = heredoc('update-status');
+    assert.ok(add && update, scope);
+    const project = makeTmpProject();
+    initGitRepo(project);
+    const sha = commitFile(project, 'a.txt', 'one\n');
+    writeRoadmap(project, []);
+    const env = { CLAUDE_PLUGIN_ROOT: path.resolve(SCRIPTS_DIR, '..').replace(/\\/g, '/'), FOREMAN_PROJECT_DIR: project };
+    const title = "Fix the user's login";
+    const added = runBash(add[1].replace('"title":"..."', JSON.stringify({ title }).slice(1, -1)), env);
+    if (added === null) return t.skip('no bash on this machine');
+    assert.equal(added.status, 0, added.stdout + added.stderr);
+    const stored = () => fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf8').trim().split('\n').map(JSON.parse).find((e) => e.title === title);
+    assert.ok(stored(), added.stdout);
+    const updated = runBash(update[1].replace('<new-id>', stored().id).replace('<sha>', sha), env);
+    assert.equal(updated.status, 0, updated.stdout + updated.stderr);
+    assert.equal(stored().status, 'awaiting_acceptance');
+  });
+
   test('checkpoint finish choices write back one key and yield to user branch restrictions', () => {
     const raw = readTemplate();
     const section = raw.slice(raw.indexOf('## Checkpointing a task-split run')).replace(/\s+/g, ' ');

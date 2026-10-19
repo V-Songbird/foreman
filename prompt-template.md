@@ -383,10 +383,15 @@ above, don't fold it in silently — flag it to the user first. Once it's
 actually done, check whether ROADMAP.jsonl exists at the project root: if
 it does, log the extra work as its own entry instead of stretching this
 task's story to cover it — it already happened, so create it and close it
-out in the same breath rather than leaving it "planned":
-echo '{"title":"...","why":"...","what":"...","source":"user","status":"planned"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js add
+out in the same breath rather than leaving it "planned", sending each JSON
+through the quoted heredoc as written, so an apostrophe keeps its quoting:
+node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js add <<'EOF'
+{"title":"...","why":"...","what":"...","source":"user","status":"planned"}
+EOF
 then, using the id just returned:
-echo '{"id":"<new-id>","status":"awaiting_acceptance","commit":"<sha>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status
+node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status <<'EOF'
+{"id":"<new-id>","status":"awaiting_acceptance","commit":"<sha>"}
+EOF
 (`"done"` instead only when the project's `requireVerification` is `false`;
 observed_touches auto-derives from that commit, same as any other completion). If
 no ROADMAP.jsonl exists, flagging it to the user is enough — nothing to
