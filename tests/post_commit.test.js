@@ -1220,6 +1220,29 @@ describe('commit directory edge cases', () => {
     assert.deepEqual(commitDirs("git commit -m $(Get-Date -f 'yyyy MM'); git status", project, true, true), [project]);
   });
 
+  // [Foreman: 1117]
+  test('a separator inside a substitution does not split the command around it', () => {
+    for (const powershell of [false, true]) {
+      assert.deepEqual(commitDirs('A=$(a; b) git commit -m x', project, powershell, powershell), [project]);
+      assert.deepEqual(commitDirs('A=$(a && b | c\nd) git commit -m x', project, powershell, powershell), [project]);
+    }
+    assert.deepEqual(commitDirs('A=`a; b` git commit -m x', project), [project]);
+    assert.deepEqual(commitDirs('A=$(a; b) git log --grep commit', project), []);
+  });
+
+  test('a commit inside a substitution runs from the folder the shell is in', () => {
+    assert.deepEqual(commitDirs(`out=$(cd "${other}" && git commit -m x); git commit -m y`, project), [other, project]);
+    assert.deepEqual(commitDirs(`cd "${other}" && echo \`git commit -m x\``, project), [other]);
+    assert.deepEqual(commitDirs(`$out = $(Set-Location "${other}"; git commit -m x); git commit -m y`, project, true, true), [other, project]);
+    // single quotes keep it text
+    assert.deepEqual(commitDirs("echo '$(git commit -m x)'", project), []);
+  });
+
+  test('an inline option whose value is a substitution does not stop the git option walk', () => {
+    assert.deepEqual(commitDirs(`git --git-dir=$(x) --work-tree="${other}" commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs('git --git-dir=$(x) commit -m x', project), []);
+  });
+
   test('a GIT_DIR or --git-dir that cannot be expanded names an unknown folder', () => {
     assert.deepEqual(commitDirs('GIT_DIR="$(x)" git commit -m x', project), []);
     assert.deepEqual(commitDirs('git --git-dir "$(x)" commit -m x', project), []);

@@ -55,12 +55,18 @@ instead.
   expression that Foreman cannot expand, quoted or not, no longer draws this
   project's commit reminders. On Windows, Codex and Antigravity run a Bash
   command in PowerShell, where a backtick is an escape, so there a backtick
-  command still draws them. A `$` inside single quotes is read as literal. Foreman
-  used to read such a commit as made in the session's folder, so a commit in
-  another repository could ask to close an unrelated roadmap entry. Such a
-  commit now gets no reminder, including one made in the project itself. A
-  commit that follows an assignment such as `A=$(date +%s)`, whose
-  substitution holds a space, does draw its reminders.
+  command after `cd`, `pushd` or `Push-Location` still draws them. A `$`
+  inside single quotes is read as literal. Foreman used to read such a commit
+  as made in the session's folder, so a commit in another repository could ask
+  to close an unrelated roadmap entry. Such a commit now gets no reminder,
+  including one made in the project itself, unless a known `GIT_WORK_TREE` or
+  `--work-tree` names its folder. A commit that follows an assignment such as
+  `A=$(date +%s)`, whose substitution holds a space, does draw its reminders.
+- A `;`, `&&`, `|` or line break inside a `$(...)`, a backtick command or a
+  PowerShell `@(...)` no longer splits the command around it, so a commit
+  such as `A=$(a; b) git commit -m x` draws its reminders. A commit inside
+  such a substitution draws them too, read from the folder the shell is in.
+  An inline `--git-dir=$(x)` no longer hides a known `--work-tree` after it.
 - The reminders after a commit are shorter. When one entry is the candidate,
   its id is already in the command to run.
 - `safe-commit.js finish` with `roadmap_close` now refuses with

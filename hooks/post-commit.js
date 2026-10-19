@@ -44,19 +44,24 @@ const PS_ESCAPES = { 0: "\0", a: "\x07", b: "\b", e: "\x1b", f: "\f", n: "\n", r
 const group = (atom, depth = 3) => String.raw`\((?:${atom}|${depth > 1 ? group(atom, depth - 1) : "(?!)"})*\)`;
 const BASH_GROUP = group(String.raw`"(?:\\[\s\S]|[^"\\])*"|'[^']*'|\\[\s\S]|[^()"'\\]`);
 const PS_GROUP = group(String.raw`"(?:\`[\s\S]|[^"\`])*"|'[^']*'|\`[\s\S]|[^()"'\`]`);
+// [Foreman: 1117] A `;`, `&&`, `|` or newline inside a `$(...)`, a Bash
+// backtick or a PowerShell `@(...)` belongs to the substitution, so it does
+// not end the command around it.
 const SHELLS = {
   bash: {
-    part: /(?:"(?:\\[\s\S]|[^"\\])*"|'[^']*'|\\[\s\S]|(?<!&)&(?!&)|[^;&|\n])+/g,
+    part: new RegExp(String.raw`(?:\$${BASH_GROUP}|\`(?:\\[\s\S]|[^\`\\])*\`|"(?:\\[\s\S]|[^"\\])*"|'[^']*'|\\[\s\S]|(?<!&)&(?!&)|[^;&|\n])+`, "g"),
     token: new RegExp(String.raw`(?:\$${BASH_GROUP}|\`(?:\\[\s\S]|[^\`\\])*\`|"(?:\\[\s\S]|[^"\\])*"|'[^']*'|\\[^\n]|[^\s\\])+`, "g"),
     quoted: /"((?:\\[\s\S]|[^"\\])*)"|'([^']*)'|\\([\s\S])/g,
     escape: /\\(["\\$`])/g,
+    substitution: new RegExp(String.raw`'[^']*'|\\[\s\S]|\$${BASH_GROUP}|\`(?:\\[\s\S]|[^\`\\])*\``, "g"),
     unescape: (c) => c,
   },
   powershell: {
-    part: /(?:"(?:`[\s\S]|[^"`])*"|'[^']*'|`\r?\n|`[\s\S]|(?<!&)&(?!&)|[^;&|\n])+/g,
+    part: new RegExp(String.raw`(?:[$@]${PS_GROUP}|"(?:\`[\s\S]|[^"\`])*"|'[^']*'|\`\r?\n|\`[\s\S]|(?<!&)&(?!&)|[^;&|\n])+`, "g"),
     token: new RegExp(String.raw`(?:\$?${PS_GROUP}|"(?:\`[\s\S]|[^"\`])*"|'[^']*'|\`[^\r\n]|[^\s\`])+`, "g"),
     quoted: /"((?:`[\s\S]|[^"`])*)"|'((?:[^']|'')*)'|`(u\{[0-9a-fA-F]{1,6}\}|[\s\S])/g,
     escape: /`(u\{[0-9a-fA-F]{1,6}\}|[\s\S])/g,
+    substitution: new RegExp(String.raw`'[^']*'|\`[\s\S]|[$@]${PS_GROUP}`, "g"),
     unescape: (c) => {
       const code = c.length > 1 ? parseInt(c.slice(2, -1), 16) : -1;
       return code > 0x10ffff ? c : code >= 0 ? String.fromCodePoint(code) : PS_ESCAPES[c] ?? c;
@@ -132,6 +137,11 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false, pl
     const bare = part.replace(shell.quoted, "");
     let closes = 0;
     for (let open = bare.split(")").length - bare.split("(").length; open > 0 && part.endsWith(")"); open--, closes++) part = part.slice(0, -1).trimEnd();
+    // [Foreman: 1117] A commit inside a substitution still runs, from the
+    // folder the shell is in; a `cd` inside it moves nothing outside it.
+    for (const sub of part.match(shell.substitution) || []) {
+      if (sub.length > 2 && /^(?:[$@]\(|`)/.test(sub)) targets.push(...commitDirs(sub.slice(sub[0] === "`" ? 1 : 2, -1), dir, powershell, powershellTool, platform));
+    }
     const raw = part.match(shell.token) || [];
     // A `$` inside single quotes is literal, so it travels as LITERAL_DOLLAR
     // until moveTo has expanded the rest.
@@ -141,12 +151,14 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false, pl
     // [Foreman: 1101] A `NAME=value` token keeps its name and takes OPAQUE in
     // front of its value, so a later leading assignment such as `B=$(date)` is
     // still skipped and its GIT_DIR or GIT_WORK_TREE value reads as unknown.
+    // [Foreman: 1117] So does an inline option such as `--git-dir=$(x)`, so the
+    // git option walk goes on past it.
     const tokens = raw.map((t, i) => {
       const token = t.replace(shell.quoted, (match, double, single, escaped) =>
         double !== undefined ? double.replace(shell.escape, (m, c) => shell.unescape(c)) : single !== undefined ? single.replace(/''/g, "'").replace(/\$/g, LITERAL_DOLLAR) : shell.unescape(escaped)
       );
       const substituted = token.includes("$(") || (bashBackticks && t.includes("`"));
-      const [, name, value] = token.match(ASSIGNMENT_RE) || [];
+      const [, name, value] = token.match(ASSIGNMENT_RE) || token.match(/^(--?[\w-]+)=([\s\S]*)$/) || [];
       if (name) return substituted ? `${name}=${OPAQUE}${value}` : token;
       return i > 0 && (substituted || t.startsWith("(")) ? OPAQUE : token;
     });
