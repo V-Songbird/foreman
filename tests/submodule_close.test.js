@@ -119,16 +119,30 @@ describe('the handoff close for work inside a submodule', () => {
     assert.doesNotMatch(prompt, /git -C|safe-commit\.js|"staged":true/);
   });
 
-  for (const host of ['codex']) {
-    test(`commits inside the submodule and records that commit, on host ${host}`, () => {
+  // [Foreman: 1113] The Codex paragraph's boundary is task.js start too, so
+  // dirt at the project root no longer blocks a commit inside the submodule.
+  for (const host of ['codex', 'antigravity']) {
+    test(`takes the boundary and commits inside the submodule, on host ${host}`, () => {
       superproject();
+      writeFile(project, 'README.md', 'root edit that is not this task\n');
       const prompt = craft(host);
-      assert.match(prompt, /git -C '?lib'? add -- <the files this task owns>/);
-      assert.match(prompt, /Foreman: 001/);
-      assert.match(prompt, /git -C '?lib'? rev-parse HEAD/);
-      assert.match(prompt, /"commit":"<the submodule commit sha>"/);
-      assert.doesNotMatch(prompt, /safe-commit\.js'? finish/);
-      assert.doesNotMatch(prompt, /"staged":true/);
+      assert.match(prompt, /inside the submodule `lib` that holds the planned files, never its gitlink at the project root/);
+      assert.doesNotMatch(prompt, /safe-commit\.js|"staged":true|git -C/);
+      const begin = prompt.match(/Command: .node '([^']+\/scripts\/task\.js)' start --id '([^']+)'./);
+      assert.ok(begin, 'no emitted boundary command');
+      const start = JSON.parse(runNodeScript(begin[1], ['start', '--id', begin[2]], null, env).stdout);
+      assert.equal(start.next, 'work', JSON.stringify(start));
+      assert.equal(start.submodule, 'lib');
+      assert.equal(start.baseline, git(lib, 'rev-parse', 'HEAD').trim());
+      writeFile(lib, 'a.js', 'two\n');
+      const close = prompt.match(/Command: .node '([^']+)' finish --id '([^']+)' --baseline <baseline>.\nJSON stdin: .([^\n]+)./);
+      assert.ok(close, 'no emitted close command');
+      const payload = { ...JSON.parse(close[3]), status: 'done', files: ['lib/a.js'], message: 'Change the lib', notes: 'changed' };
+      const r = runNodeScript(close[1], ['finish', '--id', close[2], '--baseline', start.baseline], payload, env);
+      const result = JSON.parse(r.stdout);
+      assert.equal(result.commit, git(lib, 'rev-parse', 'HEAD').trim(), r.stdout);
+      assert.equal(git(lib, 'log', '-1', '--format=%B').trim(), 'Change the lib\n\nForeman: 001');
+      assert.equal(git(project, 'diff', '--cached', '--name-only'), '', 'nothing staged at the root');
     });
   }
 
@@ -141,9 +155,7 @@ describe('the handoff close for work inside a submodule', () => {
       assert.match(prompt, /Checkpoint protocol for this multi-task run/);
       assert.match(prompt, /settle the branch first: inside the submodule `lib`, where this run commits/);
       assert.match(prompt, /stage only the files that task changed inside `lib` \(`git -C lib add -- <those paths>`/);
-      assert.match(prompt, host === 'claude'
-        ? /stages the task's files inside `lib`, closes the entry and commits once with `Foreman: 001` as the final line/
-        : /commit its files inside `lib` with `Foreman: 001` as the final line/);
+      assert.match(prompt, /stages the task's files inside `lib`, closes the entry and commits once with `Foreman: 001` as the final line/);
       assert.doesNotMatch(prompt, /safe-commit\.js'? finish/);
       assert.doesNotMatch(prompt, /"?staged"?:true/);
     });
@@ -177,8 +189,8 @@ describe('the handoff close for work inside a submodule', () => {
         assert.equal(rows.split("<start's then> <<'EOF'").length, 2, 'one close across the rows');
         assert.ok(json.tasks[1].description.includes("<start's then> <<'EOF'"));
       } else {
-        assert.equal(rows.split('"commit":"<the submodule commit sha>"').length, 2, 'one close across the rows');
-        assert.match(json.tasks[1].description, /git -C '?lib'? rev-parse HEAD/);
+        assert.equal(rows.split(/task\.js'? finish --id/).length, 2, 'one close across the rows');
+        assert.match(json.tasks[1].description, /inside the submodule `lib` that holds the planned files/);
       }
       assert.doesNotMatch(rows, /safe-commit\.js'? finish/);
       assert.doesNotMatch(rows, /"?staged"?:true/);
@@ -195,9 +207,8 @@ describe('the handoff close for work inside a submodule', () => {
       planned_touches: ['README.md', 'lib/a.js'],
     });
     const prompt = craft('codex');
-    assert.match(prompt, /safe-commit\.js'? finish --baseline <baseline\.head> --no-commit/);
-    assert.match(prompt, /`staged:true`/);
-    assert.doesNotMatch(prompt, /git -C '?lib/);
+    assert.match(prompt, /with the roadmap close riding in that commit/);
+    assert.doesNotMatch(prompt, /inside the submodule `lib`|git -C '?lib/);
   });
 });
 

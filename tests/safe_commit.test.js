@@ -894,9 +894,12 @@ describe('the close and checkpoint choreography is documented without git add -A
       const embed = checkpointEmbedText({ baseBranch: 'main', branch: true, onFinish: 'ask' }, 2, '001', false, false, host);
       assert.ok(embed.includes('never `git add -A`'));
       assert.doesNotMatch(embed, /`git add -A` and commit/);
+      // [Foreman: 1113] Both hosts close through task.js finish, which stages
+      // through the primitive (tests/task.test.js).
       assert.ok(embed.includes(host === 'claude'
         ? "send the close JSON to its `then` through a quoted heredoc, as the entry paragraph shows, which stages the task's files"
-        : 'stage with `safe-commit.js finish --no-commit`'), 'the last task no longer closes through the primitive');
+        : "pipe the close JSON into the close command with that fresh baseline, as the entry paragraph shows, which stages the task's files"), embed);
+      assert.doesNotMatch(embed, /--no-commit|staged:true/);
     });
   }
 
@@ -909,7 +912,7 @@ describe('the close and checkpoint choreography is documented without git add -A
       const withEntry = checkpointEmbedText(cfg, 2, '001', false, false, host);
       assert.match(withEntry, host === 'claude'
         ? /before task 1, run the entry paragraph's `task\.js start` and read its `next` \(Foreman's own roadmap bookkeeping never counts\); with `report_dirty`, say so once and make no checkpoint commits at all/
-        : /before task 1, run `safe-commit\.js begin` and read only its `dirty` field/);
+        : /before task 1, run the entry paragraph's `scripts\/task\.js start` and read its `next` \(Foreman's own roadmap bookkeeping never counts\); with `report_dirty`, preserve existing changes and continue the work without checkpoint commits/);
       assert.doesNotMatch(withEntry, /git status --porcelain/);
       const withoutEntry = checkpointEmbedText(cfg, 2, null, false, false, host);
       assert.match(withoutEntry, /before task 1, (?:check|inspect) `git status --porcelain`/);
@@ -944,8 +947,11 @@ describe('the close and checkpoint choreography is documented without git add -A
         assert.ok(paragraph.includes('`node ${CLAUDE_PLUGIN_ROOT}/scripts/task.js start --id 001`'), paragraph);
         assert.ok(!paragraph.includes(command), paragraph);
       } else {
-        assert.ok(paragraph.includes(`${command} begin`), paragraph);
-        assert.ok(paragraph.includes(`${command} finish --baseline <baseline.head> --no-commit`), paragraph);
+        // [Foreman: 1113] The same two task.js calls, as quoted installed paths.
+        const task = `node '${path.resolve(SCRIPTS_DIR, 'task.js').replace(/\\/g, '/')}'`;
+        assert.ok(paragraph.includes(`${task} start --id '001'`), paragraph);
+        assert.ok(paragraph.includes(`${task} finish --id '001' --baseline <baseline>`), paragraph);
+        assert.ok(!paragraph.includes(command), paragraph);
       }
       assert.ok(paragraph.includes('never `git add -A`'));
       assert.doesNotMatch(paragraph, /stage everything \(`git add -A`\)/);

@@ -112,6 +112,21 @@ instead.
   session or transcript still gets the full rules on every commit, and so does
   a commit made by a subagent.
 
+### Codex and Antigravity
+
+- A handoff now takes the commit boundary and closes its roadmap entry with
+  `task.js start` and `task.js finish`, as Claude Code does, after
+  `codex-task.js start` opens the entry. Before, the prompt spelled out the
+  `safe-commit.js` steps, and they could go wrong in three ways. A close
+  after a dirty start could stage `ROADMAP.jsonl` into your own pending
+  commit. An entry inside a submodule took its starting point at the project
+  root, so changes there blocked the commit inside the submodule. A roadmap
+  file that was already staged made the close refuse and unstage everything
+  in the index. Now `start` reports a dirty tree as `report_dirty` and
+  `finish` then records the close without staging anything. `start` takes the
+  starting point inside the submodule. `finish` commits staged roadmap files
+  with the task's files.
+
 ## 4.1.0 — 2026-10-14
 
 ### Every host

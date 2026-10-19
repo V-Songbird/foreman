@@ -425,10 +425,12 @@ describe('skill contracts', () => {
         assert.match(held, /answerable today/);
         assert.match(held, /genuinely past your reach/);
       } else {
-        assert.match(held, /"status":"done"/);
-        assert.match(held, /record `awaiting_acceptance`/);
-        assert.match(held, /offer Test first/);
-        assert.match(held, /"unverified: <the check and what to look for>"/);
+        // [Foreman: 1113] task.js finish records the hold and builds the
+        // question with its Test option, as in Claude Code.
+        assert.match(held, /records an earned `done` as `awaiting_acceptance`/);
+        assert.match(held, /- `ask_acceptance`: present the concrete result, then put its `question` and `options` to the user/);
+        assert.match(held, /"unverified":\[\]/);
+        assert.match(held, /list it in the close's `unverified`, one string per check/);
         assert.match(held, /Run the required checks using available commands, skills, or UI tools/);
         assert.match(held, /answerable now/);
         assert.match(held, /beyond those tools/);

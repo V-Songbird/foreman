@@ -127,7 +127,12 @@ describe('delegatedAcceptance close', () => {
   test('a listed Codex session reports to the orchestrator in its close, checkpoint and discovery', () => {
     writeConfig(project, delegated);
     const prompt = craft('task', 'codex', codexSession('worker-a'));
-    assert.match(prompt, /belongs to the orchestrator orch-1, so do not ask the user\. Report the concrete result/);
+    // [Foreman: 1113] task.js finish words the report from the baked flag.
+    assert.match(prompt, /records an earned `done` as `awaiting_acceptance`: this project holds finished work for the orchestrator orch-1's acceptance/);
+    assert.match(prompt, /task\.js'? start --id '?001'? --orchestrator orch-1`/);
+    assert.match(prompt, /task\.js'? finish --id '?001'? --baseline <baseline> --orchestrator orch-1`/);
+    assert.match(prompt, /- `report_acceptance`: do what its `say` says\./);
+    assert.doesNotMatch(prompt, /ask_acceptance/);
     assert.match(prompt, /still awaits the orchestrator orch-1's acceptance/);
     assert.match(prompt, /in its report to orch-1/);
     assert.doesNotMatch(prompt, /final user acceptance|the user's acceptance/);
@@ -141,7 +146,8 @@ describe('delegatedAcceptance close', () => {
   test('a listed Antigravity conversation reports to the orchestrator', () => {
     writeConfig(project, delegated);
     const prompt = craft('task', 'antigravity', antigravitySession('worker-a'));
-    assert.match(prompt, /belongs to the orchestrator orch-1, so do not ask the user\. Report the concrete result/);
+    assert.match(prompt, /holds finished work for the orchestrator orch-1's acceptance/);
+    assert.match(prompt, /- `report_acceptance`: do what its `say` says\./);
     assert.doesNotMatch(prompt, /final user acceptance|the user's acceptance/);
   });
 
@@ -825,20 +831,25 @@ describe('${CLAUDE_PLUGIN_ROOT} travels literal in a Claude Code task or agent h
 // Codex never expands a plugin-root variable, so its handoffs carry the quoted
 // installed paths, and the commands they emit have to run as written.
 describe('installed Codex plugin commands', () => {
-  test('the emitted no-commit close preserves observed evidence and pre-existing staged work', () => {
+  // [Foreman: 1113] The emitted boundary reports the dirty tree as
+  // report_dirty, and the emitted close then records the entry without
+  // staging: ROADMAP.jsonl stays out of the user's pending commit.
+  test('the emitted close after a dirty start preserves observed evidence and pre-existing staged work', () => {
     initGitRepo(project);
     commitFile(project, 'src/auth/middleware.js', fs.readFileSync(path.join(project, 'src/auth/middleware.js'), 'utf8'));
     commitFile(project, 'unrelated.txt', 'baseline\n');
-    fs.writeFileSync(path.join(project, 'unrelated.txt'), 'pre-existing user change\n');
+    writeRoadmap(project, [entryFields()]);
     const git = (...args) => {
       const result = spawnSync('git', args, { cwd: project, encoding: 'utf8' });
       assert.equal(result.status, 0, result.stderr);
       return result.stdout;
     };
+    git('add', '--', 'ROADMAP.jsonl');
+    git('commit', '-q', '-m', 'track the roadmap');
+    fs.writeFileSync(path.join(project, 'unrelated.txt'), 'pre-existing user change\n');
     git('add', '--', 'unrelated.txt');
     const beforeHead = git('rev-parse', 'HEAD');
     const beforeIndex = git('diff', '--cached', '--binary');
-    writeRoadmap(project, [entryFields()]);
     const { json } = run(project, { entry: '001', destination: 'task', host: 'codex', judgment: goodJudgment({
       verification: [{ run: 'node --check src/auth/middleware.js', expected: 'exit code 0' }],
     }) });
@@ -847,33 +858,66 @@ describe('installed Codex plugin commands', () => {
     const codexEnv = { FOREMAN_HOST: 'codex', FOREMAN_PROJECT_DIR: project };
     const opened = runNodeScript(start[1], ['start', '--id', start[2]], null, codexEnv);
     assert.equal(opened.status, 0, opened.stdout);
-    const boundary = runNodeScript(path.join(SCRIPTS_DIR, 'safe-commit.js'), ['begin'], null, codexEnv);
-    assert.equal(JSON.parse(boundary.stdout).dirty, true);
+    const begin = json.prompt.match(/Command: .node '([^']+\/scripts\/task\.js)' start --id '([^']+)'./);
+    assert.ok(begin, 'no emitted boundary command');
+    const boundary = runNodeScript(begin[1], ['start', '--id', begin[2]], null, codexEnv);
+    assert.equal(JSON.parse(boundary.stdout).next, 'report_dirty', boundary.stdout);
+    assert.equal(JSON.parse(boundary.stdout).baseline, undefined);
     fs.appendFileSync(path.join(project, 'src/auth/middleware.js'), '// task-owned edit\n');
     const verified = spawnSync(process.execPath, ['--check', 'src/auth/middleware.js'], { cwd: project, encoding: 'utf8' });
     assert.equal(verified.status, 0, verified.stderr);
-    const close = [...json.prompt.matchAll(/Command: .node '([^']+)' update-status.\nJSON stdin: .([^\n]+)./g)]
-      .map((match) => ({ script: match[1], payload: JSON.parse(match[2]) }))
-      .find(({ payload }) => payload.status === '<status>');
+    const close = json.prompt.match(/Command: .node '([^']+)' finish --id '([^']+)' --baseline <baseline>.\nJSON stdin: .([^\n]+)./);
     assert.ok(close, 'no emitted close payload');
-    close.payload.status = 'awaiting_acceptance';
-    close.payload.notes = 'node --check src/auth/middleware.js exited 0 after the task-owned edit.';
-    // Fill the artifact's declared field, so a wrong command-field name loses
-    // evidence and fails the stored-result assertion below.
-    const touchesField = Object.keys(close.payload).find((key) => Array.isArray(close.payload[key]));
-    close.payload[touchesField] = ['src/auth/middleware.js'];
-    const closed = runNodeScript(close.script, ['update-status'], close.payload, codexEnv);
+    const payload = { ...JSON.parse(close[3]), status: 'done', files: ['src/auth/middleware.js'], message: 'Refresh the token', notes: 'node --check src/auth/middleware.js exited 0 after the task-owned edit.' };
+    // After report_dirty there is no baseline, so the close runs without one.
+    const closed = runNodeScript(close[1], ['finish', '--id', close[2]], payload, codexEnv);
     assert.equal(closed.status, 0, closed.stdout + closed.stderr);
+    const result = JSON.parse(closed.stdout);
+    assert.equal(result.next, 'report_dirty', closed.stdout);
+    assert.equal(result.reason, 'no_baseline');
     const stored = fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf8').trim().split('\n').map(JSON.parse).find((row) => row.id === '001');
     assert.deepEqual(stored.observed_touches, ['src/auth/middleware.js']);
     assert.deepEqual(stored.commits, []);
-    assert.equal(stored.status, 'awaiting_acceptance');
+    assert.equal(stored.status, result.after.status);
     const checked = runNodeScript(start[1], ['check', '--id', start[2]], null, codexEnv);
     assert.equal(checked.status, 0, checked.stdout);
     assert.equal(JSON.parse(checked.stdout).complete, true);
     assert.equal(git('rev-parse', 'HEAD'), beforeHead);
     assert.equal(git('diff', '--cached', '--binary'), beforeIndex);
     assert.equal(fs.readFileSync(path.join(project, 'unrelated.txt'), 'utf8'), 'pre-existing user change\n');
+  });
+
+  // [Foreman: 1113] The spelled-out close ran safe-commit finish without
+  // roadmap_close, which read a staged ROADMAP.jsonl as an unexpected file and
+  // reset the whole index; task.js finish lets that bookkeeping ride along.
+  test('the emitted close commits once when ROADMAP.jsonl is already staged', () => {
+    initGitRepo(project);
+    commitFile(project, 'src/auth/middleware.js', fs.readFileSync(path.join(project, 'src/auth/middleware.js'), 'utf8'));
+    writeRoadmap(project, [entryFields()]);
+    const git = (...args) => {
+      const result = spawnSync('git', args, { cwd: project, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout;
+    };
+    git('add', '--', 'ROADMAP.jsonl');
+    git('commit', '-q', '-m', 'track the roadmap');
+    const { json } = run(project, { entry: '001', destination: 'task', host: 'codex', judgment: goodJudgment() });
+    assert.equal(json.gate.ok, true);
+    const codexEnv = { FOREMAN_HOST: 'codex', FOREMAN_PROJECT_DIR: project };
+    const start = json.prompt.match(/Command: .node '([^']+)' start --id '([^']+)'./);
+    assert.equal(runNodeScript(start[1], ['start', '--id', start[2]], null, codexEnv).status, 0);
+    const begin = json.prompt.match(/Command: .node '([^']+\/scripts\/task\.js)' start --id '([^']+)'./);
+    const boundary = JSON.parse(runNodeScript(begin[1], ['start', '--id', begin[2]], null, codexEnv).stdout);
+    assert.equal(boundary.next, 'work', JSON.stringify(boundary));
+    git('add', '--', 'ROADMAP.jsonl');
+    fs.appendFileSync(path.join(project, 'src/auth/middleware.js'), '// task-owned edit\n');
+    const close = json.prompt.match(/Command: .node '([^']+)' finish --id '([^']+)' --baseline <baseline>.\nJSON stdin: .([^\n]+)./);
+    const payload = { ...JSON.parse(close[3]), status: 'done', files: ['src/auth/middleware.js'], message: 'Refresh the token', notes: 'changed' };
+    const closed = runNodeScript(close[1], ['finish', '--id', close[2], '--baseline', boundary.baseline], payload, codexEnv);
+    const result = JSON.parse(closed.stdout);
+    assert.equal(result.commit, git('rev-parse', 'HEAD').trim(), closed.stdout);
+    assert.deepEqual(git('show', '--name-only', '--format=', 'HEAD').trim().split('\n').sort(), ['ROADMAP.jsonl', 'src/auth/middleware.js']);
+    assert.equal(git('status', '--porcelain'), '', 'nothing left staged or changed');
   });
 
   test('emitted opening command runs from an installation with spaces and shell metacharacters', () => {
@@ -902,20 +946,28 @@ describe('installed Codex plugin commands', () => {
     assert.equal(JSON.parse(opened.stdout).dispatchReady, true);
     const entries = fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
     assert.equal(entries.find((entry) => entry.id === '001').status, 'in_progress');
-    const annotation = prompt.match(/Command: `([^\n]+ annotate)`\nJSON stdin: `([^\n]+)`/);
-    assert.ok(annotation, 'no separate JSON annotation payload');
-    const notes = "we've preserved $variables, $(expressions), `backticks`, and & pipes as data";
-    const payload = path.join(project, 'payload $literal.json');
-    fs.writeFileSync(payload, JSON.stringify({ ...JSON.parse(annotation[2]), notes }), 'utf8');
-    const quotedPayload = windows
-      ? "'" + payload.replace(/'/g, "''") + "'"
-      : "'" + payload.replace(/'/g, "'\"'\"'") + "'";
-    const command = (windows ? 'Get-Content -LiteralPath ' + quotedPayload + ' -Raw -Encoding utf8' : 'cat ' + quotedPayload) + ' | ' + annotation[1];
-    const annotated = unlessTimedOut(spawnSync(windows ? 'powershell.exe' : 'sh', windows
+    // [Foreman: 1113] The boundary and the close run as emitted too; the
+    // project is no git work tree, so the close records without a baseline.
+    const shell = (command, label) => unlessTimedOut(spawnSync(windows ? 'powershell.exe' : 'sh', windows
       ? ['-NoProfile', '-NonInteractive', '-Command', command]
       : ['-c', command], {
       encoding: 'utf8', windowsHide: true, timeout: SPAWN_TIMEOUT_MS, env: shellEnv,
-    }), 'the annotate command');
+    }), label);
+    const begin = prompt.match(/Command: `([^\n]+ start --id [^\n]+)`\nIt prints one JSON line/);
+    assert.ok(begin, 'no boundary command');
+    const begun = shell(begin[1], 'the boundary command');
+    assert.equal(begun.status, 0, begun.stdout + begun.stderr);
+    assert.equal(JSON.parse(begun.stdout).next, 'report_dirty', begun.stdout);
+    const close = prompt.match(/Command: `([^\n]+ finish [^\n]+)`\nJSON stdin: `([^\n]+)`/);
+    assert.ok(close, 'no separate JSON close payload');
+    const notes = "we've preserved $variables, $(expressions), `backticks`, and & pipes as data";
+    const payload = path.join(project, 'payload $literal.json');
+    fs.writeFileSync(payload, JSON.stringify({ ...JSON.parse(close[2]), status: 'done', files: [], message: '', notes }), 'utf8');
+    const quotedPayload = windows
+      ? "'" + payload.replace(/'/g, "''") + "'"
+      : "'" + payload.replace(/'/g, "'\"'\"'") + "'";
+    const command = (windows ? 'Get-Content -LiteralPath ' + quotedPayload + ' -Raw -Encoding utf8' : 'cat ' + quotedPayload) + ' | ' + close[1].replace(' --baseline <baseline>', '');
+    const annotated = shell(command, 'the close command');
     assert.equal(annotated.status, 0, annotated.stdout + annotated.stderr);
     const after = fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
     assert.ok(after.find((entry) => entry.id === '001').notes.endsWith(notes));
@@ -925,7 +977,7 @@ describe('installed Codex plugin commands', () => {
     writeRoadmap(project, [entryFields()]);
     const {json} = run(project, {entry: '001', destination: 'task', host: 'codex', judgment: goodJudgment()}, {CLAUDE_PLUGIN_ROOT: 'Z:/missing/legacy-plugin'});
     assert.equal(json.ok, true, JSON.stringify(json));
-    assert.ok(json.prompt.includes(SCRIPTS_DIR.replace(/\\/g, '/') + '/roadmap.js'));
+    assert.ok(json.prompt.includes(SCRIPTS_DIR.replace(/\\/g, '/') + '/task.js'));
     assert.ok(!json.prompt.includes('Z:/missing'));
     assert.ok(!/\$\{(?:CLAUDE|CODEX)_PLUGIN_ROOT\}/.test(json.prompt));
     const command = json.prompt.match(/Command: .node '([^']+)' start --id '([^']+)'./);
@@ -2653,8 +2705,9 @@ describe('reviewed increment titles (codex)', () => {
 });
 
 // [Foreman: 469] A git-ignored roadmap cannot ride in the commit, so the
-// entry paragraph commits first through safe-commit and closes with the
-// returned sha; a tracked roadmap keeps the staged close.
+// close commits first and records the sha; a tracked roadmap keeps the staged
+// close. [Foreman: 1113] task.js finish picks the form on both hosts, and the
+// Codex paragraph only says which one applies.
 describe('the entry close in each roadmap mode', () => {
   function roadmapRepo(ignore) {
     initGitRepo(project);
@@ -2693,12 +2746,9 @@ describe('the entry close in each roadmap mode', () => {
       const { status, json } = run(project, { entry: '001', destination: 'task', host, judgment: goodJudgment() });
       assert.equal(status, 0, JSON.stringify(json));
       assert.equal(json.gate.ok, true, JSON.stringify(json.gate));
-      assert.match(json.prompt, /git-ignores ROADMAP\.jsonl/);
-      assert.match(json.prompt, /safe-commit\.js'? finish --baseline <baseline\.head>`/);
-      assert.match(json.prompt, /"message_title":"<one-line summary>"/);
-      assert.match(json.prompt, /"commit":"<the commit sha from finish>"/);
-      assert.doesNotMatch(json.prompt, /--no-commit/);
-      assert.doesNotMatch(json.prompt, /"?staged"?:true/);
+      assert.match(json.prompt, /before it records the close, because this project git-ignores ROADMAP\.jsonl/);
+      assert.match(json.prompt, /task\.js'? finish --id '?001'? --baseline <baseline>`/);
+      assert.doesNotMatch(json.prompt, /safe-commit\.js|--no-commit|"?staged"?:true|"commit":"</);
     });
 
   }
@@ -2718,7 +2768,7 @@ describe('the entry close in each roadmap mode', () => {
       assert.match(json.prompt, /Checkpoint protocol for this multi-task run/);
       assert.match(json.prompt, host === 'claude'
         ? /the last task carries the roadmap close instead of a `task <n>\/<total>` commit: right after the previous task's checkpoint commit, before touching any of the last task's files, run the entry paragraph's `task\.js start` again/
-        : /the last task carries the roadmap close instead of a `task <n>\/<total>` commit: this project git-ignores ROADMAP\.jsonl/);
+        : /the last task carries the roadmap close instead of a `task <n>\/<total>` commit: right after the previous task's checkpoint commit, before touching any of the last task's files, run the entry paragraph's `scripts\/task\.js start` again/);
       assert.doesNotMatch(json.prompt, /--no-commit/);
       assert.doesNotMatch(json.prompt, /"?staged"?:true/);
     });
@@ -2736,7 +2786,7 @@ describe('the entry close in each roadmap mode', () => {
       assert.equal(status, 0, JSON.stringify(json));
       assert.equal(json.tasks.length, 2);
       const rows = json.tasks.map((row) => row.description).join('\n');
-      assert.equal(rows.split('"commit":"<the commit sha from finish>"').length, 2, 'one close across the rows');
+      assert.equal(rows.split(/task\.js'? finish --id/).length, 2, 'one close across the rows');
       assert.match(json.tasks[1].description, /git-ignores ROADMAP\.jsonl/);
       assert.doesNotMatch(rows, /--no-commit/);
       assert.doesNotMatch(rows, /"?staged"?:true/);
@@ -2746,10 +2796,10 @@ describe('the entry close in each roadmap mode', () => {
       roadmapRepo(false);
       const { status, json } = run(project, { entry: '001', destination: 'task', host, judgment: goodJudgment() });
       assert.equal(status, 0, JSON.stringify(json));
-      assert.match(json.prompt, /finish --baseline <baseline\.head> --no-commit/);
-      assert.match(json.prompt, /"?staged"?:true/);
+      assert.match(json.prompt, /task\.js'? finish --id '?001'? --baseline <baseline>`/);
+      assert.match(json.prompt, /with the roadmap close riding in that commit/);
       assert.doesNotMatch(json.prompt, /git-ignores ROADMAP\.jsonl/);
-      assert.doesNotMatch(json.prompt, /"commit":"</);
+      assert.doesNotMatch(json.prompt, /safe-commit\.js|"?staged"?:true|"commit":"</);
     });
   }
 });

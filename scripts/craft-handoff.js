@@ -782,10 +782,10 @@ function checkpointsConfig(root) {
 // prompt carries two or more increment rows.
 // [Foreman: 496] `close` is the close the entry paragraph chose: `submodule`
 // (the one every planned path sits in) moves the branch, every checkpoint and
-// the last close inside that submodule; `privateRoadmap` makes the last close
-// commit first and record the sha. Neither set keeps the staged close.
+// the last close inside that submodule; task.js finish picks the rest of the
+// close's form itself.
 function checkpointEmbedText(cfg, checkCount, entryId, hasReview = false, reviewEachIncrement = false, host = resolveHost(), close = {}) {
-  const { submodule = null, privateRoadmap = false } = close || {};
+  const { submodule = null } = close || {};
   const sub = submodule ? `\`${submodule}\`` : "";
   const branchLine = (submodule ? `inside the submodule ${sub}, where this run commits: ` : "") + (cfg.baseBranch
     ? `the base branch is \`${cfg.baseBranch}\``
@@ -810,11 +810,11 @@ function checkpointEmbedText(cfg, checkCount, entryId, hasReview = false, review
       ? ["- explicit user branch restrictions override these settings and finish choices; before writes, create or use an authorized branch and never merge into a branch the user forbids modifying"]
       : []),
     // An entry opens before task 1 and rewrites ROADMAP.jsonl, so plain porcelain
-    // would always read dirty there; safe-commit begin reports that bookkeeping
-    // apart from the `dirty` field.
+    // would always read dirty there; task.js start never counts that
+    // bookkeeping as report_dirty.
     entryId
       ? (codex
-        ? "- before task 1, run `safe-commit.js begin` and read only its `dirty` field (Foreman's own roadmap bookkeeping is reported separately); with `dirty:true`, preserve existing changes and continue the work without checkpoint commits for this run"
+        ? "- before task 1, run the entry paragraph's `scripts/task.js start` and read its `next` (Foreman's own roadmap bookkeeping never counts); with `report_dirty`, preserve existing changes and continue the work without checkpoint commits for this run"
         : "- before task 1, run the entry paragraph's `task.js start` and read its `next` (Foreman's own roadmap bookkeeping never counts); with `report_dirty`, say so once and make no checkpoint commits at all for this run")
       : (codex
         ? "- before task 1, inspect `git status --porcelain`; if non-empty, preserve existing changes and continue the work without checkpoint commits for this run"
@@ -826,16 +826,9 @@ function checkpointEmbedText(cfg, checkCount, entryId, hasReview = false, review
       : submodule
         ? `- after each task's check passes, stage only the files that task changed inside ${sub} (\`git -C ${submodule} add -- <those paths>\`, never \`git add -A\` and never the ${sub} gitlink at the project root) and commit there with \`git -C ${submodule} commit\` as \`task <n>/<total>: <task subject>\`; leave it local, never push`
         : "- after each task's check passes, stage only the files that task changed (`git add -- <those paths>`, never `git add -A`) and commit `task <n>/<total>: <task subject>`; leave it local, never push",
-    ...(entryId && !codex
-      ? [`- the last task carries the roadmap close instead of a \`task <n>/<total>\` commit: right after the previous task's checkpoint commit, before touching any of the last task's files, run the entry paragraph's \`task.js start\` again for a fresh boundary (run later, it reads the last task's own edits as someone else's changes and the close commits nothing); when the last task's work is done, send the close JSON to its \`then\` through a quoted heredoc, as the entry paragraph shows, which stages the task's files${submodule ? ` inside ${sub}` : ""}, closes the entry and commits once with \`Foreman: ${entryId}\` as the final line`]
-      : entryId
-      ? [
-          submodule
-            ? `- the last task carries the roadmap close instead of a \`task <n>/<total>\` commit: commit its files inside ${sub} with \`Foreman: ${entryId}\` as the final line, then close the entry with \`update-status\` and that commit's sha from \`git -C ${submodule} rev-parse HEAD\``
-            : privateRoadmap
-              ? `- the last task carries the roadmap close instead of a \`task <n>/<total>\` commit: this project git-ignores ROADMAP.jsonl, so commit its files with \`safe-commit.js finish\` and a \`message_title\`, which appends \`Foreman: ${entryId}\` as the final line, then close the entry with \`update-status\` and the returned \`commit\``
-              : "- the last task carries the roadmap close instead of a `task <n>/<total>` commit: stage with `safe-commit.js finish --no-commit`, close the entry with `staged:true`, then make that one commit with `Foreman: " + entryId + "` as its final line",
-        ]
+    // [Foreman: 1113] Both hosts close through task.js, so one line serves them.
+    ...(entryId
+      ? [`- the last task carries the roadmap close instead of a \`task <n>/<total>\` commit: right after the previous task's checkpoint commit, before touching any of the last task's files, run the entry paragraph's \`${codex ? "scripts/" : ""}task.js start\` again for a fresh boundary (run later, it reads the last task's own edits as someone else's changes and the close commits nothing); when the last task's work is done, ${codex ? "pipe the close JSON into the close command with that fresh baseline" : "send the close JSON to its `then` through a quoted heredoc"}, as the entry paragraph shows, which stages the task's files${submodule ? ` inside ${sub}` : ""}, closes the entry and commits once with \`Foreman: ${entryId}\` as the final line`]
       : []),
     `- after the last task (only if this run created the branch): ${onFinishLine}`,
     "- skip checkpointing and just work the tasks if git is unavailable",
@@ -966,11 +959,26 @@ function codexEntryParagraphText({ id, resume, notesPlace = null, requireVerific
     + code(pluginCommand("../hooks/codex-task.js", "start --id " + shellQuote(id)))
     + "\nProceed only when this command succeeds and returns dispatchReady:true. A dependency, defer, or terminal-state refusal must be resolved before dispatch.";
   const payloadNote = "For bookkeeping calls, write each JSON stdin payload to a UTF-8 file and pipe that file using the active shell (PowerShell: Get-Content -LiteralPath FILE -Raw -Encoding utf8; POSIX: cat FILE). Commands are quoted for the crafting host (PowerShell on Windows, POSIX shell elsewhere); re-quote paths if using another shell. Never interpolate findings into an inline shell command. If the installed plugin moved, refresh command paths from the currently loaded Foreman skill.";
-  const beginStep = "Before touching files, verify the branch satisfies the user's restrictions; create or use an authorized working branch when needed. Then take the commit boundary:\n" + code(pluginCommand("safe-commit.js", "begin")) + "\nKeep its " + code("baseline.head") + ". With " + code("dirty:true") + ", preserve existing changes and make NO commit at all; continue authorized work without staging around unrelated changes.";
+  // [Foreman: 1113] The boundary and the close run through scripts/task.js, as
+  // in Claude Code: start takes the boundary inside the submodule when every
+  // planned file sits in one, and finish never stages into a tree or an index
+  // that held someone else's changes, which the spelled-out staged close did.
+  // The close command is quoted here for the crafting host, like every other
+  // Codex command, rather than taken from start's `then`. Leaving out the
+  // baseline is the safe slip: finish then records the close unstaged.
+  const taskFlags = carriedFlags({ orchestrator: delegatedTo });
+  const beginStep = "Before touching files, verify the branch satisfies the user's restrictions; create or use an authorized working branch when needed. Then take the commit boundary:\nCommand: "
+    + code(pluginCommand("task.js", "start --id " + shellQuote(id) + taskFlags))
+    + "\nIt prints one JSON line. With " + code("next") + " " + code("work") + ", keep its " + code("baseline") + " and do the task. With " + code("report_dirty") + ", it took no commit boundary (" + code("reason") + " says why): tell the user its " + code("say") + " in one line, preserve existing changes and continue the authorized work; the close will stage and commit nothing.";
   const splitStep = reviewEachIncrement
     ? INCREMENT_SPLIT_STEP
     : requireVerification
     ? "Run the required checks using available commands, skills, or UI tools. Add checks only when justified by the actual change or unresolved evidence. Record a human-only check only if it is answerable now and beyond those tools. Use one annotate call per check, and none when every required check ran:\n" + jsonCommand("roadmap.js", "annotate", { id, notes: "unverified: <the check and what to look for>" })
+    : "";
+  const workSplitStep = reviewEachIncrement
+    ? INCREMENT_SPLIT_STEP + " Before you close, reconcile recorded omissions with later evidence for the same result using the embedded close protocol, and list in the close's " + code("unverified") + " only the checks still unverified."
+    : requireVerification
+    ? "Run the required checks using available commands, skills, or UI tools. Add checks only when justified by the actual change or unresolved evidence. Record a human-only check only if it is answerable now and beyond those tools: list it in the close's " + code("unverified") + ", one string per check, the check and what to look for. List none when every required check ran."
     : "";
   const holdSentence = !requireVerification ? ""
     : delegatedTo
@@ -986,23 +994,25 @@ function codexEntryParagraphText({ id, resume, notesPlace = null, requireVerific
           ? "Reconcile recorded omissions with later evidence for the same result using the embedded close protocol. Offer Test first only for checks still unverified; do not treat resolved historical notes as pending or unrelated acceptance as resolution. On explicit acceptance of the integrated result, close with:\n"
           : "If recorded " + code("unverified:") + " checks remain, offer Test first and describe those checks; otherwise offer acceptance or review. On acceptance, close with:\n") + jsonCommand("roadmap.js", "update-status", { id, status: "done" }));
   const closeIntro = "Close with the status actually earned (" + code("done") + ", " + code("dropped") + ", or " + code("rejected") + ") and observed findings in " + code("notes") + "." + holdSentence;
-  const stageStep = submodule
-    ? "When committing is authorized and the baseline was clean, commit inside the submodule " + code(submodule) + " that holds the planned files, not at the project root; never stage its gitlink or use " + code("git add -A") + ":\n"
-      + "Command: " + code("git -C " + shellQuote(submodule) + " add -- <the files this task owns>")
-      + "\nCommit once there with " + code("Foreman: " + id) + " as the final message line, then close with that commit's full sha from " + code("git -C " + shellQuote(submodule) + " rev-parse HEAD") + "; " + code("observed_touches") + " derives from it with the " + code(submodule + "/") + " prefix. If no commit is allowed, omit commit and record observed files explicitly in " + code("add_touches") + "."
+  const closeCall = jsonCommand("roadmap.js", "update-status", { id, status: "<status>", notes: "<observed findings>", add_touches: investigation ? [] : ["<observed files>"] });
+  const finishFields = { status: "<status>", files: ["<the files this task owns>"], message: "<commit message>", notes: "<observed findings>", ...(workSplitStep ? { unverified: [] } : {}) };
+  const finishCall = "Close with the status actually earned (" + code("done") + ", " + code("dropped") + ", or " + code("rejected") + ") and observed findings in " + code("notes") + ", by piping this JSON into the close command with start's " + code("baseline") + " in place of " + code("<baseline>") + "; after " + code("report_dirty") + ", which returns no baseline, leave out " + code("--baseline <baseline>") + ":\n"
+    + "Command: " + code(pluginCommand("task.js", "finish --id " + shellQuote(id) + " --baseline <baseline>" + taskFlags)) + "\nJSON stdin: " + code(JSON.stringify(finishFields));
+  const where = submodule
+    ? ", inside the submodule " + code(submodule) + " that holds the planned files, never its gitlink at the project root"
     : privateRoadmap
-      ? "When committing is authorized and the baseline was clean, commit owned files first using safe-commit, because this project git-ignores ROADMAP.jsonl and the close cannot ride in the commit; never " + code("git add -A") + ":\n"
-        + jsonCommand("safe-commit.js", "finish --baseline <baseline.head>", { id, expected: ["<the files this task owns>"], message_title: "<one-line summary>" })
-        + "\nIt commits with " + code("Foreman: " + id) + " as the final message line and returns the new sha as " + code("commit") + "; close with that sha to derive " + code("observed_touches") + " from the commit. If no commit is allowed, omit commit and record observed files explicitly in " + code("add_touches") + "."
-      : "When committing is authorized and the baseline was clean, stage only owned files using safe-commit; never " + code("git add -A") + ":\n"
-        + jsonCommand("safe-commit.js", "finish --baseline <baseline.head> --no-commit", { id, expected: ["<the files this task owns>"] })
-        + "\nThen close with " + code("staged:true") + " to derive " + code("observed_touches") + " from staged files, and commit once with " + code("Foreman: " + id) + " as the final message line. If no commit is allowed, omit staged and record observed files explicitly.";
-  const commitClose = !investigation && destination !== "agent"
-    ? (submodule ? "<the submodule commit sha>" : privateRoadmap ? "<the commit sha from finish>" : null)
-    : null;
-  const closeCall = commitClose
-    ? jsonCommand("roadmap.js", "update-status", { id, status: "<status>", commit: commitClose, notes: "<observed findings>" })
-    : jsonCommand("roadmap.js", "update-status", { id, status: "<status>", notes: "<observed findings>", add_touches: investigation ? [] : ["<observed files>"] });
+      ? ", before it records the close, because this project git-ignores ROADMAP.jsonl"
+      : ", with the roadmap close riding in that commit";
+  const finishExplain = code("files") + " are the files this task owns, from the project root, and " + code("message") + " is the whole commit message; omit both when the task changed no file. It stages those files alone, never " + code("git add -A") + ", closes the entry through " + code("roadmap.js update-status") + " and commits once with " + code("Foreman: " + id) + " as the message's final line" + where + "."
+    + (requireVerification ? " It records an earned " + code("done") + " as " + code("awaiting_acceptance") + ": this project holds finished work for " + (delegatedTo ? `the orchestrator ${delegatedTo}'s` : "the user's") + " acceptance." : "");
+  const finishCodes = "It prints one JSON line; act on its " + code("next") + ":\n" + [
+    requireVerification && !delegatedTo
+      && "- " + code("ask_acceptance") + ": present the concrete result, then put its " + code("question") + " and " + code("options") + " to the user." + (reviewEachIncrement ? " Offer Test first only for checks still unverified; do not treat resolved historical notes as pending or unrelated acceptance as resolution." : "") + " Run the chosen option's " + code("then") + " or do what its " + code("do") + " says, and start nothing new until they answer.",
+    requireVerification && delegatedTo && "- " + code("report_acceptance") + ": do what its " + code("say") + " says.",
+    "- " + code("closed") + ": the entry is closed; nothing more to record.",
+    "- " + code("report_dirty") + ": nothing was staged or committed; tell the user its " + code("say") + " in one line, then act on its " + code("after") + ".",
+    "- " + code("refused") + ": follow its " + code("fix") + ", then act on its " + code("after") + " when it has one.",
+  ].filter(Boolean).join("\n");
   const checkStep = "After recording the close, verify the lifecycle checkpoint:\nCommand: "
     + code(pluginCommand("../hooks/codex-task.js", "check --id " + shellQuote(id)))
     + "\nA failure means the entry is still open; resolve it before claiming closure. Read and act on the returned discovery policy before reporting completion; a successful checkpoint does not mean that observed out-of-scope findings have been reviewed."
@@ -1020,7 +1030,7 @@ function codexEntryParagraphText({ id, resume, notesPlace = null, requireVerific
       splitStep, closeIntro, closeCall, modelEffortNote, checkStep]
       .filter(Boolean).join("\n");
   }
-  return [opening, startStep, payloadNote, beginStep, splitStep, closeIntro, stageStep, closeCall, modelEffortNote, checkStep]
+  return [opening, startStep, payloadNote, beginStep, workSplitStep, finishCall, finishExplain, modelEffortNote, finishCodes, checkStep]
     .filter(Boolean).join("\n");
 }
 
