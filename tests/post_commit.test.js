@@ -1148,9 +1148,6 @@ describe('commit directory edge cases', () => {
     assert.deepEqual(commitDirs('git -C `pwd` commit -m x', project), []);
     assert.deepEqual(commitDirs('git -C "$(pwd)" commit -m x', project), []);
     assert.deepEqual(commitDirs('git -C (Get-Location) commit -m x', project, true, true), []);
-    // PowerShell reads a backtick as an escape, so its reading of the same
-    // Bash-named command on Codex or Antigravity still finds a folder
-    assert.deepEqual(commitDirs('cd `git -C ../other rev-parse --show-toplevel` && git commit -m x', project, true), [project]);
   });
 
   test('a $ inside single quotes is literal', () => {
@@ -1296,22 +1293,39 @@ describe('commit directory edge cases', () => {
 
   // [Foreman: 854]
   test('PowerShell reads a backtick continuation and a backtick escape outside quotes', () => {
-    assert.deepEqual(commitDirs('git `\n  commit -m x', project, true), [project]);
-    assert.deepEqual(commitDirs('git `\r\n  commit -m x', project, true), [project]);
-    assert.deepEqual(commitDirs(`Set-Location \`\n  "${other}"; git commit -m x`, project, true), [other]);
-    assert.deepEqual(commitDirs('echo a`; git commit -m x', project, true), []);
+    assert.deepEqual(commitDirs('git `\n  commit -m x', project, true, true), [project]);
+    assert.deepEqual(commitDirs('git `\r\n  commit -m x', project, true, true), [project]);
+    assert.deepEqual(commitDirs(`Set-Location \`\n  "${other}"; git commit -m x`, project, true, true), [other]);
+    assert.deepEqual(commitDirs('echo a`; git commit -m x', project, true, true), []);
     const spaced = path.join(other, 'my dir');
     fs.mkdirSync(spaced);
-    assert.deepEqual(commitDirs(`cd ${spaced.replace(/ /g, '` ')}; git commit -m x`, project, true), [spaced]);
+    assert.deepEqual(commitDirs(`cd ${spaced.replace(/ /g, '` ')}; git commit -m x`, project, true, true), [spaced]);
     // PowerShell's own escapes: `u{41} is A and `q is q, but `t is a tab, not t
     const odd = path.join(other, 'aAq');
     fs.mkdirSync(odd);
     fs.mkdirSync(path.join(other, 'atb'));
-    assert.deepEqual(commitDirs(`cd "${other}${path.sep}a\`u{41}\`q"; git commit -m x`, project, true), [odd]);
-    assert.deepEqual(commitDirs(`cd ${other}${path.sep}a\`u{41}\`q; git commit -m x`, project, true), [odd]);
-    assert.deepEqual(commitDirs(`cd ${other}${path.sep}a\`tb; git commit -m x`, project, true), [project]);
+    assert.deepEqual(commitDirs(`cd "${other}${path.sep}a\`u{41}\`q"; git commit -m x`, project, true, true), [odd]);
+    assert.deepEqual(commitDirs(`cd ${other}${path.sep}a\`u{41}\`q; git commit -m x`, project, true, true), [odd]);
+    assert.deepEqual(commitDirs(`cd ${other}${path.sep}a\`tb; git commit -m x`, project, true, true), [project]);
     // an escape out of range stays put instead of throwing
-    assert.deepEqual(commitDirs('cd a`u{110000}; git commit -m x', project, true), [project]);
+    assert.deepEqual(commitDirs('cd a`u{110000}; git commit -m x', project, true, true), [project]);
+  });
+
+  // [Foreman: 1102] Codex and Antigravity run a Bash-named command in
+  // PowerShell on Windows and in Bash elsewhere, so only on Windows does its
+  // PowerShell reading take a backtick as an escape.
+  test('the PowerShell reading of a Bash-named backtick names an unknown folder outside Windows', () => {
+    const command = 'cd `git -C ../other rev-parse --show-toplevel` && git commit -m x';
+    assert.deepEqual(commitDirs(command, project, true, false, 'linux'), []);
+    assert.deepEqual(commitDirs(command, project, true, false, 'darwin'), []);
+    assert.deepEqual(commitDirs('git -C `pwd` commit -m x', project, true, false, 'linux'), []);
+    assert.deepEqual(commitDirs(command, project, true, false, 'win32'), [project]);
+    const spaced = path.join(other, 'my dir');
+    fs.mkdirSync(spaced);
+    assert.deepEqual(commitDirs(`cd ${spaced.replace(/ /g, '` ')}; git commit -m x`, project, true, false, 'win32'), [spaced]);
+    assert.deepEqual(commitDirs(`cd ${spaced.replace(/ /g, '` ')}; git commit -m x`, project, true, false, 'linux'), []);
+    // a PowerShell-named command runs in PowerShell everywhere
+    assert.deepEqual(commitDirs(`cd ${spaced.replace(/ /g, '` ')}; git commit -m x`, project, true, true, 'linux'), [spaced]);
   });
 
   test('env and sudo read their directory option inside a group of short options', () => {

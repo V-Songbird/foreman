@@ -114,9 +114,12 @@ const OPAQUE = "$(";
 // [Foreman: 874] PowerShell on Linux and macOS also reads `\` as a separator
 // in a Set-Location or Push-Location path, so a PowerShell-named tool's target
 // takes `/` there. Bash reads `\` as an escape, so a Bash-named command keeps it.
-function commitDirs(command, cwd, powershell = false, powershellTool = false) {
+// [Foreman: 1102] Outside Windows a Bash-named command runs in Bash, so its
+// PowerShell reading on Codex and Antigravity reads a backtick as Bash does.
+function commitDirs(command, cwd, powershell = false, powershellTool = false, platform = process.platform) {
   const shell = powershell ? SHELLS.powershell : SHELLS.bash;
-  const target = (arg) => (powershellTool && process.platform !== "win32" && arg ? arg.replace(/\\/g, "/") : arg);
+  const target = (arg) => (powershellTool && platform !== "win32" && arg ? arg.replace(/\\/g, "/") : arg);
+  const bashBackticks = !powershell || (!powershellTool && platform !== "win32");
   let dir = cwd;
   const pushed = [];
   const subshells = [];
@@ -142,7 +145,7 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false) {
       const token = t.replace(shell.quoted, (match, double, single, escaped) =>
         double !== undefined ? double.replace(shell.escape, (m, c) => shell.unescape(c)) : single !== undefined ? single.replace(/''/g, "'").replace(/\$/g, LITERAL_DOLLAR) : shell.unescape(escaped)
       );
-      const substituted = token.includes("$(") || (!powershell && token.includes("`"));
+      const substituted = token.includes("$(") || (bashBackticks && t.includes("`"));
       const [, name, value] = token.match(ASSIGNMENT_RE) || [];
       if (name) return substituted ? `${name}=${OPAQUE}${value}` : token;
       return i > 0 && (substituted || t.startsWith("(")) ? OPAQUE : token;
