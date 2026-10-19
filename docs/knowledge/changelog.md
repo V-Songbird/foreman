@@ -64,9 +64,12 @@ instead.
   `A=$(date +%s)`, whose substitution holds a space, does draw its reminders.
 - A `;`, `&&`, `|` or line break inside a `$(...)`, a backtick command or a
   PowerShell `@(...)` no longer splits the command around it, so a commit
-  such as `A=$(a; b) git commit -m x` draws its reminders. A commit inside
-  such a substitution draws them too, read from the folder the shell is in.
-  An inline `--git-dir=$(x)` no longer hides a known `--work-tree` after it.
+  such as `A=$(a; b) git commit -m x` or `A="$(date +"%F; %T")" git commit`
+  draws its reminders. A commit inside such a substitution draws them too,
+  read from the folder the shell is in. A `cd` inside a Bash substitution
+  moves nothing after it; a `Set-Location` inside a PowerShell `$(...)` or
+  `@(...)` moves the commands after it, as PowerShell does. An inline
+  `--git-dir=$(x)` no longer hides a known `--work-tree` after it.
 - The reminders after a commit are shorter. When one entry is the candidate,
   its id is already in the command to run.
 - `safe-commit.js finish` with `roadmap_close` now refuses with

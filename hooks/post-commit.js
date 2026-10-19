@@ -46,19 +46,23 @@ const BASH_GROUP = group(String.raw`"(?:\\[\s\S]|[^"\\])*"|'[^']*'|\\[\s\S]|[^()
 const PS_GROUP = group(String.raw`"(?:\`[\s\S]|[^"\`])*"|'[^']*'|\`[\s\S]|[^()"'\`]`);
 // [Foreman: 1117] A `;`, `&&`, `|` or newline inside a `$(...)`, a Bash
 // backtick or a PowerShell `@(...)` belongs to the substitution, so it does
-// not end the command around it.
+// not end the command around it, even inside double quotes whose
+// substitution holds quotes of its own, as in `"$(date +"%F; %T")"`.
+const BASH_TICK = String.raw`\`(?:\\[\s\S]|[^\`\\])*\``;
+const BASH_DQ = String.raw`"(?:\$${BASH_GROUP}|${BASH_TICK}|\\[\s\S]|[^"\\])*"`;
+const PS_DQ = String.raw`"(?:\$${PS_GROUP}|\`[\s\S]|[^"\`])*"`;
 const SHELLS = {
   bash: {
-    part: new RegExp(String.raw`(?:\$${BASH_GROUP}|\`(?:\\[\s\S]|[^\`\\])*\`|"(?:\\[\s\S]|[^"\\])*"|'[^']*'|\\[\s\S]|(?<!&)&(?!&)|[^;&|\n])+`, "g"),
-    token: new RegExp(String.raw`(?:\$${BASH_GROUP}|\`(?:\\[\s\S]|[^\`\\])*\`|"(?:\\[\s\S]|[^"\\])*"|'[^']*'|\\[^\n]|[^\s\\])+`, "g"),
+    part: new RegExp(String.raw`(?:\$${BASH_GROUP}|${BASH_TICK}|${BASH_DQ}|'[^']*'|\\[\s\S]|(?<!&)&(?!&)|[^;&|\n])+`, "g"),
+    token: new RegExp(String.raw`(?:\$${BASH_GROUP}|${BASH_TICK}|${BASH_DQ}|'[^']*'|\\[^\n]|[^\s\\])+`, "g"),
     quoted: /"((?:\\[\s\S]|[^"\\])*)"|'([^']*)'|\\([\s\S])/g,
     escape: /\\(["\\$`])/g,
     substitution: new RegExp(String.raw`'[^']*'|\\[\s\S]|\$${BASH_GROUP}|\`(?:\\[\s\S]|[^\`\\])*\``, "g"),
     unescape: (c) => c,
   },
   powershell: {
-    part: new RegExp(String.raw`(?:[$@]${PS_GROUP}|"(?:\`[\s\S]|[^"\`])*"|'[^']*'|\`\r?\n|\`[\s\S]|(?<!&)&(?!&)|[^;&|\n])+`, "g"),
-    token: new RegExp(String.raw`(?:\$?${PS_GROUP}|"(?:\`[\s\S]|[^"\`])*"|'[^']*'|\`[^\r\n]|[^\s\`])+`, "g"),
+    part: new RegExp(String.raw`(?:[$@]${PS_GROUP}|${PS_DQ}|'[^']*'|\`\r?\n|\`[\s\S]|(?<!&)&(?!&)|[^;&|\n])+`, "g"),
+    token: new RegExp(String.raw`(?:\$?${PS_GROUP}|${PS_DQ}|'[^']*'|\`[^\r\n]|[^\s\`])+`, "g"),
     quoted: /"((?:`[\s\S]|[^"`])*)"|'((?:[^']|'')*)'|`(u\{[0-9a-fA-F]{1,6}\}|[\s\S])/g,
     escape: /`(u\{[0-9a-fA-F]{1,6}\}|[\s\S])/g,
     substitution: new RegExp(String.raw`'[^']*'|\`[\s\S]|[$@]${PS_GROUP}`, "g"),
@@ -121,7 +125,7 @@ const OPAQUE = "$(";
 // takes `/` there. Bash reads `\` as an escape, so a Bash-named command keeps it.
 // [Foreman: 1102] Outside Windows a Bash-named command runs in Bash, so its
 // PowerShell reading on Codex and Antigravity reads a backtick as Bash does.
-function commitDirs(command, cwd, powershell = false, powershellTool = false, platform = process.platform) {
+function commitDirs(command, cwd, powershell = false, powershellTool = false, platform = process.platform, end = {}) {
   const shell = powershell ? SHELLS.powershell : SHELLS.bash;
   const target = (arg) => (powershellTool && platform !== "win32" && arg ? arg.replace(/\\/g, "/") : arg);
   const bashBackticks = !powershell || (!powershellTool && platform !== "win32");
@@ -138,9 +142,14 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false, pl
     let closes = 0;
     for (let open = bare.split(")").length - bare.split("(").length; open > 0 && part.endsWith(")"); open--, closes++) part = part.slice(0, -1).trimEnd();
     // [Foreman: 1117] A commit inside a substitution still runs, from the
-    // folder the shell is in; a `cd` inside it moves nothing outside it.
+    // folder the shell is in. A Bash substitution is a subshell, so its `cd`
+    // moves nothing outside it; PowerShell runs `$(...)` and `@(...)` in the
+    // caller's session, so its Set-Location moves the rest of the command too.
     for (const sub of part.match(shell.substitution) || []) {
-      if (sub.length > 2 && /^(?:[$@]\(|`)/.test(sub)) targets.push(...commitDirs(sub.slice(sub[0] === "`" ? 1 : 2, -1), dir, powershell, powershellTool, platform));
+      if (sub.length < 3 || !/^(?:[$@]\(|`)/.test(sub)) continue;
+      const inner = {};
+      targets.push(...commitDirs(sub.slice(sub[0] === "`" ? 1 : 2, -1), dir, powershell, powershellTool, platform, inner));
+      if (!bashBackticks) dir = inner.dir;
     }
     const raw = part.match(shell.token) || [];
     // A `$` inside single quotes is literal, so it travels as LITERAL_DOLLAR
@@ -213,6 +222,7 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false, pl
     }
     for (; closes && subshells.length; closes--) dir = subshells.pop();
   }
+  end.dir = dir;
   return targets;
 }
 

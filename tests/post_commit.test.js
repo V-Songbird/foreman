@@ -1224,16 +1224,26 @@ describe('commit directory edge cases', () => {
   test('a separator inside a substitution does not split the command around it', () => {
     for (const powershell of [false, true]) {
       assert.deepEqual(commitDirs('A=$(a; b) git commit -m x', project, powershell, powershell), [project]);
+      assert.deepEqual(commitDirs('A=$(a && b) git commit -m x', project, powershell, powershell), [project]);
       assert.deepEqual(commitDirs('A=$(a && b | c\nd) git commit -m x', project, powershell, powershell), [project]);
     }
     assert.deepEqual(commitDirs('A=`a; b` git commit -m x', project), [project]);
+    // a substitution inside double quotes may hold quotes of its own
+    assert.deepEqual(commitDirs('A="$(date +"%F; %T")" git commit -m x', project), [project]);
+    assert.deepEqual(commitDirs('A="`a "b; c"`" git commit -m x', project), [project]);
+    assert.deepEqual(commitDirs('git commit -m "$(a "b; c")"', project, true, true), [project]);
     assert.deepEqual(commitDirs('A=$(a; b) git log --grep commit', project), []);
   });
 
   test('a commit inside a substitution runs from the folder the shell is in', () => {
     assert.deepEqual(commitDirs(`out=$(cd "${other}" && git commit -m x); git commit -m y`, project), [other, project]);
     assert.deepEqual(commitDirs(`cd "${other}" && echo \`git commit -m x\``, project), [other]);
-    assert.deepEqual(commitDirs(`$out = $(Set-Location "${other}"; git commit -m x); git commit -m y`, project, true, true), [other, project]);
+    // PowerShell runs $(...) and @(...) in the caller's session, so a
+    // Set-Location there moves the commands after it
+    assert.deepEqual(commitDirs(`$out = $(Set-Location "${other}"; git commit -m x); git commit -m y`, project, true, true), [other, other]);
+    assert.deepEqual(commitDirs(`$out = @(Set-Location "${other}"); git commit -m y`, project, true, true), [other]);
+    // a Bash-named command outside Windows runs in Bash, where $(...) is a subshell
+    assert.deepEqual(commitDirs(`out=$(cd "${other}"); git commit -m y`, project, true, false, 'linux'), [project]);
     // single quotes keep it text
     assert.deepEqual(commitDirs("echo '$(git commit -m x)'", project), []);
   });
