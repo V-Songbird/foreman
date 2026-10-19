@@ -9,8 +9,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { makeTmpProject, writeRoadmap, writeConfig, initGitRepo, commitFile, runRoadmap, runNodeScript, SCRIPTS_DIR, HOOKS_DIR } = require('./helpers');
-const { assemble } = require('../scripts/craft-handoff');
+const { makeTmpProject, writeRoadmap, writeConfig, initGitRepo, commitFile, runRoadmap, runNodeScript, runBash, SCRIPTS_DIR, HOOKS_DIR } = require('./helpers');
+const { assemble, incrementReviewText } = require('../scripts/craft-handoff');
 const { today } = require('../scripts/roadmap');
 
 function fixture(t, { git = false } = {}) {
@@ -225,4 +225,20 @@ test('an eligible checkpoint after review leaves acceptance notes and the parent
   assert.doesNotMatch(message, /Foreman: 001/);
   const changed = spawnSync('git', ['show', '--format=', '--name-only', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
   assert.equal(changed, 'panel.md', 'shared roadmap notes do not ride along in the increment checkpoint');
+});
+
+// [Foreman: 1118] Claude Code's review annotate sends its JSON through a
+// quoted heredoc, so a note holding an apostrophe runs through bash as written.
+test('the Claude Code review annotate keeps an apostrophe in its notes through bash', (t) => {
+  const root = fixture(t);
+  const block = incrementReviewText('001', 'claude');
+  const command = block.match(/\n(node \$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/roadmap\.js annotate <<'EOF'\n[^\n]+\nEOF)/);
+  assert.ok(command, block);
+  const notes = "we didn't expand $HOME or `ticks`";
+  const filled = command[1].replace('<observed result, limits, checks, decision, reference and next action>', notes);
+  const result = runBash(filled, { CLAUDE_PLUGIN_ROOT: path.resolve(SCRIPTS_DIR, '..').replace(/\\/g, '/'), FOREMAN_PROJECT_DIR: root });
+  if (result === null) return t.skip('no bash on this machine');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const stored = fs.readFileSync(path.join(root, 'ROADMAP.jsonl'), 'utf8').trim().split('\n').map(JSON.parse).find((e) => e.id === '001');
+  assert.ok(stored.notes.endsWith(notes), stored.notes);
 });

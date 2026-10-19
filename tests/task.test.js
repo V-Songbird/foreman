@@ -218,6 +218,8 @@ describe('task.js finish', () => {
     const before = head();
     const start = ok(['start', '--id', '001']);
     assert.equal(start.next, 'report_dirty');
+    // [Foreman: 1118] One label for the tree, as the other causes use.
+    assert.match(start.say, /^The project already holds changes that are not this task's, so/);
     assert.ok(!('baseline' in start));
     assert.doesNotMatch(start.then, /--baseline/);
     write('src/a.js', 'two\n');

@@ -105,7 +105,7 @@ function cmdStart(root, flags) {
     const where = sub ? `submodule ${sub}` : "project";
     // [Foreman: 1112] Only a tree with changes is blamed on someone else's.
     const cause = {
-      working_tree_has_changes: `The ${sub ? `submodule ${sub}` : "tree"} already holds changes that are not this task's`,
+      working_tree_has_changes: `The ${where} already holds changes that are not this task's`,
       not_a_git_worktree: `The ${where} is not a git work tree`,
     }[boundary.reason] || `Git could not read the ${where}'s status`;
     return {

@@ -180,7 +180,23 @@ function commitFile(project, relPath, content) {
   return spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: project, encoding: 'utf-8' }).stdout.trim();
 }
 
+// [Foreman: 1118] Run a command through bash, Git's own on Windows, where a
+// bare `bash` may be the WSL launcher. Null when no bash is found.
+function runBash(command, env) {
+  let bash = 'bash';
+  if (process.platform === 'win32') {
+    const exec = spawnSync('git', ['--exec-path'], { encoding: 'utf-8' }).stdout.trim();
+    const gitRoot = path.resolve(exec, '..', '..', '..');
+    bash = [path.join(gitRoot, 'bin', 'bash.exe'), path.join(gitRoot, 'usr', 'bin', 'bash.exe')].find((file) => fs.existsSync(file));
+    if (!bash) return null;
+  }
+  return unlessTimedOut(spawnSync(bash, ['-c', command], {
+    encoding: 'utf-8', windowsHide: true, timeout: SPAWN_TIMEOUT_MS, env: { ...process.env, ...(env || {}) },
+  }), 'bash');
+}
+
 module.exports = {
+  runBash,
   runScriptRaw,
   runNodeScript,
   runRoadmap,

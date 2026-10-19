@@ -125,8 +125,10 @@ function pluginCommand(script, args = "", shell = process.platform === "win32" ?
 function jsonCommand(script, args, payload) {
   return `Command: \`${pluginCommand(script, args)}\`\nJSON stdin: \`${JSON.stringify(payload)}\``;
 }
-// One bookkeeping call in the form its host can run: Claude Code pipes the
-// JSON through `echo` into the literal plugin-root path; Codex names the quoted
+// One bookkeeping call in the form its host can run: Claude Code sends the
+// JSON through a quoted heredoc into the literal plugin-root path, so
+// [Foreman: 1118] an apostrophe in a filled-in value keeps its quoting, as
+// the close does since 1112; Codex names the quoted
 // installed script and its JSON stdin separately, so no finding is ever
 // interpolated into shell code.
 function scriptCommand(host, script, args = "") {
@@ -135,7 +137,7 @@ function scriptCommand(host, script, args = "") {
 function bookkeepingCommand(host, script, args, payload) {
   return host === "codex"
     ? jsonCommand(script, args, payload)
-    : `\`echo '${JSON.stringify(payload)}' | ${scriptCommand(host, script, args)}\``;
+    : `Send this JSON through the quoted heredoc as written (in PowerShell, pipe a literal here-string \`@'...'@\` into the command instead):\n${scriptCommand(host, script, args)} <<'EOF'\n${JSON.stringify(payload)}\nEOF`;
 }
 const AUTONOMY_MARKER = "You are operating autonomously.";
 // [Foreman: 459] Its user-present counterpart, Claude Code only.

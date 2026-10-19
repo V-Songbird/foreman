@@ -37,7 +37,8 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const { makeTmpProject, writeConfig, writeRoadmap, runNodeScript, SCRIPTS_DIR } = require('./helpers.js');
+const { spawnSync } = require('child_process');
+const { makeTmpProject, writeConfig, writeRoadmap, runNodeScript, runBash, initGitRepo, commitFile, SCRIPTS_DIR } = require('./helpers.js');
 const {
   readCanonical,
   detectProfile,
@@ -1073,6 +1074,18 @@ describe('host claude: a Workflow stage sent to an agent', () => {
     }
   });
 
+  // [Foreman: 1118] Only Foreman's task.js is bookkeeping: a project's own
+  // scripts/task.js passes even with a start or finish verb.
+  test('a project\'s own task.js start or finish passes; Foreman\'s under its root fails', () => {
+    for (const command of ['`node scripts/task.js start --id 001`', '`node "D:/my project/scripts/task.js" finish --id 001`']) {
+      const errors = runCheck(makeTmpProject(), stage({ entry_paragraph: command }), entryLess).json.errors || [];
+      assert.ok(!errors.some((e) => e.error.includes('roadmap bookkeeping')), `${command}\n${JSON.stringify(errors)}`);
+    }
+    const own = `\`node ${path.resolve(SCRIPTS_DIR, 'task.js').replace(/\\/g, '/')} start --id 001\``;
+    const errors = runCheck(makeTmpProject(), stage({ entry_paragraph: own }), entryLess).json.errors || [];
+    assert.ok(errors.some((e) => e.error.includes('roadmap bookkeeping')), `${own}\n${JSON.stringify(errors)}`);
+  });
+
   test('a project script whose name ends in roadmap.js, or prose after a node command, passes', () => {
     for (const command of [
       '`node scripts/build-roadmap.js`',
@@ -1308,6 +1321,32 @@ describe('drift pins', () => {
     assert.ok(raw.includes('the `checkpoints`\n  block of `.foreman/config.json`'));
     assert.ok(raw.includes('`onFinish` `"ask"`'));
     assert.ok(raw.includes('Checkpoints always stay local'));
+  });
+
+  // [Foreman: 1118] The checkpoint commit sends its JSON through a quoted
+  // heredoc, so a subject holding an apostrophe runs through bash as written.
+  test('the checkpoint finish command keeps an apostrophe in its subject through bash', (t) => {
+    const raw = readTemplate();
+    const block = raw.match(/```\n {2}(node \$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/safe-commit\.js finish [^\n]+<<'EOF'\n {2}[^\n]+\n {2}EOF)\n {2}```/);
+    assert.ok(block, 'no heredoc finish command in the checkpoint protocol');
+    const project = makeTmpProject();
+    initGitRepo(project);
+    commitFile(project, 'a.txt', 'one\n');
+    const begun = runNodeScript(path.join(SCRIPTS_DIR, 'safe-commit.js'), ['begin'], null, { FOREMAN_PROJECT_DIR: project });
+    assert.equal(begun.status, 0, begun.stdout + begun.stderr);
+    fs.writeFileSync(path.join(project, 'a.txt'), 'two\n');
+    const subject = "task 1/1: keep the user's text";
+    const command = block[1].replace(/\n {2}/g, '\n')
+      .replace('<the current baseline>', JSON.parse(begun.stdout).baseline.head)
+      .replace('<the files this task changed>', 'a.txt')
+      .replace('task <n>/<total>: <task subject>', subject);
+    const result = runBash(`cd '${project.replace(/\\/g, '/')}' && ${command}`, {
+      CLAUDE_PLUGIN_ROOT: path.resolve(SCRIPTS_DIR, '..').replace(/\\/g, '/'), FOREMAN_PROJECT_DIR: project,
+    });
+    if (result === null) return t.skip('no bash on this machine');
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    const logged = spawnSync('git', ['log', '-1', '--format=%s'], { cwd: project, encoding: 'utf-8' }).stdout.trim();
+    assert.equal(logged, subject);
   });
 
   test('checkpoint finish choices write back one key and yield to user branch restrictions', () => {

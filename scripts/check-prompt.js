@@ -18,6 +18,14 @@ const { render, projectDir } = require("./render-sections.js");
 const { HOSTS, detectHost, parseFlags, printHelp } = require("./runtime.js");
 
 const TEMPLATE_PATH = path.join(__dirname, "..", "prompt-template.md");
+const FOREMAN_ROOT = path.resolve(__dirname, "..").replace(/\\/g, "/");
+// [Foreman: 1118] A task.js path is Foreman's when it runs through the plugin
+// root variable, a `foreman` folder (an install or a plugin directory) or this
+// install's own root; a project's own scripts/task.js is none of them.
+function isForemanPath(prefix) {
+  const p = prefix.replace(/\\/g, "/");
+  return /\$\{?CLAUDE_PLUGIN_ROOT\b|(?:^|[/"'])foreman\//.test(p) || p.includes(`${FOREMAN_ROOT}/`);
+}
 
 // Literal openings of every bracketed placeholder/instruction line in the
 // template's XML fence. Any of these surviving into an assembled prompt
@@ -617,7 +625,8 @@ function checkPrompt(prompt, opts) {
   // --- roadmap bookkeeping in a Workflow stage sent to an agent ---
   // The Workflow owns the roadmap, with or without an entry, so the worker
   // runs no roadmap.js or safe-commit.js command, and [Foreman: 1112] no
-  // task.js start or finish: a project's own task.js runs other verbs. The
+  // task.js start or finish under Foreman's root (isForemanPath), so a
+  // project's own task.js passes whatever its verb. The
   // script path may be bare or quoted, a quoted one may hold spaces, and node
   // options, with or without a value, quoted or not, may come before it. The
   // basename must start a path segment, so a project's own build-roadmap.js
@@ -625,7 +634,9 @@ function checkPrompt(prompt, opts) {
   // unquoted option never holds a backtick, so a closed code span ends it. A
   // command sits on one line, and a bare `-`, such as a list bullet, is not
   // an option.
-  if (workflowAgent && /\bnode[ \t]+(?:-(?:[^\s"'`]|"[^"\n]*"|'[^'\n]*')+[ \t]+(?:(?:"[^"\n]*"|'[^'\n]*'|[^\s"'`-][^\s"'`]*)[ \t]+)?)*(?:"[^"\n]*|'[^'\n]*|\S*)(?<![^\s"'\\/=])(?:(?:safe-commit|roadmap)\.js\b|task\.js["']?[ \t]+(?:start|finish)\b)/.test(prompt)) {
+  const bookkeeping = workflowAgent && [...prompt.matchAll(/\bnode[ \t]+(?:-(?:[^\s"'`]|"[^"\n]*"|'[^'\n]*')+[ \t]+(?:(?:"[^"\n]*"|'[^'\n]*'|[^\s"'`-][^\s"'`]*)[ \t]+)?)*("[^"\n]*|'[^'\n]*|\S*)(?<![^\s"'\\/=])(?:(?:safe-commit|roadmap)\.js\b|(task)\.js["']?[ \t]+(?:start|finish)\b)/g)]
+    .some((m) => !m[2] || isForemanPath(m[1]));
+  if (bookkeeping) {
     errors.push(problem("a Workflow stage sent to a background Agent tells the worker to run roadmap bookkeeping — the Workflow that launched it owns the roadmap", "Delete every roadmap.js, safe-commit.js and task.js command; the Workflow that launched the agent does that bookkeeping.", null));
   }
 

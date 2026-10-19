@@ -1196,9 +1196,17 @@ explicitly authorized decision artifact.
   `dirty:false` with those paths in `ledger_dirty`, which is the normal
   state after a pick and is not someone else's uncommitted work.
 - **One commit per finished task, staged by the primitive.** After a
-  task's verification passes and the task is marked completed:
-  `echo '{"expected":["<the files this task changed>"],"message_title":"task <n>/<total>: <task subject>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js finish --baseline <the current baseline>`
-  — it stages only what changed since that baseline, refuses on any file
+  task's verification passes and the task is marked completed, send its
+  JSON through a quoted heredoc, which keeps an apostrophe in the subject
+  as written:
+
+  ```
+  node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js finish --baseline <the current baseline> <<'EOF'
+  {"expected":["<the files this task changed>"],"message_title":"task <n>/<total>: <task subject>"}
+  EOF
+  ```
+
+  It stages only what changed since that baseline, refuses on any file
   the `expected` list doesn't cover (`unexpected_files` names them: show
   them and ask the user, then re-run with `--allow-unexpected` if they
   approve), commits, and attests the result. Its `commit` is the next
@@ -1211,7 +1219,7 @@ explicitly authorized decision artifact.
   Checkpoints always stay local, no comment — never push them.
   `onFinish` is the only step that reaches a remote, and only through
   its `Open a PR` option. In Codex, send that JSON from a UTF-8 file rather
-  than an inline `echo`.
+  than a heredoc.
 - **An explicitly reviewed run checkpoints after acceptance.** With
   `reviewEachIncrement:true`, follow [increment
   review](skills/roadmap/increment-review.md): record the observed decision
