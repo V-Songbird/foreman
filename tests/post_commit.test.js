@@ -1232,7 +1232,24 @@ describe('commit directory edge cases', () => {
     assert.deepEqual(commitDirs('A="$(date +"%F; %T")" git commit -m x', project), [project]);
     assert.deepEqual(commitDirs('A="`a "b; c"`" git commit -m x', project), [project]);
     assert.deepEqual(commitDirs('git commit -m "$(a "b; c")"', project, true, true), [project]);
+    assert.deepEqual(commitDirs('git -c x="$(a "b; c")" commit -m x', project, true, true), [project]);
     assert.deepEqual(commitDirs('A=$(a; b) git log --grep commit', project), []);
+  });
+
+  // [Foreman: 1133]
+  test('a double quote that never closes is read in linear time', () => {
+    const started = Date.now();
+    for (const [group, count] of [['$(a)', 28], ['`x`', 20]]) {
+      assert.deepEqual(commitDirs(`git status; echo "${group.repeat(count)}`, project), []);
+    }
+    for (const powershellTool of [true, false]) {
+      assert.deepEqual(commitDirs(`git status; echo "${'$(a)'.repeat(28)}`, project, true, powershellTool), []);
+    }
+    assert.ok(Date.now() - started < 1000, `took ${Date.now() - started} ms`);
+    // a `$(` or backtick that opens no whole substitution is still text
+    assert.deepEqual(commitDirs('echo "a`n; git commit -m x"', project), []);
+    assert.deepEqual(commitDirs('echo "a $(; git commit -m x"', project), []);
+    assert.deepEqual(commitDirs('echo "a $(; git commit -m x"', project, true, true), []);
   });
 
   test('a commit inside a substitution runs from the folder the shell is in', () => {

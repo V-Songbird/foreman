@@ -48,9 +48,13 @@ const PS_GROUP = group(String.raw`"(?:\`[\s\S]|[^"\`])*"|'[^']*'|\`[\s\S]|[^()"'
 // backtick or a PowerShell `@(...)` belongs to the substitution, so it does
 // not end the command around it, even inside double quotes whose
 // substitution holds quotes of its own, as in `"$(date +"%F; %T")"`.
+// [Foreman: 1133] Each character inside double quotes has one reading: a `$`
+// or backtick that opens no whole substitution is plain text, and the plain
+// class holds neither, so a quote that never closes fails in linear time
+// instead of retrying every way to split the substitutions after it.
 const BASH_TICK = String.raw`\`(?:\\[\s\S]|[^\`\\])*\``;
-const BASH_DQ = String.raw`"(?:\$${BASH_GROUP}|${BASH_TICK}|\\[\s\S]|[^"\\])*"`;
-const PS_DQ = String.raw`"(?:\$${PS_GROUP}|\`[\s\S]|[^"\`])*"`;
+const BASH_DQ = String.raw`"(?:\$${BASH_GROUP}|(?!\$${BASH_GROUP})\$|${BASH_TICK}|(?!${BASH_TICK})\`|\\[\s\S]|[^"\\$\`])*"`;
+const PS_DQ = String.raw`"(?:\$${PS_GROUP}|(?!\$${PS_GROUP})\$|\`[\s\S]|[^"\`$])*"`;
 const SHELLS = {
   bash: {
     part: new RegExp(String.raw`(?:\$${BASH_GROUP}|${BASH_TICK}|${BASH_DQ}|'[^']*'|\\[\s\S]|(?<!&)&(?!&)|[^;&|\n])+`, "g"),
