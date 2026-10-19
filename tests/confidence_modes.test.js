@@ -58,7 +58,10 @@ describe("two confidence modes", () => {
     }
     assert.match(reconcile, /It is composition, not a second pick flow/);
     assert.match(reconcile, /let its evidence, review, and\s+authorized repairs finish/);
-    assert.match(reconcile, /continue through pick\.md's Fast pick steps\s+exactly as written/);
+    assert.match(reconcile, /continue through pick\.md's loop\s+exactly as written/);
+    // pick.md has a loop, not numbered "Fast pick steps"; the pointer must name what exists.
+    assert.match(roadmap, /^## The loop$/m);
+    assert.doesNotMatch(reconcile, /Fast pick steps/);
   });
 
   test("the near-term set is defined mechanically from one menu call", () => {

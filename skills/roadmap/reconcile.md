@@ -26,6 +26,6 @@ near-term entries, then Fast pick unchanged on the repaired data:
 3. **Recommend** — start pick.md's loop from its first step, because the
    approved repairs may have changed statuses, dependencies, and planned
    surfaces, so the menu from 1 is stale; that first step builds a fresh one.
-   Then continue through pick.md's Fast pick steps
+   Then continue through pick.md's loop
    exactly as written. The pick is not a
    different pick; it just reads repaired data.

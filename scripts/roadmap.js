@@ -2214,9 +2214,11 @@ function cmdStepPick(root, flags) {
   // the letters, digits and marks its ranking reads, so it needs no escaping.
   const file = __filename.replaceAll("\\", "/");
   const step = `node ${file.includes("'") ? JSON.stringify(file) : `'${file}'`} step pick`;
-  const hint = flags.hint !== undefined
-    ? ` --hint '${String(flags.hint).replace(/[^\p{L}\p{N}\p{M}]+/gu, " ").trim()}'`
-    : "";
+  // A hint with none of those characters is no hint: it adds no flag, since
+  // `--hint ''` fails the next call, and it neither ranks nor records.
+  const hintWords = flags.hint !== undefined ? String(flags.hint).replace(/[^\p{L}\p{N}\p{M}]+/gu, " ").trim() : "";
+  const hintFlag = hintWords ? flags.hint : undefined;
+  const hint = hintWords ? ` --hint '${hintWords}'` : "";
   const entries = readEntries(root);
   // A named pick may start a deferred entry; done or dropped work cannot start.
   const holder = (id, flag) => {
@@ -2296,7 +2298,7 @@ function cmdStepPick(root, flags) {
       throw new Error("the answer names no listed entry. Find the entry the user described with roadmap.js list --summary and run step pick --chose <id>; work that is not on the roadmap is added first");
     }
     if (afterQ1 && row.status === "planned") {
-      const at = pickRows(cmdNextCandidates(root, { hint: flags.hint }), host).findIndex((r) => r.id === row.id);
+      const at = pickRows(cmdNextCandidates(root, { hint: hintFlag }), host).findIndex((r) => r.id === row.id);
       if (at === 0) recordTrial("pick_accepted", { rank: 1 }, { root });
       else recordTrial("pick_overridden", { chosen_rank: at > 0 ? at + 1 : null }, { root });
     }
@@ -2309,7 +2311,7 @@ function cmdStepPick(root, flags) {
   }
 
   // next-candidates --menu records menu_shown, and hint_used on a hint.
-  const menu = cmdNextCandidates(root, { menu: true, hint: flags.hint });
+  const menu = cmdNextCandidates(root, { menu: true, hint: hintFlag });
   const rows = pickRows(menu, host);
   if (!rows.length) return { next: "empty" };
   const signals = {

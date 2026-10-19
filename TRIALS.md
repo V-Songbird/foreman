@@ -178,7 +178,8 @@ unchanged whenever Reconcile and pick composes it): its menu call goes through
 - **`hint_used`** — inside the same call, once per menu built with `--hint`.
   `hit` is the script's own `hint_matched`, which is already exactly this fact:
   `false` means no candidate matched any hint word and the order is just the
-  standard ranking.
+  standard ranking. `step pick` treats a hint with no letters or digits as no
+  hint, so it records no `hint_used`.
 
 Accept and resume choices from the finish-first check settle existing work
 rather than answering "what next", so they record neither `pick_accepted` nor

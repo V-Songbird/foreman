@@ -129,6 +129,19 @@ describe('step pick: the task question', () => {
     assert.ok(step({ hint: `the "auth" $HOME it's sesión` }).then.endsWith("--hint 'the auth HOME it s sesión'"));
   });
 
+  test('a hint of only punctuation is no hint: no --hint flag, no ranking, no hint_used', () => {
+    writeConfig(project, { trialLog: true });
+    writeRoadmap(project, [entry('001'), entry('002')]);
+    const out = step({ hint: '"?!" -- $' });
+    assert.equal(out.next, 'ask_q1');
+    assert.equal(out.hint_matched, undefined);
+    assert.ok(out.then.endsWith('--after q1'), out.then);
+    assert.equal(events().filter((e) => e.event === 'hint_used').length, 0);
+    const res = runRoadmap(['step', 'pick', '--hint', '!!!'], null, { FOREMAN_PROJECT_DIR: project });
+    assert.ok(!JSON.parse(res.stdout).then.includes('--hint'), res.stdout);
+    assert.ok(!step({ chose: 'defer', hint: '...' }).then.includes('--hint'));
+  });
+
   test('one option skips the question and opens Q2 with the entry', () => {
     writeRoadmap(project, [entry('001')]);
     const out = step();
@@ -356,6 +369,52 @@ describe('step pick: the destination question', () => {
     reasons.add(destinationOptions({ ...base, contextHigh: true })[3].description.split('. ').slice(1).join('. '));
     assert.equal(reasons.size, 9);
     for (const r of reasons) assert.ok(doc.includes(words(r)), `destination-question.md lacks: ${r}`);
+  });
+});
+
+// pick.md and destination-question.md describe what the script does; these
+// fail when either side gains or loses a code, a flag or a destination alone.
+describe('step pick: the skill text agrees with the script', () => {
+  const source = fs.readFileSync(path.join(SCRIPTS_DIR, 'roadmap.js'), 'utf-8');
+  const skills = path.join(SCRIPTS_DIR, '..', 'skills', 'roadmap');
+  const pickMd = fs.readFileSync(path.join(skills, 'pick.md'), 'utf-8');
+  const destinationMd = fs.readFileSync(path.join(skills, 'destination-question.md'), 'utf-8');
+
+  test('the code table lists exactly the next codes the script returns', () => {
+    const body = source.slice(source.indexOf('function cmdStepPick'), source.indexOf('function normalizeWords'));
+    const emitted = [...new Set([...body.matchAll(/next: "(\w+)"/g)].map((m) => m[1]))].sort();
+    const table = pickMd.slice(pickMd.indexOf('| --- | --- |'), pickMd.indexOf('`stale:true` in any reply'));
+    const documented = [...table.matchAll(/^\| `(\w+)` \|/gm)].map((m) => m[1]).sort();
+    assert.ok(emitted.length >= 8, `found only ${emitted.join(', ')} in cmdStepPick`);
+    assert.deepEqual(documented, emitted);
+  });
+
+  test('every Q2 flag pick.md names is a flag the step accepts', () => {
+    const spec = source.slice(source.indexOf('  step: {'), source.indexOf('"check-duplicate"'));
+    const q2 = pickMd.slice(pickMd.indexOf('### Q2 flags'), pickMd.indexOf('Foreman never asks which model'));
+    const named = [...q2.matchAll(/^- `--([\w-]+)/gm)].map((m) => m[1]);
+    assert.deepEqual(named.sort(), ['context-high', 'no-delegate', 'no-reviewer', 'runnable', 'slices']);
+    for (const flag of named) assert.ok(spec.includes(`${flag.includes('-') ? `"${flag}"` : flag}:`), `step does not accept --${flag}`);
+  });
+
+  test('destination-question.md lists the four destinations the script offers, in its order', () => {
+    const base = { otherWork: false, collision: false, dirty: false, checks: 0, runnable: 0, slices: 0, contextHigh: false, canDelegate: true, reviewer: true };
+    const labels = destinationOptions(base).map((o) => o.label.replace(/ \((Recommended|Caution)\)/g, ''));
+    const listed = [...destinationMd.matchAll(/^- `([^`]+)` —/gm)].map((m) => m[1]);
+    assert.deepEqual(listed, labels);
+  });
+
+  test('the recommendation rules lead in the order destination-question.md numbers them', () => {
+    const lead = (o) => destinationOptions({ otherWork: false, collision: false, dirty: false, checks: 0, runnable: 0, slices: 0, contextHigh: false, canDelegate: true, reviewer: true, ...o })
+      .find((d) => d.label.includes('(Recommended)')).dest;
+    const everything = { otherWork: true, runnable: 1, checks: 2, slices: 1 };
+    assert.equal(lead({ ...everything, contextHigh: true }), 'clipboard');
+    assert.equal(lead(everything), 'agent');
+    assert.equal(lead({ ...everything, collision: true }), 'split');
+    assert.equal(lead({ ...everything, collision: true, slices: 0 }), 'here');
+    for (const rule of ['A context reading arrived this turn', 'Other work is already running and this task steers clear of it', 'At least two verification rows', 'Otherwise']) {
+      assert.ok(destinationMd.includes(`**${rule}`), `destination-question.md lost the rule: ${rule}`);
+    }
   });
 });
 
