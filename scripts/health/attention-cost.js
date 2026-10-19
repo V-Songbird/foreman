@@ -46,6 +46,7 @@ const {
   FIX_CEILING_SENTENCE,
 } = require("../check-prompt");
 const { loadTrialLog, ratio } = require("./roadmap-health");
+const { touchWeight } = require("../commit-evidence");
 
 // The close-time stamp roadmap.js `driftNote` writes into `notes`. Both
 // fragments are needed: a close that also had predicted-but-untouched files
@@ -102,16 +103,33 @@ function scoreEntry(entry) {
           : "no_observed_touches",
     };
   }
-  const unpredicted = observed.filter((o) => !planned.some((p) => touchesOverlap(p, o)));
+  // [Foreman: 1123] A collapsed prefix stands for the paths its
+  // observed_touch_counts key counts, so it weighs that many files. It is
+  // predicted in full only when a planned path covers the whole folder; a
+  // planned path beneath it predicts one of its files, never all of them.
+  const weightOf = new Map();
+  for (const raw of entry.observed_touches) {
+    const value = normalizedTouch(raw);
+    if (value && !weightOf.has(value)) weightOf.set(value, touchWeight(entry.observed_touch_counts, raw));
+  }
+  let observedFiles = 0;
+  let unpredicted = 0;
+  for (const o of observed) {
+    const weight = weightOf.get(o);
+    const covered = planned.some((p) => o === p || o.startsWith(`${p}/`));
+    const hits = covered ? weight : Math.min(weight, planned.filter((p) => touchesOverlap(p, o)).length);
+    observedFiles += weight;
+    unpredicted += weight - hits;
+  }
   const untouched = planned.filter((p) => !observed.some((o) => touchesOverlap(p, o)));
   return {
     id: entry.id,
     planned: planned.length,
-    observed: observed.length,
-    unpredicted: unpredicted.length,
+    observed: observedFiles,
+    unpredicted,
     // Precision: of what the task actually changed, how much it had predicted.
     // Recall: of what it predicted, how much it actually reached.
-    precision: ratio(observed.length - unpredicted.length, observed.length),
+    precision: ratio(observedFiles - unpredicted, observedFiles),
     recall: ratio(planned.length - untouched.length, planned.length),
   };
 }

@@ -164,6 +164,28 @@ function checkEntry(entry, index, out, line) {
     }
   }
 
+  // [Foreman: 1123] observed_touch_counts is optional and only a collapse
+  // writes it. Warnings, never errors: collapseObservedTouches reads a
+  // non-object as no counts, an invalid count as weight 1, and a key no stored
+  // prefix carries as nothing, so every reader already defaults the value.
+  const counts = entry.observed_touch_counts;
+  if (counts !== undefined) {
+    const field = "observed_touch_counts";
+    if (!isObject(counts)) {
+      out.push(finding("invalid_type", "warning", ids, `${at}: ${field} must be an object mapping folder prefixes to counts`, { field }));
+    } else {
+      const listed = new Set(Array.isArray(entry.observed_touches) ? entry.observed_touches : []);
+      for (const [key, count] of Object.entries(counts)) {
+        if (!Number.isInteger(count) || count < 1) {
+          out.push(finding("invalid_type", "warning", ids, `${at}: ${field} ${quoted(key)} has count ${quoted(count)}, not a whole number 1 or greater — read as 1`, { field }));
+        }
+        if (!key.endsWith("/") || !listed.has(key)) {
+          out.push(finding("invalid_type", "warning", ids, `${at}: ${field} ${quoted(key)} names no folder prefix (ending in "/") in observed_touches — nothing reads it`, { field }));
+        }
+      }
+    }
+  }
+
   if (entry.status === undefined || entry.status === null) {
     out.push(finding("missing_field", "error", ids, `${at} has no status`, { field: "status" }));
   } else if (!STATUSES.has(entry.status)) {

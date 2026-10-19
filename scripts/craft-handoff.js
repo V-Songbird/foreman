@@ -490,7 +490,8 @@ function recallStamp(root, entry) {
   if (!root) return "";
   const sha = anchorShaFor(root, entry);
   if (!sha) return " [freshness unknown]";
-  const { state, changed, checked } = changedSince(root, sha, entry.observed_touches || []);
+  // [Foreman: 1123] A collapsed prefix counts as the paths it stands for.
+  const { state, changed, checked } = changedSince(root, sha, entry.observed_touches || [], entry.observed_touch_counts);
   const short = String(sha).slice(0, 7);
   if (state === "fresh") return ` [at ${short} — its files unchanged since]`;
   if (state === "stale") {

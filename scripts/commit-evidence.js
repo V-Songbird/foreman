@@ -276,9 +276,23 @@ function anchorShaFor(root, entry) {
 }
 
 /**
+ * [Foreman: 1123] How many recorded paths one observed_touches item stands
+ * for: a stored prefix's count from observed_touch_counts, else 1. The same
+ * rule collapseObservedTouches in roadmap.js applies: a stored prefix ends in
+ * "/" and has a key, and a missing or invalid count weighs 1.
+ */
+function touchWeight(counts, touch) {
+  const ok = counts && typeof counts === "object" && !Array.isArray(counts)
+    && typeof touch === "string" && touch.endsWith("/") && Object.hasOwn(counts, touch);
+  return ok && Number.isInteger(counts[touch]) && counts[touch] > 0 ? counts[touch] : 1;
+}
+
+/**
  * Which of `paths` git says changed between `sha` and the working tree.
  *
- * `{state: "fresh"|"stale"|"unknown", changed, checked}`. Every failure --
+ * `{state: "fresh"|"stale"|"unknown", changed, checked}`. `checked` counts
+ * recorded paths, so a collapsed prefix weighs its count in `counts`
+ * (an entry's observed_touch_counts). Every failure --
  * no git, a sha nothing resolves, a sha off this history line, a diff git
  * would not run -- comes back "unknown" and never "fresh": a lead nobody can
  * date is not a lead anybody should trust.
@@ -287,7 +301,7 @@ function anchorShaFor(root, entry) {
  * which is exactly the "this moved, do not follow it" signal a caller wants.
  * `-z` defeats core.quotepath, so a non-ASCII path comes back verbatim.
  */
-function changedSince(root, sha, paths) {
+function changedSince(root, sha, paths, counts) {
   const wanted = (Array.isArray(paths) ? paths : [])
     .filter((p) => typeof p === "string" && p.trim());
   const unknown = { state: "unknown", changed: [], checked: 0 };
@@ -307,10 +321,13 @@ function changedSince(root, sha, paths) {
   // going in need the mirror of that: without de-prefixing, a submodule diff
   // matches nothing and reads fresh forever.
   const scoped = [];
+  let checked = 0;
   for (const p of wanted) {
+    const before = scoped.length;
     if (!prefix) scoped.push(p);
     else if (p === prefix) scoped.push(".");
     else if (p.startsWith(`${prefix}/`)) scoped.push(p.slice(prefix.length + 1));
+    if (scoped.length > before) checked += touchWeight(counts, p);
   }
   if (!scoped.length) return unknown;
 
@@ -322,7 +339,7 @@ function changedSince(root, sha, paths) {
   return {
     state: changed.length ? "stale" : "fresh",
     changed,
-    checked: scoped.length,
+    checked,
   };
 }
 
@@ -359,6 +376,7 @@ module.exports = {
   resolveEntryEvidence,
   anchorShaFor,
   changedSince,
+  touchWeight,
   evidenceSummary,
   SHA_RE,
 };

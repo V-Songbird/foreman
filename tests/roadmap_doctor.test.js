@@ -202,6 +202,25 @@ describe('doctor field and type findings', () => {
     assertFinding(doctor(), 'invalid_type', 'error', ['001']);
   });
 
+  // [Foreman: 1123] Every reader defaults a bad observed_touch_counts, so each
+  // shape is a warning, and a collapse's own output carries none.
+  test('invalid_type warnings: observed_touch_counts that no reader can use as written', () => {
+    writeRoadmap(project, [
+      base('001', { observed_touches: ['src/'], observed_touch_counts: ['src/'] }),
+      base('002', { observed_touches: ['src/', 'lib/'], observed_touch_counts: { 'src/': 0, 'lib/': '4' } }),
+      base('003', { observed_touches: ['src/', 'app.js'], observed_touch_counts: { 'src/': 3, 'docs/': 2, 'app.js': 1 } }),
+      base('004', { observed_touches: ['src/', 'app.js'], observed_touch_counts: { 'src/': 12 } }),
+    ]);
+    const counts = withCode(doctor(), 'invalid_type').filter((f) => f.field === 'observed_touch_counts');
+    assert.ok(counts.every((f) => f.severity === 'warning'));
+    assert.deepEqual(counts.map((f) => f.ids[0]), ['001', '002', '002', '003', '003']);
+    assert.match(counts[0].message, /must be an object/);
+    assert.match(counts[1].message, /"src\/" has count 0, not a whole number 1 or greater/);
+    assert.match(counts[2].message, /"lib\/" has count "4"/);
+    assert.match(counts[3].message, /"docs\/" names no folder prefix/);
+    assert.match(counts[4].message, /"app\.js" names no folder prefix/);
+  });
+
   test('invalid_id: an id that is not zero-padded digits', () => {
     writeRoadmap(project, [base('task-1')]);
     assertFinding(doctor(), 'invalid_id', 'error', ['task-1']);

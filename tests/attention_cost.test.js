@@ -105,6 +105,24 @@ describe("attention cost — task-to-commit accuracy", () => {
     assert.deepEqual(metrics.worst_offenders, ["001"]);
   });
 
+  // [Foreman: 1123] A collapsed prefix stands for its count of files, and a
+  // planned file beneath it predicted one of them, not the whole folder.
+  test("a collapsed prefix weighs its count, and a file beneath it predicts only itself", () => {
+    const collapsed = entry("001", {
+      planned_touches: ["src/auth/middleware.js"],
+      observed_touches: ["brand/icons/", "src/auth/"],
+      observed_touch_counts: { "brand/icons/": 30, "src/auth/": 10 },
+    });
+    const scored = scoreEntry(collapsed);
+    assert.equal(scored.observed, 40);
+    assert.equal(scored.unpredicted, 39);
+    assert.equal(scored.precision, 0.025);
+    assert.equal(scored.recall, 1);
+    const covered = scoreEntry({ ...collapsed, planned_touches: ["src/auth", "brand"] });
+    assert.equal(covered.unpredicted, 0);
+    assert.equal(covered.precision, 1);
+  });
+
   test("an incomplete pair is skipped with its reason, never scored as zero", () => {
     const metrics = fileMetrics(
       [],
