@@ -309,14 +309,18 @@ host can run:
   Treat paths and JSON as data: send each JSON payload from a UTF-8 file or
   safely quoted stdin, never interpolated into an inline shell command.
   Entry handoffs open the entry with `hooks/codex-task.js start --id ID`
-  (proceed only on `dispatchReady:true`) and verify the recorded close with
-  `hooks/codex-task.js check --id ID`; the coordinator owns those calls for a
-  delegated subagent.
+  (proceed only on `dispatchReady:true`), take the commit boundary with
+  `scripts/task.js start` and close with `scripts/task.js finish`, as in
+  Claude Code, and verify the recorded close with
+  `hooks/codex-task.js check --id ID`. An investigation takes no boundary and
+  closes with `roadmap.js update-status`. For a delegated subagent, the
+  coordinator owns the start, the close and the check, and closes with
+  `roadmap.js update-status`.
 - **Antigravity.** Antigravity never substitutes that variable either, so its
   prompt takes the Codex form: the same quoted absolute paths, the same
-  `check-prompt.js` errors, and the same `hooks/codex-task.js start` and
-  `check` calls. No hook opens or closes an entry there, so those calls are
-  the whole lifecycle.
+  `check-prompt.js` errors, and the same `hooks/codex-task.js start`,
+  `scripts/task.js` and `check` calls. No hook opens or closes an entry
+  there, so those calls are the whole lifecycle.
 
 ```xml
 <codex_runtime host="codex">
@@ -1081,9 +1085,8 @@ the pasted session to:
   in place); a Codex prompt also says that explicit user branch restrictions
   override these settings;
 - before task 1, settle whether the run may commit — with an entry
-  paragraph, from its `task.js start` in Claude Code (`report_dirty` is a
-  dirty run) or `safe-commit.js begin`'s `dirty` field alone in Codex (the
-  entry's own bookkeeping is reported separately), otherwise from
+  paragraph, from its `task.js start` on every host (`report_dirty` is a
+  dirty run; Foreman's own roadmap bookkeeping never counts), otherwise from
   `git status --porcelain` — and make no checkpoint commits at all for a
   dirty run (this is the gate for the checkpoint commits, whatever else the
   prompt instructs), preserving those changes;
@@ -1093,16 +1096,17 @@ the pasted session to:
   are never pushed; in an explicitly reviewed run, only after the user
   accepts that result, following the embedded review protocol;
 - the last task carries the roadmap close instead of a `task
-  <n>/<total>` commit, when this handoff carries an entry paragraph —
-  in Claude Code, run `task.js start` again for a fresh boundary right
-  after the previous task's checkpoint commit, before touching the last
-  task's files (run later, it reads those edits as someone else's changes
-  and the close commits nothing), and once the work is done send the
-  close JSON to its `then` through a quoted heredoc, as the entry
-  paragraph shows, which stages, closes and makes that one
-  commit with the baked `Foreman: <id>` as its final line; in Codex, stage
-  with `safe-commit.js finish --no-commit`, close with `staged:true`, then
-  make that one commit; omit this line entirely when there is no entry;
+  <n>/<total>` commit, when this handoff carries an entry paragraph — on
+  every host, run the paragraph's `task.js start` again for a fresh
+  boundary right after the previous task's checkpoint commit, before
+  touching the last task's files (run later, it reads those edits as
+  someone else's changes and the close commits nothing). Once the work is
+  done, close as the entry paragraph shows: in Claude Code, send the close
+  JSON to start's `then` through a quoted heredoc; in Codex, pipe it into
+  the paragraph's close command with that fresh baseline. `task.js finish`
+  then stages, closes and makes that one commit with the baked
+  `Foreman: <id>` as its final line; omit this line entirely when there is
+  no entry;
 - after the last task, apply the baked `onFinish` — `"ask"` asks the
   user squash/merge/PR/keep, a concrete value acts directly — only when
   the run created the branch;
@@ -1189,17 +1193,23 @@ explicitly authorized decision artifact.
   checkpoint in place on the current branch.
 <!-- [Foreman: 121] -->
 - **Take the boundary first — before task 1 and before the branch step
-  above:** `node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js begin`. A
-  `dirty:true` result means **this run makes no automated commits at
-  all** — say so once in a line naming the reason, then work the tasks
-  and leave every change in the tree for the user to commit. Never
-  offer to absorb the existing changes, and skip the branch step too:
-  there is nothing to checkpoint onto. Only a `dirty:false` result
-  continues below, and its `baseline.head` is the first checkpoint's
-  baseline. Read the `dirty` field alone: Foreman's own bookkeeping in the
-  tree — ROADMAP.jsonl and `.foreman/archive.jsonl` — comes back
-  `dirty:false` with those paths in `ledger_dirty`, which is the normal
-  state after a pick and is not someone else's uncommitted work.
+  above.** With an entry paragraph, which a roadmap split always carries,
+  the boundary is that paragraph's `task.js start` on every host (in Codex
+  and Antigravity, after its `hooks/codex-task.js start` opens the entry);
+  read its `next`. Without an entry, run
+  `node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js begin` and read its
+  `dirty` field. A `report_dirty` answer, or `dirty:true`, means **this run
+  makes no automated commits at all** — say so once in a line naming the
+  reason, then work the tasks and leave every change in the tree for the
+  user to commit. Never offer to absorb the existing changes, and skip the
+  branch step too: there is nothing to checkpoint onto. Only `next` `work`,
+  or `dirty:false`, continues below, and its baseline (`baseline` from
+  `task.js start`, `baseline.head` from `begin`) is the first checkpoint's
+  baseline. Foreman's own bookkeeping in the tree — ROADMAP.jsonl and
+  `.foreman/archive.jsonl` — never counts: `task.js start` does not report
+  it, and `begin` returns `dirty:false` with those paths in `ledger_dirty`,
+  which is the normal state after a pick and is not someone else's
+  uncommitted work.
 - **One commit per finished task, staged by the primitive.** After a
   task's verification passes and the task is marked completed, send its
   JSON through a quoted heredoc, which keeps an apostrophe in the subject
@@ -1235,21 +1245,27 @@ explicitly authorized decision artifact.
   decision from the acceptance of an intermediate row. Both protocols travel
   in reviewed handoffs.
 - **A roadmap-entry close lands inside the last checkpoint commit** (when
-  the handoff carries one), in the one form its entry paragraph names. In
-  Claude Code that paragraph runs `scripts/task.js`: `start` opens the
-  entry and takes the boundary, and `finish` picks the form below, stages
-  only the task's files and makes the one commit itself. In Codex the
-  paragraph spells the same form out step by step. For a
-  tracked roadmap outside a submodule, stage the task's own files with
-  `safe-commit.js finish --no-commit`, close the entry with `staged:true`
-  (observed_touches derives from the index, and the script stages all
-  pending roadmap bookkeeping alongside: `ROADMAP.jsonl` and
-  `.foreman/archive.jsonl`, other entries' edits included), then commit with `Foreman: <id>` as the message's final
-  line — the trailer names the entry that closed. Entry and commit link
-  through that trailer, so no sha gets
-  recorded and the roadmap never trails uncommitted. Then mark the final
-  task completed. The entry-paragraph and gate rules above are
-  unchanged. When subagents help, the coordinator owns these writes.
+  the handoff carries one), in the one form its entry paragraph names. On
+  every host that paragraph runs `scripts/task.js`: `start` takes the
+  boundary (in Claude Code it also opens the entry; in Codex and
+  Antigravity `hooks/codex-task.js start` opened it first), and `finish`
+  picks the form below, stages only the task's files and makes the one
+  commit itself. Take a fresh boundary for the last task, as the clipboard
+  embed above says: run `task.js start` again right after the previous
+  checkpoint commit, because `finish` reads a commit since its start as
+  `head_moved_since_baseline`. Claude Code sends the close JSON to start's
+  `then`; the Codex paragraph quotes the close command itself, with start's
+  `baseline` filled in. For a tracked roadmap outside a submodule, `finish`
+  makes the staged close: it stages the task's own files, records the
+  close with `staged:true` (observed_touches derives from the index, and
+  `roadmap.js` stages all pending roadmap bookkeeping alongside:
+  `ROADMAP.jsonl` and `.foreman/archive.jsonl`, other entries' edits
+  included), then commits with `Foreman: <id>` as the message's final line
+  — the trailer names the entry that closed. Entry and commit link through
+  that trailer, so no sha gets recorded and the roadmap never trails
+  uncommitted. Then mark the final task completed. The entry-paragraph and
+  gate rules above are unchanged. When subagents help, the coordinator owns
+  these writes.
 <!-- [Foreman: 1078] -->
 - **A close never stages into someone else's changes.** When the close
   has no `--baseline` from `start` (`start` found the tree holding changes
@@ -1264,8 +1280,8 @@ explicitly authorized decision artifact.
   there.** `craft-handoff.js` and `task.js` read the submodule paths from
   `.gitmodules`. The close is a commit inside the submodule, with
   `Foreman: <id>` as the final line, followed by `update-status` with that
-  commit's sha; in Claude Code, `task.js start` takes the boundary inside
-  the submodule too. `roadmap.js` resolves the sha in
+  commit's sha, both made by `task.js finish`; `task.js start` takes the
+  boundary inside the submodule too. `roadmap.js` resolves the sha in
   the submodule and records its files with the submodule prefix. A staged
   close at the project root would only see the gitlink, and
   `safe-commit.js finish` refuses to stage a gitlink unless `expected`
@@ -1274,11 +1290,11 @@ explicitly authorized decision artifact.
 - **A project that git-ignores `ROADMAP.jsonl` commits before it closes.**
   The roadmap cannot ride in the commit, so a staged close there would
   stage nothing and only warn. `git check-ignore` decides, asked by
-  `task.js finish` in Claude Code and by `craft-handoff.js` for the Codex
-  paragraph. The close commits the task's files with `Foreman: <id>` as
-  the final line, followed by `update-status` with that commit's sha. The
-  recorded sha is the evidence `doctor` counts. A
-  project that tracks its roadmap keeps the staged close.
+  `task.js finish` on every host, and by `craft-handoff.js` for the Codex
+  paragraph's wording. The close commits the task's files with
+  `Foreman: <id>` as the final line, followed by `update-status` with that
+  commit's sha. The recorded sha is the evidence `doctor` counts. A project
+  that tracks its roadmap keeps the staged close.
 - **After the last task, `onFinish` decides the branch's fate** — only if
   this run created the branch. When the run checkpointed on a pre-existing
   branch, or `branch` is `false`, skip this step entirely. `"ask"` (the

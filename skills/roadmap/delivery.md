@@ -39,7 +39,8 @@ picked and follow it together with this file:
   Foreman's `task-created` hook marks the entry `in_progress` mechanically the
   moment the row carrying the embedded entry paragraph is created — finding it
   already `in_progress` when the embedded `task.js start` runs is expected:
-  start leaves that status as it is and still takes the commit boundary.
+  start leaves that status as it is and, outside an investigation, still
+  takes the commit boundary.
 - A Claude Code session without `TaskCreate`, such as a desktop session
   started from a task chip, creates no row, so the hook never opens the
   entry. Say once that the task could not be tracked, run the `task.js start`
@@ -49,8 +50,10 @@ picked and follow it together with this file:
 - In Codex, work the prompt directly. A plan tool may track progress, but it
   does not replace the roadmap lifecycle: open a selected entry when work
   starts with `hooks/codex-task.js start` as
-  [the runtime](../foreman/runtime-codex.md) describes, verify the result, and record
-  its outcome and evidence before reporting completion.
+  [the runtime](../foreman/runtime-codex.md) describes, outside an
+  investigation take the commit boundary and close with the entry paragraph's `scripts/task.js start` and
+  `finish`, verify the result, and record its outcome and evidence before
+  reporting completion.
 
 ## Close and acceptance
 

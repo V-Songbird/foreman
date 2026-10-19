@@ -37,9 +37,13 @@ both, record that scope once and close without asking the same question twice.
 A worker leaves the shared close and final question to its coordinator. Without
 a human channel, preserve the final review as pending rather than inferring yes.
 
-Use the existing `update-status`, lifecycle check and eligible staged-close
-protocol. If committing, keep the final `Foreman: <id>` trailer and observed file
-evidence; a dirty run continues without commits. Neither an intermediate
+Close with the entry paragraph's close command. Outside an investigation, that
+is `task.js finish`: it stages only the task's files, records the close and
+commits once with the final `Foreman: <id>` trailer. Never stage or record that
+close by hand, which skips its guards. Record the final acceptance with the
+`update-status` that the paragraph or the close's answer names, and run the
+paragraph's lifecycle check where it has one. A dirty run, which
+`task.js` reports as `report_dirty`, continues without commits. Neither an intermediate
 checkpoint nor a successful lifecycle check proves final human acceptance.
 Clients that ignore this protocol can still read the roadmap format; that does
 not make their behavior equivalent.

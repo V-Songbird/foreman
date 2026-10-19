@@ -530,9 +530,11 @@ own commit must not carry it (`isSharedLedger` in `scripts/safe-commit.js`).
 The one exception is a declared roadmap close: safe-commit's `roadmap_close`
 allows both `ROADMAP.jsonl` and `.foreman/archive.jsonl` (`CLOSE_BOOKKEEPING`)
 in the closing commit, because a staged close stages every pending
-bookkeeping file, the archive included. `finish` itself stages only
-`ROADMAP.jsonl`, and refuses a close whose only change is that file with
-`no_task_changes`.
+bookkeeping file, the archive included. Of those two files,
+`safe-commit.js finish` with `roadmap_close` stages only `ROADMAP.jsonl`;
+the archive enters the commit when `update-status` with `staged:true`
+stages it, or when it already sat in the index. That `finish` refuses a close whose only
+change is `ROADMAP.jsonl` with `no_task_changes`.
 
 ---
 

@@ -836,9 +836,10 @@ function checkpointEmbedText(cfg, checkCount, entryId, hasReview = false, review
 }
 
 // ---- the entry paragraph — id substitution, requireVerification
-// acceptance hold, decision-doc close field, and each host's bookkeeping form:
-// Claude Code's `echo | node` calls on the literal ${CLAUDE_PLUGIN_ROOT} path,
-// Codex's installed script paths with separate JSON stdin payloads and its
+// acceptance hold, decision-doc close field, and each host's bookkeeping form.
+// Both run scripts/task.js start and finish, Claude Code on the literal
+// ${CLAUDE_PLUGIN_ROOT} path with the close JSON in a quoted heredoc, Codex on
+// installed script paths with separate JSON stdin payloads, inside its
 // explicit codex-task.js lifecycle. This is the canonical copy now
 // (skills/roadmap/pick.md calls this script instead of assembling the
 // paragraph itself), collapsed to the one concrete variant that applies for

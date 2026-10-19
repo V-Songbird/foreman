@@ -230,7 +230,8 @@ nothing else:
   `scripts/safe-commit.js` (`begin` reporting `dirty: true`, and `finish`'s
   `head_moved_since_baseline` / `no_task_changes` / `unexpected_files` /
   `staging_incomplete` / `gitlink_not_expected`), recorded by the caller
-  that receives it, plus, in Claude Code, `hooks/task-completed.js` when
+  that receives it, plus `scripts/task.js finish` when `git commit` itself
+  fails (`commit_failed`), and, in Claude Code, `hooks/task-completed.js` when
   `requireVerification` holds a close (`verification_declined`). `hook`
   names the surface, `reason_class` copies the refusal name verbatim and
   nothing else from the result.

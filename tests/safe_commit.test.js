@@ -867,11 +867,19 @@ describe('safe-commit and an auto-migration backup mid-task', () => {
 });
 
 describe('the close and checkpoint choreography is documented without git add -A', () => {
-  test('the template checkpoint section gates on safe-commit begin', () => {
-    const section = TEMPLATE.slice(TEMPLATE.indexOf('## Checkpointing a task-split run'));
-    assert.ok(section.includes('scripts/safe-commit.js begin'), 'checkpoints take the boundary first');
-    assert.ok(section.includes('this run makes no automated commits at\n  all'), 'a dirty tree makes no checkpoint commits');
-    assert.ok(section.includes('safe-commit.js finish --no-commit'), 'the roadmap close stages through the primitive');
+  // [Foreman: 1120] With an entry paragraph, on every host, the boundary is
+  // that paragraph's task.js start and its `next`; safe-commit begin stays for
+  // a run without an entry, and the close is task.js finish, never a staged
+  // close by hand.
+  test('the template checkpoint section gates on task.js start with an entry, safe-commit begin without', () => {
+    const section = TEMPLATE.slice(TEMPLATE.indexOf('## Checkpointing a task-split run'), TEMPLATE.indexOf('## When NOT to hand off'));
+    const flat = section.replace(/\s+/g, ' ');
+    assert.ok(flat.includes("With an entry paragraph, which a roadmap split always carries, the boundary is that paragraph's `task.js start` on every host (in Codex and Antigravity, after its `hooks/codex-task.js start` opens the entry); read its `next`."), 'an entry run takes the boundary through task.js start');
+    assert.ok(flat.includes('Without an entry, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js begin` and read its `dirty` field.'), 'an entry-less run keeps safe-commit begin');
+    assert.ok(flat.includes('A `report_dirty` answer, or `dirty:true`, means **this run makes no automated commits at all**'), 'a dirty tree makes no checkpoint commits');
+    assert.ok(flat.includes('On every host that paragraph runs `scripts/task.js`'), 'the roadmap close runs through task.js on every host');
+    assert.ok(flat.includes('run `task.js start` again right after the previous checkpoint commit'), 'the last task takes a fresh boundary');
+    assert.doesNotMatch(flat, /--no-commit|spells the same form out/, 'no host stages the close by hand');
     assert.ok(section.includes('Never `git add -A`'), 'and says so outright');
     assert.doesNotMatch(section, /`git add -A`,? (and|then) commit/, 'nothing here stages everything and commits it');
     assert.doesNotMatch(section, /stage everything/, 'nor stages everything for the roadmap close');
@@ -885,6 +893,12 @@ describe('the close and checkpoint choreography is documented without git add -A
     );
     assert.ok(embed.includes('never `git add -A`'));
     assert.doesNotMatch(embed, /`git add -A` and commit/);
+    // [Foreman: 1120] The embed reads task.js start on both hosts and closes
+    // through task.js finish, as craft-handoff.js writes it.
+    const flat = embed.replace(/\s+/g, ' ');
+    assert.ok(flat.includes("with an entry paragraph, from its `task.js start` on every host (`report_dirty` is a dirty run; Foreman's own roadmap bookkeeping never counts)"), flat);
+    assert.ok(flat.includes("on every host, run the paragraph's `task.js start` again for a fresh boundary right after the previous task's checkpoint commit"), flat);
+    assert.doesNotMatch(flat, /safe-commit\.js begin|--no-commit|staged:true/);
   });
 
   // craft-handoff.js writes the embed the template section describes, in the

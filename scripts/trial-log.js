@@ -56,8 +56,9 @@ const oneOf = (...names) => {
 
 const FLOWS = ["init", "pick", "add", "correct", "status", "survey"];
 const HOOKS = ["safe-commit", "post-commit", "task-completed"];
-// The five refusal names scripts/safe-commit.js already returns, plus the
-// requireVerification hold. Names only: never a count of dirty files, never
+// The refusal names scripts/safe-commit.js returns, plus scripts/task.js
+// finish's commit_failed and the requireVerification hold; TRIALS.md lists
+// the same names. Names only: never a count of dirty files, never
 // which files were unexpected. safe-commit's own `reason` string is prose
 // about the user's working tree and is deliberately not what this records.
 const REASON_CLASSES = [

@@ -49,7 +49,12 @@ assume the shell defines a plugin-root variable.
   `node ${CLAUDE_PLUGIN_ROOT}/hooks/codex-task.js start --id <id>` and proceed
   only after exit 0 and `dispatchReady:true`. Blocked, deferred, or terminal work
   is not dispatchable; inspect the returned reason instead of bypassing the
-  check. Before reporting a completed entry, run the companion `check --id <id>`;
+  check. Then take the commit boundary with the entry paragraph's
+  `scripts/task.js start` and close the entry with its `scripts/task.js
+  finish`, as [the shared runtime](runtime.md) describes; an investigation
+  skips both and closes with `roadmap.js update-status`, and a subagent runs
+  neither, because its coordinator owns the close. Before reporting a
+  completed entry, run the companion `check --id <id>`;
   a failed check arms the optional Stop reminder for this session. At a flow's
   entrance, surface unfinished or awaiting work from compact CLI reads when the
   session-start hook has not already done so. After a
@@ -58,8 +63,9 @@ assume the shell defines a plugin-root variable.
   it implements. Hooks add assistance, but these explicit calls remain part of
   the flow, and a warning is not evidence of completion or acceptance.
 - In Antigravity, follow the Codex lifecycle above: `hooks/codex-task.js
-  start` when execution of a selected entry begins, `check` before reporting a
-  completed entry. No hook opens or closes an entry there and no stop reminder
+  start` when execution of a selected entry begins, the entry paragraph's
+  `scripts/task.js start` and `finish` around the work, `check` before
+  reporting a completed entry. No hook opens or closes an entry there and no stop reminder
   exists, so those explicit calls are the whole lifecycle. The session notice
   and a commit's reminders reach the model at its next call, not at the moment
   of the command.

@@ -1,6 +1,6 @@
 'use strict';
 
-// [Foreman: 1078] scripts/task.js: a Claude Code handoff's entry bookkeeping
+// [Foreman: 1078] scripts/task.js: a handoff's entry bookkeeping, every host,
 // as `start` and `finish`, each returning a `next` code. These pin the codes,
 // each close form (the staged close, a git-ignored roadmap, an investigation;
 // tests/submodule_close.test.js pins the submodule one), the acceptance step
@@ -427,5 +427,91 @@ describe('the Claude Code entry paragraph drives task.js', () => {
     assert.match(paragraph, /- `ask_acceptance`:/);
     for (const code of ['closed', 'report_dirty', 'refused']) assert.match(paragraph, new RegExp(`- \`${code}\`:`));
     assert.doesNotMatch(paragraph, /report_acceptance|safe-commit|"staged"/);
+  });
+});
+
+// [Foreman: 1120] The reference pages describe task.js as it runs on every
+// host. A rename of a task.js reason or a trial-log reason class, or a page
+// that drifts back to the old Codex close, fails here.
+describe('the reference pages describe task.js on every host', () => {
+  const ROOT = path.join(SCRIPTS_DIR, '..');
+  const read = (...parts) => fs.readFileSync(path.join(ROOT, ...parts), 'utf-8').replace(/\r\n/g, '\n');
+  const flat = (text) => text.replace(/\s+/g, ' ');
+  const row = (text, step) => text.split('\n').find((line) => line.startsWith(`| ${step} |`)) || '';
+
+  test('HOW-IT-WORKS.md opens and finishes a task through task.js on all three hosts', () => {
+    const page = read('HOW-IT-WORKS.md');
+    const [, claude, codex, antigravity] = row(page, 'Opening a task').split(' | ');
+    assert.match(claude, /`TaskCreated` hook marks the entry in progress.*`scripts\/task\.js start` opens the entry on every other destination and, outside an investigation, takes the commit boundary/);
+    assert.match(codex, /`hooks\/codex-task\.js start`.*outside an investigation, `scripts\/task\.js start` then takes the commit boundary/);
+    assert.match(antigravity, /The same two starts/);
+    const [, claudeEnd, codexEnd, antigravityEnd] = row(page, 'Finishing a task').split(' | ');
+    for (const cell of [claudeEnd, codexEnd]) assert.match(cell, /`scripts\/task\.js finish` stages the task's files, closes the entry and commits once/);
+    assert.match(codexEnd, /an investigation closes with `roadmap\.js update-status`.*`hooks\/codex-task\.js check` reports what is still open/);
+    assert.match(antigravityEnd, /The same close and `hooks\/codex-task\.js check`; there is no stop reminder/);
+  });
+
+  test('CODEX.md names task.js beside the TaskCreated hook and codex-task.js', () => {
+    const page = read('CODEX.md');
+    assert.match(row(page, 'Opening a task'), /`TaskCreated` hook, or the prompt's `scripts\/task\.js start` where no task is created; that start runs either way and takes the commit boundary \| `hooks\/codex-task\.js start` with readiness and status guards, then `scripts\/task\.js start` for the commit boundary/);
+    assert.match(row(page, 'Closing a task'), /`scripts\/task\.js finish` stages the task's files, closes the entry and commits once \| The same `scripts\/task\.js finish`, then `hooks\/codex-task\.js check`/);
+    assert.ok(flat(page).includes('Between those two calls, an entry handoff takes the commit boundary with `scripts/task.js start --id 001` and closes the entry with `scripts/task.js finish --id 001 --baseline <baseline>`'));
+  });
+
+  test('the runtimes run the entry paragraph through task.js on every host', () => {
+    const shared = flat(read('skills', 'foreman', 'runtime.md'));
+    assert.ok(shared.includes("On every host, a handoff's entry paragraph runs that boundary through `scripts/task.js`. `start` takes the boundary, except for an investigation; in Claude Code it also opens the entry, which `hooks/codex-task.js start` opens first in Codex and Antigravity."), shared);
+    assert.ok(shared.includes('A `report_dirty` answer from `start` means it took no boundary and the close will stage and commit nothing; from `finish`, it means nothing was staged or committed.'));
+    assert.ok(shared.includes('When no entry paragraph supplies `task.js finish`, a staged close by hand runs `finish --no-commit`'));
+    assert.doesNotMatch(read('skills', 'foreman', 'runtime.md'), /that trailer\. Record\n/);
+    const codex = flat(read('skills', 'foreman', 'runtime-codex.md'));
+    assert.ok(codex.includes("Then take the commit boundary with the entry paragraph's `scripts/task.js start` and close the entry with its `scripts/task.js finish`"), codex);
+    assert.ok(codex.includes("the entry paragraph's `scripts/task.js start` and `finish` around the work"), 'Antigravity too');
+    const delivery = flat(read('skills', 'roadmap', 'delivery.md'));
+    assert.ok(delivery.includes('start leaves that status as it is and, outside an investigation, still takes the commit boundary.'));
+    assert.ok(delivery.includes("outside an investigation take the commit boundary and close with the entry paragraph's `scripts/task.js start` and `finish`"));
+  });
+
+  test('a reviewed close runs task.js finish, not a staged close by hand', () => {
+    const protocol = flat(read('skills', 'roadmap', 'close-increments.md'));
+    assert.ok(protocol.includes("Close with the entry paragraph's close command. Outside an investigation, that is `task.js finish`"), protocol);
+    assert.ok(protocol.includes('Never stage or record that close by hand, which skips its guards.'));
+    assert.doesNotMatch(protocol, /staged-close protocol/);
+  });
+
+  test("the template's report_dirty reasons are the ones task.js finish returns", () => {
+    const template = read('prompt-template.md');
+    const bullet = flat(template.slice(template.indexOf("- **A close never stages into someone else's changes.**"), template.indexOf('<!-- [Foreman: 410] -->')));
+    const source = read('scripts', 'task.js');
+    for (const reason of ['no_baseline', 'index_has_other_changes', 'head_moved_since_baseline', 'git_status_unavailable']) {
+      assert.ok(bullet.includes(`\`${reason}\``), `the template lists ${reason}`);
+      assert.ok(source.includes(`"${reason}"`), `task.js returns ${reason}`);
+    }
+    assert.ok(bullet.includes('`task.js finish` records the close without touching the index and commits nothing, and returns `report_dirty`'));
+  });
+
+  test("TRIALS.md lists exactly trial-log.js's reason classes, commit_failed included", () => {
+    const { REASON_CLASSES } = require(path.join(SCRIPTS_DIR, 'trial-log.js'));
+    const trials = read('TRIALS.md');
+    const start = trials.indexOf('`reason_class` is one of the refusal names');
+    const paragraph = trials.slice(start + '`reason_class`'.length, trials.indexOf('Names only', start));
+    const listed = [...paragraph.matchAll(/`([a-z]+(?:_[a-z]+)+)`/g)].map((m) => m[1]);
+    assert.deepEqual([...new Set(listed)].sort(), [...REASON_CLASSES].sort());
+    assert.ok(flat(paragraph).includes('`commit_failed` (`scripts/task.js finish` when `git commit` itself fails, as when a pre-commit hook refuses)'));
+    assert.ok(flat(trials).includes('plus `scripts/task.js finish` when `git commit` itself fails (`commit_failed`)'));
+    assert.ok(read('scripts', 'trial-log.js').includes("plus scripts/task.js\n// finish's commit_failed"));
+  });
+
+  test('roadmap-schema.md says which finish stages which close bookkeeping', () => {
+    const schema = flat(read('roadmap-schema.md'));
+    assert.ok(schema.includes('Of those two files, `safe-commit.js finish` with `roadmap_close` stages only `ROADMAP.jsonl`; the archive enters the commit when `update-status` with `staged:true` stages it, or when it already sat in the index.'), schema);
+    assert.doesNotMatch(schema, /`finish` itself stages only/);
+  });
+
+  test('task.js says it serves every host', () => {
+    const { USAGE } = require(TASK);
+    assert.match(USAGE, /^task\.js -- a handoff's entry bookkeeping, on every host\./);
+    assert.match(flat(USAGE), /and, without --investigation, takes the commit boundary/);
+    assert.doesNotMatch(read('scripts', 'task.js'), /Claude Code handoff's entry bookkeeping|spelled-\n\/\/ out steps/);
   });
 });

@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 "use strict";
 
-// A Claude Code handoff's entry bookkeeping as two calls, in the shape of
+// A handoff's entry bookkeeping as two calls, in the shape of
 // `roadmap.js step pick`: each prints one JSON line whose `next` names what
 // the session does now. Nothing is kept between calls; `start` hands the
 // boundary to `finish` through the command it returns in `then`.
 //
 //   start   opens the entry (planned or deferred -> in_progress; an entry
-//           already in_progress is left as it is) and takes the commit
-//           boundary with safe-commit's begin, inside the submodule when
-//           every planned file sits in one.
+//           already in_progress is left as it is) and, without
+//           --investigation, takes the commit boundary with safe-commit's
+//           begin, inside the submodule when every planned file sits in one.
 //   finish  stages the files the task owns, closes the entry and commits
 //           once with the entry's trailer, in the one form the project
 //           needs: the staged close at the root, a commit inside the
@@ -18,8 +18,10 @@
 //           else's changes, or after a commit since start: it records the
 //           close without staging and returns report_dirty.
 //
-// The Codex form of a handoff keeps hooks/codex-task.js and its own spelled-
-// out steps; this script is what the Claude Code entry paragraph runs.
+// Every host's entry paragraph runs this script. The Codex form, which
+// Antigravity also takes, opens the entry with hooks/codex-task.js start
+// first and checks it with codex-task.js check after the close; it quotes
+// the finish command itself instead of reading start's `then`.
 
 const path = require("path");
 const fs = require("fs");
@@ -357,15 +359,17 @@ function readStdinJSON() {
   return raw.trim() ? JSON.parse(raw) : {};
 }
 
-const USAGE = `task.js -- a Claude Code handoff's entry bookkeeping. Each call prints one
-JSON line, {"ok":true,"next":"<code>",...}; act on next. Exit 1 on a usage
-error, with {"ok":false,"error":"..."}.
+const USAGE = `task.js -- a handoff's entry bookkeeping, on every host. Each call prints
+one JSON line, {"ok":true,"next":"<code>",...}; act on next. Exit 1 on a
+usage error, with {"ok":false,"error":"..."}.
 
   start   --id <id> [--investigation] [--agent] [--orchestrator <name>]
           Marks a planned or deferred entry in_progress (one already
-          in_progress stays as it is) and takes the commit boundary, inside
-          the submodule when every planned file sits in one.
-          next work: do the task; baseline is the boundary.
+          in_progress stays as it is) and, without --investigation, takes
+          the commit boundary, inside the submodule when every planned file
+          sits in one.
+          next work: do the task; baseline is the boundary (none for an
+            investigation).
           next report_dirty: no boundary, because the tree holds someone
             else's changes or git could not read it (reason says which);
             tell the user say, do the work, and the close commits nothing.

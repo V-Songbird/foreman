@@ -76,6 +76,11 @@ instead.
   `no_task_changes` when `ROADMAP.jsonl` is the only file that changed.
   Opening the entry always changes that file, so before, such a close made a
   commit that held only the roadmap and none of the task's work.
+- Foreman's reference pages now describe the `task.js start` and
+  `task.js finish` close on every host. A task-split run with an entry
+  takes its commit boundary from the entry paragraph's `task.js start` and
+  reads its `next`, instead of running `safe-commit.js begin`. A reviewed run
+  closes through `task.js finish` instead of staging the close by hand.
 
 ### Claude Code
 
@@ -98,10 +103,9 @@ instead.
   to ask for acceptance, and the trial log records the failure. When Git
   cannot read the tree at `start`, or `finish` runs without the `--baseline`
   that `start` returned, the message no longer says that someone else changed
-  the tree, and `finish` names the reason `no_baseline` instead of
-  `dirty_at_start`. The prompt now passes the close's JSON through a quoted heredoc,
-  so an apostrophe in the commit message or the notes no longer breaks the
-  command. A Workflow-stage prompt for a background agent that runs
+  the tree, and `finish` names the reason `no_baseline`. The prompt now
+  passes the close's JSON through a quoted heredoc, so an apostrophe in the
+  commit message or the notes no longer breaks the command. A Workflow-stage prompt for a background agent that runs
   `task.js start` or `task.js finish` now fails the prompt check, as
   `roadmap.js` and `safe-commit.js` commands already did.
 - The commit reminder also carries the commit's short SHA, so there is no
