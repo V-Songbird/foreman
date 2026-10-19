@@ -61,7 +61,8 @@ const SHELLS = {
     token: new RegExp(String.raw`(?:\$${BASH_GROUP}|${BASH_TICK}|${BASH_DQ}|'[^']*'|\\[^\n]|[^\s\\])+`, "g"),
     quoted: /"((?:\\[\s\S]|[^"\\])*)"|'([^']*)'|\\([\s\S])/g,
     escape: /\\(["\\$`])/g,
-    substitution: new RegExp(String.raw`'[^']*'|\\[\s\S]|\$${BASH_GROUP}|\`(?:\\[\s\S]|[^\`\\])*\``, "g"),
+    substitution: new RegExp(String.raw`${BASH_DQ}|'[^']*'|\\[\s\S]|\$${BASH_GROUP}|${BASH_TICK}`, "g"),
+    dqSubstitution: new RegExp(String.raw`\\[\s\S]|\$${BASH_GROUP}|${BASH_TICK}`, "g"),
     unescape: (c) => c,
   },
   powershell: {
@@ -69,7 +70,8 @@ const SHELLS = {
     token: new RegExp(String.raw`(?:\$?${PS_GROUP}|${PS_DQ}|'[^']*'|\`[^\r\n]|[^\s\`])+`, "g"),
     quoted: /"((?:`[\s\S]|[^"`])*)"|'((?:[^']|'')*)'|`(u\{[0-9a-fA-F]{1,6}\}|[\s\S])/g,
     escape: /`(u\{[0-9a-fA-F]{1,6}\}|[\s\S])/g,
-    substitution: new RegExp(String.raw`'[^']*'|\`[\s\S]|[$@]${PS_GROUP}`, "g"),
+    substitution: new RegExp(String.raw`${PS_DQ}|'[^']*'|\`[\s\S]|[$@]${PS_GROUP}`, "g"),
+    dqSubstitution: new RegExp(String.raw`\`[\s\S]|\$${PS_GROUP}`, "g"),
     unescape: (c) => {
       const code = c.length > 1 ? parseInt(c.slice(2, -1), 16) : -1;
       return code > 0x10ffff ? c : code >= 0 ? String.fromCodePoint(code) : PS_ESCAPES[c] ?? c;
@@ -149,7 +151,10 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false, pl
     // folder the shell is in. A Bash substitution is a subshell, so its `cd`
     // moves nothing outside it; PowerShell runs `$(...)` and `@(...)` in the
     // caller's session, so its Set-Location moves the rest of the command too.
-    for (const sub of part.match(shell.substitution) || []) {
+    // [Foreman: 1133] Inside double quotes only that quote's rules hold: an
+    // apostrophe there opens no single-quoted span, and PowerShell's `@(` is text.
+    const subs = (part.match(shell.substitution) || []).flatMap((s) => (s[0] === '"' ? s.slice(1, -1).match(shell.dqSubstitution) || [] : s));
+    for (const sub of subs) {
       if (sub.length < 3 || !/^(?:[$@]\(|`)/.test(sub)) continue;
       const inner = {};
       targets.push(...commitDirs(sub.slice(sub[0] === "`" ? 1 : 2, -1), dir, powershell, powershellTool, platform, inner));

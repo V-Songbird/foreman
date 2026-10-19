@@ -1263,6 +1263,12 @@ describe('commit directory edge cases', () => {
     assert.deepEqual(commitDirs(`out=$(cd "${other}"); git commit -m y`, project, true, false, 'linux'), [project]);
     // single quotes keep it text
     assert.deepEqual(commitDirs("echo '$(git commit -m x)'", project), []);
+    // [Foreman: 1133] an apostrophe inside double quotes opens no single quote,
+    // and PowerShell's @( inside double quotes is text
+    assert.deepEqual(commitDirs(`echo "'" '$(cd "${other}"; git commit -m x)'`, project), []);
+    assert.deepEqual(commitDirs(`echo "it's $(cd "${other}"; git commit -m x) don't"`, project), [other]);
+    assert.deepEqual(commitDirs(`Write-Output "@(Set-Location '${other}')"; git commit -m x`, project, true, true), [project]);
+    assert.deepEqual(commitDirs(`Write-Output "$(Set-Location '${other}')"; git commit -m x`, project, true, true), [other]);
   });
 
   test('an inline option whose value is a substitution does not stop the git option walk', () => {
