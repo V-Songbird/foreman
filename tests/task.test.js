@@ -408,19 +408,18 @@ describe('the trailer and the submodule answer', () => {
 });
 
 // [Foreman: 1139] An install path and an orchestrator name holding a single
-// quote and a dollar sign: start's `then` runs as written in the shell that
-// host uses, bash for Claude Code and, for Codex, PowerShell on Windows and
-// sh elsewhere.
+// quote and a dollar sign: start's `then` runs as written under bash and
+// under PowerShell on Windows, or sh elsewhere, whichever host wrote it.
 describe('then runs from an install path holding a quote and a dollar', () => {
   const windows = process.platform === 'win32';
   const shells = {
-    claude: (command, hostEnv) => runBash(command, hostEnv),
-    codex: (command, hostEnv) => unlessTimedOut(spawnSync(windows ? 'powershell.exe' : 'sh', windows
+    bash: (command, hostEnv) => runBash(command, hostEnv),
+    [windows ? 'PowerShell' : 'sh']: (command, hostEnv) => unlessTimedOut(spawnSync(windows ? 'powershell.exe' : 'sh', windows
       ? ['-NoProfile', '-NonInteractive', '-Command', command]
       : ['-c', command], { encoding: 'utf-8', windowsHide: true, timeout: SPAWN_TIMEOUT_MS, env: { ...process.env, ...hostEnv } }), 'the then command'),
   };
-  for (const [host, shell] of Object.entries(shells)) {
-    test(`under ${host}`, (t) => {
+  for (const host of ['claude', 'codex']) for (const [name, shell] of Object.entries(shells)) {
+    test(`from ${host} under ${name}`, (t) => {
       repo();
       const plugin = path.join(path.dirname(project), "it's $x plugin");
       fs.cpSync(SCRIPTS_DIR, path.join(plugin, 'scripts'), { recursive: true });
@@ -431,7 +430,7 @@ describe('then runs from an install path holding a quote and a dollar', () => {
       const { then } = JSON.parse(started.stdout);
       const payload = path.join(project, 'payload.json').replaceAll('\\', '/');
       fs.writeFileSync(payload, JSON.stringify({ status: 'dropped' }), 'utf-8');
-      const pipe = host === 'codex' && windows ? `Get-Content -LiteralPath '${payload}' -Raw -Encoding utf8` : `cat '${payload}'`;
+      const pipe = name === 'PowerShell' ? `Get-Content -LiteralPath '${payload}' -Raw -Encoding utf8` : `cat '${payload}'`;
       const r = shell(`${pipe} | ${then}`, hostEnv);
       if (r === null) return t.skip('no bash found');
       assert.equal(r.status, 0, then + '\n' + r.stdout + r.stderr);

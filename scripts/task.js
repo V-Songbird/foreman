@@ -39,17 +39,20 @@ const {
 const { beginUnit, finishUnit, attestCommit, isOwned, git, stagedSince, CLOSE_BOOKKEEPING, ROADMAP_FILE } = require("./safe-commit");
 const { render } = require("./render-sections");
 const { record: recordTrial } = require("./trial-log");
-const { projectDir, parseFlags, printHelp, detectHost } = require("./runtime");
+const { projectDir, parseFlags, printHelp } = require("./runtime");
 
-// [Foreman: 1139] The `then` commands are quoted for the shell that runs
-// them: bash for Claude Code, whose handoff speaks bash, and for Codex and
-// Antigravity the crafting host's shell, PowerShell on Windows and POSIX
-// elsewhere, as craft-handoff.js quotes their commands. Both shells expand
-// `$` inside double quotes, so a value is always single-quoted, with its own
-// single quotes doubled for PowerShell or closed and reopened for POSIX.
-const SHELL = process.platform === "win32" && detectHost() !== "claude" ? "powershell" : "posix";
+// [Foreman: 1139] Every `then` command runs unchanged under sh, bash and
+// PowerShell. Single quotes keep `$` literal in all three. A value holding a
+// single quote is written as a bare first character followed by single-quoted
+// runs, each run of single quotes double-quoted between them: both shells
+// then read one argument, whereas PowerShell splits a word that opens with a
+// quote. A value whose first character could
+// not stand bare keeps the JSON string `step pick` writes.
 function shellQuote(value) {
-  return SHELL === "powershell" ? `'${String(value).replace(/'/g, "''")}'` : `'${String(value).replace(/'/g, "'\"'\"'")}'`;
+  const text = String(value);
+  if (!text.includes("'")) return `'${text}'`;
+  if (!/^[\w/]/.test(text)) return JSON.stringify(text);
+  return text[0] + text.slice(1).split(/('+)/).map((run, i) => (i % 2 ? `"${run}"` : run && `'${run}'`)).join("");
 }
 function nodeCommand(file) {
   return `node ${shellQuote(file.replaceAll("\\", "/"))}`;
