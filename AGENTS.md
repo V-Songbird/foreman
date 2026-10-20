@@ -2,7 +2,7 @@
 
 Foreman is one plugin for Claude Code, Codex and Antigravity: a roadmap beside the project's
 code, grounded handoffs and clear task status. Its hooks, scripts and tests are dependency-free Node.js and run
-with Node.js 22 or later and Git; there is no install or build step. This repository is
+with Node.js 22 or later and Git 2.25 or later; there is no install or build step. This repository is
 Foundry's Foreman submodule and ships from `main`.
 
 ## Start here
