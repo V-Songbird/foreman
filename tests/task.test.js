@@ -13,7 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const { makeTmpProject, writeRoadmap, writeArchiveFile, writeConfig, initGitRepo, runNodeScript, SCRIPTS_DIR } = require('./helpers.js');
+const { makeTmpProject, writeRoadmap, writeArchiveFile, writeConfig, initGitRepo, runNodeScript, runBash, unlessTimedOut, SPAWN_TIMEOUT_MS, SCRIPTS_DIR } = require('./helpers.js');
 const { withTrailer, plannedSubmodule } = require(path.join(SCRIPTS_DIR, 'task.js'));
 const { claudeEntryParagraphText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
 
@@ -405,6 +405,40 @@ describe('the trailer and the submodule answer', () => {
     assert.equal(plannedSubmodule(project, ['README.md', 'lib/a.js']), null);
     assert.equal(plannedSubmodule(project, []), null);
   });
+});
+
+// [Foreman: 1139] An install path and an orchestrator name holding a single
+// quote and a dollar sign: start's `then` runs as written in the shell that
+// host uses, bash for Claude Code and, for Codex, PowerShell on Windows and
+// sh elsewhere.
+describe('then runs from an install path holding a quote and a dollar', () => {
+  const windows = process.platform === 'win32';
+  const shells = {
+    claude: (command, hostEnv) => runBash(command, hostEnv),
+    codex: (command, hostEnv) => unlessTimedOut(spawnSync(windows ? 'powershell.exe' : 'sh', windows
+      ? ['-NoProfile', '-NonInteractive', '-Command', command]
+      : ['-c', command], { encoding: 'utf-8', windowsHide: true, timeout: SPAWN_TIMEOUT_MS, env: { ...process.env, ...hostEnv } }), 'the then command'),
+  };
+  for (const [host, shell] of Object.entries(shells)) {
+    test(`under ${host}`, (t) => {
+      repo();
+      const plugin = path.join(path.dirname(project), "it's $x plugin");
+      fs.cpSync(SCRIPTS_DIR, path.join(plugin, 'scripts'), { recursive: true });
+      fs.copyFileSync(path.join(SCRIPTS_DIR, '..', 'prompt-template.md'), path.join(plugin, 'prompt-template.md'));
+      const hostEnv = { ...env, FOREMAN_HOST: host };
+      const started = runNodeScript(path.join(plugin, 'scripts', 'task.js'), ['start', '--id', '001', '--orchestrator', "o'$x"], null, hostEnv);
+      assert.equal(started.status, 0, started.stdout + started.stderr);
+      const { then } = JSON.parse(started.stdout);
+      const payload = path.join(project, 'payload.json').replaceAll('\\', '/');
+      fs.writeFileSync(payload, JSON.stringify({ status: 'dropped' }), 'utf-8');
+      const pipe = host === 'codex' && windows ? `Get-Content -LiteralPath '${payload}' -Raw -Encoding utf8` : `cat '${payload}'`;
+      const r = shell(`${pipe} | ${then}`, hostEnv);
+      if (r === null) return t.skip('no bash found');
+      assert.equal(r.status, 0, then + '\n' + r.stdout + r.stderr);
+      assert.equal(JSON.parse(r.stdout).next, 'closed', r.stdout);
+      assert.equal(stored().status, 'dropped');
+    });
+  }
 });
 
 // The paragraph's commands run as written: its start call, then its close JSON

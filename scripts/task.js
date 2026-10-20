@@ -39,20 +39,27 @@ const {
 const { beginUnit, finishUnit, attestCommit, isOwned, git, stagedSince, CLOSE_BOOKKEEPING, ROADMAP_FILE } = require("./safe-commit");
 const { render } = require("./render-sections");
 const { record: recordTrial } = require("./trial-log");
-const { projectDir, parseFlags, printHelp } = require("./runtime");
+const { projectDir, parseFlags, printHelp, detectHost } = require("./runtime");
 
-// Single quotes run unchanged in bash and PowerShell; a path holding one is
-// written as a JSON string instead, as `step pick` does.
+// [Foreman: 1139] The `then` commands are quoted for the shell that runs
+// them: bash for Claude Code, whose handoff speaks bash, and for Codex and
+// Antigravity the crafting host's shell, PowerShell on Windows and POSIX
+// elsewhere, as craft-handoff.js quotes their commands. Both shells expand
+// `$` inside double quotes, so a value is always single-quoted, with its own
+// single quotes doubled for PowerShell or closed and reopened for POSIX.
+const SHELL = process.platform === "win32" && detectHost() !== "claude" ? "powershell" : "posix";
+function shellQuote(value) {
+  return SHELL === "powershell" ? `'${String(value).replace(/'/g, "''")}'` : `'${String(value).replace(/'/g, "'\"'\"'")}'`;
+}
 function nodeCommand(file) {
-  const forward = file.replaceAll("\\", "/");
-  return `node ${forward.includes("'") ? JSON.stringify(forward) : `'${forward}'`}`;
+  return `node ${shellQuote(file.replaceAll("\\", "/"))}`;
 }
 const SELF = nodeCommand(__filename);
 const ROADMAP_CMD = nodeCommand(path.join(__dirname, "roadmap.js"));
 
 function quoteArg(value) {
   const text = String(value);
-  return /^[\w.:@/-]+$/.test(text) ? text : text.includes("'") ? JSON.stringify(text) : `'${text}'`;
+  return /^[\w.:@/-]+$/.test(text) ? text : shellQuote(text);
 }
 
 // [Foreman: 410] The submodule every planned path sits inside, as .gitmodules

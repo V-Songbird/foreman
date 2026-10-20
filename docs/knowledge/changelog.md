@@ -43,6 +43,12 @@ instead.
   kept only in the folder count, and `next-candidates --hint` finds the
   entry by the folder's name, not by a collapsed file's. The roadmap stays
   format 2, and Foreman 4.1.0 still reads it.
+- The follow-up commands `task.js` returns, such as the close after `start`,
+  the reruns and the Accept option, now run when Foreman's install path or
+  the orchestrator's name holds a single quote. Before, such a value was
+  written in double quotes, so a `$` in it was expanded. Each command is now
+  single-quoted for the shell that runs it: Bash in Claude Code, and in Codex
+  and Antigravity PowerShell on Windows and the POSIX shell elsewhere.
 - A collapsed folder now counts as its files elsewhere too. A recalled
   lead's freshness stamp, such as "2 of its 41 files changed since", and the
   attention-cost precision count each collapsed folder as its stored number
