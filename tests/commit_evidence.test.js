@@ -185,6 +185,7 @@ describe('submodule-hosted commits', () => {
     assert.equal(result.state, 'stale');
     assert.deepEqual(result.changed, ['lib/inner.js']);
     assert.equal(result.checked, 5);
+    assert.equal(result.changed_weight, 1);
   });
 
   test('shas nothing can show come back null rather than empty text', () => {

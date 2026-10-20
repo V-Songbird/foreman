@@ -36,6 +36,7 @@ const {
   evidenceSummary,
   trailerShasFor,
   resolveSha,
+  touchWeight,
 } = require("./commit-evidence");
 
 const { projectDir, parseFlags, detectHost } = require("./runtime");
@@ -989,7 +990,7 @@ function collapseObservedTouches(entry) {
   const list = [];
   for (const t of all) {
     const outer = prefixes.find((p) => under(p, t));
-    const w = stored(t) && Number.isInteger(counts[t]) && counts[t] > 0 ? counts[t] : 1;
+    const w = touchWeight(counts, t);
     if (!outer) {
       list.push(t);
       if (stored(t)) weights[t] = (weights[t] || 0) + w;

@@ -491,13 +491,14 @@ function recallStamp(root, entry) {
   const sha = anchorShaFor(root, entry);
   if (!sha) return " [freshness unknown]";
   // [Foreman: 1123] A collapsed prefix counts as the paths it stands for.
-  const { state, changed, checked } = changedSince(root, sha, entry.observed_touches || [], entry.observed_touch_counts);
+  const { state, changed_weight: changedWeight, checked } = changedSince(root, sha, entry.observed_touches || [], entry.observed_touch_counts);
   const short = String(sha).slice(0, 7);
   if (state === "fresh") return ` [at ${short} — its files unchanged since]`;
   if (state === "stale") {
-    // A file added under a collapsed prefix since the anchor is in `changed`
-    // but was never counted, so the numerator is capped at the denominator.
-    return ` [at ${short} — possibly stale: ${Math.min(changed.length, checked)} of its ${checked} files changed since]`;
+    // [Foreman: 1143] changedWeight caps the files changed under each item at
+    // that item's own count, so a file added under a collapsed prefix since
+    // the anchor was never counted and cannot stand in for another path.
+    return ` [at ${short} — possibly stale: ${changedWeight} of its ${checked} files changed since]`;
   }
   return " [freshness unknown]";
 }

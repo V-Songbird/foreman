@@ -277,9 +277,9 @@ function anchorShaFor(root, entry) {
 
 /**
  * [Foreman: 1123] How many recorded paths one observed_touches item stands
- * for: a stored prefix's count from observed_touch_counts, else 1. The same
- * rule collapseObservedTouches in roadmap.js applies: a stored prefix ends in
- * "/" and has a key, and a missing or invalid count weighs 1.
+ * for: a stored prefix's count from observed_touch_counts, else 1. The one
+ * weight rule, which collapseObservedTouches in roadmap.js calls too: a stored
+ * prefix ends in "/" and has a key, and a missing or invalid count weighs 1.
  */
 function touchWeight(counts, touch) {
   const ok = counts && typeof counts === "object" && !Array.isArray(counts)
@@ -290,9 +290,11 @@ function touchWeight(counts, touch) {
 /**
  * Which of `paths` git says changed between `sha` and the working tree.
  *
- * `{state: "fresh"|"stale"|"unknown", changed, checked}`. `checked` counts
- * recorded paths, so a collapsed prefix weighs its count in `counts`
- * (an entry's observed_touch_counts). Every failure --
+ * `{state: "fresh"|"stale"|"unknown", changed, checked, changed_weight}`.
+ * `checked` counts recorded paths, so a collapsed prefix weighs its count in
+ * `counts` (an entry's observed_touch_counts). `changed_weight` counts the
+ * changed ones the same way: the files changed under each item, capped at
+ * that item's weight, summed, so it never exceeds `checked`. Every failure --
  * no git, a sha nothing resolves, a sha off this history line, a diff git
  * would not run -- comes back "unknown" and never "fresh": a lead nobody can
  * date is not a lead anybody should trust.
@@ -321,6 +323,7 @@ function changedSince(root, sha, paths, counts) {
   // going in need the mirror of that: without de-prefixing, a submodule diff
   // matches nothing and reads fresh forever.
   const scoped = [];
+  const weighed = []; // [recorded item, its weight] for each item that got a pathspec
   let checked = 0;
   for (const p of wanted) {
     const before = scoped.length;
@@ -328,7 +331,11 @@ function changedSince(root, sha, paths, counts) {
     // [Foreman: 1123] A depth-1 collapse writes the submodule key as "sub/".
     else if (p === prefix || p === `${prefix}/`) scoped.push(".");
     else if (p.startsWith(`${prefix}/`)) scoped.push(p.slice(prefix.length + 1));
-    if (scoped.length > before) checked += touchWeight(counts, p);
+    if (scoped.length > before) {
+      const weight = touchWeight(counts, p);
+      weighed.push([p, weight]);
+      checked += weight;
+    }
   }
   if (!scoped.length) return unknown;
 
@@ -337,10 +344,19 @@ function changedSince(root, sha, paths, counts) {
 
   const changed = out.split("\0").map((f) => f.trim()).filter(Boolean)
     .map((f) => (prefix ? `${prefix}/${f}` : f));
+  // [Foreman: 1143] Files under one item count for that item only, up to its
+  // weight, so files added under a collapsed prefix since the anchor cannot
+  // stand in for recorded paths that did not change.
+  const under = (item, f) => (item.endsWith("/") ? f.startsWith(item) : f === item || f.startsWith(`${item}/`));
+  const changedWeight = weighed.reduce(
+    (sum, [item, weight]) => sum + Math.min(weight, changed.filter((f) => under(item, f)).length),
+    0
+  );
   return {
     state: changed.length ? "stale" : "fresh",
     changed,
     checked,
+    changed_weight: changedWeight,
   };
 }
 

@@ -1995,6 +1995,40 @@ describe('prior-work recall', () => {
         ...pad(4, 900),
       ];
       const text = priorWorkText(rows, { id: '001', planned_touches: ['src/auth/a.js'] }, repo);
+      assert.match(text, /- 300 .*possibly stale: 1 of its 2 files changed since\]/);
+    });
+
+    // [Foreman: 1143] Each collapsed prefix is capped at its own count, so new
+    // files under it cannot stand in for recorded paths that did not change.
+    test('files added under a collapsed prefix never count for the unchanged exact paths', () => {
+      const repo = makeTmpProject();
+      initGitRepo(repo);
+      commitFile(repo, 'x.js', 'x\n');
+      commitFile(repo, 'y.js', 'y\n');
+      commitFile(repo, 'z.js', 'z\n');
+      const sha = commitFile(repo, 'src/auth/a.js', 'a\n');
+      for (const f of ['b', 'c', 'd', 'e', 'f']) commitFile(repo, `src/auth/${f}.js`, `${f}\n`);
+      const rows = [
+        finished('300', ['src/auth/', 'x.js', 'y.js', 'z.js'], { commits: [sha], observed_touch_counts: { 'src/auth/': 1 } }),
+        ...pad(4, 900),
+      ];
+      const text = priorWorkText(rows, { id: '001', planned_touches: ['src/auth/a.js'] }, repo);
+      assert.match(text, /- 300 .*possibly stale: 1 of its 4 files changed since\]/);
+    });
+
+    test('a changed exact path still adds one beside a capped prefix', () => {
+      const repo = makeTmpProject();
+      initGitRepo(repo);
+      commitFile(repo, 'x.js', 'x\n');
+      const sha = commitFile(repo, 'src/auth/a.js', 'a\n');
+      commitFile(repo, 'src/auth/b.js', 'b\n');
+      commitFile(repo, 'src/auth/c.js', 'c\n');
+      commitFile(repo, 'x.js', 'x2\n');
+      const rows = [
+        finished('300', ['src/auth/', 'x.js'], { commits: [sha], observed_touch_counts: { 'src/auth/': 1 } }),
+        ...pad(4, 900),
+      ];
+      const text = priorWorkText(rows, { id: '001', planned_touches: ['src/auth/a.js'] }, repo);
       assert.match(text, /- 300 .*possibly stale: 2 of its 2 files changed since\]/);
     });
 
