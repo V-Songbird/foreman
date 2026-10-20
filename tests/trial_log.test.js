@@ -489,6 +489,31 @@ describe('trial log — wired surfaces', () => {
     assert.deepEqual({ hook: interrupted[0].hook, reason_class: interrupted[0].reason_class }, { hook: 'safe-commit', reason_class: 'gitlink_not_expected' });
   });
 
+  // finish returns commit_failed when a pre-commit hook refuses the commit;
+  // recordInterruption records it by its closed name like any other refusal.
+  test('a finish refused by a pre-commit hook records one commit_interrupted as commit_failed', () => {
+    on();
+    initGitRepo(project);
+    commitFile(project, '.foreman/config.json', JSON.stringify({ trialLog: true }));
+    commitFile(project, 'a.txt', 'a\n');
+    const env = { CLAUDE_PROJECT_DIR: project };
+    const begin = JSON.parse(runNodeScript(path.join(SCRIPTS_DIR, 'safe-commit.js'), ['begin'], null, env).stdout);
+    assert.equal(begin.dirty, false, JSON.stringify(begin));
+    fs.writeFileSync(path.join(project, 'a.txt'), 'b\n');
+    const hooks = path.join(project, '.git', 'hooks');
+    fs.mkdirSync(hooks, { recursive: true });
+    fs.writeFileSync(path.join(hooks, 'pre-commit'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+    spawnSync('git', ['config', 'core.hooksPath', hooks], { cwd: project });
+
+    const result = JSON.parse(
+      runNodeScript(path.join(SCRIPTS_DIR, 'safe-commit.js'), ['finish', '--baseline', begin.baseline.head], { expected: ['a.txt'], message_title: 'change a' }, env).stdout
+    );
+    assert.equal(result.reason, 'commit_failed', JSON.stringify(result));
+    const interrupted = lines().filter((l) => l.event === 'commit_interrupted');
+    assert.equal(interrupted.length, 1);
+    assert.deepEqual({ hook: interrupted[0].hook, reason_class: interrupted[0].reason_class }, { hook: 'safe-commit', reason_class: 'commit_failed' });
+  });
+
   test('a clean begin is not an interruption', () => {
     on();
     initGitRepo(project);

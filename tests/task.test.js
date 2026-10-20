@@ -611,9 +611,15 @@ describe('the reference pages describe task.js on every host', () => {
     assert.ok(shared.includes('A `report_dirty` answer from `start` means it took no boundary and the close will stage and commit nothing; from `finish`, it means nothing was staged or committed.'));
     assert.ok(shared.includes('When no entry paragraph supplies `task.js finish`, a staged close by hand runs `finish --no-commit`'));
     assert.doesNotMatch(read('skills', 'foreman', 'runtime.md'), /that trailer\. Record\n/);
+  });
+
+  test('the Codex runtime runs the entry paragraph through task.js, Antigravity too', () => {
     const codex = flat(read('skills', 'foreman', 'runtime-codex.md'));
     assert.ok(codex.includes("Then take the commit boundary with the entry paragraph's `scripts/task.js start` and close the entry with its `scripts/task.js finish`"), codex);
     assert.ok(codex.includes("the entry paragraph's `scripts/task.js start` and `finish` around the work"), 'Antigravity too');
+  });
+
+  test('the roadmap delivery pages run the entry paragraph through task.js', () => {
     const delivery = flat(read('skills', 'roadmap', 'delivery.md'));
     assert.ok(delivery.includes('start leaves that status as it is and, outside an investigation, still takes the commit boundary.'));
     assert.ok(delivery.includes("Outside an investigation, then take the commit boundary and close with the entry paragraph's `scripts/task.js start` and `finish`. Verify the result, and record its outcome and evidence before reporting completion."));
