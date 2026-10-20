@@ -306,7 +306,7 @@ function touchWeight(counts, touch) {
 function changedSince(root, sha, paths, counts) {
   const wanted = (Array.isArray(paths) ? paths : [])
     .filter((p) => typeof p === "string" && p.trim());
-  const unknown = { state: "unknown", changed: [], checked: 0 };
+  const unknown = { state: "unknown", changed: [], checked: 0, changed_weight: 0 };
   if (!wanted.length) return unknown;
 
   const where = resolveSha(root, sha);
@@ -346,7 +346,8 @@ function changedSince(root, sha, paths, counts) {
     .map((f) => (prefix ? `${prefix}/${f}` : f));
   // [Foreman: 1143] Files under one item count for that item only, up to its
   // weight, so files added under a collapsed prefix since the anchor cannot
-  // stand in for recorded paths that did not change.
+  // stand in for recorded paths outside that prefix. Inside it they still
+  // count, up to the prefix's stored number.
   // A moved submodule gitlink is reported as the bare folder name ("foreman"),
   // so a folder item matches its own name too.
   const under = (item, f) => (item.endsWith("/") ? f === item.slice(0, -1) || f.startsWith(item) : f === item || f.startsWith(`${item}/`));

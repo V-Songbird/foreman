@@ -207,6 +207,16 @@ describe('submodule-hosted commits', () => {
     assert.equal(result.changed_weight, 1);
   });
 
+  // [Foreman: 1143] Every state carries the documented return shape.
+  test('an unresolvable anchor reads unknown with changed_weight 0', () => {
+    initGitRepo(project);
+    commitFile(project, 'root.js', 'root');
+
+    assert.deepEqual(changedSince(project, 'deadbee', ['root.js'], {}), {
+      state: 'unknown', changed: [], checked: 0, changed_weight: 0,
+    });
+  });
+
   test('shas nothing can show come back null rather than empty text', () => {
     initGitRepo(project);
     commitFile(project, 'root.js', 'root');

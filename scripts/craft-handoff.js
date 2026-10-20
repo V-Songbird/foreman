@@ -497,7 +497,7 @@ function recallStamp(root, entry) {
   if (state === "stale") {
     // [Foreman: 1143] changedWeight caps the files changed under each item at
     // that item's own count, so a file added under a collapsed prefix since
-    // the anchor was never counted and cannot stand in for another path.
+    // the anchor cannot stand in for a recorded path outside that prefix.
     return ` [at ${short} — possibly stale: ${changedWeight} of its ${checked} files changed since]`;
   }
   return " [freshness unknown]";
