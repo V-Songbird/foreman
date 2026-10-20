@@ -56,7 +56,7 @@ instead.
   of files, and a planned file inside such a folder predicts one of them, not
   all. The stamp counts the files changed under each collapsed folder only up
   to that folder's own stored number, so files added under one folder since
-  the anchor never stand in for recorded files that did not change. A
+  the anchor never count for recorded paths outside it. A
   collapsed folder that is a whole submodule, such as `foreman/`, is now
   dated instead of reading "freshness unknown". `roadmap.js doctor` warns
   about an `observed_touch_counts` that is not an object, a count that is not

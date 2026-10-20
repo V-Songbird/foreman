@@ -188,6 +188,25 @@ describe('submodule-hosted commits', () => {
     assert.equal(result.changed_weight, 1);
   });
 
+  // [Foreman: 1143] Against a root-repo anchor, git reports a moved gitlink as
+  // the bare name "lib", which the stored prefix "lib/" must still own.
+  test('a moved gitlink counts toward the stored submodule prefix from a root anchor', () => {
+    initGitRepo(project);
+    const sub = addSubmodule(project, 'lib');
+    commitFile(sub, 'inner.js', 'inner');
+    commitFile(project, 'root.js', 'root');
+    spawnSync('git', ['add', 'lib', '.gitmodules'], { cwd: project });
+    spawnSync('git', ['commit', '-q', '-m', 'link lib'], { cwd: project });
+    const anchor = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: project, encoding: 'utf-8' }).stdout.trim();
+    commitFile(sub, 'inner.js', 'inner2');
+
+    const result = changedSince(project, anchor, ['lib/', 'root.js'], { 'lib/': 50 });
+    assert.equal(result.state, 'stale');
+    assert.deepEqual(result.changed, ['lib']);
+    assert.equal(result.checked, 51);
+    assert.equal(result.changed_weight, 1);
+  });
+
   test('shas nothing can show come back null rather than empty text', () => {
     initGitRepo(project);
     commitFile(project, 'root.js', 'root');

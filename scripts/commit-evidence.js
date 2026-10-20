@@ -347,7 +347,9 @@ function changedSince(root, sha, paths, counts) {
   // [Foreman: 1143] Files under one item count for that item only, up to its
   // weight, so files added under a collapsed prefix since the anchor cannot
   // stand in for recorded paths that did not change.
-  const under = (item, f) => (item.endsWith("/") ? f.startsWith(item) : f === item || f.startsWith(`${item}/`));
+  // A moved submodule gitlink is reported as the bare folder name ("foreman"),
+  // so a folder item matches its own name too.
+  const under = (item, f) => (item.endsWith("/") ? f === item.slice(0, -1) || f.startsWith(item) : f === item || f.startsWith(`${item}/`));
   const changedWeight = weighed.reduce(
     (sum, [item, weight]) => sum + Math.min(weight, changed.filter((f) => under(item, f)).length),
     0
