@@ -217,25 +217,31 @@ function stringList(value, field) {
 // [Foreman: 1161] The fix text for a refused finishUnit result. When the
 // helper could not put the index back, its staging is still there, so the text
 // names those files instead of saying nothing was staged.
-function refusalFix(unit) {
+function refusalFix(unit, sub) {
   const left = unit.left_staged || [];
   // [Foreman: 1168] The restore command names the left paths only, so it
-  // leaves any other staging alone. `git restore --staged` fails in a
-  // repository with no commit yet (probed: "could not resolve 'HEAD'"), where
-  // `git rm --cached` unstages instead.
+  // leaves any other staging alone. A submodule close stages inside the
+  // submodule, so the command runs there with -C. `git restore --staged`
+  // fails in a repository with no commit yet (probed: "could not resolve
+  // 'HEAD'"), where `git rm --cached` unstages instead.
   const paths = left.map(quoteArg).join(" ");
-  const stagedNote = left.length
-    ? ` The commit helper could not restore the index (${unit.restore_error}), so these files are still staged: ${left.join(", ")}. Tell the user, and unstage them with \`git restore --staged -- ${paths}\` (\`git rm --cached -- ${paths}\` when the repository has no commit yet) before anything else.`
-    : "";
+  const git = sub ? `git -C ${quoteArg(sub)}` : "git";
+  const reason = unit.restore_error || "no reason given";
+  const how = left.length
+    ? `these files are still staged: ${left.join(", ")}. Unstage them with \`${git} restore --staged -- ${paths}\` (\`${git} rm --cached -- ${paths}\` when the repository has no commit yet) before anything else.`
+    : "files may still be staged. Run `git status` and unstage them before anything else.";
+  const stagedNote = left.length || unit.restore_error ? ` The commit helper could not restore the index (${reason}), so ${how}` : "";
   const missingNote = unit.missing_files ? `finish expected these changed files to be staged and they are not: ${unit.missing_files.join(", ")}.` : "";
-  const untouched = stagedNote ? `${stagedNote} Nothing was closed.` : " Nothing was staged or closed.";
+  // "Tell the user" appears once in each fix.
+  const closing = `Tell the user; nothing was closed.${stagedNote}`;
+  const untouched = stagedNote ? ` ${closing}` : " Nothing was staged or closed.";
   const incomplete = [missingNote, unit.restored_files ? `${unit.error}.` : ""].filter(Boolean).join(" ");
   const fixes = {
     unexpected_files: `Show the user these changed files that \`files\` does not list. Add the ones that are this task's to \`files\` and run the close again; with the user's approval of the rest, run it with --allow-unexpected.${missingNote ? ` ${missingNote}` : ""}${untouched}`,
     no_task_changes: `Nothing changed since start. Run the close again without \`files\` to record it without a commit.${untouched}`,
-    staging_incomplete: `${incomplete} Tell the user; nothing was closed.${stagedNote}`,
+    staging_incomplete: `${incomplete} ${closing}`,
   };
-  return fixes[unit.reason] || `${unit.error || unit.reason}. ${missingNote ? `${missingNote} ` : ""}Tell the user; nothing was closed.${stagedNote}`;
+  return fixes[unit.reason] || `${unit.error || unit.reason}. ${missingNote ? `${missingNote} ` : ""}${closing}`;
 }
 
 function refusal(root, reason, fields) {
@@ -331,7 +337,7 @@ function cmdFinish(root, flags, payload) {
     const { ok, reason, ...details } = unit;
     return refusal(root, reason, {
       ...details,
-      fix: refusalFix(unit),
+      fix: refusalFix(unit, sub),
       ...(reason === "unexpected_files" ? { then: rerun(" --allow-unexpected") } : {}),
     });
   }

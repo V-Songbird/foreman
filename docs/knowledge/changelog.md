@@ -44,7 +44,9 @@ instead.
   other staging; for a repository with no commit yet, where that command
   fails, it also gives `git rm --cached -- <files>`. Every refusal's `fix`
   now names the files `finish` expected to be staged and were not, not only
-  `staging_incomplete`.
+  `staging_incomplete`. In a submodule close the command runs with
+  `git -C <submodule>`, the staged note also appears when only
+  `restore_error` is set, and "Tell the user" appears once.
 - The README nav check now recognises a nested list item indented with a tab,
   so a link in a paragraph under it is no longer skipped as code.
 - An entry that closes with more than 100 files now stores them as folder

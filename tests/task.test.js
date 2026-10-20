@@ -352,6 +352,24 @@ describe('task.js finish', () => {
     assert.ok(result.fix.includes('`git restore --staged -- ROADMAP.jsonl src/a.js`'), result.fix);
   });
 
+  test('the fix text says "Tell the user" once and keys the staged note on restore_error', () => {
+    const left = { left_staged: ['src/a.js'], restore_error: 'e' };
+    for (const reason of ['unexpected_files', 'no_task_changes', 'staging_incomplete', 'staging_failed']) {
+      const fix = refusalFix({ reason, error: 'x', ...left });
+      assert.equal(fix.split('Tell the user').length - 1, 1, fix);
+    }
+    const noPaths = refusalFix({ reason: 'staging_failed', error: 'x', restore_error: 'e' });
+    assert.match(noPaths, /could not restore the index \(e\)/);
+    assert.doesNotMatch(noPaths, /Nothing was staged/);
+    assert.doesNotMatch(refusalFix({ reason: 'staging_failed', error: 'x', left_staged: ['a'] }), /undefined/);
+  });
+
+  test('a submodule close names the submodule in the unstage command', () => {
+    const fix = refusalFix({ reason: 'staging_failed', error: 'x', left_staged: ['a.js'], restore_error: 'e' }, 'lib');
+    assert.ok(fix.includes('`git -C lib restore --staged -- a.js`'), fix);
+    assert.ok(fix.includes('`git -C lib rm --cached -- a.js`'), fix);
+  });
+
   test('the fix text surfaces missing_files for an unexpected_files refusal too', () => {
     const fix = refusalFix({ reason: 'unexpected_files', missing_files: ['src/b.js'] });
     assert.match(fix, /not: src\/b\.js\./);
