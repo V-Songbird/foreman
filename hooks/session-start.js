@@ -23,6 +23,7 @@ const { readInput, hostName, projectDir, pluginDir } = require("./lib");
 const crypto = require("crypto");
 
 const { readEntries, today, TERMINAL_STATUSES } = require("../scripts/roadmap");
+const { POWERSHELL_HEREDOC } = require("../scripts/discovery");
 const { record: recordTrial, startSession: startTrialSession } = require("../scripts/trial-log");
 
 const PLUGIN_ROOT = pluginDir();
@@ -64,7 +65,7 @@ function buildMessage(open, todayStr, host = hostName()) {
     `[Foreman] Roadmap entries still open: ${items.join(", ")}. ` +
     "Informational only — don't act on this unless the user asks. If one " +
     "of these actually concluded, it can be closed through a quoted heredoc " +
-    "(commit first if code changed):\n" +
+    `(${POWERSHELL_HEREDOC}; commit first if code changed):\n` +
     `node "${SCRIPT_PATH}" update-status <<'EOF'\n{"id":"<id>","status":"<done|dropped>","commit":"<sha>","notes":"..."}\nEOF\n` +
     RESUME_HINT[host]
   );

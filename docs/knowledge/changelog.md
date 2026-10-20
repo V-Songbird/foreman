@@ -94,7 +94,11 @@ instead.
   `check-duplicate`, `correct` and `update-status` with a note, take a quoted
   heredoc too, so an apostrophe in a title, a reason or a note no longer breaks
   them. This covers the commit and session-start reminders, the discovery
-  wording and the roadmap, survey and init skills.
+  wording and the roadmap, survey and init skills. The reminders and the
+  discovery wording also say that in PowerShell, which Codex and Antigravity
+  use for Bash commands on Windows, the payload goes in as a literal
+  here-string (`@'...'@`) piped into the command instead, since `<<` does not
+  parse there. The skills point to the shared runtime page for that form.
 
 ### Claude Code
 

@@ -1583,6 +1583,8 @@ describe('free-text commands in hook wording keep an apostrophe through bash', (
       const commands = [...text.matchAll(HEREDOC)];
       assert.ok(commands.length > 0, `no quoted heredoc command in: ${text}`);
       assert.doesNotMatch(text, /echo '\{[^\n]*"(title|why|what|notes)"/);
+      // Codex and Antigravity on Windows run Bash commands in PowerShell, where `<<` does not parse.
+      assert.ok(text.includes("in PowerShell, pipe a literal here-string `@'...'@` into the command instead"), text);
       for (const [command, , payload] of commands) {
         const fields = JSON.parse(payload);
         for (const key of ['title', 'why', 'what', 'notes']) if (key in fields) fields[key] = NOTE;

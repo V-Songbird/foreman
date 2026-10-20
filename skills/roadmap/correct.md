@@ -24,7 +24,8 @@ says what it currently claims.
    {"id":"...","expected_updated_at":"<the updated_at from step 1>","expected":{"what":"<the what step 1 just returned>"},"what":"..."}
    EOF
    ```
-   — the quoted heredoc keeps an apostrophe in either wording as written.
+   — the quoted heredoc keeps an apostrophe in either wording as written (the
+   runtime describes the PowerShell form).
    Pass the fetched `updated_at` verbatim as `expected_updated_at`; it is
    what stops a correction composed against an older version from
    overwriting a newer one. `expected_updated_at` is date-only, so a second

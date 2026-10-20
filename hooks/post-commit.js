@@ -12,7 +12,7 @@ const { runGit } = require("../scripts/run-git");
 const { readEntries, today, touchesOverlap, trailerIdsIn } = require("../scripts/roadmap");
 const { resolveHookScope } = require("../scripts/commit-evidence");
 const { readConfigFile, delegatedOrchestrator } = require("../scripts/foreman-config");
-const { discoveryInstructions, duplicateCheckStep, delegatedDiscoveryInstructions } = require("../scripts/discovery");
+const { discoveryInstructions, duplicateCheckStep, delegatedDiscoveryInstructions, POWERSHELL_HEREDOC } = require("../scripts/discovery");
 
 const PLUGIN_ROOT = pluginDir();
 const SCRIPT_PATH = path.join(PLUGIN_ROOT, "scripts", "roadmap.js");
@@ -549,7 +549,7 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
           `Then ask the user ${host === "claude" ? "(AskUserQuestion) " : ""}` +
           "whether it is verified and working. Only on their confirmation, close it: " +
           `echo '{"id":"${id}","status":"done"}' | node "${SCRIPT_PATH}" update-status. ` +
-          "If they say it's not ready, send it back through a quoted heredoc:\n" +
+          `If they say it's not ready, send it back through a quoted heredoc (${POWERSHELL_HEREDOC}):\n` +
           `node "${SCRIPT_PATH}" update-status <<'EOF'\n{"id":"${id}","status":"in_progress","notes":"<what they said>"}\nEOF\n` +
           "With no user to ask (a background " +
           "agent), leave it awaiting_acceptance." +
@@ -701,7 +701,7 @@ function claudeDiscoveryBlock(requireVerification = true) {
     "(work it now in this session) / Execute with a " +
     "background Agent (run_in_background: true) / Reject — both Add and " +
     "Reject use the same `add` call, only the status field differs " +
-    '("planned" for Add, "rejected" for Reject), sent through a quoted heredoc:\n' +
+    `("planned" for Add, "rejected" for Reject), sent through a quoted heredoc (${POWERSHELL_HEREDOC}):\n` +
     `node "${SCRIPT_PATH}" add <<'EOF'\n{"title":"...","why":"...","what":"...","source":"claude-suggested","status":"planned"}\nEOF\n` +
     "Also scan for the inverse case: work already implemented in this " +
     "commit that goes beyond what any in_progress task's `what` describes — " +

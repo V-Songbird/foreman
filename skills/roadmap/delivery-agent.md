@@ -12,7 +12,8 @@ model — never pass one.
   result trails with the dispatched agent's id (`agentId: a<16 hex>`). For a
   roadmap entry, capture it immediately with one annotate call, so a later
   session can resume this exact agent instead of re-crafting a prompt from its
-  notes, through a quoted heredoc so the backticks stay as written:
+  notes, through a quoted heredoc so the backticks stay as written (the runtime
+  describes the PowerShell form):
 
   ```
   node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js annotate <<'EOF'
