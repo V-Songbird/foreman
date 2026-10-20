@@ -148,11 +148,28 @@ function withTrailer(message, id) {
   return `${text}${block ? "\n" : "\n\n"}${trailer}`;
 }
 
-function commit(cwd, message) {
-  // No timeout: a project's pre-commit hook may run its whole suite.
-  // [Foreman: 1164] No output limit: git sends the hook's output to stderr.
-  git(cwd, ["commit", "-q", "-m", message], { timeout: 0, maxBuffer: Infinity });
-  return git(cwd, ["rev-parse", "HEAD"]).trim();
+// [Foreman: 1171] Returns what is known once the commit may have landed, as
+// safe-commit.js finish does: { sha } plus a `warning` when git reported an
+// error after the commit landed, or { unreadable } when HEAD cannot be read.
+// Throws only when no commit landed (HEAD still on `baseline`).
+function commit(cwd, message, baseline) {
+  let commitError = null;
+  try {
+    // No timeout: a project's pre-commit hook may run its whole suite.
+    // [Foreman: 1164] No output limit: git sends the hook's output to stderr.
+    git(cwd, ["commit", "-q", "-m", message], { timeout: 0, maxBuffer: Infinity });
+  } catch (error) {
+    commitError = error;
+  }
+  let sha;
+  try {
+    sha = git(cwd, ["rev-parse", "HEAD"]).trim();
+  } catch (error) {
+    if (commitError) throw commitError;
+    return { unreadable: gitFailureCause(error) };
+  }
+  if (commitError && sha === baseline) throw commitError;
+  return commitError ? { sha, warning: `git commit reported an error after the commit landed: ${gitFailureCause(commitError)}` } : { sha };
 }
 
 // What the session does once the entry is closed.
@@ -345,12 +362,12 @@ function cmdFinish(root, flags, payload) {
   annotate();
   const text = withTrailer(message, id);
   let closed;
-  let sha;
+  let made;
   if (stagedClose) {
     // The staged close: ROADMAP.jsonl rides in the task's own commit.
     closed = cmdUpdateStatus(root, { ...close, staged: true });
     try {
-      sha = commit(cwd, text);
+      made = commit(cwd, text, flags.baseline);
     } catch (error) {
       return refusal(root, "commit_failed", {
         error: gitFailureCause(error),
@@ -364,7 +381,7 @@ function cmdFinish(root, flags, payload) {
     // A submodule commit or a git-ignored roadmap: commit first, then record
     // the sha, which roadmap.js resolves inside the submodule.
     try {
-      sha = commit(cwd, text);
+      made = commit(cwd, text, flags.baseline);
     } catch (error) {
       return refusal(root, "commit_failed", {
         error: gitFailureCause(error),
@@ -373,10 +390,27 @@ function cmdFinish(root, flags, payload) {
         then: rerun(),
       });
     }
-    closed = cmdUpdateStatus(root, { ...close, commit: sha });
+    // An unreadable HEAD leaves no sha to record; the close is recorded without one.
+    closed = cmdUpdateStatus(root, made.sha ? { ...close, commit: made.sha } : close);
   }
-  const attested = attestCommit(cwd, { baseline: flags.baseline, commit: sha, id, roadmapClose: stagedClose });
-  const warnings = [...(closed.warnings || []), ...(attested.ok ? [] : [`the commit did not pass attestation: ${attested.reasons.join(", ")}`])];
+  const sha = made.sha;
+  const landedWarnings = [...(closed.warnings || []), ...(made.warning ? [made.warning] : [])];
+  if (!sha) {
+    // [Foreman: 1171] The commit landed, so the close is never rerun.
+    return {
+      ...after(),
+      ...(sub ? { submodule: sub } : {}),
+      files: unit.files.map((file) => (sub ? `${sub}/${file}` : file)),
+      warnings: [...landedWarnings, `the commit landed, but git could not read HEAD: ${made.unreadable}; its sha is not recorded on the entry`],
+    };
+  }
+  let attested;
+  try {
+    attested = attestCommit(cwd, { baseline: flags.baseline, commit: sha, id, roadmapClose: stagedClose });
+  } catch (error) {
+    attested = { ok: false, reasons: [`git could not check it: ${gitFailureCause(error)}`] };
+  }
+  const warnings = [...landedWarnings, ...(attested.ok ? [] : [`the commit did not pass attestation: ${attested.reasons.join(", ")}`])];
   return {
     ...after(),
     commit: sha,

@@ -752,6 +752,22 @@ describe('safe-commit finish staging discipline', () => {
     assert.match(json.error, /could not read HEAD/);
   });
 
+  // [Foreman: 1171] The unreadable-HEAD result keeps the not-staged warning.
+  test('an unreadable HEAD after a close of a git-ignored roadmap keeps the not-staged warning', () => {
+    initGitRepo(project);
+    writeFile('.gitignore', 'ROADMAP.jsonl\n');
+    writeRoadmap(project, [entry('001')]);
+    git('add', '-A');
+    git('commit', '-q', '-m', 'baseline');
+    const baseline = begin().baseline.head;
+    writeFile('src/a.js', 'owned\n');
+    failAfterCommit('fail-head-ignored.js', "(args) => args[0] === 'rev-parse' && args.includes('HEAD') && !args.includes('--verify')");
+    const { json } = run(['finish', '--baseline', baseline], { id: '001', expected: ['src'], message_title: 'do the thing', roadmap_close: true });
+    assert.equal(json.reason, 'post_commit_attestation_failed', JSON.stringify(json));
+    assert.equal(json.commit, undefined);
+    assert.match(json.warnings?.[0] ?? '', /^git-ignored here, so not staged: ROADMAP\.jsonl\./, JSON.stringify(json));
+  });
+
   test('an error git commit reports after the commit landed reaches warnings', () => {
     const baseline = commitWith({ 'src/a.js': 'base a\n' });
     writeFile('src/a.js', 'worktree a\n');

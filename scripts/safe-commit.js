@@ -605,7 +605,7 @@ function finishUnit(root, options) {
   } catch (error) {
     // An unreadable HEAD after a failed commit counts as the baseline.
     if (commitError) return failedAfterStaging("commit_failed", commitError);
-    return landed({}, `the commit landed, but git could not read HEAD: ${gitFailureCause(error)}`);
+    return { ...landed({}, `the commit landed, but git could not read HEAD: ${gitFailureCause(error)}`), ...notice };
   }
   // A rejecting hook leaves HEAD on the baseline. A commit that landed
   // before git failed keeps its index and is attested below.

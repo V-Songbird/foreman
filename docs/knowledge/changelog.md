@@ -47,6 +47,15 @@ instead.
   `staging_incomplete`. In a submodule close the command runs with
   `git -C <submodule>`, the staged note also appears when only
   `restore_error` is set, and "Tell the user" appears once.
+- `task.js finish` now reports a commit that landed when a later git read
+  fails, as `safe-commit.js finish` already did. Before, an unreadable HEAD
+  or an error `git commit` reported after it landed the commit was refused as
+  `commit_failed`, and a git-ignored roadmap's refusal told the agent to run
+  the same close again, which then failed as `head_moved_since_baseline`.
+  Now the close is recorded and the result carries a warning; an unreadable
+  HEAD leaves the sha unrecorded, and an attestation that cannot run is a
+  warning. `safe-commit.js finish` also keeps the "not staged" warning for a
+  git-ignored roadmap in its unreadable-HEAD result.
 - The README nav check now recognises a nested list item indented with a tab,
   so a link in a paragraph under it is no longer skipped as code.
 - An entry that closes with more than 100 files now stores them as folder

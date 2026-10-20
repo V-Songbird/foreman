@@ -478,6 +478,58 @@ describe('task.js finish', () => {
     assert.equal(result.commit, head());
   });
 
+  // [Foreman: 1171] A read or error after git commit landed the commit is
+  // reported with the commit, never as commit_failed with a rerun.
+  function shimGit(name, body) {
+    const shim = path.join(path.dirname(project), name);
+    fs.writeFileSync(shim, `
+      const cp = require('child_process');
+      const real = cp.execFileSync;
+      let committed = false;
+      cp.execFileSync = function (file, args) {
+        ${body}
+      };
+    `);
+    env = { ...env, NODE_OPTIONS: `--require ${JSON.stringify(shim)}` };
+  }
+
+  test('an unreadable HEAD after the commit lands closes the entry and never asks for a rerun', () => {
+    repo();
+    const start = ok(['start', '--id', '001']);
+    write('src/a.js', 'two\n');
+    shimGit('fail-head-1171.js', `
+      if (committed && args[0] === 'rev-parse' && args.includes('HEAD') && !args.includes('--verify')) {
+        throw Object.assign(new Error('git read failed'), { stderr: 'fatal: simulated read failure' });
+      }
+      const out = real.apply(this, arguments);
+      if (args[0] === 'commit') committed = true;
+      return out;
+    `);
+    const result = runThen(start.then, { status: 'done', files: ['src/a.js'], message: 'Change a' });
+    assert.notEqual(result.next, 'refused', JSON.stringify(result));
+    assert.equal(result.next, 'ask_acceptance');
+    assert.equal(result.commit, undefined);
+    assert.match(result.warnings.join(' '), /the commit landed, but git could not read HEAD: fatal: simulated read failure/);
+    assert.notEqual(head(), start.baseline);
+    assert.equal(stored().status, 'awaiting_acceptance');
+  });
+
+  test('an error git commit reports after the commit landed is a warning on the recorded commit', () => {
+    repo({ ignoreRoadmap: true });
+    const start = ok(['start', '--id', '001']);
+    write('src/a.js', 'two\n');
+    shimGit('commit-then-throw-1171.js', `
+      const out = real.apply(this, arguments);
+      if (args[0] === 'commit') throw Object.assign(new Error('git commit failed'), { stderr: 'error: unable to write new index file' });
+      return out;
+    `);
+    const result = runThen(start.then, { status: 'done', files: ['src/a.js'], message: 'Change a' });
+    assert.equal(result.next, 'ask_acceptance', JSON.stringify(result));
+    assert.equal(result.commit, head());
+    assert.deepEqual(stored().commits, [head()]);
+    assert.match(result.warnings.join(' '), /unable to write new index file/);
+  });
+
   // [Foreman: 1112] Without a baseline, finish knows only that start took no
   // boundary, not that someone else's changes were there.
   test('a hand-run finish without --baseline names the missing boundary, not foreign changes', () => {
