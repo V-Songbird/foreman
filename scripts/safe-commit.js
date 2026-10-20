@@ -309,17 +309,27 @@ function restoreIndex(snapshot, files) {
 // pointer in the index. Staging one records whatever commit the submodule
 // sits on, so a close whose work lives inside a submodule would land its
 // trailer on a superproject commit.
-// [Foreman: 1160] The whole index is read and matched exactly: ls-files takes
-// no --pathspec-from-file, and an argument per path can outgrow the Windows
-// command-line limit.
+// [Foreman: 1160] ls-files takes no --pathspec-from-file, so the paths go in
+// chunks that stay far under the Windows command-line limit, and only exact
+// matches count.
 function gitlinksIn(root, files) {
-  if (!files.length) return [];
   const wanted = new Set(files);
-  return git(root, ["ls-files", "--stage", "-z"], { maxBuffer: 64 * 1024 * 1024 })
-    .split("\0")
-    .filter((line) => line.startsWith("160000 "))
-    .map((line) => line.slice(line.indexOf("\t") + 1).replaceAll("\\", "/"))
-    .filter((file) => wanted.has(file));
+  const links = [];
+  for (let i = 0; i < files.length; ) {
+    const chunk = [];
+    for (let size = 0; i < files.length && size < 16000; i++) {
+      chunk.push(files[i]);
+      size += files[i].length + 3;
+    }
+    links.push(
+      ...git(root, ["ls-files", "--stage", "-z", "--", ...chunk])
+        .split("\0")
+        .filter((line) => line.startsWith("160000 "))
+        .map((line) => line.slice(line.indexOf("\t") + 1).replaceAll("\\", "/"))
+        .filter((file) => wanted.has(file))
+    );
+  }
+  return links;
 }
 
 // An expected entry is an area hint, exactly as `touches` is: `src/api`

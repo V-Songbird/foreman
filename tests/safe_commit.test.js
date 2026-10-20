@@ -648,6 +648,21 @@ describe('safe-commit finish staging discipline', () => {
     assert.equal(git('show', ':src/a.js'), 'staged a\n', 'the user\'s staged content, not finish\'s');
   });
 
+  test('git commit runs with no timeout, so a long pre-commit hook is not killed', () => {
+    const baseline = commitWith({ 'src/a.js': 'base a\n' });
+    writeFile('src/a.js', 'worktree a\n');
+    withShim('commit-timeout.js', `
+      const cp = require('child_process');
+      const real = cp.execFileSync;
+      cp.execFileSync = function (file, args, options) {
+        if (args[0] === 'commit' && options.timeout !== 0) throw new Error('commit timeout ' + options.timeout);
+        return real.apply(this, arguments);
+      };
+    `);
+    const { json } = run(['finish', '--baseline', baseline], { expected: ['src'], message_title: 'task 1/2: a' });
+    assert.equal(json.ok, true, JSON.stringify(json));
+  });
+
   test('a git read that fails after finish\'s git add is refused, the user\'s staging put back', () => {
     const baseline = stagedOverWorktree();
     // Fails the first `git diff --cached` that runs after `git add`.
