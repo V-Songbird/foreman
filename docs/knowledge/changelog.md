@@ -96,6 +96,11 @@ instead.
   `no_task_changes` when `ROADMAP.jsonl` is the only file that changed.
   Opening the entry always changes that file, so before, such a close made a
   commit that held only the roadmap and none of the task's work.
+- When `safe-commit.js finish` refuses after staging the task's files, for
+  example because a file outside `expected` is staged, it now puts each file
+  it staged back to what the index held before, and leaves the rest of the
+  index as you staged it. Before, the refusal reset every staged file to the
+  last commit, so staged content that differed from the working tree was lost.
 - Foreman's reference pages now describe the `task.js start` and
   `task.js finish` close on every host. A task-split run with an entry
   takes its commit boundary from the entry paragraph's `task.js start` and

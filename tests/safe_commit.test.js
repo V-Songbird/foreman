@@ -419,6 +419,45 @@ describe('safe-commit finish staging discipline', () => {
     assert.doesNotMatch(usage, /has already staged ROADMAP\.jsonl/);
   });
 
+  // [Foreman: 1154] A refusal after staging used to reset every staged path
+  // to HEAD. A staged path that matches the baseline in the worktree is in no
+  // diff against it, so only the staged check after `git add` catches it.
+  function refuseAfterStaging() {
+    cleanRepo();
+    writeFile('src/a.js', 'base a\n');
+    writeFile('notes/b.md', 'base b\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'add a and b');
+    const baseline = begin().baseline.head;
+    writeFile('src/a.js', 'staged a\n');
+    git('add', 'src/a.js');
+    writeFile('src/a.js', 'worktree a\n');
+    writeFile('src/c.js', 'new c\n');
+    writeFile('notes/b.md', 'staged b\n');
+    git('add', 'notes/b.md');
+    writeFile('notes/b.md', 'base b\n');
+    const { json } = run(['finish', '--baseline', baseline], {
+      id: '001',
+      expected: ['src'],
+      message_title: 'do the thing',
+    });
+    assert.equal(json.ok, false);
+    assert.equal(json.reason, 'unexpected_files');
+    assert.deepEqual(json.unexpected_files, ['notes/b.md']);
+  }
+
+  test('a refusal after staging puts back the index entries finish replaced', () => {
+    refuseAfterStaging();
+    assert.equal(git('show', ':src/a.js'), 'staged a\n', 'the user\'s staged content, not HEAD\'s or the worktree\'s');
+    assert.equal(git('ls-files', '--', 'src/c.js'), '', 'a file finish added leaves the index again');
+    assert.equal(fs.readFileSync(path.join(project, 'src', 'a.js'), 'utf-8'), 'worktree a\n');
+  });
+
+  test('a refusal after staging leaves a path finish did not stage as the user staged it', () => {
+    refuseAfterStaging();
+    assert.equal(git('show', ':notes/b.md'), 'staged b\n');
+  });
+
   test('a commit landing between begin and finish is refused', () => {
     cleanRepo();
     const baseline = begin().baseline.head;
@@ -641,7 +680,7 @@ describe('safe-commit finish commit and attestation', () => {
   });
 
   // [Foreman: 1140] An increment checkpoint runs without roadmap_close; a
-  // ROADMAP.jsonl already staged by Foreman's own bookkeeping stays staged
+  // ROADMAP.jsonl already staged, by a staged close or by hand, stays staged
   // and out of the checkpoint commit, instead of reading as a stray file
   // whose refusal unstaged the whole index.
   test('a staged ROADMAP.jsonl survives a checkpoint and stays out of its commit', () => {

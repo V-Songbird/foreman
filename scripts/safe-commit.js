@@ -242,6 +242,33 @@ function worktreeDirty(root) {
   ]);
 }
 
+// [Foreman: 1154] Each path's index entry as `ls-files --stage` prints it
+// (mode, object, stage), keyed by path; a path the index lacks is absent.
+function indexEntries(root, files) {
+  if (!files.length) return new Map();
+  return new Map(
+    git(root, ["ls-files", "--stage", "-z", "--", ...files])
+      .split("\0")
+      .filter(Boolean)
+      .map((line) => {
+        const tab = line.indexOf("\t");
+        return [line.slice(tab + 1).replaceAll("\\", "/"), line.slice(0, tab).split(" ")];
+      })
+  );
+}
+
+// Puts each of `files` back to the entry `before` recorded, or out of the
+// index when it had none. Arguments, not stdin: run-git's sandbox fallback
+// refuses `input`.
+function restoreIndex(root, files, before) {
+  const present = files.filter((file) => before.has(file));
+  const absent = files.filter((file) => !before.has(file));
+  if (present.length) {
+    git(root, ["update-index", ...present.flatMap((file) => ["--cacheinfo", before.get(file)[0], before.get(file)[1], file])]);
+  }
+  if (absent.length) git(root, ["update-index", "--force-remove", "--", ...absent]);
+}
+
 // [Foreman: 410] The paths among `files` that are gitlinks — a submodule's
 // pointer in the index. Staging one records whatever commit the submodule
 // sits on, so a close whose work lives inside a submodule would land its
@@ -420,6 +447,9 @@ function finishUnit(root, options) {
   // exists in either tree.
   const dirty = worktreeDirty(root);
   const toStage = changed.filter((file) => dirty.has(file));
+  // [Foreman: 1154] The index entries `git add` is about to replace, so a
+  // refusal below puts back what the user had staged rather than HEAD.
+  const before = indexEntries(root, toStage);
   if (toStage.length) {
     try {
       git(root, ["add", "--", ...toStage]);
@@ -432,9 +462,9 @@ function finishUnit(root, options) {
       };
     }
   }
-  // [Foreman: 1140] Bookkeeping Foreman itself staged (a tracked roadmap's
-  // flip, ahead of an increment checkpoint) is not this unit's: it stays
-  // staged, out of the commit and out of any reset below.
+  // [Foreman: 1140] Bookkeeping already staged when finish runs (by a staged
+  // close, or by hand) is not this unit's: it stays staged and out of the
+  // commit.
   const stagedAll = stagedSince(root, baseline);
   const heldStaged = stagedAll.filter(
     (file) => bookkeeping(file) && !(roadmapClose && CLOSE_BOOKKEEPING.has(file))
@@ -445,7 +475,7 @@ function finishUnit(root, options) {
     : staged.filter((file) => !isOwned(file, allowed));
   const missing = changed.filter((file) => !staged.includes(file));
   if (strayStaged.length || missing.length) {
-    if (staged.length) git(root, ["reset", "-q", "--", ...staged]);
+    restoreIndex(root, toStage, before);
     return {
       ok: false,
       reason: strayStaged.length ? "unexpected_files" : "staging_incomplete",
