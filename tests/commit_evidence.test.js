@@ -237,7 +237,10 @@ describe('submodule-hosted commits', () => {
     const sha = commitFile(project, 'docs/x.md', 'a');
     commitFile(project, 'docs/x.md', 'a2');
 
-    for (const item of ['./docs/x.md', 'docs\\x.md', 'docs/*.md']) {
+    // Git for Windows reads a backslash in a pathspec as `/`; on Unix it escapes the next character.
+    const items = ['./docs/x.md', 'docs/*.md'];
+    if (process.platform === 'win32') items.push('docs\\x.md');
+    for (const item of items) {
       const result = changedSince(project, sha, [item], {});
       assert.equal(result.state, 'stale', item);
       assert.deepEqual(result.changed, ['docs/x.md'], item);
