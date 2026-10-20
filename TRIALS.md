@@ -226,15 +226,17 @@ nothing else:
   and records nothing. A question batched
   into one call with others is one event — the cost being measured is the
   interruption, not the number of fields in it.
-- **`commit_interrupted`** — every `ok:false` return from
-  `scripts/safe-commit.js` (`begin` reporting `dirty: true`, and `finish`'s
-  `head_moved_since_baseline` / `no_task_changes` / `unexpected_files` /
-  `staging_incomplete` / `gitlink_not_expected`), recorded by the caller
-  that receives it, plus `scripts/task.js finish` when `git commit` itself
-  fails (`commit_failed`), and, in Claude Code, `hooks/task-completed.js` when
-  `requireVerification` holds a close (`verification_declined`). `hook`
-  names the surface, `reason_class` copies the refusal name verbatim and
-  nothing else from the result.
+- **`commit_interrupted`** — every refusal `scripts/safe-commit.js` returns
+  (`begin` reporting `dirty: true`, which is an `ok:true` answer, and
+  `finish`'s `ok:false` refusals: `head_moved_since_baseline` /
+  `no_task_changes` / `unexpected_files` / `staging_incomplete` /
+  `staging_failed` / `post_commit_attestation_failed` /
+  `gitlink_not_expected`), recorded by the caller that receives it, plus
+  `scripts/task.js finish` when `git commit` itself fails (`commit_failed`),
+  and, in Claude Code, `hooks/task-completed.js` when `requireVerification`
+  holds a close (`verification_declined`). `hook` names the surface,
+  `reason_class` copies the refusal name verbatim and nothing else from the
+  result.
 - **`recovery_attempted`, `reinit-snapshot`** — `skills/init/write.md`, Write
   phase step 1's four-option question after a failed snapshot. `success: true`
   for a retry that exited 0 or a backup that copied; `success: false` for

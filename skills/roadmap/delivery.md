@@ -48,12 +48,12 @@ picked and follow it together with this file:
   entry, then work the prompt, or each `tasks[]` row, in order with every
   check.
 - In Codex, work the prompt directly. A plan tool may track progress, but it
-  does not replace the roadmap lifecycle: open a selected entry when work
-  starts with `hooks/codex-task.js start` as
-  [the runtime](../foreman/runtime-codex.md) describes, outside an
-  investigation take the commit boundary and close with the entry paragraph's `scripts/task.js start` and
-  `finish`, verify the result, and record its outcome and evidence before
-  reporting completion.
+  does not replace the roadmap lifecycle. Open a selected entry when work
+  starts with `hooks/codex-task.js start`, as
+  [the runtime](../foreman/runtime-codex.md) describes. Outside an
+  investigation, then take the commit boundary and close with the entry
+  paragraph's `scripts/task.js start` and `finish`. Verify the result, and
+  record its outcome and evidence before reporting completion.
 
 ## Close and acceptance
 

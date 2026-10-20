@@ -106,7 +106,11 @@ back under `ledger_dirty` and does not count. A moved HEAD, unexpected files, or
 failed staging needs inspection, never a broader staging command.
 
 - On every host, a handoff's entry paragraph runs that boundary through
-  `scripts/task.js`. `start` takes the boundary, except for an
+  `scripts/task.js`, except two paragraphs that never call it: a Codex or
+  Antigravity investigation, which takes no boundary and closes with
+  `roadmap.js update-status`, and a delegated subagent's, whose coordinator
+  owns the start, the close and the check and closes with `update-status`.
+  Where the paragraph does call it, `start` takes the boundary, except for an
   investigation; in Claude Code it also opens the entry, which
   `hooks/codex-task.js start` opens first in Codex and Antigravity. `finish`
   stages the owned files, closes the entry and commits once, in the form the

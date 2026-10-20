@@ -100,7 +100,12 @@ instead.
   `task.js finish` close on every host. A task-split run with an entry
   takes its commit boundary from the entry paragraph's `task.js start` and
   reads its `next`, instead of running `safe-commit.js begin`. A reviewed run
-  closes through `task.js finish` instead of staging the close by hand.
+  closes through `task.js finish` instead of staging the close by hand. Those
+  pages, and the Codex pages, now also say which handoffs skip the
+  `task.js` calls: an investigation on Codex and Antigravity, and a delegated
+  subagent, whose coordinator closes with `roadmap.js update-status`. The
+  trial-log page lists every refusal `safe-commit.js` returns, and says that
+  `begin` reporting a dirty tree is an `ok:true` answer.
 - The remaining bookkeeping commands that carry free text, such as `add`,
   `check-duplicate`, `correct` and `update-status` with a note, take a quoted
   heredoc too, so an apostrophe in a title, a reason or a note no longer breaks

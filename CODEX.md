@@ -89,7 +89,7 @@ for the source mapping, the Foreman policies kept, and the validation limits.
 | Interactive choices | `AskUserQuestion` | The available Codex question tool, with a plain-text fallback | A pending question is not an answer; explicit scope and acceptance are preserved |
 | Background agents and split task rows | Background `Agent`; `TaskCreate` tasks | Native Codex subagents with bounded ownership and coordinator verification | Shared-tree bookkeeping is serialized; a separate sidebar task needs an explicit request |
 | Opening a task | `TaskCreated` hook, or the prompt's `scripts/task.js start` where no task is created; that start runs either way and takes the commit boundary | `hooks/codex-task.js start` with readiness and status guards, then `scripts/task.js start` for the commit boundary | Exporting a prompt never starts the task |
-| Closing a task | The prompt's `scripts/task.js finish` stages the task's files, closes the entry and commits once | The same `scripts/task.js finish`, then `hooks/codex-task.js check` | An investigation takes no commit boundary; in Codex it closes with `roadmap.js update-status` |
+| Closing a task | The prompt's `scripts/task.js finish` stages the task's files, closes the entry and commits once | The same `scripts/task.js finish`, then `hooks/codex-task.js check` | An investigation takes no commit boundary; in Codex it closes with `roadmap.js update-status`; a delegated Codex subagent runs no `task.js` call, because its coordinator closes with `roadmap.js update-status` |
 | Optional close gate | `TaskCompleted` hook | Explicit `check`, or the finish of a `foreman_<id>` subagent, plus a scoped `Stop`/`SubagentStop` reminder | A normal turn ending or a clarification does not count as task completion |
 | Fresh-session reminders | `SessionStart` on startup and clear, as plain text | `SessionStart` on startup and clear, as JSON `additionalContext` | Hooks must be trusted and enabled. Codex drops plain hook output that starts with `[`, so the notice goes to Codex as JSON (see [Validation and limits](#validation-and-limits)) |
 | Direct roadmap write guard | `PreToolUse` on `Edit` and `Write` | `PreToolUse` on `apply_patch`, `Edit` and `Write` | Covers add, update, delete and move destinations; shell writes are outside this guard on both hosts |
@@ -145,7 +145,9 @@ Between those two calls, an entry handoff takes the commit boundary with
 `scripts/task.js start --id 001` and closes the entry with
 `scripts/task.js finish --id 001 --baseline <baseline>`, which reads the
 close JSON on stdin, stages the task's files and commits once. An
-investigation skips both and closes with `roadmap.js update-status`.
+investigation skips both and closes with `roadmap.js update-status`. A
+delegated subagent runs neither: its coordinator owns the start, the close and
+the check, and closes with `roadmap.js update-status`.
 
 Quote paths containing spaces. `--root` explicitly selects the project. The
 helper uses host session and thread identifiers when available; `--session` and
