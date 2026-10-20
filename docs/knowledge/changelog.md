@@ -25,229 +25,90 @@ listings pin a release commit and carry no version of their own. Claude Code
 releases up to 2.7.0 kept their number in the foundry marketplace listing
 instead.
 
-## Unreleased
+## 4.2.0 — 2026-10-20
 
 ### Every host
 
-- Foreman now needs Git 2.25 or later. The commit helper stages and commits
-  with `--pathspec-from-file`, which older Git lacks, so on Git 2.24 or
-  earlier every `task.js finish` that stages files is refused as
-  `staging_failed`. The index is restored, so nothing is lost. The README's
-  requirements now say so.
-- When `task.js finish` is refused and the commit helper could not put the
-  index back (for example because `index.lock` is held), the refusal's `fix`
-  now names the files still staged and says why, instead of "Nothing was
-  staged". A `staging_incomplete` refusal's `fix` now names the missing and
-  restored files too.
-- That refusal's `fix` now gives an unstage command limited to the files
-  left staged, `git restore --staged -- <files>`, so it no longer resets
-  other staging; for a repository with no commit yet, where that command
-  fails, it also gives `git rm --cached -- <files>`. Every refusal's `fix`
-  now names the files `finish` expected to be staged and were not, not only
-  `staging_incomplete`. In a submodule close the command runs with
-  `git -C <submodule>`, the staged note also appears when only
-  `restore_error` is set, and "Tell the user" appears once.
-- `task.js finish` now reports a commit that landed when a later git read
-  fails, as `safe-commit.js finish` already did. Before, an unreadable HEAD
-  or an error `git commit` reported after it landed the commit was refused as
-  `commit_failed`, and a git-ignored roadmap's refusal told the agent to run
-  the same close again, which then failed as `head_moved_since_baseline`.
-  Now the close is recorded and the result carries a warning; an unreadable
-  HEAD leaves the sha unrecorded, and an attestation that cannot run is a
-  warning. `safe-commit.js finish` also keeps the "not staged" warning for a
-  git-ignored roadmap in its unreadable-HEAD result.
-- The README nav check now recognises a nested list item indented with a tab,
-  so a link in a paragraph under it is no longer skipped as code.
-- An entry that closes with more than 100 files now stores them as folder
-  prefixes with a count each, such as `brand/icons/` for 412 files, so a
-  large entry keeps a short line in `ROADMAP.jsonl`. A later file under a
-  collapsed folder adds nothing, and the next close or `roadmap.js migrate`
-  drops one that an older Foreman added; a folder you named through
-  `add_touches` is not collapsed, so the files under it stay listed.
-  `migrate` also shrinks entries already past 100 files, in the roadmap and
-  the archive, and a second run changes nothing. The entry's commits still
-  hold every file they changed; a file named only through `add_touches` is
-  kept only in the folder count, and `next-candidates --hint` finds the
-  entry by the folder's name, not by a collapsed file's. The roadmap stays
-  format 2, and Foreman 4.1.0 still reads it.
-- The follow-up commands `task.js` returns, such as the close after `start`,
-  the reruns and the Accept option, now run when Foreman's install path or
-  the orchestrator's name holds both a single quote and a `$`. Before, such
-  a value was written in double quotes, so the shell expanded the `$`. Each
-  command now runs unchanged under Bash, sh and PowerShell, on every host. A
-  value holding a single quote that starts with a character other than a
-  letter, digit, `_` or `/` is still written in double quotes.
-- A collapsed folder now counts as its files elsewhere too. A recalled
-  lead's freshness stamp, such as "2 of its 41 files changed since", and the
-  attention-cost precision count each collapsed folder as its stored number
-  of files, and a planned file inside such a folder predicts one of them, not
-  all. The stamp counts the files changed under each collapsed folder only up
-  to that folder's own stored number, so files added under one folder since
-  the anchor never count for recorded paths outside it. A
-  collapsed folder that is a whole submodule, such as `foreman/`, is now
-  dated instead of reading "freshness unknown". `roadmap.js doctor` warns
-  about an `observed_touch_counts` that is not an object, a count that is not
-  a whole number 1 or greater, and a key that names no folder in
-  `observed_touches`.
-- `update-status` now stores each `add_touches` path with forward slashes and
-  no leading `./`, so `.\src\a.js` and `./src/a.js` are recorded as
-  `src/a.js` and match the same file git reports. A glob such as `docs/*.md`
-  is kept as written. A recalled lead's freshness stamp no longer reads
-  "possibly stale: 0 of its N files changed since": a changed file that none
-  of the lead's recorded paths names, such as one an older `add_touches`
-  path or a glob matched, now counts as one changed file, up to the weight of
-  the glob-like paths that named no file, so it cannot stand in for paths
-  recorded under a collapsed prefix or a plain path that did not change.
-- Picking a task now runs `roadmap.js step pick`, which decides each step of
-  the pick and tells the skill what to do next with a short code. The script
-  builds the task menu and its labels, records the pick in the trial log,
-  checks the working tree and works out the destination question's
-  recommendation and cautions. The pick skill no longer reads
-  `destination-question.md`, so a pick loads about a third less text: about
-  9,400 tokens instead of 14,100 in Claude Code. The questions, their options
-  and their rules are the same as before.
-- A commit made after a `cd`, `pushd`, `Push-Location` or `git -C`, or with a
-  `GIT_WORK_TREE`, `GIT_DIR` or `--git-dir` value, whose folder is a shell
-  variable, a `$(...)`, a backtick command or a PowerShell `( ... )`
-  expression that Foreman cannot expand, quoted or not, no longer draws this
-  project's commit reminders. On Windows, Codex and Antigravity run a Bash
-  command in PowerShell, where a backtick is an escape, so there a backtick
-  command after `cd`, `pushd` or `Push-Location` still draws them. A `$`
-  inside single quotes is read as literal. Foreman used to read such a commit
-  as made in the session's folder, so a commit in another repository could ask
-  to close an unrelated roadmap entry. Such a commit now gets no reminder,
-  including one made in the project itself, unless a known `GIT_WORK_TREE` or
-  `--work-tree` names its folder. A commit that follows an assignment such as
-  `A=$(date +%s)`, whose substitution holds a space, does draw its reminders.
-- A `;`, `&&`, `|` or line break inside a `$(...)`, a backtick command or a
-  PowerShell `@(...)` no longer splits the command around it, so a commit
-  such as `A=$(a; b) git commit -m x` or `A="$(date +"%F; %T")" git commit`
-  draws its reminders. A commit inside such a substitution draws them too,
-  read from the folder the shell is in. A `cd` inside a Bash substitution
-  moves nothing after it; a `Set-Location` inside a PowerShell `$(...)` or
-  `@(...)` moves the commands after it, as PowerShell does. An inline
-  `--git-dir=$(x)` no longer hides a known `--work-tree` after it. A
-  `Push-Location` inside a PowerShell `$(...)` or `@(...)` is undone by a
-  `Pop-Location` after it, as PowerShell does.
-- The reminders after a commit are shorter. When one entry is the candidate,
-  its id is already in the command to run.
-- `safe-commit.js finish` with `roadmap_close` now refuses with
-  `no_task_changes` when `ROADMAP.jsonl` is the only file that changed.
-  Opening the entry always changes that file, so before, such a close made a
-  commit that held only the roadmap and none of the task's work.
-- When `safe-commit.js finish` refuses after staging the task's files, for
-  example because a file outside `expected` is staged, it now puts the index
-  back as it found it: your staged content, intent-to-add files and conflict
-  stages included, however many files it staged. Before, the refusal reset
-  every other staged file to the last commit, so staged content that differed
-  from the working tree was lost. When it cannot write the index back, the
-  refusal names the files it left staged in `left_staged`.
-  A file staged and then put back to its last-committed content in the
-  working tree is now refused as `staging_incomplete` and named in
-  `restored_files`. Before, the commit recorded the staged content the
-  working tree no longer held, or, with Foreman's bookkeeping staged, left
-  the file out and overwrote what was staged.
-- When `git commit` fails inside `safe-commit.js finish`, for example because
-  a pre-commit hook refuses it, `finish` now refuses with `commit_failed` and
-  puts back your staged content. Before, it stopped with an error and left
-  its own staging in the index. The commit also no longer stops after 30
-  seconds, so a pre-commit hook that runs a test suite can finish, and
-  `finish` stages and commits any number of files on Windows.
+- Foreman now needs Git 2.25 or later. On older Git, a `task.js finish` that
+  has files to stage is refused as `staging_failed`, and nothing is lost.
+- A refused close no longer costs you staged work. When `safe-commit.js
+  finish` or `task.js finish` refuses, it puts the index back as it found it,
+  including staged content that differs from the working tree. When it
+  cannot, the refusal names the files left staged and gives an unstage
+  command limited to them. Every refusal also names the files it expected to
+  be staged and were not.
+- When a pre-commit hook refuses the commit, `finish` refuses with
+  `commit_failed` and restores your staging. A pre-commit hook that runs a
+  whole test suite or prints a lot of output no longer stops the commit, and
+  `finish` commits any number of files on Windows. A
+  commit that lands but cannot be read back afterwards is reported as made,
+  with a warning, instead of as a failure.
+- `safe-commit.js finish` with a roadmap close refuses with `no_task_changes`
+  when `ROADMAP.jsonl` is the only changed file, so a close no longer commits
+  without the task's work. A file staged and then put back to its committed
+  content is refused as `staging_incomplete`.
+- An entry that closes with more than 100 files stores them as folder
+  prefixes with a file count each, so its line in `ROADMAP.jsonl` stays
+  short. `roadmap.js migrate` shrinks entries already past 100 files. A
+  folder you named through `add_touches` stays listed in full. Freshness
+  stamps and the attention-cost count treat a collapsed folder as its stored
+  number of files. The roadmap stays format 2, and Foreman 4.1.0 still
+  reads it.
+- `update-status` stores `add_touches` paths with forward slashes and no
+  leading `./`, so they match the paths Git reports. A recalled lead no
+  longer reads "possibly stale: 0 of its N files changed since".
+- Picking a task loads less text. The questions and their options are
+  unchanged.
+- Commit reminders are shorter, and a commit in another repository no longer
+  asks to close an entry in this roadmap. A commit after a `cd`, `git -C` or
+  `GIT_DIR` whose folder is a shell variable or a command substitution gets
+  no reminder. A `;`, `&&` or `|` inside a command substitution no longer
+  hides the commit around it.
+- The follow-up commands Foreman returns run unchanged under Bash, sh and
+  PowerShell, also when the install path holds a single quote and a `$`.
+  Bookkeeping commands that carry free text take a quoted heredoc, or a
+  literal here-string in PowerShell, so an apostrophe in a title or note no
+  longer breaks them.
 - Foreman's reference pages now describe the `task.js start` and
-  `task.js finish` close on every host. A task-split run with an entry
-  takes its commit boundary from the entry paragraph's `task.js start` and
-  reads its `next`, instead of running `safe-commit.js begin`. A reviewed run
-  closes through `task.js finish` instead of staging the close by hand. Those
-  pages, and the Codex pages, now also say which handoffs skip the
-  `task.js` calls: on Codex and Antigravity, an investigation, which closes
-  itself with `roadmap.js update-status`, and a delegated subagent, whose
-  coordinator closes it the same way; a Claude Code background Agent still
-  runs them. The
-  trial-log page lists every refusal `safe-commit.js` returns, `commit_failed`
-  included, and says that `begin` reporting a dirty tree is an `ok:true`
-  answer whatever its reason. The prompt template says why a reviewed run
-  pasted without an entry checks `git status --porcelain` before its first
-  task and still commits each checkpoint through `safe-commit` `begin` and
-  `finish`.
-- The remaining bookkeeping commands that carry free text, such as `add`,
-  `check-duplicate`, `correct` and `update-status` with a note, take a quoted
-  heredoc too, so an apostrophe in a title, a reason or a note no longer breaks
-  them. This covers the commit and session-start reminders, the discovery
-  wording and the roadmap, survey and init skills. The reminders and the
-  discovery wording also say that in PowerShell, which Codex and Antigravity
-  use for Bash commands on Windows, the payload goes in as a literal
-  here-string (`@'...'@`) piped into the command instead, since `<<` does not
-  parse there. The skills point to the shared runtime page for that form.
-- When a Git read fails after `safe-commit.js finish` has made its commit, for
-  example a timeout while checking the commit, `finish` now returns
-  `post_commit_attestation_failed` with `committed: true`, the commit's sha
-  when Git could read it, and the error, instead of stopping with an error.
-  When `git commit` reports an error although the commit was made, `warnings`
-  now says so. A refused commit's `error`, in `safe-commit.js finish` and
-  `task.js finish`, now keeps at most 500 characters of Git's output, and a
-  pre-commit hook that prints more than 8 MB no longer stops the commit.
+  `task.js finish` close on every host. Those pages, and the Codex pages,
+  also say which handoffs skip the `task.js` calls: on Codex and Antigravity,
+  an investigation, which closes itself with `roadmap.js update-status`, and
+  a delegated subagent, whose coordinator closes it the same way; a Claude
+  Code background Agent still runs them. The prompt template says why a
+  reviewed run pasted without an entry checks `git status --porcelain` before
+  its first task and still commits each checkpoint through `safe-commit`
+  `begin` and `finish`.
+- The README nav check recognises a nested list item indented with a tab.
 
 ### Claude Code
 
-- A handoff now opens and closes its roadmap entry with two commands,
+- A handoff opens and closes its roadmap entry with two commands,
   `task.js start` and `task.js finish`, instead of a block of steps to follow
-  by hand. `start` opens the entry, records the commit the task starts
-  from, and says whether the working tree already held changes. `finish`
-  stages only the task's own files, closes the entry, commits once with the
-  `Foreman:` line and says whether to ask for acceptance. When `start`
-  recorded no starting commit, other changes are staged, or something was
-  committed since the start, `finish`
-  records the close without staging or committing anything and says which,
-  instead of mixing in someone else's changes. In a multi-task run, the
-  prompt says to run `start` again right after the previous task's commit,
-  before the last task changes any file.
-- `task.js finish` handles more cases. Roadmap files that were already
-  staged now go into the task's commit; before, `finish` refused the close
-  and unstaged everything in the index. When the commit itself fails, for
-  example because a pre-commit hook refuses it, `finish` still says whether
-  to ask for acceptance, and the trial log records the failure. When Git
-  cannot read the tree at `start`, or `finish` runs without the `--baseline`
-  that `start` returned, the message no longer says that someone else changed
-  the tree, and `finish` names the reason `no_baseline`. The prompt now
-  passes the close's JSON through a quoted heredoc, so an apostrophe in the
-  commit message or the notes no longer breaks the command. A Workflow-stage
-  prompt for a background agent that runs Foreman's own `task.js start` or
-  `task.js finish` now fails the prompt check, as `roadmap.js` and
-  `safe-commit.js` commands already did; a project's own `scripts/task.js`
-  passes. The review annotate, the checkpoint finish and the scope-discipline
-  bookkeeping take the same quoted heredoc.
-- The commit reminder also carries the commit's short SHA, so there is no
-  `git rev-parse` step left to run.
-- The full roadmap discovery rules arrive once per session. Later commits get
-  one line that points back to them. After the conversation is compacted, the
-  next commit brings the full rules again. A session whose hook input names no
-  session or transcript still gets the full rules on every commit, and so does
-  a commit made by a subagent.
+  by hand. `finish` stages only the task's own files, closes the entry,
+  commits once with the `Foreman:` line and says whether to ask for
+  acceptance. Roadmap files that were already staged go into that commit.
+  When other changes are staged, something was committed since the start, or
+  no starting commit was recorded, `finish` records the close without staging
+  or committing anything, and says why.
+- The prompt check refuses a Workflow-stage handoff for a background agent
+  that runs Foreman's own `task.js start` or `task.js finish`, as it already
+  did for `roadmap.js` and `safe-commit.js`.
+- The commit reminder carries the commit's short SHA. The full roadmap
+  discovery rules arrive once per session and again after the conversation is
+  compacted; other commits get one line that points back to them.
 
 ### Codex and Antigravity
 
-- A handoff now takes the commit boundary and closes its roadmap entry with
-  `task.js start` and `task.js finish`, as Claude Code does, after
-  `codex-task.js start` opens the entry. Before, the prompt spelled out the
-  `safe-commit.js` steps, and they could go wrong in three ways. A close
-  after a dirty start could stage `ROADMAP.jsonl` into your own pending
-  commit. An entry inside a submodule took its starting point at the project
-  root, so changes there blocked the commit inside the submodule. A roadmap
-  file that was already staged made the close refuse and unstage everything
-  in the index. Now `start` reports a dirty tree as `report_dirty` and
-  `finish` then records the close without staging anything. `start` takes the
-  starting point inside the submodule. `finish` commits staged roadmap files
-  with the task's files.
-- A reviewed-increment checkpoint no longer unstages your whole index when
-  `ROADMAP.jsonl` is already staged. `safe-commit.js finish` without a
-  roadmap close now leaves a staged roadmap or archive file staged and out
-  of the checkpoint commit. The handoff also says to run `task.js start`
-  again after the last checkpoint commit, so the close no longer meets a
-  stale starting point and records itself unstaged.
-- On Linux and macOS a shell command is now read only as Bash reads it, since
-  Bash runs it there. Before, Foreman also read it as PowerShell would, so a
-  commit such as ``echo `date`; cd other; git commit`` could draw this
-  project's commit reminders although it landed in another folder.
+- A handoff takes its commit boundary and closes its entry with
+  `task.js start` and `task.js finish`, after `codex-task.js start` opens the
+  entry. A close after a dirty start no longer stages `ROADMAP.jsonl` into
+  your own pending commit, an entry inside a submodule takes its starting
+  point there, and an already-staged roadmap file no longer makes the close
+  unstage your index.
+- A reviewed-increment checkpoint leaves an already-staged roadmap or archive
+  file staged and out of the checkpoint commit.
+- On Linux and macOS a command is read only as Bash reads it, so a commit in
+  another folder no longer draws this project's reminders.
 
 ## 4.1.0 — 2026-10-14
 
