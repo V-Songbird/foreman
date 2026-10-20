@@ -29,6 +29,8 @@ instead.
 
 ### Every host
 
+- The README nav check now recognises a nested list item indented with a tab,
+  so a link in a paragraph under it is no longer skipped as code.
 - An entry that closes with more than 100 files now stores them as folder
   prefixes with a count each, such as `brand/icons/` for 412 files, so a
   large entry keeps a short line in `ROADMAP.jsonl`. A later file under a
