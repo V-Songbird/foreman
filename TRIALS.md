@@ -138,16 +138,17 @@ honest answer in that case, so the two are recorded together and analyzed
 separately. Both are `null` on a project whose init predates the trial.
 
 `reason_class` is one of the refusal names `scripts/safe-commit.js` already
-returns — `dirty_tree` (its `begin` reporting `dirty: true`),
-`head_moved_since_baseline`, `no_task_changes`, `unexpected_files`,
-`staging_incomplete`, `staging_failed`, `post_commit_attestation_failed`,
-`gitlink_not_expected` (a submodule pointer `finish` was not given by its
-exact path) — plus `commit_failed` (`scripts/task.js finish` when `git
-commit` itself fails, as when a pre-commit hook refuses) and
-`verification_declined` for the `requireVerification`
-hold (written by Claude Code's `hooks/task-completed.js`; Codex's stop
-reminder records none, and Antigravity has neither). Names only: never the
-count of dirty files, never which files were unexpected.
+returns — `dirty_tree` (its `begin` reporting `dirty: true`, whatever
+reason `begin` gives), `head_moved_since_baseline`, `no_task_changes`,
+`unexpected_files`, `staging_incomplete`, `staging_failed`, `commit_failed`
+(`git commit` itself failing, as when a pre-commit hook refuses;
+`scripts/task.js finish` returns it too when its own commit fails),
+`post_commit_attestation_failed`, `gitlink_not_expected` (a submodule
+pointer `finish` was not given by its exact path) — plus
+`verification_declined` for the `requireVerification` hold (written by
+Claude Code's `hooks/task-completed.js`; Codex's stop reminder records none,
+and Antigravity has neither). Names only: never the count of dirty files,
+never which files were unexpected.
 
 ## Where each event would be recorded
 
@@ -228,11 +229,13 @@ nothing else:
   interruption, not the number of fields in it.
 - **`commit_interrupted`** — every refusal `scripts/safe-commit.js` returns
   (`begin` reporting `dirty: true`, which is an `ok:true` answer recorded as
-  `dirty_tree`, and `finish`'s `ok:false` refusals: `head_moved_since_baseline` /
-  `no_task_changes` / `unexpected_files` / `staging_incomplete` /
-  `staging_failed` / `post_commit_attestation_failed` /
+  `dirty_tree` whatever its `reason`: `working_tree_has_changes`,
+  `not_a_git_worktree` or `git_status_unavailable`; and `finish`'s `ok:false`
+  refusals: `head_moved_since_baseline` / `no_task_changes` /
+  `unexpected_files` / `staging_incomplete` / `staging_failed` /
+  `commit_failed` / `post_commit_attestation_failed` /
   `gitlink_not_expected`), recorded by the caller that receives it, plus
-  `scripts/task.js finish` when `git commit` itself fails (`commit_failed`),
+  `scripts/task.js finish` when its own `git commit` fails (`commit_failed`),
   and, in Claude Code, `hooks/task-completed.js` when `requireVerification`
   holds a close (`verification_declined`). `hook` names the surface,
   `reason_class` copies the refusal name verbatim and nothing else from the

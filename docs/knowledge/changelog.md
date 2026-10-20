@@ -132,8 +132,12 @@ instead.
   itself with `roadmap.js update-status`, and a delegated subagent, whose
   coordinator closes it the same way; a Claude Code background Agent still
   runs them. The
-  trial-log page lists every refusal `safe-commit.js` returns, and says that
-  `begin` reporting a dirty tree is an `ok:true` answer.
+  trial-log page lists every refusal `safe-commit.js` returns, `commit_failed`
+  included, and says that `begin` reporting a dirty tree is an `ok:true`
+  answer whatever its reason. The prompt template says why a reviewed run
+  pasted without an entry checks `git status --porcelain` before its first
+  task and still commits each checkpoint through `safe-commit` `begin` and
+  `finish`.
 - The remaining bookkeeping commands that carry free text, such as `add`,
   `check-duplicate`, `correct` and `update-status` with a note, take a quoted
   heredoc too, so an apostrophe in a title, a reason or a note no longer breaks

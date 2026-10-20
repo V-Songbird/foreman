@@ -201,6 +201,19 @@ describe('safe-commit begin', () => {
     assert.match(json.cause, /not a git repository/);
   });
 
+  // [Foreman: 1157] Inside .git, git answers "false" to
+  // --is-inside-work-tree: begin reports it as a dirty tree, ok:true, so the
+  // trial log records it as dirty_tree, never as an ok:false refusal.
+  test('begin outside a work tree reports not_a_git_worktree as dirty, ok:true', () => {
+    cleanRepo();
+    const { beginUnit } = require(SAFE_COMMIT);
+    const json = beginUnit(path.join(project, '.git'));
+    assert.equal(json.ok, true);
+    assert.equal(json.dirty, true);
+    assert.equal(json.reason, 'not_a_git_worktree');
+    assert.equal(json.baseline, undefined);
+  });
+
   // [Foreman: 967] The Codex desktop app's Windows sandbox fails any spawn
   // with piped output as `spawnSync git EPERM`; a preload refuses pipes the
   // same way, and begin still reads the tree through files.

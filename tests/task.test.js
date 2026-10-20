@@ -563,6 +563,21 @@ describe('the reference pages describe task.js on every host', () => {
     assert.match(embed, /check `git status --porcelain`/);
   });
 
+  // [Foreman: 1157] A reviewed clipboard embed without an entry carries the
+  // porcelain gate and each checkpoint's safe-commit boundary; the template
+  // says why both stand.
+  test('the template says why a reviewed entry-less embed carries both boundary forms', () => {
+    const template = read('prompt-template.md');
+    const section = flat(template.slice(template.indexOf('**Clipboard checkpoint embed**'), template.indexOf('## Splitting an `Execute here` handoff')));
+    assert.ok(section.includes('A reviewed run without an entry therefore carries both forms on purpose: `git status --porcelain` before task 1 only decides whether the run commits at all, and each checkpoint\'s `begin`, taken before that increment\'s edits, gives its `finish` the baseline it needs;'), section);
+    for (const host of ['claude', 'codex']) {
+      const embed = checkpointEmbedText({ branch: true, onFinish: 'ask' }, 2, null, true, true, host);
+      assert.match(embed, /git status --porcelain/, host);
+      assert.ok(embed.includes('safe-commit begin/finish boundaries'), host);
+    }
+    assert.ok(flat(read('docs', 'knowledge', 'changelog.md')).includes('The prompt template says why a reviewed run pasted without an entry checks `git status --porcelain` before its first task and still commits each checkpoint through `safe-commit` `begin` and `finish`.'));
+  });
+
   test('a reviewed close runs task.js finish, not a staged close by hand', () => {
     const protocol = flat(read('skills', 'roadmap', 'close-increments.md'));
     assert.ok(protocol.includes("Close with the entry paragraph's close command. Outside an investigation or a coordinator-owned close, that is `task.js finish`"), protocol);
@@ -588,9 +603,14 @@ describe('the reference pages describe task.js on every host', () => {
     const paragraph = trials.slice(start + '`reason_class`'.length, trials.indexOf('Names only', start));
     const listed = [...paragraph.matchAll(/`([a-z]+(?:_[a-z]+)+)`/g)].map((m) => m[1]);
     assert.deepEqual([...new Set(listed)].sort(), [...REASON_CLASSES].sort());
-    assert.ok(flat(paragraph).includes('`commit_failed` (`scripts/task.js finish` when `git commit` itself fails, as when a pre-commit hook refuses)'));
-    assert.ok(flat(trials).includes('plus `scripts/task.js finish` when `git commit` itself fails (`commit_failed`)'));
-    assert.ok(read('scripts', 'trial-log.js').includes("plus scripts/task.js\n// finish's commit_failed"));
+    // [Foreman: 1157] commit_failed is one of safe-commit.js's own refusals
+    // since 1160; task.js finish returns it too.
+    assert.ok(flat(paragraph).includes('`commit_failed` (`git commit` itself failing, as when a pre-commit hook refuses; `scripts/task.js finish` returns it too when its own commit fails)'), flat(paragraph));
+    assert.doesNotMatch(flat(trials), /plus `commit_failed` \(`scripts\/task\.js finish`/);
+    assert.ok(flat(trials).includes('plus `scripts/task.js finish` when its own `git commit` fails (`commit_failed`)'));
+    const trialLog = read('scripts', 'trial-log.js');
+    assert.ok(trialLog.includes('commit_failed among\n// them, which scripts/task.js finish also returns'));
+    assert.ok(trialLog.includes('since [Foreman: 1160],\n  // safe-commit.js finish.'));
   });
 
   // [Foreman: 1141] The commit_interrupted bullet names every refusal
@@ -600,8 +620,16 @@ describe('the reference pages describe task.js on every host', () => {
     const trials = read('TRIALS.md');
     const start = trials.indexOf('- **`commit_interrupted`**');
     const bullet = flat(trials.slice(start, trials.indexOf('- **`recovery_attempted`, `reinit-snapshot`**', start)));
-    const safeCommit = REASON_CLASSES.filter((reason) => !['dirty_tree', 'commit_failed', 'verification_declined'].includes(reason));
+    // [Foreman: 1157] commit_failed is among finish's refusals, and every
+    // reason begin can give is named as a dirty_tree answer.
+    const safeCommit = REASON_CLASSES.filter((reason) => !['dirty_tree', 'verification_declined'].includes(reason));
     for (const reason of safeCommit) assert.ok(bullet.includes(`\`${reason}\``), `commit_interrupted lists ${reason}`);
+    const source = read('scripts', 'safe-commit.js');
+    const state = source.slice(source.indexOf('function repositoryState'), source.indexOf('function gitFailureCause'));
+    const beginReasons = [...state.matchAll(/reason: "([a-z_]+)"/g)].map((m) => m[1]);
+    assert.ok(beginReasons.length > 0);
+    for (const reason of beginReasons) assert.ok(bullet.includes(`\`${reason}\``), `commit_interrupted names begin's ${reason}`);
+    assert.ok(bullet.includes('recorded as `dirty_tree` whatever its `reason`'), bullet);
     assert.ok(bullet.includes('`begin` reporting `dirty: true`, which is an `ok:true` answer recorded as `dirty_tree`'), bullet);
     assert.doesNotMatch(bullet, /every `ok:false` return/);
   });

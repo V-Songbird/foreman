@@ -56,11 +56,12 @@ const oneOf = (...names) => {
 
 const FLOWS = ["init", "pick", "add", "correct", "status", "survey"];
 const HOOKS = ["safe-commit", "post-commit", "task-completed"];
-// The refusal names scripts/safe-commit.js returns, plus scripts/task.js
-// finish's commit_failed and the requireVerification hold; TRIALS.md lists
-// the same names. Names only: never a count of dirty files, never
-// which files were unexpected. safe-commit's own `reason` string is prose
-// about the user's working tree and is deliberately not what this records.
+// The refusal names scripts/safe-commit.js returns, commit_failed among
+// them, which scripts/task.js finish also returns for its own commit, plus
+// the requireVerification hold; TRIALS.md lists the same names. Names only:
+// never a count of dirty files, never which files were unexpected.
+// safe-commit's own `reason` string is prose about the user's working tree
+// and is deliberately not what this records.
 const REASON_CLASSES = [
   "dirty_tree",
   "head_moved_since_baseline",
@@ -75,8 +76,9 @@ const REASON_CLASSES = [
   // [Foreman: 497] finish refusing a submodule gitlink its expected list does
   // not name exactly.
   "gitlink_not_expected",
-  // [Foreman: 1112] task.js finish when git commit itself fails, as when a
-  // project's pre-commit hook refuses.
+  // [Foreman: 1112] git commit itself failing, as when a project's pre-commit
+  // hook refuses: task.js finish's own commit and, since [Foreman: 1160],
+  // safe-commit.js finish.
   "commit_failed",
   "verification_declined",
 ];

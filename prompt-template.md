@@ -1094,7 +1094,13 @@ the pasted session to:
   changed — `git add -- <those paths>`, never `git add -A` — and commit
   `task <n>/<total>: <task subject>`, and leave it local — checkpoints
   are never pushed; in an explicitly reviewed run, only after the user
-  accepts that result, following the embedded review protocol;
+  accepts that result, following the embedded review protocol, which
+  outside a submodule commits each checkpoint through its own safe-commit
+  begin/finish boundary instead. A reviewed run without an entry therefore
+  carries both forms on purpose: `git status --porcelain` before task 1
+  only decides whether the run commits at all, and each checkpoint's
+  `begin`, taken before that increment's edits, gives its `finish` the
+  baseline it needs;
 - the last task carries the roadmap close instead of a `task
   <n>/<total>` commit, when this handoff carries an entry paragraph — on
   every host, run the paragraph's `task.js start` again for a fresh
