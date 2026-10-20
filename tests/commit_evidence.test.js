@@ -25,6 +25,7 @@ const {
   hasExactTrailer,
   evidenceSummary,
   showCommits,
+  changedSince,
 } = require('../scripts/commit-evidence');
 const { trailerIdsIn } = require('../scripts/roadmap');
 
@@ -169,6 +170,21 @@ describe('submodule-hosted commits', () => {
 
     const patch = showCommits(project, [short]);
     assert.match(patch, /\[Foreman: 042\]/);
+  });
+
+  // [Foreman: 1123] A depth-1 collapse stores the submodule's key as "lib/",
+  // which must scope to the whole submodule, not to an empty pathspec.
+  test('a collapsed prefix equal to the submodule key dates the whole submodule', () => {
+    initGitRepo(project);
+    commitFile(project, 'root.js', 'root');
+    const sub = addSubmodule(project, 'lib');
+    const sha = commitFile(sub, 'inner.js', 'inner');
+    commitFile(sub, 'inner.js', 'inner2');
+
+    const result = changedSince(project, sha, ['lib/'], { 'lib/': 5 });
+    assert.equal(result.state, 'stale');
+    assert.deepEqual(result.changed, ['lib/inner.js']);
+    assert.equal(result.checked, 5);
   });
 
   test('shas nothing can show come back null rather than empty text', () => {

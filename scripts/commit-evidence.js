@@ -325,7 +325,8 @@ function changedSince(root, sha, paths, counts) {
   for (const p of wanted) {
     const before = scoped.length;
     if (!prefix) scoped.push(p);
-    else if (p === prefix) scoped.push(".");
+    // [Foreman: 1123] A depth-1 collapse writes the submodule key as "sub/".
+    else if (p === prefix || p === `${prefix}/`) scoped.push(".");
     else if (p.startsWith(`${prefix}/`)) scoped.push(p.slice(prefix.length + 1));
     if (scoped.length > before) checked += touchWeight(counts, p);
   }

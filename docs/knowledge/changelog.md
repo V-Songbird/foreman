@@ -45,7 +45,9 @@ instead.
   lead's freshness stamp, such as "2 of its 41 files changed since", and the
   attention-cost precision count each collapsed folder as its stored number
   of files, and a planned file inside such a folder predicts one of them, not
-  all. `roadmap.js doctor` warns about an `observed_touch_counts` that is not
+  all. The stamp never counts more changed files than that total, and a
+  collapsed folder that is a whole submodule, such as `foreman/`, is now
+  dated instead of reading "freshness unknown". `roadmap.js doctor` warns about an `observed_touch_counts` that is not
   an object, a count that is not a whole number 1 or greater, and a key that
   names no folder in `observed_touches`.
 - Picking a task now runs `roadmap.js step pick`, which decides each step of

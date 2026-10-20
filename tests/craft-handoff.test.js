@@ -1981,6 +1981,23 @@ describe('prior-work recall', () => {
       assert.match(text, /- 300 .*possibly stale: 2 of its 41 files changed since\]/);
     });
 
+    // [Foreman: 1123] Files added under a collapsed prefix after the anchor
+    // were never counted, so they cannot push the numerator past the total.
+    test('files added under a collapsed prefix never exceed its count in the stamp', () => {
+      const repo = makeTmpProject();
+      initGitRepo(repo);
+      const sha = commitFile(repo, 'src/auth/a.js', 'a\n');
+      commitFile(repo, 'src/auth/b.js', 'b\n');
+      commitFile(repo, 'src/auth/c.js', 'c\n');
+      commitFile(repo, 'src/auth/d.js', 'd\n');
+      const rows = [
+        finished('300', ['src/auth/', 'README.md'], { commits: [sha], observed_touch_counts: { 'src/auth/': 1 } }),
+        ...pad(4, 900),
+      ];
+      const text = priorWorkText(rows, { id: '001', planned_touches: ['src/auth/a.js'] }, repo);
+      assert.match(text, /- 300 .*possibly stale: 2 of its 2 files changed since\]/);
+    });
+
     // The P1 decoy: a lead recorded against a path that has since MOVED. The
     // recall still names the old path, which is exactly what anchors a session
     // on a file nothing imports any more — so the stamp has to fire. It does

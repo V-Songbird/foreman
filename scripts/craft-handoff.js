@@ -495,7 +495,9 @@ function recallStamp(root, entry) {
   const short = String(sha).slice(0, 7);
   if (state === "fresh") return ` [at ${short} — its files unchanged since]`;
   if (state === "stale") {
-    return ` [at ${short} — possibly stale: ${changed.length} of its ${checked} files changed since]`;
+    // A file added under a collapsed prefix since the anchor is in `changed`
+    // but was never counted, so the numerator is capped at the denominator.
+    return ` [at ${short} — possibly stale: ${Math.min(changed.length, checked)} of its ${checked} files changed since]`;
   }
   return " [freshness unknown]";
 }
