@@ -29,6 +29,11 @@ instead.
 
 ### Every host
 
+- When `task.js finish` is refused and the commit helper could not put the
+  index back (for example because `index.lock` is held), the refusal's `fix`
+  now names the files still staged and says why, instead of "Nothing was
+  staged". A `staging_incomplete` refusal's `fix` now names the missing and
+  restored files too.
 - The README nav check now recognises a nested list item indented with a tab,
   so a link in a paragraph under it is no longer skipped as code.
 - An entry that closes with more than 100 files now stores them as folder

@@ -213,6 +213,27 @@ function stringList(value, field) {
   return value.map((item) => item.trim());
 }
 
+// [Foreman: 1161] The fix text for a refused finishUnit result. When the
+// helper could not put the index back, its staging is still there, so the text
+// names those files instead of saying nothing was staged.
+function refusalFix(unit) {
+  const left = unit.left_staged || [];
+  const stagedNote = left.length
+    ? ` The commit helper could not restore the index (${unit.restore_error}), so these files are still staged: ${left.join(", ")}. Tell the user, and unstage them with \`git restore --staged\` before anything else.`
+    : "";
+  const untouched = stagedNote ? `${stagedNote} Nothing was closed.` : " Nothing was staged or closed.";
+  const incomplete = [
+    unit.missing_files ? `finish expected these changed files to be staged and they are not: ${unit.missing_files.join(", ")}.` : "",
+    unit.restored_files ? `${unit.error}.` : "",
+  ].filter(Boolean).join(" ");
+  const fixes = {
+    unexpected_files: `Show the user these changed files that \`files\` does not list. Add the ones that are this task's to \`files\` and run the close again; with the user's approval of the rest, run it with --allow-unexpected.${untouched}`,
+    no_task_changes: `Nothing changed since start. Run the close again without \`files\` to record it without a commit.${untouched}`,
+    staging_incomplete: `${incomplete} Tell the user; nothing was closed.${stagedNote}`,
+  };
+  return fixes[unit.reason] || `${unit.error || unit.reason}. Tell the user; nothing was closed.${stagedNote}`;
+}
+
 function refusal(root, reason, fields) {
   recordTrial("commit_interrupted", { hook: "safe-commit", reason_class: reason }, { root });
   return { next: "refused", reason, ...fields };
@@ -303,14 +324,10 @@ function cmdFinish(root, flags, payload) {
     return unstaged(unit.reason, `Something was committed since this task started (HEAD moved from ${unit.baseline.slice(0, 7)} to ${unit.head.slice(0, 7)})`, { baseline: unit.baseline, head: unit.head });
   }
   if (!unit.ok) {
-    const fixes = {
-      unexpected_files: "Show the user these changed files that `files` does not list. Add the ones that are this task's to `files` and run the close again; with the user's approval of the rest, run it with --allow-unexpected. Nothing was staged or closed.",
-      no_task_changes: "Nothing changed since start. Run the close again without `files` to record it without a commit. Nothing was staged or closed.",
-    };
     const { ok, reason, ...details } = unit;
     return refusal(root, reason, {
       ...details,
-      fix: fixes[reason] || `${unit.error || reason}. Tell the user; nothing was closed.`,
+      fix: refusalFix(unit),
       ...(reason === "unexpected_files" ? { then: rerun(" --allow-unexpected") } : {}),
     });
   }
@@ -431,4 +448,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { cmdStart, cmdFinish, plannedSubmodule, carriedFlags, withTrailer, USAGE, SUBCOMMAND_FLAGS };
+module.exports = { cmdStart, cmdFinish, refusalFix, plannedSubmodule, carriedFlags, withTrailer, USAGE, SUBCOMMAND_FLAGS };

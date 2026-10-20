@@ -14,7 +14,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const { makeTmpProject, writeRoadmap, writeArchiveFile, writeConfig, initGitRepo, runNodeScript, runBash, unlessTimedOut, SPAWN_TIMEOUT_MS, SCRIPTS_DIR } = require('./helpers.js');
-const { withTrailer, plannedSubmodule } = require(path.join(SCRIPTS_DIR, 'task.js'));
+const { withTrailer, plannedSubmodule, refusalFix } =require(path.join(SCRIPTS_DIR, 'task.js'));
 const { checkpointEmbedText, claudeEntryParagraphText, codexEntryParagraphText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
 
 const TASK = path.join(SCRIPTS_DIR, 'task.js');
@@ -301,6 +301,31 @@ describe('task.js finish', () => {
     assert.match(result.then, / --allow-unexpected$/);
     assert.deepEqual(stagedNames(), []);
     assert.equal(stored().status, 'in_progress');
+  });
+
+  // [Foreman: 1161] The commit helper's refusal fields reach the fix text.
+  test('the fix text names the files still staged when the index could not be restored', () => {
+    const left = { left_staged: ['src/a.js', 'src/b.js'], restore_error: 'index.lock exists' };
+    for (const reason of ['unexpected_files', 'no_task_changes', 'staging_incomplete', 'staging_failed']) {
+      const fix = refusalFix({ reason, error: 'git add failed', missing_files: ['src/b.js'], ...left });
+      assert.match(fix, /index\.lock exists/, reason);
+      assert.match(fix, /still staged: src\/a\.js, src\/b\.js/, reason);
+      assert.doesNotMatch(fix, /Nothing was staged/, reason);
+    }
+    assert.match(refusalFix({ reason: 'unexpected_files' }), /Nothing was staged or closed\./);
+    assert.doesNotMatch(refusalFix({ reason: 'staging_failed', error: 'x' }), /still staged/);
+  });
+
+  test('the fix text for staging_incomplete names the missing and restored files', () => {
+    const fix = refusalFix({
+      reason: 'staging_incomplete',
+      missing_files: ['src/b.js'],
+      restored_files: ['src/r.js'],
+      error: 'src/r.js is staged, but the working tree holds its baseline content',
+    });
+    assert.match(fix, /not: src\/b\.js\./);
+    assert.match(fix, /src\/r\.js is staged, but the working tree holds its baseline content\./);
+    assert.match(fix, /nothing was closed\./);
   });
 
   test('a git-ignored roadmap commits the task files first and records the sha', () => {
