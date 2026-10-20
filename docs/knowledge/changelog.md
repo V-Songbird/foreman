@@ -78,7 +78,9 @@ instead.
   read from the folder the shell is in. A `cd` inside a Bash substitution
   moves nothing after it; a `Set-Location` inside a PowerShell `$(...)` or
   `@(...)` moves the commands after it, as PowerShell does. An inline
-  `--git-dir=$(x)` no longer hides a known `--work-tree` after it.
+  `--git-dir=$(x)` no longer hides a known `--work-tree` after it. A
+  `Push-Location` inside a PowerShell `$(...)` or `@(...)` is undone by a
+  `Pop-Location` after it, as PowerShell does.
 - The reminders after a commit are shorter. When one entry is the candidate,
   its id is already in the command to run.
 - `safe-commit.js finish` with `roadmap_close` now refuses with
@@ -151,6 +153,10 @@ instead.
   `finish` then records the close without staging anything. `start` takes the
   starting point inside the submodule. `finish` commits staged roadmap files
   with the task's files.
+- On Linux and macOS a shell command is now read only as Bash reads it, since
+  Bash runs it there. Before, Foreman also read it as PowerShell would, so a
+  commit such as ``echo `date`; cd other; git commit`` could draw this
+  project's commit reminders although it landed in another folder.
 
 ## 4.1.0 — 2026-10-14
 

@@ -1384,6 +1384,30 @@ describe('commit directory edge cases', () => {
     assert.deepEqual(commitDirs(`cd ${spaced.replace(/ /g, '` ')}; git commit -m x`, project, true, true, 'linux'), [spaced]);
   });
 
+  // [Foreman: 1128] Outside Windows a Bash-named command gets no PowerShell
+  // reading at all, so a commit made in another folder is that folder's alone.
+  test('a Bash-named command outside Windows gets only the Bash reading', () => {
+    const { shellReadings } = require('../hooks/post-commit');
+    const command = `echo \`date\`; cd "${other}"; git commit -m x`;
+    for (const platform of ['linux', 'darwin']) {
+      const readings = shellReadings('Bash', 'codex', platform);
+      assert.deepEqual(readings, [false]);
+      assert.deepEqual(readings.flatMap((powershell) => commitDirs(command, project, powershell, false, platform)), [other]);
+    }
+    assert.deepEqual(shellReadings('Bash', 'antigravity', 'linux'), [false]);
+    assert.deepEqual(shellReadings('Bash', 'codex', 'win32'), [false, true]);
+    assert.deepEqual(shellReadings('Bash', 'claude', 'win32'), [false]);
+    assert.deepEqual(shellReadings('PowerShell', 'codex', 'linux'), [true]);
+  });
+
+  // [Foreman: 1128]
+  test('a Push-Location inside a PowerShell substitution pushes onto the caller\'s stack', () => {
+    assert.deepEqual(commitDirs(`$o = $(Push-Location "${other}"); Pop-Location; git commit -m x`, project, true, true), [project]);
+    assert.deepEqual(commitDirs(`$o = @(Push-Location "${other}"); Pop-Location; git commit -m x`, project, true, true), [project]);
+    // a Bash substitution pops a copy of the stack, so the caller's stays whole
+    assert.deepEqual(commitDirs(`pushd "${other}"; out=$(popd); git commit -m x`, project), [other]);
+  });
+
   test('env and sudo read their directory option inside a group of short options', () => {
     assert.deepEqual(commitDirs(`env -iC "${other}" git commit -m x`, project), [other]);
     assert.deepEqual(commitDirs(`env -iC"${other}" git commit -m x`, project), [other]);

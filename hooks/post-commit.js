@@ -136,7 +136,7 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false, pl
   const target = (arg) => (powershellTool && platform !== "win32" && arg ? arg.replace(/\\/g, "/") : arg);
   const bashBackticks = !powershell || (!powershellTool && platform !== "win32");
   let dir = cwd;
-  const pushed = [];
+  const pushed = end.pushed ?? [];
   const subshells = [];
   const targets = [];
   const text = command.replace(HEREDOC_RE, (match, heredoc) => heredoc ?? "''");
@@ -153,10 +153,12 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false, pl
     // caller's session, so its Set-Location moves the rest of the command too.
     // [Foreman: 1133] Inside double quotes only that quote's rules hold: an
     // apostrophe there opens no single-quoted span, and PowerShell's `@(` is text.
+    // [Foreman: 1128] The substitution shares the caller's Push-Location
+    // stack in PowerShell, and works on a copy of it in a Bash subshell.
     const subs = (part.match(shell.substitution) || []).flatMap((s) => (s[0] === '"' ? s.slice(1, -1).match(shell.dqSubstitution) || [] : s));
     for (const sub of subs) {
       if (sub.length < 3 || !/^(?:[$@]\(|`)/.test(sub)) continue;
-      const inner = {};
+      const inner = { pushed: bashBackticks ? [...pushed] : pushed };
       targets.push(...commitDirs(sub.slice(sub[0] === "`" ? 1 : 2, -1), dir, powershell, powershellTool, platform, inner));
       if (!bashBackticks) dir = inner.dir;
     }
@@ -752,14 +754,21 @@ const CORRUPT_ROADMAP_MESSAGE =
   `bookkeeping is paused. Run \`node "${SCRIPT_PATH}" doctor\` to see what's ` +
   "wrong — it only reports, it never rewrites.";
 
+// Which shells read a command: `true` is PowerShell's reading, `false` Bash's.
+// [Foreman: 844] Codex and Antigravity name every shell command Bash, even
+// when PowerShell runs it on Windows, so there both readings count.
+// [Foreman: 1128] Outside Windows they run it in Bash, so only Bash reads it.
+function shellReadings(toolName, host, platform = process.platform) {
+  if (toolName === "PowerShell") return [true];
+  return host === "claude" || platform !== "win32" ? [false] : [false, true];
+}
+
 function main() {
   const data = readInput();
   if (!WATCHED_TOOLS.has(data.tool_name)) return;
 
   const command = (data.tool_input?.command || "").trim();
-  // [Foreman: 844] Codex and Antigravity name every shell command Bash, even
-  // when PowerShell runs it on Windows, so there both readings count.
-  const readings = data.tool_name === "PowerShell" ? [true] : hostName() === "claude" ? [false] : [false, true];
+  const readings = shellReadings(data.tool_name, hostName());
   const cwd = path.resolve(data.cwd || process.cwd());
   const dirs = command ? readings.flatMap((powershell) => commitDirs(command, cwd, powershell, data.tool_name === "PowerShell")) : [];
   if (!dirs.length) return;
@@ -864,6 +873,7 @@ if (require.main === module) {
 module.exports = {
   main,
   commitDirs,
+  shellReadings,
   commitFailed,
   wrappedExitCode,
   freshlyDoneStatePath,
