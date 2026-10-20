@@ -1408,6 +1408,8 @@ describe('commit directory edge cases', () => {
     assert.deepEqual(commitDirs(`$o = @(Push-Location "${other}"); Pop-Location; git commit -m x`, project, true, true), [project]);
     // a Bash substitution pops a copy of the stack, so the caller's stays whole
     assert.deepEqual(commitDirs(`pushd "${other}"; out=$(popd); git commit -m x`, project), [other]);
+    assert.deepEqual(commitDirs(`pushd "${other}"; out=$(popd); popd; git commit -m x`, project), [project]);
+    assert.deepEqual(commitDirs(`pushd "${other}"; out=$(popd; git commit -m x)`, project), [project]);
   });
 
   test('env and sudo read their directory option inside a group of short options', () => {
