@@ -494,8 +494,9 @@ describe('the reference pages describe task.js on every host', () => {
   test('the runtimes run the entry paragraph through task.js on every host', () => {
     const shared = flat(read('skills', 'foreman', 'runtime.md'));
     // [Foreman: 1141] Two paragraphs never call task.js: a Codex or Antigravity
-    // investigation and a delegated subagent's, as craft-handoff.js writes them.
-    assert.ok(shared.includes("On every host, a handoff's entry paragraph runs that boundary through `scripts/task.js`, except two paragraphs that never call it: a Codex or Antigravity investigation, which takes no boundary and closes with `roadmap.js update-status`, and a delegated subagent's, whose coordinator owns the start, the close and the check and closes with `update-status`. Where the paragraph does call it, `start` takes the boundary, except for an investigation; in Claude Code it also opens the entry, which `hooks/codex-task.js start` opens first in Codex and Antigravity."), shared);
+    // investigation and a Codex or Antigravity delegated subagent's, as
+    // craft-handoff.js writes them; a Claude Code background Agent still calls it.
+    assert.ok(shared.includes("On every host, a handoff's entry paragraph runs that boundary through `scripts/task.js`, except two paragraphs that never call it: a Codex or Antigravity investigation, which takes no boundary and closes with `roadmap.js update-status`, and a Codex or Antigravity delegated subagent's, whose coordinator owns the start, the close and the check and closes with `update-status`. A Claude Code background Agent's paragraph does call it. Where the paragraph does call it, `start` takes the boundary, except for an investigation; in Claude Code it also opens the entry, which `hooks/codex-task.js start` opens first in Codex and Antigravity."), shared);
     assert.ok(shared.includes('A `report_dirty` answer from `start` means it took no boundary and the close will stage and commit nothing; from `finish`, it means nothing was staged or committed.'));
     assert.ok(shared.includes('When no entry paragraph supplies `task.js finish`, a staged close by hand runs `finish --no-commit`'));
     assert.doesNotMatch(read('skills', 'foreman', 'runtime.md'), /that trailer\. Record\n/);
