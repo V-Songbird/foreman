@@ -698,6 +698,106 @@ describe('safe-commit finish staging discipline', () => {
     assert.equal(git('show', ':src/a.js'), 'staged a\n');
   });
 
+  // [Foreman: 1164] A read after the commit lands returns a structured
+  // result that says the commit was made, instead of throwing.
+  function failAfterCommit(name, failing) {
+    withShim(name, `
+      const cp = require('child_process');
+      const real = cp.execFileSync;
+      let committed = false;
+      cp.execFileSync = function (file, args) {
+        if (committed && (${failing})(args)) {
+          throw Object.assign(new Error('git read failed'), { stderr: 'fatal: simulated read failure' });
+        }
+        const out = real.apply(this, arguments);
+        if (args[0] === 'commit') committed = true;
+        return out;
+      };
+    `);
+  }
+
+  function finishAfterCommit(baseline) {
+    const { status, json } = run(['finish', '--baseline', baseline], {
+      id: '001',
+      expected: ['src'],
+      message_title: 'do the thing',
+    });
+    assert.equal(status, 0, JSON.stringify(json));
+    return json;
+  }
+
+  test('a git read that fails after the commit lands returns the commit, not a throw', () => {
+    const baseline = commitWith({ 'src/a.js': 'base a\n' });
+    writeFile('src/a.js', 'worktree a\n');
+    failAfterCommit('fail-rev-list.js', "(args) => args[0] === 'rev-list'");
+    const json = finishAfterCommit(baseline);
+    const head = git('rev-parse', 'HEAD').trim();
+    assert.notEqual(head, baseline);
+    assert.equal(json.ok, false);
+    assert.equal(json.reason, 'post_commit_attestation_failed');
+    assert.equal(json.committed, true);
+    assert.equal(json.commit, head);
+    assert.match(json.error, /simulated read failure/);
+  });
+
+  test('an unreadable HEAD after the commit lands is reported as committed', () => {
+    const baseline = commitWith({ 'src/a.js': 'base a\n' });
+    writeFile('src/a.js', 'worktree a\n');
+    failAfterCommit('fail-head.js', "(args) => args[0] === 'rev-parse' && args.includes('HEAD') && !args.includes('--verify')");
+    const json = finishAfterCommit(baseline);
+    assert.notEqual(git('rev-parse', 'HEAD').trim(), baseline);
+    assert.equal(json.reason, 'post_commit_attestation_failed');
+    assert.equal(json.committed, true);
+    assert.equal(json.commit, undefined);
+    assert.match(json.error, /could not read HEAD/);
+  });
+
+  test('an error git commit reports after the commit landed reaches warnings', () => {
+    const baseline = commitWith({ 'src/a.js': 'base a\n' });
+    writeFile('src/a.js', 'worktree a\n');
+    withShim('commit-then-throw.js', `
+      const cp = require('child_process');
+      const real = cp.execFileSync;
+      cp.execFileSync = function (file, args) {
+        const out = real.apply(this, arguments);
+        if (args[0] === 'commit') {
+          throw Object.assign(new Error('git commit failed'), { stderr: 'error: unable to write new index file' });
+        }
+        return out;
+      };
+    `);
+    const json = finishAfterCommit(baseline);
+    assert.equal(json.committed, true, JSON.stringify(json));
+    assert.equal(json.commit, git('rev-parse', 'HEAD').trim());
+    assert.ok((json.warnings || []).some((w) => /unable to write new index file/.test(w)), JSON.stringify(json));
+  });
+
+  function loudHook(exitCode) {
+    const hooks = path.join(project, '.git', 'hooks');
+    fs.mkdirSync(hooks, { recursive: true });
+    fs.writeFileSync(path.join(hooks, 'pre-commit'), `#!/bin/sh\nnode -e "process.stderr.write('x'.repeat(9000000))"\nexit ${exitCode}\n`, { mode: 0o755 });
+    git('config', 'core.hooksPath', hooks);
+  }
+
+  test('a rejecting hook\'s long output is capped in the refusal', () => {
+    const baseline = stagedOverWorktree();
+    loudHook(1);
+    const json = finishRefused(baseline);
+    assert.equal(json.reason, 'commit_failed');
+    assert.ok(json.error.length <= 500, `error is ${json.error.length} characters`);
+    assert.equal(json.staged, false);
+    assert.equal(git('show', ':src/a.js'), 'staged a\n');
+  });
+
+  test('a hook printing more than 8 MB does not stop the commit', () => {
+    const baseline = commitWith({ 'src/a.js': 'base a\n' });
+    writeFile('src/a.js', 'worktree a\n');
+    loudHook(0);
+    const json = finishAfterCommit(baseline);
+    assert.equal(json.ok, true, JSON.stringify(json).slice(0, 500));
+    assert.equal(json.committed, true);
+  });
+
   test('an index write that fails midway removes its own index.lock and reports nothing as unstaged', () => {
     const baseline = commitWith({ 'src/a.js': 'base a\n' });
     writeFile('src/a.js', 'worktree a\n');

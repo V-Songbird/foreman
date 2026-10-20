@@ -392,6 +392,21 @@ describe('task.js finish', () => {
     assert.ok(events.some((e) => e.event === 'commit_interrupted' && e.reason_class === 'commit_failed'), JSON.stringify(events));
   });
 
+  // [Foreman: 1164] Git sends hook output to stderr; a hook that runs a suite
+  // must not put all of it into the refusal.
+  test('a rejecting hook\'s long output is capped in task.js\'s commit_failed', () => {
+    repo();
+    const hooks = path.join(path.dirname(project), 'hooks');
+    fs.mkdirSync(hooks);
+    fs.writeFileSync(path.join(hooks, 'pre-commit'), `#!/bin/sh\nnode -e "process.stderr.write('x'.repeat(9000000))"\nexit 1\n`, { mode: 0o755 });
+    git('config', 'core.hooksPath', hooks);
+    const start = ok(['start', '--id', '001']);
+    write('src/a.js', 'two\n');
+    const result = runThen(start.then, { status: 'done', files: ['src/a.js'], message: 'Change a' });
+    assert.equal(result.reason, 'commit_failed');
+    assert.ok(result.error.length <= 500, `error is ${result.error.length} characters`);
+  });
+
   // [Foreman: 1112] Without a baseline, finish knows only that start took no
   // boundary, not that someone else's changes were there.
   test('a hand-run finish without --baseline names the missing boundary, not foreign changes', () => {

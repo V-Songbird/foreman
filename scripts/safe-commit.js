@@ -507,7 +507,8 @@ function finishUnit(root, options) {
     ok: false,
     reason,
     baseline,
-    error: error.stderr ? String(error.stderr).trim() : error.message,
+    // [Foreman: 1164] Bounded: git sends a hook's output to stderr.
+    error: gitFailureCause(error),
     ...restoreIndex(before, toStage),
   });
   if (toStage.length) {
@@ -576,20 +577,50 @@ function finishUnit(root, options) {
   // A pathspec commit (--only) records just these paths and leaves the held
   // bookkeeping staged; the worktree matches the index for each of them here.
   // No timeout, as in task.js: a project's pre-commit hook may run its suite.
+  // [Foreman: 1164] No output limit either: git sends the hook's output to
+  // stderr, and a full buffer would kill git mid-commit.
+  const unbounded = { timeout: 0, maxBuffer: Infinity };
+  let commitError = null;
   try {
-    if (heldStaged.length) gitWithPaths(root, ["commit", "-q", ...messageArgs], staged, { timeout: 0 });
-    else git(root, ["commit", "-q", ...messageArgs], { timeout: 0 });
+    if (heldStaged.length) gitWithPaths(root, ["commit", "-q", ...messageArgs], staged, unbounded);
+    else git(root, ["commit", "-q", ...messageArgs], unbounded);
   } catch (error) {
-    // A rejecting hook leaves HEAD on the baseline. A commit that landed
-    // before git failed keeps its index and is attested below.
-    let head = baseline;
-    try {
-      head = git(root, ["rev-parse", "HEAD"]).trim();
-    } catch {}
-    if (head === baseline) return failedAfterStaging("commit_failed", error);
+    commitError = error;
   }
-  const commit = git(root, ["rev-parse", "HEAD"]).trim();
-  const attested = attestCommit(root, { baseline, commit, id, roadmapClose });
+  // [Foreman: 1164] Once the commit may have landed, a failed read returns
+  // what is known instead of throwing.
+  const landed = (fields, error) => ({
+    ok: false,
+    reason: "post_commit_attestation_failed",
+    committed: true,
+    baseline,
+    ...fields,
+    files: staged,
+    ...(ledgerExcluded.length ? { ledger_excluded: ledgerExcluded } : {}),
+    error,
+  });
+  let commit;
+  try {
+    commit = git(root, ["rev-parse", "HEAD"]).trim();
+  } catch (error) {
+    // An unreadable HEAD after a failed commit counts as the baseline.
+    if (commitError) return failedAfterStaging("commit_failed", commitError);
+    return landed({}, `the commit landed, but git could not read HEAD: ${gitFailureCause(error)}`);
+  }
+  // A rejecting hook leaves HEAD on the baseline. A commit that landed
+  // before git failed keeps its index and is attested below.
+  if (commitError && commit === baseline) return failedAfterStaging("commit_failed", commitError);
+  const warnings = [
+    ...(notice.warnings || []),
+    ...(commitError ? [`git commit reported an error after the commit landed: ${gitFailureCause(commitError)}`] : []),
+  ];
+  const warned = warnings.length ? { warnings } : {};
+  let attested;
+  try {
+    attested = attestCommit(root, { baseline, commit, id, roadmapClose });
+  } catch (error) {
+    return { ...landed({ commit }, `the commit landed, but git could not check it: ${gitFailureCause(error)}`), ...warned };
+  }
   return {
     ok: attested.ok,
     ...(attested.ok ? {} : { reason: "post_commit_attestation_failed" }),
@@ -599,7 +630,7 @@ function finishUnit(root, options) {
     files: staged,
     ...(ledgerExcluded.length ? { ledger_excluded: ledgerExcluded } : {}),
     attested,
-    ...notice,
+    ...warned,
   };
 }
 
@@ -647,7 +678,12 @@ error; a refusal is a successful call reporting ok:false).
             A file staged and then put back to its baseline content in the
             tree is refused as staging_incomplete, named in restored_files.
             A git commit that fails, as when a pre-commit hook refuses,
-            is refused as commit_failed.
+            is refused as commit_failed; its error keeps at most 500
+            characters of git's output. A git read that fails after the
+            commit landed returns post_commit_attestation_failed with
+            committed:true, error, and commit when HEAD could be read. An
+            error git commit reports after the commit landed goes into
+            warnings.
             A refusal after staging leaves the index as finish found it;
             when it cannot write the index back, left_staged names the
             files finish staged and restore_error says why.
@@ -726,6 +762,7 @@ module.exports = {
   changedSinceBaseline,
   isOwned,
   git,
+  gitFailureCause,
   stagedSince,
   CLOSE_BOOKKEEPING,
   ROADMAP_FILE,

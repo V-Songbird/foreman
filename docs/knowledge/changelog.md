@@ -147,6 +147,14 @@ instead.
   use for Bash commands on Windows, the payload goes in as a literal
   here-string (`@'...'@`) piped into the command instead, since `<<` does not
   parse there. The skills point to the shared runtime page for that form.
+- When a Git read fails after `safe-commit.js finish` has made its commit, for
+  example a timeout while checking the commit, `finish` now returns
+  `post_commit_attestation_failed` with `committed: true`, the commit's sha
+  when Git could read it, and the error, instead of stopping with an error.
+  When `git commit` reports an error although the commit was made, `warnings`
+  now says so. A refused commit's `error`, in `safe-commit.js finish` and
+  `task.js finish`, now keeps at most 500 characters of Git's output, and a
+  pre-commit hook that prints more than 8 MB no longer stops the commit.
 
 ### Claude Code
 

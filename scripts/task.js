@@ -36,7 +36,7 @@ const {
   normalizedTouch,
   submodulePaths,
 } = require("./roadmap");
-const { beginUnit, finishUnit, attestCommit, isOwned, git, stagedSince, CLOSE_BOOKKEEPING, ROADMAP_FILE } = require("./safe-commit");
+const { beginUnit, finishUnit, attestCommit, isOwned, git, gitFailureCause, stagedSince, CLOSE_BOOKKEEPING, ROADMAP_FILE } = require("./safe-commit");
 const { render } = require("./render-sections");
 const { record: recordTrial } = require("./trial-log");
 const { projectDir, parseFlags, printHelp } = require("./runtime");
@@ -150,7 +150,8 @@ function withTrailer(message, id) {
 
 function commit(cwd, message) {
   // No timeout: a project's pre-commit hook may run its whole suite.
-  git(cwd, ["commit", "-q", "-m", message], { timeout: 0 });
+  // [Foreman: 1164] No output limit: git sends the hook's output to stderr.
+  git(cwd, ["commit", "-q", "-m", message], { timeout: 0, maxBuffer: Infinity });
   return git(cwd, ["rev-parse", "HEAD"]).trim();
 }
 
@@ -343,7 +344,7 @@ function cmdFinish(root, flags, payload) {
       sha = commit(cwd, text);
     } catch (error) {
       return refusal(root, "commit_failed", {
-        error: String(error.stderr || error.message).trim(),
+        error: gitFailureCause(error),
         closed: true,
         fix: `The close is recorded and staged with the task's files. Fix what stopped the commit, then commit once with \`git commit\`, with \`${commitTrailerFor(id)}\` as the final line of the message. Then act on after.`,
         // [Foreman: 1112] The close is recorded, so its acceptance step follows.
@@ -357,7 +358,7 @@ function cmdFinish(root, flags, payload) {
       sha = commit(cwd, text);
     } catch (error) {
       return refusal(root, "commit_failed", {
-        error: String(error.stderr || error.message).trim(),
+        error: gitFailureCause(error),
         closed: false,
         fix: "The task's files are staged and the entry is still open. Fix what stopped the commit, then run the same close again.",
         then: rerun(),
