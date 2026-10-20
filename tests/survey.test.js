@@ -107,7 +107,11 @@ describe("survey skill contract", () => {
     assert.match(confirm, /Do not manufacture a completion SHA/);
     assert.match(skill, /Use `\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/roadmap\.js` for all roadmap reads and\s+mutations/);
     assert.match(confirm, /never touch `ROADMAP\.jsonl`\s+directly/);
-    assert.match(confirm, /send it the way \[the shared runtime\]\(\.\.\/foreman\/runtime\.md\)\s+describes rather than inside shell quotes/);
+    // [Foreman: 1124] Free-text payloads go through a quoted heredoc, not shell quotes.
+    assert.match(confirm, /goes through a quoted heredoc, as written/);
+    assert.match(confirm, /update-status <<'EOF'\s+\{"id":"<candidate>","status":"dropped"/);
+    assert.match(confirm, /roadmap\.js correct <<'EOF'/);
+    assert.match(confirm, /roadmap\.js annotate <<'EOF'/);
   });
 
   test("step 1 keeps existence and commit facts mechanical", () => {

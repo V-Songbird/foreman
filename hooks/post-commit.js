@@ -549,8 +549,8 @@ function statusSyncBlock(inProgress, freshlyDone, requireVerification, committed
           `Then ask the user ${host === "claude" ? "(AskUserQuestion) " : ""}` +
           "whether it is verified and working. Only on their confirmation, close it: " +
           `echo '{"id":"${id}","status":"done"}' | node "${SCRIPT_PATH}" update-status. ` +
-          "If they say it's not ready, send it back: " +
-          `echo '{"id":"${id}","status":"in_progress","notes":"<what they said>"}' | node "${SCRIPT_PATH}" update-status. ` +
+          "If they say it's not ready, send it back through a quoted heredoc:\n" +
+          `node "${SCRIPT_PATH}" update-status <<'EOF'\n{"id":"${id}","status":"in_progress","notes":"<what they said>"}\nEOF\n` +
           "With no user to ask (a background " +
           "agent), leave it awaiting_acceptance." +
           (dispatched.length
@@ -701,8 +701,8 @@ function claudeDiscoveryBlock(requireVerification = true) {
     "(work it now in this session) / Execute with a " +
     "background Agent (run_in_background: true) / Reject — both Add and " +
     "Reject use the same `add` call, only the status field differs " +
-    '("planned" for Add, "rejected" for Reject): ' +
-    `echo '{"title":"...","why":"...","what":"...","source":"claude-suggested","status":"planned"}' | node "${SCRIPT_PATH}" add. ` +
+    '("planned" for Add, "rejected" for Reject), sent through a quoted heredoc:\n' +
+    `node "${SCRIPT_PATH}" add <<'EOF'\n{"title":"...","why":"...","what":"...","source":"claude-suggested","status":"planned"}\nEOF\n` +
     "Also scan for the inverse case: work already implemented in this " +
     "commit that goes beyond what any in_progress task's `what` describes — " +
     "scope that grew mid-session (e.g. the user asked for something related " +

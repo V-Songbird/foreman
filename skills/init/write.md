@@ -67,12 +67,14 @@ descriptive branch first (`codex/<descriptive-name>` in Codex).
    (truncate or delete it) and pass that highest id as
    `"ids_after":"<old max>"` on the FIRST `add` call in step 2 below;
    numbering continues past it and every later add follows on from there.
-2. For each drafted task, call `add` with its fields as JSON over stdin. The
-   `echo` form shows the payload's shape; pass user-written text the way
-   [the shared runtime](../foreman/runtime.md) says:
+2. For each drafted task, call `add` with its fields as JSON over stdin,
+   through a quoted heredoc so an apostrophe in user-written text keeps its
+   quoting ([the shared runtime](../foreman/runtime.md) describes the
+   PowerShell and payload-file forms):
    ```
-   echo '{"title":"...","why":"...","what":"...","source":"user","depends_on":[],"planned_touches":[]}' \
-     | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js add
+   node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js add <<'EOF'
+   {"title":"...","why":"...","what":"...","source":"user","depends_on":[],"planned_touches":[]}
+   EOF
    ```
    `source` is `"user"` only for work the user stated. Work you proposed,
    including goals drafted from the repository, takes the host's value:

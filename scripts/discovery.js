@@ -20,9 +20,9 @@ function duplicateCheckStep(scriptPath) {
   return (
     "Every candidate MUST go through the duplicate check before you offer or report it — the roadmap's " +
     "existing entries are deliberately not in your context, so this call is " +
-    "the only thing between a suggestion and a duplicate: " +
-    `echo '{"title":"...","why":"..."}' | node "${scriptPath}" check-duplicate ` +
-    "— matches carry each entry's status. A rejected match means the user " +
+    "the only thing between a suggestion and a duplicate (a quoted heredoc keeps an apostrophe as written):\n" +
+    `node "${scriptPath}" check-duplicate <<'EOF'\n{"title":"...","why":"..."}\nEOF\n` +
+    "Matches carry each entry's status. A rejected match means the user " +
     "already declined it: skip silently. Any other status (planned/" +
     "in_progress/done/...) means it's already tracked: skip it, or mention " +
     "the existing entry's id if the new observation adds something."
@@ -39,8 +39,8 @@ function delegatedDiscoveryInstructions(orchestrator, host, scriptPath) {
     duplicateCheckStep(scriptPath) + " " +
     `Acceptance for this session belongs to the orchestrator ${orchestrator}, so ` +
     "don't ask the user. A worker lists each unmatched candidate, with its " +
-    `evidence, in its report to ${orchestrator}; the orchestrator adds it itself: ` +
-    `echo '{"title":"...","why":"...","what":"...","source":"${host}-suggested","status":"planned"}' | node "${scriptPath}" add. ` +
+    `evidence, in its report to ${orchestrator}; the orchestrator adds it itself, through a quoted heredoc:\n` +
+    `node "${scriptPath}" add <<'EOF'\n{"title":"...","why":"...","what":"...","source":"${host}-suggested","status":"planned"}\nEOF\n` +
     "Say nothing if nothing is confirmed."
   );
 }

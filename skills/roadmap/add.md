@@ -12,7 +12,11 @@
    flow later hands it a decide-don't-build rule. A build is the default;
    don't ask unless the entry genuinely looks like a decision.
 2. Before writing it, check it isn't already tracked:
-   `echo '{"title":"...","why":"..."}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js check-duplicate`
+   ```
+   node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js check-duplicate <<'EOF'
+   {"title":"...","why":"..."}
+   EOF
+   ```
    — matches carry each entry's status. On a match, name the existing
    id/title/status in one line and ask whether to add anyway — one question,
    `AskUserQuestion` in Claude Code or the picker in
@@ -26,9 +30,13 @@
    `update-status dropped`, which leaves the row in the file forever. Wording
    that later turns out wrong is repairable (see [correct.md](correct.md)); a
    task that shouldn't exist is not.
-3. `echo '{"title":"...","why":"...","what":"...","source":"user","depends_on":[...],"planned_touches":[...]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js add`
-   — send user-written text through a heredoc, here-string, or payload file
-   in the project's `tmp/`, as the runtime describes. The script computes
+3. ```
+   node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js add <<'EOF'
+   {"title":"...","why":"...","what":"...","source":"user","depends_on":[...],"planned_touches":[...]}
+   EOF
+   ```
+   — the quoted heredoc keeps an apostrophe in user-written text as written
+   (the runtime describes the PowerShell and payload-file forms). The script computes
    the id, validates required fields (including that every `depends_on` id
    already exists), and confirms the file is still well-formed after
    writing. An exact replay safely returns the existing entry with

@@ -63,9 +63,10 @@ function buildMessage(open, todayStr, host = hostName()) {
   return (
     `[Foreman] Roadmap entries still open: ${items.join(", ")}. ` +
     "Informational only — don't act on this unless the user asks. If one " +
-    "of these actually concluded, it can be closed via " +
-    `echo '{"id":"<id>","status":"<done|dropped>","commit":"<sha>","notes":"..."}' | node "${SCRIPT_PATH}" update-status ` +
-    `(commit first if code changed); ${RESUME_HINT[host]}`
+    "of these actually concluded, it can be closed through a quoted heredoc " +
+    "(commit first if code changed):\n" +
+    `node "${SCRIPT_PATH}" update-status <<'EOF'\n{"id":"<id>","status":"<done|dropped>","commit":"<sha>","notes":"..."}\nEOF\n` +
+    RESUME_HINT[host]
   );
 }
 

@@ -12,8 +12,14 @@ model — never pass one.
   result trails with the dispatched agent's id (`agentId: a<16 hex>`). For a
   roadmap entry, capture it immediately with one annotate call, so a later
   session can resume this exact agent instead of re-crafting a prompt from its
-  notes:
-  `` echo '{"id":"<id>","notes":"dispatched to background agent `<agent-id>`"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js annotate ``
+  notes, through a quoted heredoc so the backticks stay as written:
+
+  ```
+  node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js annotate <<'EOF'
+  {"id":"<id>","notes":"dispatched to background agent `<agent-id>`"}
+  EOF
+  ```
+
   (the script date-stamps each appended note itself — don't write one in). The
   phrase "background agent" followed by the backticked id is the exact marker
   grammar the resume flow parses — the id's own charset (`a` + lowercase hex)

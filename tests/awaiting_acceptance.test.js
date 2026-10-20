@@ -378,7 +378,8 @@ describe('skill contracts', () => {
     assert.match(accept, /`Accept: <title> \(<id>\)`/);
     assert.ok(accept.includes(`echo '{"id":"<id>","status":"done"}'`));
     assert.match(accept, /declining sends it back/);
-    assert.ok(accept.includes(`echo '{"id":"<id>","status":"in_progress","notes":"<what they said>"}'`));
+    // [Foreman: 1124] The send-back carries the user's words, so it uses a quoted heredoc.
+    assert.ok(accept.includes(`update-status <<'EOF'\n{"id":"<id>","status":"in_progress","notes":"<what they said>"}\nEOF`));
   });
 
   // [Foreman: 185] The primary close path honors requireVerification: the

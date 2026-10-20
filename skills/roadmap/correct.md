@@ -19,8 +19,13 @@ says what it currently claims.
    open, ask **one** question first — `AskUserQuestion` in Claude Code, the
    picker in [questions.md](../foreman/questions.md) in Codex:
    `Apply the correction` / `Never mind`.
-3. `echo '{"id":"...","expected_updated_at":"<the updated_at from step 1>","expected":{"what":"<the what step 1 just returned>"},"what":"..."}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js correct`
-   — pass the fetched `updated_at` verbatim as `expected_updated_at`; it is
+3. ```
+   node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js correct <<'EOF'
+   {"id":"...","expected_updated_at":"<the updated_at from step 1>","expected":{"what":"<the what step 1 just returned>"},"what":"..."}
+   EOF
+   ```
+   — the quoted heredoc keeps an apostrophe in either wording as written.
+   Pass the fetched `updated_at` verbatim as `expected_updated_at`; it is
    what stops a correction composed against an older version from
    overwriting a newer one. `expected_updated_at` is date-only, so a second
    same-day correction still needs `expected`: one entry per field being

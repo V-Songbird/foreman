@@ -24,9 +24,10 @@ Batch at most a handful of entries into one question, and only while every
 option still names its own entry and field.
 **Never offer a single blanket "apply everything"**.
 
-The `echo` lines show each payload's shape; when one carries evidence or
-rewritten text, send it the way [the shared runtime](../foreman/runtime.md)
-describes rather than inside shell quotes.
+Each command shows its payload's shape; one that carries evidence or
+rewritten text goes through a quoted heredoc, as written, so an apostrophe
+keeps its quoting ([the shared runtime](../foreman/runtime.md) describes the
+PowerShell and payload-file forms).
 
 - **`hidden-dependency`** → on confirm:
   `echo '{"id":"<candidate>","add_depends_on":["<dep-id>"]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-deps`
@@ -35,7 +36,11 @@ describes rather than inside shell quotes.
   the ranking algorithm reads, so a later session honors it without anyone
   having to remember a note.
 - **`already-done` / `duplicate`** → on confirm:
-  `echo '{"id":"<candidate>","status":"dropped","notes":"survey: <one-line evidence>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
+  ```
+  node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status <<'EOF'
+  {"id":"<candidate>","status":"dropped","notes":"survey: <one-line evidence>"}
+  EOF
+  ```
   (or `"done"` with the actual `commit` if the evidence points to a specific
   commit that already did the work). Do not manufacture a completion SHA.
 - **`stale-description` / `stale-touches`** with a concrete proposal → on
@@ -47,7 +52,11 @@ describes rather than inside shell quotes.
      the value the write is guarded by, the investigators ran for a
      while in between, and `next-candidates` does not return that field at
      all.
-  2. `echo '{"id":"<candidate>","expected_updated_at":"<the updated_at that read just returned>","expected":{"what":"<the what that read just returned>","planned_touches":[<the planned_touches that read just returned>]},"what":"<approved what>","planned_touches":[<approved paths>]}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js correct`
+  2. ```
+     node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js correct <<'EOF'
+     {"id":"<candidate>","expected_updated_at":"<the updated_at that read just returned>","expected":{"what":"<the what that read just returned>","planned_touches":[<the planned_touches that read just returned>]},"what":"<approved what>","planned_touches":[<approved paths>]}
+     EOF
+     ```
      — only the approved fields go in the payload, each paired with its own
      `expected.<field>` holding the CURRENT value that same read (1) just
      returned; a field the user declined is simply absent from both, and
@@ -68,7 +77,13 @@ describes rather than inside shell quotes.
   neither you nor the user can pin down here: it lands as exactly one
   breadcrumb, marked unconfirmed so a later session reads it as a lead and
   not as a fact — status untouched, no field rewritten:
-  `echo '{"id":"<candidate>","notes":"survey (unconfirmed): <one-line evidence>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js annotate`
+
+  ```
+  node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js annotate <<'EOF'
+  {"id":"<candidate>","notes":"survey (unconfirmed): <one-line evidence>"}
+  EOF
+  ```
+
   (the script date-stamps each appended note itself — don't write one in)
   `annotate` exists precisely for this write: unlike `update-status`, it
   can't regress the entry to a status read before the survey ran (e.g.

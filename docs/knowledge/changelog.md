@@ -90,6 +90,11 @@ instead.
   takes its commit boundary from the entry paragraph's `task.js start` and
   reads its `next`, instead of running `safe-commit.js begin`. A reviewed run
   closes through `task.js finish` instead of staging the close by hand.
+- The remaining bookkeeping commands that carry free text, such as `add`,
+  `check-duplicate`, `correct` and `update-status` with a note, take a quoted
+  heredoc too, so an apostrophe in a title, a reason or a note no longer breaks
+  them. This covers the commit and session-start reminders, the discovery
+  wording and the roadmap, survey and init skills.
 
 ### Claude Code
 
@@ -114,9 +119,12 @@ instead.
   that `start` returned, the message no longer says that someone else changed
   the tree, and `finish` names the reason `no_baseline`. The prompt now
   passes the close's JSON through a quoted heredoc, so an apostrophe in the
-  commit message or the notes no longer breaks the command. A Workflow-stage prompt for a background agent that runs
-  `task.js start` or `task.js finish` now fails the prompt check, as
-  `roadmap.js` and `safe-commit.js` commands already did.
+  commit message or the notes no longer breaks the command. A Workflow-stage
+  prompt for a background agent that runs Foreman's own `task.js start` or
+  `task.js finish` now fails the prompt check, as `roadmap.js` and
+  `safe-commit.js` commands already did; a project's own `scripts/task.js`
+  passes. The review annotate, the checkpoint finish and the scope-discipline
+  bookkeeping take the same quoted heredoc.
 - The commit reminder also carries the commit's short SHA, so there is no
   `git rev-parse` step left to run.
 - The full roadmap discovery rules arrive once per session. Later commits get

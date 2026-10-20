@@ -34,7 +34,7 @@ const {
   commitFile,
 } = require('./helpers');
 const { discoveryInstructions, duplicateCheckStep } = require('../scripts/discovery');
-const { discoveryBlock, SCRIPT_PATH } = require('../hooks/post-commit');
+const { discoveryBlock, statusSyncBlock, SCRIPT_PATH } = require('../hooks/post-commit');
 
 let project;
 let env;
@@ -1557,5 +1557,69 @@ describe('dispatched entries', () => {
     const mentioned = context(bashPayload('git commit -m "wip"'));
     assert.equal(mentioned, plain);
     assert.doesNotMatch(plain, /dispatch marker/);
+  });
+});
+
+// [Foreman: 1124] Every free-text bookkeeping command a hook or script wording
+// hands the model is a quoted heredoc, so an apostrophe in a title, a reason or
+// a note runs through bash as written instead of closing a single-quoted echo.
+describe('free-text commands in hook wording keep an apostrophe through bash', () => {
+  const { runBash } = require('./helpers');
+  const { delegatedDiscoveryInstructions } = require('../scripts/discovery');
+  const { buildMessage } = require('../hooks/session-start');
+  const open = [{ id: '001', title: 'plain task', status: 'in_progress' }];
+  const wordings = {
+    'status sync, send back': statusSyncBlock(open, [], true, [], [], 'claude', null, 'abc1234'),
+    'claude discovery, add': discoveryBlock('claude', true),
+    'claude discovery, duplicate check': duplicateCheckStep(SCRIPT_PATH),
+    'delegated discovery, add': delegatedDiscoveryInstructions('orch-1', 'codex', SCRIPT_PATH),
+    'session start, close': buildMessage(open, '2026-10-19', 'claude'),
+  };
+  const HEREDOC = /node "[^"\n]+" ([a-z-]+) <<'EOF'\n([^\n]+)\nEOF/g;
+  const NOTE = "we didn't expand $HOME or `ticks`";
+
+  for (const [name, text] of Object.entries(wordings)) {
+    test(name, (t) => {
+      const commands = [...text.matchAll(HEREDOC)];
+      assert.ok(commands.length > 0, `no quoted heredoc command in: ${text}`);
+      assert.doesNotMatch(text, /echo '\{[^\n]*"(title|why|what|notes)"/);
+      for (const [command, , payload] of commands) {
+        const fields = JSON.parse(payload);
+        for (const key of ['title', 'why', 'what', 'notes']) if (key in fields) fields[key] = NOTE;
+        // `cat` stands in for the CLI: bash must hand it the payload untouched.
+        const filled = command.replace(/^node "[^"\n]+" [a-z-]+/, 'cat').replace(payload, () => JSON.stringify(fields));
+        const result = runBash(filled);
+        if (result === null) return t.skip('no bash on this machine');
+        assert.equal(result.status, 0, result.stdout + result.stderr);
+        assert.deepEqual(JSON.parse(result.stdout), fields);
+      }
+    });
+  }
+
+  // The skills carry the same rule: no echo-piped payload with a free-text field.
+  test('no skill pipes a free-text payload through a single-quoted echo', () => {
+    const skills = path.join(__dirname, '..', 'skills');
+    const offenders = [];
+    for (const file of fs.readdirSync(skills, { recursive: true })) {
+      if (!file.endsWith('.md')) continue;
+      fs.readFileSync(path.join(skills, file), 'utf8').split('\n').forEach((line, i) => {
+        if (/echo '\{.*"(title|why|what|notes|request)"/.test(line)) offenders.push(file + ':' + (i + 1));
+      });
+    }
+    assert.deepEqual(offenders, []);
+  });
+
+  test('the discovery add reaches the real CLI with its apostrophe', (t) => {
+    const text = discoveryBlock('claude', true);
+    const add = [...text.matchAll(HEREDOC)].find((match) => match[1] === 'add');
+    assert.ok(add, text);
+    const payload = JSON.stringify({ ...JSON.parse(add[2]), title: "Fix the user's login", why: NOTE, what: NOTE });
+    const script = SCRIPT_PATH.replace(/\\/g, '/');
+    writeRoadmap(project, []);
+    const result = runBash(`node "${script}" add <<'EOF'\n${payload}\nEOF`, { FOREMAN_PROJECT_DIR: project });
+    if (result === null) return t.skip('no bash on this machine');
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    const stored = fs.readFileSync(path.join(project, 'ROADMAP.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+    assert.ok(stored.find((entry) => entry.title === "Fix the user's login"), result.stdout);
   });
 });

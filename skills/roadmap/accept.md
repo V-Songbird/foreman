@@ -17,10 +17,17 @@ asks nothing and leaves the entry for it
 ([Close and acceptance](delivery.md#close-and-acceptance)).
 Accepting closes it —
 `echo '{"id":"<id>","status":"done"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
-— and declining sends it back with what they said:
-`echo '{"id":"<id>","status":"in_progress","notes":"<what they said>"}' | node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status`
-(their words go through a heredoc, here-string, or payload file in the
-project's `tmp/`, as the runtime describes). Either way, say what changed and stop; no prompt is crafted for an accept.
+— and declining sends it back with what they said, through a quoted heredoc
+so an apostrophe in their words keeps its quoting (the runtime describes the
+PowerShell and payload-file forms):
+
+```
+node ${CLAUDE_PLUGIN_ROOT}/scripts/roadmap.js update-status <<'EOF'
+{"id":"<id>","status":"in_progress","notes":"<what they said>"}
+EOF
+```
+
+Either way, say what changed and stop; no prompt is crafted for an accept.
 
 **Trial log.** After the question the user actually saw — the test or
 accept question — record it with the pick flow:
