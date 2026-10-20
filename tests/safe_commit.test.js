@@ -419,8 +419,8 @@ describe('safe-commit finish staging discipline', () => {
     assert.doesNotMatch(usage, /has already staged ROADMAP\.jsonl/);
   });
 
-  // [Foreman: 1154] A refusal after staging used to reset every staged path
-  // to HEAD. A staged path that matches the baseline in the worktree is in no
+  // [Foreman: 1154] A refusal after staging used to reset every other staged
+  // path to HEAD; held bookkeeping was already left alone. A staged path that matches the baseline in the worktree is in no
   // diff against it, so only the staged check after `git add` catches it.
   function refuseAfterStaging() {
     cleanRepo();
@@ -482,6 +482,112 @@ describe('safe-commit finish staging discipline', () => {
     assert.equal(git('rev-parse', 'HEAD').trim(), baseline, 'no commit was made');
     assert.equal(git('show', ':src/r.js'), 'staged r\n');
     assert.equal(git('ls-files', '--', 'src/a.js'), '', 'what finish staged leaves the index again');
+  });
+
+  test('a restored file is refused while bookkeeping stays staged, both kept', () => {
+    cleanRepo();
+    writeFile('src/r.js', 'base r\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'add r');
+    const baseline = begin().baseline.head;
+    writeRoadmap(project, [{ ...entry('001'), notes: 'flipped' }]);
+    git('add', '--', 'ROADMAP.jsonl');
+    writeFile('src/r.js', 'staged r\n');
+    git('add', 'src/r.js');
+    writeFile('src/r.js', 'base r\n');
+    writeFile('src/a.js', 'owned\n');
+    const { json } = run(['finish', '--baseline', baseline], {
+      expected: ['src'],
+      message_title: 'task 1/2: first',
+    });
+    assert.equal(json.ok, false, JSON.stringify(json));
+    assert.equal(json.reason, 'staging_incomplete');
+    assert.deepEqual(json.restored_files, ['src/r.js']);
+    assert.equal(git('rev-parse', 'HEAD').trim(), baseline, 'no commit was made');
+    assert.equal(git('show', ':src/r.js'), 'staged r\n');
+    assert.deepEqual(git('diff', '--cached', '--name-only').trim().split('\n'), ['ROADMAP.jsonl', 'src/r.js']);
+  });
+
+  // Stages notes/b.md and puts its baseline content back in the worktree:
+  // no diff lists it, so finish refuses it only after its own `git add`.
+  function strayAfterStaging() {
+    writeFile('notes/b.md', 'staged b\n');
+    git('add', 'notes/b.md');
+    writeFile('notes/b.md', 'base b\n');
+  }
+
+  function commitWith(files) {
+    cleanRepo();
+    for (const [file, content] of Object.entries(files)) writeFile(file, content);
+    writeFile('notes/b.md', 'base b\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'add files');
+    return begin().baseline.head;
+  }
+
+  function finishRefused(baseline) {
+    const { json } = run(['finish', '--baseline', baseline], {
+      id: '001',
+      expected: ['src'],
+      message_title: 'do the thing',
+    });
+    assert.equal(json.ok, false, JSON.stringify(json));
+    return json;
+  }
+
+  test('a refusal after staging a few hundred files puts the index back', () => {
+    const many = Array.from({ length: 350 }, (_, i) => `src/many/${'x'.repeat(44)}${String(i).padStart(3, '0')}.js`);
+    const baseline = commitWith(Object.fromEntries(many.map((file) => [file, 'base\n'])));
+    for (const file of many) writeFile(file, 'worktree\n');
+    writeFile(many[0], 'staged\n');
+    git('add', many[0]);
+    writeFile(many[0], 'worktree\n');
+    strayAfterStaging();
+    const json = finishRefused(baseline);
+    assert.equal(json.reason, 'unexpected_files');
+    assert.equal(git('show', `:${many[0]}`), 'staged\n');
+    assert.deepEqual(git('diff', '--cached', '--name-only').trim().split('\n'), ['notes/b.md', many[0]]);
+  });
+
+  test('a refusal after staging keeps an intent-to-add path intent-to-add', () => {
+    const baseline = commitWith({});
+    writeFile('src/x.js', 'new x\n');
+    git('add', '-N', 'src/x.js');
+    strayAfterStaging();
+    finishRefused(baseline);
+    assert.equal(git('status', '--porcelain', '--', 'src/x.js'), ' A src/x.js\n');
+  });
+
+  test('a refusal after staging keeps an unmerged path\'s conflict stages', () => {
+    const baseline = commitWith({ 'src/u.js': 'base u\n' });
+    const blob = (content) => {
+      writeFile('blob.tmp', content);
+      const sha = git('hash-object', '-w', 'blob.tmp').trim();
+      fs.rmSync(path.join(project, 'blob.tmp'));
+      return sha;
+    };
+    const stages = [
+      `0 ${'0'.repeat(40)}\tsrc/u.js`,
+      ...['base u\n', 'ours u\n', 'theirs u\n'].map((content, i) => `100644 ${blob(content)} ${i + 1}\tsrc/u.js`),
+    ];
+    const r = spawnSync('git', ['update-index', '--index-info'], { cwd: project, input: stages.join('\n') + '\n', encoding: 'utf-8' });
+    assert.equal(r.status, 0, r.stderr);
+    writeFile('src/u.js', 'conflicted u\n');
+    const before = git('ls-files', '--stage', '--', 'src/u.js');
+    strayAfterStaging();
+    finishRefused(baseline);
+    assert.equal(git('ls-files', '--stage', '--', 'src/u.js'), before);
+    assert.equal(before.trim().split('\n').length, 3);
+  });
+
+  test('an index finish cannot put back is named in the refusal, not thrown', () => {
+    const baseline = commitWith({ 'src/a.js': 'base a\n' });
+    writeFile('src/a.js', 'worktree a\n');
+    fs.writeFileSync(path.join(project, '.git', 'index.lock'), '');
+    const json = finishRefused(baseline);
+    assert.equal(json.reason, 'staging_failed');
+    assert.deepEqual(json.left_staged, ['src/a.js']);
+    assert.match(json.restore_error, /EEXIST/);
   });
 
   test('a commit landing between begin and finish is refused', () => {

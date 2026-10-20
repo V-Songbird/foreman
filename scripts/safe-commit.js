@@ -242,32 +242,41 @@ function worktreeDirty(root) {
   ]);
 }
 
-// [Foreman: 1154] Each path's index entry as `ls-files --stage` prints it
-// (mode, object, stage), keyed by path; a path the index lacks is absent.
-function indexEntries(root, files) {
-  if (!files.length) return new Map();
-  return new Map(
-    git(root, ["ls-files", "--stage", "-z", "--", ...files])
-      .split("\0")
-      .filter(Boolean)
-      .map((line) => {
-        const tab = line.indexOf("\t");
-        return [line.slice(tab + 1).replaceAll("\\", "/"), line.slice(0, tab).split(" ")];
-      })
-  );
+// [Foreman: 1154] The index file as `git add` is about to find it, so a
+// refusal puts the whole index back: the user's staged blobs, intent-to-add
+// entries and conflict stages, with no per-path argument list to outgrow.
+// A file copy, not `update-index --index-info`: run-git's sandbox fallback
+// refuses `input`.
+function indexSnapshot(root) {
+  const file = path.resolve(root, git(root, ["rev-parse", "--git-path", "index"]).trim());
+  if (!fs.existsSync(file)) return { file, content: null };
+  return { file, content: fs.readFileSync(file), mtimeMs: fs.statSync(file).mtimeMs };
 }
 
-// Puts each of `files` back to the entry `before` recorded, or out of the
-// index when it had none. --add lets an entry `git add` dropped (a tracked
-// file deleted in the worktree) come back. Arguments, not stdin: run-git's
-// sandbox fallback refuses `input`.
-function restoreIndex(root, files, before) {
-  const present = files.filter((file) => before.has(file));
-  const absent = files.filter((file) => !before.has(file));
-  if (present.length) {
-    git(root, ["update-index", "--add", ...present.flatMap((file) => ["--cacheinfo", before.get(file)[0], before.get(file)[1], file])]);
+// Written the way git writes it, through index.lock, so a running git that
+// holds the lock fails this rather than racing it. The old mtime goes back
+// too (floored, so never later): git's racy-entry check compares against it.
+// Returns the fields a refusal adds when the index could not be put back.
+function restoreIndex(snapshot, files) {
+  const lock = `${snapshot.file}.lock`;
+  try {
+    if (snapshot.content === null) {
+      fs.rmSync(snapshot.file, { force: true });
+      return {};
+    }
+    fs.writeFileSync(lock, snapshot.content, { flag: "wx" });
+    try {
+      const mtime = Math.floor(snapshot.mtimeMs) / 1000;
+      fs.utimesSync(lock, mtime, mtime);
+      fs.renameSync(lock, snapshot.file);
+    } catch (error) {
+      fs.rmSync(lock, { force: true });
+      throw error;
+    }
+    return {};
+  } catch (error) {
+    return { left_staged: files, restore_error: error.message };
   }
-  if (absent.length) git(root, ["update-index", "--force-remove", "--", ...absent]);
 }
 
 // [Foreman: 410] The paths among `files` that are gitlinks — a submodule's
@@ -448,9 +457,9 @@ function finishUnit(root, options) {
   // exists in either tree.
   const dirty = worktreeDirty(root);
   const toStage = changed.filter((file) => dirty.has(file));
-  // [Foreman: 1154] The index entries `git add` is about to replace, so a
-  // refusal below puts back what the user had staged rather than HEAD.
-  const before = indexEntries(root, toStage);
+  // [Foreman: 1154] A refusal below puts back what the user had staged
+  // rather than HEAD.
+  const before = indexSnapshot(root);
   if (toStage.length) {
     try {
       git(root, ["add", "--", ...toStage]);
@@ -460,6 +469,7 @@ function finishUnit(root, options) {
         reason: "staging_failed",
         baseline,
         error: error.stderr ? String(error.stderr).trim() : error.message,
+        ...restoreIndex(before, toStage),
       };
     }
   }
@@ -481,7 +491,6 @@ function finishUnit(root, options) {
   // overwrite the staged blob.
   const restored = staged.filter((file) => !changedAll.includes(file) && !strayStaged.includes(file));
   if (strayStaged.length || missing.length || restored.length) {
-    restoreIndex(root, toStage, before);
     return {
       ok: false,
       reason: strayStaged.length ? "unexpected_files" : "staging_incomplete",
@@ -497,6 +506,7 @@ function finishUnit(root, options) {
         }
         : {}),
       staged: false,
+      ...restoreIndex(before, toStage),
     };
   }
 
@@ -576,7 +586,9 @@ error; a refusal is a successful call reporting ok:false).
             --allow-unexpected only after the user approved those files.
             A file staged and then put back to its baseline content in the
             tree is refused as staging_incomplete, named in restored_files.
-            A refusal after staging leaves the index as finish found it.
+            A refusal after staging leaves the index as finish found it;
+            when it cannot write the index back, left_staged names the
+            files finish staged and restore_error says why.
             A changed submodule gitlink is refused as gitlink_not_expected
             unless expected names that exact path; neither an area hint
             nor --allow-unexpected stages one. Work inside a submodule

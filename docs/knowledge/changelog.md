@@ -97,10 +97,12 @@ instead.
   Opening the entry always changes that file, so before, such a close made a
   commit that held only the roadmap and none of the task's work.
 - When `safe-commit.js finish` refuses after staging the task's files, for
-  example because a file outside `expected` is staged, it now puts each file
-  it staged back to what the index held before, and leaves the rest of the
-  index as you staged it. Before, the refusal reset every staged file to the
-  last commit, so staged content that differed from the working tree was lost.
+  example because a file outside `expected` is staged, it now puts the index
+  back as it found it: your staged content, intent-to-add files and conflict
+  stages included, however many files it staged. Before, the refusal reset
+  every other staged file to the last commit, so staged content that differed
+  from the working tree was lost. When it cannot write the index back, the
+  refusal names the files it left staged in `left_staged`.
   A file staged and then put back to its last-committed content in the
   working tree is now refused as `staging_incomplete` and named in
   `restored_files`. Before, the commit recorded the staged content the
