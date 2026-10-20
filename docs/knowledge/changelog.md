@@ -29,6 +29,11 @@ instead.
 
 ### Every host
 
+- Foreman now needs Git 2.25 or later. The commit helper stages and commits
+  with `--pathspec-from-file`, which older Git lacks, so on Git 2.24 or
+  earlier every `task.js finish` that stages files is refused as
+  `staging_failed`. The index is restored, so nothing is lost. The README's
+  requirements now say so.
 - When `task.js finish` is refused and the commit helper could not put the
   index back (for example because `index.lock` is held), the refusal's `fix`
   now names the files still staged and says why, instead of "Nothing was

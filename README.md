@@ -65,7 +65,7 @@ Foreman is one plugin for the three assistants. Install it in the one you use; o
 
 ### Codex
 
-Requirements: Node.js and Git (tested with Node.js 22), and a Codex host with plugin support.
+Requirements: Node.js and Git 2.25 or later (tested with Node.js 22), and a Codex host with plugin support.
 
 ```text
 codex plugin marketplace add V-Songbird/foundry
@@ -76,7 +76,7 @@ Review and trust its hooks with `/hooks`, then start a new Codex session. Ask Fo
 
 ### Claude Code
 
-Requirements: Node.js and Git (tested with Node.js 22). In Claude Code, Foreman needs version 2.1.147 or later.
+Requirements: Node.js and Git 2.25 or later (tested with Node.js 22). In Claude Code, Foreman needs version 2.1.147 or later.
 
 Inside Claude Code:
 
@@ -89,7 +89,7 @@ Start a new session to load the plugin. Run `/foreman:init` once in the project.
 
 ### Antigravity
 
-Requirements: Node.js and Git (tested with Node.js 22), and the Antigravity CLI. Antigravity has no marketplace for third-party plugins, so install from a clone of the [foundry repository](https://github.com/V-Songbird/foundry). Its `foreman` folder is a submodule checked out at the commit Foundry pins for the current release. Clone it with its submodules, then install that folder. Replace `<path-to-foundry>` with the clone's directory:
+Requirements: Node.js and Git 2.25 or later (tested with Node.js 22), and the Antigravity CLI. Antigravity has no marketplace for third-party plugins, so install from a clone of the [foundry repository](https://github.com/V-Songbird/foundry). Its `foreman` folder is a submodule checked out at the commit Foundry pins for the current release. Clone it with its submodules, then install that folder. Replace `<path-to-foundry>` with the clone's directory:
 
 ```shell
 git clone --recurse-submodules https://github.com/V-Songbird/foundry.git
