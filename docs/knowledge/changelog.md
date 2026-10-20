@@ -67,6 +67,13 @@ instead.
   about an `observed_touch_counts` that is not an object, a count that is not
   a whole number 1 or greater, and a key that names no folder in
   `observed_touches`.
+- `update-status` now stores each `add_touches` path with forward slashes and
+  no leading `./`, so `.\src\a.js` and `./src/a.js` are recorded as
+  `src/a.js` and match the same file git reports. A glob such as `docs/*.md`
+  is kept as written. A recalled lead's freshness stamp no longer reads
+  "possibly stale: 0 of its N files changed since": a changed file that none
+  of the lead's recorded paths names, such as one an older `add_touches`
+  path or a glob matched, now counts as one changed file.
 - Picking a task now runs `roadmap.js step pick`, which decides each step of
   the pick and tells the skill what to do next with a short code. The script
   builds the task menu and its labels, records the pick in the trial log,

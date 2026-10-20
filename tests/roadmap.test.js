@@ -452,6 +452,20 @@ describe('update-status', () => {
     assert.deepEqual(json.entry.observed_touches, ['src/api/retry.ts', 'src/api/new.ts']);
   });
 
+  // [Foreman: 1166] Hand-typed paths are stored the way git reports them, so
+  // they match the same file and dedupe against it.
+  test('stores add_touches with forward slashes and no leading ./', () => {
+    writeRoadmap(project, [
+      { id: '001', title: 'a', why: 'a', what: 'a', status: 'in_progress', source: 'user', depends_on: [], planned_touches: [], observed_touches: ['docs/x.md'], commits: [], created_at: '2026-07-01', updated_at: '2026-07-01', notes: '' },
+    ]);
+    const { json } = run(['update-status'], {
+      id: '001',
+      status: 'done',
+      add_touches: ['./docs/x.md', '.\\src\\a.js', 'src//b.js', 'docs/*.md', './'],
+    });
+    assert.deepEqual(json.entry.observed_touches, ['docs/x.md', 'src/a.js', 'src/b.js', 'docs/*.md']);
+  });
+
   test('rejects a non-array add_touches', () => {
     const { status, json } = run(['update-status'], { id: '001', status: 'done', add_touches: 'src/api/retry.ts' });
     assert.equal(status, 1);

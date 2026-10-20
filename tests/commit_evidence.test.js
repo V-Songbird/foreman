@@ -230,6 +230,34 @@ describe('submodule-hosted commits', () => {
     assert.equal(result.changed_weight, 1);
   });
 
+  // [Foreman: 1166] An item stored as "./x", "a\b" or a glob matches the file in
+  // git but no item names it; the stale state must still count that file.
+  test('a changed file git matched through an unnormalized item still counts', () => {
+    initGitRepo(project);
+    const sha = commitFile(project, 'docs/x.md', 'a');
+    commitFile(project, 'docs/x.md', 'a2');
+
+    for (const item of ['./docs/x.md', 'docs\\x.md', 'docs/*.md']) {
+      const result = changedSince(project, sha, [item], {});
+      assert.equal(result.state, 'stale', item);
+      assert.deepEqual(result.changed, ['docs/x.md'], item);
+      assert.equal(result.checked, 1, item);
+      assert.equal(result.changed_weight, 1, item);
+    }
+  });
+
+  test('files no item claims never push changed_weight past checked', () => {
+    initGitRepo(project);
+    commitFile(project, 'docs/a.md', 'a');
+    const sha = commitFile(project, 'docs/b.md', 'b');
+    commitFile(project, 'docs/a.md', 'a2');
+    commitFile(project, 'docs/b.md', 'b2');
+
+    const result = changedSince(project, sha, ['docs/*.md'], {});
+    assert.equal(result.checked, 1);
+    assert.equal(result.changed_weight, 1);
+  });
+
   test('shas nothing can show come back null rather than empty text', () => {
     initGitRepo(project);
     commitFile(project, 'root.js', 'root');

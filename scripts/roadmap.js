@@ -1350,7 +1350,13 @@ function cmdUpdateStatusUnlocked(root, payload) {
   // into it any more, but it is still read before the write so the drift
   // describes the entry as it was framed.
   const predictedTouches = Array.isArray(entry.planned_touches) ? [...entry.planned_touches] : [];
-  const newTouches = [...(add_touches || []), ...derivedTouches];
+  // [Foreman: 1166] add_touches is typed by hand, git's paths are not: store
+  // the shape git reports, so "./x", "a\b" and "a//b" match the same file as
+  // "x" and "a/b". A glob stays as written; git still reads it as a pathspec.
+  const newTouches = [
+    ...(add_touches || []).map((t) => (typeof t === "string" ? t.trim().replaceAll("\\", "/").replace(/\/{2,}/g, "/").replace(/^(\.\/)+/, "") : t)),
+    ...derivedTouches,
+  ];
   if (newTouches.length) {
     entry.observed_touches = Array.isArray(entry.observed_touches) ? entry.observed_touches : [];
     // [Foreman: 1080] collapseObservedTouches drops a path under a stored

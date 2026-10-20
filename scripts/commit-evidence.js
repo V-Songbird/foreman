@@ -294,7 +294,9 @@ function touchWeight(counts, touch) {
  * `checked` counts recorded paths, so a collapsed prefix weighs its count in
  * `counts` (an entry's observed_touch_counts). `changed_weight` counts the
  * changed ones the same way: the files changed under each item, capped at
- * that item's weight, summed, so it never exceeds `checked`. Every failure --
+ * that item's weight, summed, so it never exceeds `checked`; a changed file
+ * that no item claims by name counts one, so a "stale" state never reports 0
+ * changed. Every failure --
  * no git, a sha nothing resolves, a sha off this history line, a diff git
  * would not run -- comes back "unknown" and never "fresh": a lead nobody can
  * date is not a lead anybody should trust.
@@ -353,14 +355,23 @@ function changedSince(root, sha, paths, counts) {
   // so a folder item matches its own name too.
   const under = (item, f) => (item.endsWith("/") ? f === item.slice(0, -1) || f.startsWith(item) : f === item || f.startsWith(`${item}/`));
   const perItem = weighed.map(() => 0);
+  let unclaimed = 0;
   for (const f of changed) {
     let best = -1;
     weighed.forEach(([item], i) => {
       if (under(item, f) && (best < 0 || item.length > weighed[best][0].length)) best = i;
     });
     if (best >= 0) perItem[best] += 1;
+    else unclaimed += 1;
   }
-  const changedWeight = weighed.reduce((sum, [, weight], i) => sum + Math.min(weight, perItem[i]), 0);
+  // [Foreman: 1166] Git matched these files through an item the string match
+  // above does not read as a path (a "./x" or "a\b" item stored before
+  // add_touches was normalized, a glob, a case-folded path). They are real
+  // changes, so each counts one, and the total never passes `checked`.
+  const changedWeight = Math.min(
+    checked,
+    weighed.reduce((sum, [, weight], i) => sum + Math.min(weight, perItem[i]), 0) + unclaimed,
+  );
   return {
     state: changed.length ? "stale" : "fresh",
     changed,
