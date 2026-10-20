@@ -129,8 +129,9 @@ const OPAQUE = "$(";
 // [Foreman: 874] PowerShell on Linux and macOS also reads `\` as a separator
 // in a Set-Location or Push-Location path, so a PowerShell-named tool's target
 // takes `/` there. Bash reads `\` as an escape, so a Bash-named command keeps it.
-// [Foreman: 1102] Outside Windows a Bash-named command runs in Bash, so its
-// PowerShell reading on Codex and Antigravity reads a backtick as Bash does.
+// [Foreman: 1102] Outside Windows a Bash-named command runs in Bash, so a
+// PowerShell reading of it reads a backtick as Bash does. [Foreman: 1128]
+// main() no longer produces that reading; only direct callers reach it.
 function commitDirs(command, cwd, powershell = false, powershellTool = false, platform = process.platform, end = {}) {
   const shell = powershell ? SHELLS.powershell : SHELLS.bash;
   const target = (arg) => (powershellTool && platform !== "win32" && arg ? arg.replace(/\\/g, "/") : arg);

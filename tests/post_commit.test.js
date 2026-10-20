@@ -1452,11 +1452,14 @@ describe('commit directory edge cases', () => {
     });
   });
 
-  // Codex names a PowerShell command Bash on Windows, so its hook reads both shells.
-  test('outside Claude Code a Bash-named command also gets the PowerShell reading', () => {
+  // Codex names a PowerShell command Bash on Windows, so its hook reads both
+  // shells there. [Foreman: 1128] Elsewhere it reads Bash alone, which finds no
+  // commit in this command.
+  test('on Windows a Bash-named command outside Claude Code also gets the PowerShell reading', () => {
     writeRoadmap(project, [{ id: '001', status: 'in_progress' }]);
     const command = 'echo "C:\\dir\\" ; git commit -m "x"';
-    assert.match(context(bashPayload(command), 'codex'), /in-progress ROADMAP\.jsonl task/);
+    if (process.platform === 'win32') assert.match(context(bashPayload(command), 'codex'), /in-progress ROADMAP\.jsonl task/);
+    else assert.equal(run(bashPayload(command), 'codex'), '');
     assert.equal(run(bashPayload(command)), '');
   });
 });
