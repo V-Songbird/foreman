@@ -227,8 +227,8 @@ nothing else:
   into one call with others is one event — the cost being measured is the
   interruption, not the number of fields in it.
 - **`commit_interrupted`** — every refusal `scripts/safe-commit.js` returns
-  (`begin` reporting `dirty: true`, which is an `ok:true` answer, and
-  `finish`'s `ok:false` refusals: `head_moved_since_baseline` /
+  (`begin` reporting `dirty: true`, which is an `ok:true` answer recorded as
+  `dirty_tree`, and `finish`'s `ok:false` refusals: `head_moved_since_baseline` /
   `no_task_changes` / `unexpected_files` / `staging_incomplete` /
   `staging_failed` / `post_commit_attestation_failed` /
   `gitlink_not_expected`), recorded by the caller that receives it, plus

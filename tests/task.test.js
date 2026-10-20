@@ -15,7 +15,7 @@ const { spawnSync } = require('child_process');
 
 const { makeTmpProject, writeRoadmap, writeArchiveFile, writeConfig, initGitRepo, runNodeScript, runBash, unlessTimedOut, SPAWN_TIMEOUT_MS, SCRIPTS_DIR } = require('./helpers.js');
 const { withTrailer, plannedSubmodule } = require(path.join(SCRIPTS_DIR, 'task.js'));
-const { claudeEntryParagraphText, codexEntryParagraphText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
+const { checkpointEmbedText, claudeEntryParagraphText, codexEntryParagraphText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
 
 const TASK = path.join(SCRIPTS_DIR, 'task.js');
 
@@ -496,7 +496,7 @@ describe('the reference pages describe task.js on every host', () => {
     // [Foreman: 1141] Two paragraphs never call task.js: a Codex or Antigravity
     // investigation and a Codex or Antigravity delegated subagent's, as
     // craft-handoff.js writes them; a Claude Code background Agent still calls it.
-    assert.ok(shared.includes("On every host, a handoff's entry paragraph runs that boundary through `scripts/task.js`, except two paragraphs that never call it: a Codex or Antigravity investigation, which takes no boundary and closes with `roadmap.js update-status`, and a Codex or Antigravity delegated subagent's, whose coordinator owns the start, the close and the check and closes with `update-status`. A Claude Code background Agent's paragraph does call it. Where the paragraph does call it, `start` takes the boundary, except for an investigation; in Claude Code it also opens the entry, which `hooks/codex-task.js start` opens first in Codex and Antigravity."), shared);
+    assert.ok(shared.includes("On every host, a handoff's entry paragraph runs that boundary through `scripts/task.js`, except two paragraphs that never call it: a Codex or Antigravity investigation, which takes no boundary and closes with `roadmap.js update-status`, and a Codex or Antigravity delegated subagent's, whose coordinator owns the start, the close and the check and closes with `update-status`. A Claude Code background Agent's entry paragraph does call it; a Claude Code Workflow stage's agent carries the coordinator paragraph instead, and its Workflow owns the entry. Where the paragraph does call it, `start` takes the boundary, except for an investigation; in Claude Code it also opens the entry, which `hooks/codex-task.js start` opens first in Codex and Antigravity."), shared);
     assert.ok(shared.includes('A `report_dirty` answer from `start` means it took no boundary and the close will stage and commit nothing; from `finish`, it means nothing was staged or committed.'));
     assert.ok(shared.includes('When no entry paragraph supplies `task.js finish`, a staged close by hand runs `finish --no-commit`'));
     assert.doesNotMatch(read('skills', 'foreman', 'runtime.md'), /that trailer\. Record\n/);
@@ -523,7 +523,19 @@ describe('the reference pages describe task.js on every host', () => {
     assert.ok(codex.includes('An investigation skips both and closes with `roadmap.js update-status`. A delegated subagent runs neither: its coordinator owns the start, the close and the check, and closes with `roadmap.js update-status`.'), codex);
     assert.ok(codex.includes('a delegated Codex subagent runs no `task.js` call, because its coordinator closes with `roadmap.js update-status` |'));
     const protocol = flat(read('skills', 'roadmap', 'close-increments.md'));
-    assert.ok(protocol.includes('An investigation and a Codex subagent\'s coordinator close with `roadmap.js update-status` instead.'), protocol);
+    assert.ok(protocol.includes('A Codex or Antigravity investigation and a Codex subagent\'s coordinator close with `roadmap.js update-status` instead.'), protocol);
+    assert.ok(flat(read('docs', 'knowledge', 'changelog.md')).includes('on Codex and Antigravity, an investigation, which closes itself with `roadmap.js update-status`, and a delegated subagent, whose coordinator closes it the same way; a Claude Code background Agent still runs them.'));
+  });
+
+  // [Foreman: 1141] checkpointEmbedText checks `git status --porcelain` for a
+  // run without an entry; the in-session flow keeps safe-commit begin because
+  // its later finish needs the baseline, and the template says why.
+  test('the template says why the no-entry boundary differs from the clipboard embed', () => {
+    const template = read('prompt-template.md');
+    const section = flat(template.slice(template.indexOf('- **Take the boundary first'), template.indexOf('- **One commit per finished task')));
+    assert.ok(section.includes('Without an entry, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js begin` and read its `dirty` field; this in-session flow takes `begin` because its later `finish` needs that baseline, while the clipboard embed above checks `git status --porcelain`.'), section);
+    const embed = checkpointEmbedText({ branch: true, onFinish: 'ask' }, 2, null, false, false, 'claude');
+    assert.match(embed, /check `git status --porcelain`/);
   });
 
   test('a reviewed close runs task.js finish, not a staged close by hand', () => {
@@ -565,7 +577,7 @@ describe('the reference pages describe task.js on every host', () => {
     const bullet = flat(trials.slice(start, trials.indexOf('- **`recovery_attempted`, `reinit-snapshot`**', start)));
     const safeCommit = REASON_CLASSES.filter((reason) => !['dirty_tree', 'commit_failed', 'verification_declined'].includes(reason));
     for (const reason of safeCommit) assert.ok(bullet.includes(`\`${reason}\``), `commit_interrupted lists ${reason}`);
-    assert.ok(bullet.includes('`begin` reporting `dirty: true`, which is an `ok:true` answer'), bullet);
+    assert.ok(bullet.includes('`begin` reporting `dirty: true`, which is an `ok:true` answer recorded as `dirty_tree`'), bullet);
     assert.doesNotMatch(bullet, /every `ok:false` return/);
   });
 

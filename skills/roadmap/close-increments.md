@@ -40,9 +40,9 @@ a human channel, preserve the final review as pending rather than inferring yes.
 Close with the entry paragraph's close command. Outside an investigation or a
 coordinator-owned close, that is `task.js finish`: it stages only the task's
 files, records the close and commits once with the final `Foreman: <id>`
-trailer. Never stage or record that close by hand, which skips its guards. An
-investigation and a Codex subagent's coordinator close with `roadmap.js
-update-status` instead. Record the final acceptance with the
+trailer. Never stage or record that close by hand, which skips its guards. A
+Codex or Antigravity investigation and a Codex subagent's coordinator close
+with `roadmap.js update-status` instead. Record the final acceptance with the
 `update-status` that the paragraph or the close's answer names, and run the
 paragraph's lifecycle check where it has one. A dirty run, which
 `task.js` reports as `report_dirty`, continues without commits. Neither an intermediate

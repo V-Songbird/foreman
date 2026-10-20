@@ -102,9 +102,10 @@ instead.
   reads its `next`, instead of running `safe-commit.js begin`. A reviewed run
   closes through `task.js finish` instead of staging the close by hand. Those
   pages, and the Codex pages, now also say which handoffs skip the
-  `task.js` calls: an investigation and a delegated subagent on Codex and
-  Antigravity, whose coordinators close with `roadmap.js update-status`; a
-  Claude Code background Agent still runs them. The
+  `task.js` calls: on Codex and Antigravity, an investigation, which closes
+  itself with `roadmap.js update-status`, and a delegated subagent, whose
+  coordinator closes it the same way; a Claude Code background Agent still
+  runs them. The
   trial-log page lists every refusal `safe-commit.js` returns, and says that
   `begin` reporting a dirty tree is an `ok:true` answer.
 - The remaining bookkeeping commands that carry free text, such as `add`,

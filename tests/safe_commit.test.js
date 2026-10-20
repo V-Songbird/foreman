@@ -903,7 +903,7 @@ describe('the close and checkpoint choreography is documented without git add -A
     const section = TEMPLATE.slice(TEMPLATE.indexOf('## Checkpointing a task-split run'), TEMPLATE.indexOf('## When NOT to hand off'));
     const flat = section.replace(/\s+/g, ' ');
     assert.ok(flat.includes("With an entry paragraph, which a roadmap split always carries, the boundary is that paragraph's `task.js start` on every host (in Codex and Antigravity, after its `hooks/codex-task.js start` opens the entry); read its `next`."), 'an entry run takes the boundary through task.js start');
-    assert.ok(flat.includes('Without an entry, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js begin` and read its `dirty` field.'), 'an entry-less run keeps safe-commit begin');
+    assert.ok(flat.includes('Without an entry, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js begin` and read its `dirty` field;'), 'an entry-less run keeps safe-commit begin');
     assert.ok(flat.includes('A `report_dirty` answer, or `dirty:true`, means **this run makes no automated commits at all**'), 'a dirty tree makes no checkpoint commits');
     assert.ok(flat.includes('On every host that paragraph runs `scripts/task.js`'), 'the roadmap close runs through task.js on every host');
     assert.ok(flat.includes('run `task.js start` again right after the previous checkpoint commit'), 'the last task takes a fresh boundary');

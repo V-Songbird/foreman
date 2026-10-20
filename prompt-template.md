@@ -1198,7 +1198,9 @@ explicitly authorized decision artifact.
   and Antigravity, after its `hooks/codex-task.js start` opens the entry);
   read its `next`. Without an entry, run
   `node ${CLAUDE_PLUGIN_ROOT}/scripts/safe-commit.js begin` and read its
-  `dirty` field. A `report_dirty` answer, or `dirty:true`, means **this run
+  `dirty` field; this in-session flow takes `begin` because its later `finish`
+  needs that baseline, while the clipboard embed above checks
+  `git status --porcelain`. A `report_dirty` answer, or `dirty:true`, means **this run
   makes no automated commits at all** — say so once in a line naming the
   reason, then work the tasks and leave every change in the tree for the
   user to commit. Never offer to absorb the existing changes, and skip the

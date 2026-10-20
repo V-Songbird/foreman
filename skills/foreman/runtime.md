@@ -110,8 +110,9 @@ failed staging needs inspection, never a broader staging command.
   Antigravity investigation, which takes no boundary and closes with
   `roadmap.js update-status`, and a Codex or Antigravity delegated
   subagent's, whose coordinator owns the start, the close and the check and
-  closes with `update-status`. A Claude Code background Agent's paragraph does
-  call it.
+  closes with `update-status`. A Claude Code background Agent's entry
+  paragraph does call it; a Claude Code Workflow stage's agent carries the
+  coordinator paragraph instead, and its Workflow owns the entry.
   Where the paragraph does call it, `start` takes the boundary, except for an
   investigation; in Claude Code it also opens the entry, which
   `hooks/codex-task.js start` opens first in Codex and Antigravity. `finish`
