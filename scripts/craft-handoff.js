@@ -973,7 +973,12 @@ function codexEntryParagraphText({ id, resume, notesPlace = null, requireVerific
   const taskFlags = carriedFlags({ orchestrator: delegatedTo });
   const beginStep = "Before touching files, verify the branch satisfies the user's restrictions; create or use an authorized working branch when needed. Then take the commit boundary:\nCommand: "
     + code(pluginCommand("task.js", "start --id " + shellQuote(id) + taskFlags))
-    + "\nIt prints one JSON line. With " + code("next") + " " + code("work") + ", keep its " + code("baseline") + " and do the task. With " + code("report_dirty") + ", it took no commit boundary (" + code("reason") + " says why): tell the user its " + code("say") + " in one line, preserve existing changes and continue the authorized work; the close will stage and commit nothing.";
+    + "\nIt prints one JSON line. With " + code("next") + " " + code("work") + ", keep its " + code("baseline") + " and do the task. With " + code("report_dirty") + ", it took no commit boundary (" + code("reason") + " says why): tell the user its " + code("say") + " in one line, preserve existing changes and continue the authorized work; the close will stage and commit nothing."
+    // [Foreman: 1140] Without the clipboard embed nothing else says that a
+    // checkpoint commit leaves this baseline stale for the close.
+    + (reviewEachIncrement
+      ? " Each checkpoint commit moves HEAD past that baseline: right after the last checkpoint commit, before touching the final increment's files, run this command again and close with its fresh " + code("baseline") + "."
+      : "");
   const splitStep = reviewEachIncrement
     ? INCREMENT_SPLIT_STEP
     : requireVerification

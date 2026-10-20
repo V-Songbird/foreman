@@ -432,7 +432,14 @@ function finishUnit(root, options) {
       };
     }
   }
-  const staged = stagedSince(root, baseline);
+  // [Foreman: 1140] Bookkeeping Foreman itself staged (a tracked roadmap's
+  // flip, ahead of an increment checkpoint) is not this unit's: it stays
+  // staged, out of the commit and out of any reset below.
+  const stagedAll = stagedSince(root, baseline);
+  const heldStaged = stagedAll.filter(
+    (file) => bookkeeping(file) && !(roadmapClose && CLOSE_BOOKKEEPING.has(file))
+  );
+  const staged = stagedAll.filter((file) => !heldStaged.includes(file));
   const strayStaged = options.allowUnexpected
     ? []
     : staged.filter((file) => !isOwned(file, allowed));
@@ -466,7 +473,9 @@ function finishUnit(root, options) {
   const messageArgs = id
     ? ["-m", messageTitle, "-m", commitTrailerFor(id)]
     : ["-m", messageTitle];
-  git(root, ["commit", "-q", ...messageArgs]);
+  // A pathspec commit (--only) records just these paths and leaves the held
+  // bookkeeping staged; the worktree matches the index for each of them here.
+  git(root, ["commit", "-q", ...messageArgs, ...(heldStaged.length ? ["--", ...staged] : [])]);
   const commit = git(root, ["rev-parse", "HEAD"]).trim();
   const attested = attestCommit(root, { baseline, commit, id, roadmapClose });
   return {

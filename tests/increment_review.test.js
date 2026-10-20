@@ -82,6 +82,15 @@ for (const destination of ['task', 'clipboard', 'agent']) {
   }
 }
 
+// [Foreman: 1140] Checkpoint commits move HEAD past start's baseline; without
+// the clipboard embed the entry paragraph alone says to take a fresh one.
+for (const destination of ['task', 'clipboard']) {
+  test(`a ${destination} handoff retakes the boundary after the last checkpoint`, (t) => {
+    const prompt = assemble(fixture(t), input(destination, 2)).prompt.replace(/\s+/g, ' ');
+    assert.match(prompt, /Each checkpoint commit moves HEAD past that baseline: right after the last checkpoint commit, before touching the final increment's files, run this command again and close with its fresh `baseline`\./);
+  });
+}
+
 // [Foreman: 927] Codex keeps a paused session: `codex exec resume` continues
 // it, and `collaborationfollowup_task` reaches its named subagent.
 test('a Codex review pause records its session and names the detached resume', (t) => {

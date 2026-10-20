@@ -640,6 +640,34 @@ describe('safe-commit finish commit and attestation', () => {
     assert.deepEqual(allowed.attested.forbidden_files, []);
   });
 
+  // [Foreman: 1140] An increment checkpoint runs without roadmap_close; a
+  // ROADMAP.jsonl already staged by Foreman's own bookkeeping stays staged
+  // and out of the checkpoint commit, instead of reading as a stray file
+  // whose refusal unstaged the whole index.
+  test('a staged ROADMAP.jsonl survives a checkpoint and stays out of its commit', () => {
+    cleanRepo();
+    const baseline = begin().baseline.head;
+    writeRoadmap(project, [{ ...entry('001'), notes: 'flipped' }]);
+    git('add', '--', 'ROADMAP.jsonl');
+    writeFile('src/a.js', 'owned\n');
+
+    const dry = run(['finish', '--baseline', baseline, '--no-commit'], {
+      expected: ['src'],
+    }).json;
+    assert.equal(dry.ok, true, JSON.stringify(dry));
+    assert.deepEqual(dry.files, ['src/a.js']);
+    git('reset', '-q', '--', 'src/a.js');
+
+    const { json } = run(['finish', '--baseline', baseline], {
+      expected: ['src'],
+      message_title: 'task 1/2: first',
+    });
+    assert.equal(json.ok, true, JSON.stringify(json));
+    assert.deepEqual(json.files, ['src/a.js']);
+    assert.equal(git('diff', '--name-only', 'HEAD~1', 'HEAD').trim(), 'src/a.js');
+    assert.equal(git('diff', '--cached', '--name-only').trim(), 'ROADMAP.jsonl', 'the roadmap is still staged');
+  });
+
   // [Foreman: 196] ROADMAP.jsonl and .foreman/archive.jsonl are the only
   // files safe-commit itself treats as a shared ledger; a project's own
   // CHANGELOG.md is ordinary work here (see the changelog describe block

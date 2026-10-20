@@ -93,7 +93,9 @@ For eligible local checkpoints, use `safe-commit.js begin` before modifying the
 increment and retain `baseline.head`; after its required checks pass and the
 user accepts that result, use `safe-commit.js finish` with that baseline, the
 owned paths and a `task n/total: subject` message, without a parent-close id.
-Take a fresh boundary before the next increment. Honor branch restrictions,
+Take a fresh boundary before the next increment; a checkpoint commit leaves any
+earlier baseline stale, so an entry's close takes its own `task.js start`
+boundary again after the last checkpoint commit. Honor branch restrictions,
 file ownership and refusals; never broaden staging automatically or push.
 A dirty start without a baseline, unavailable Git, or an investigation continues
 without checkpoint commits; preserve existing work. A failed checkpoint is not

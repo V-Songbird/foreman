@@ -162,6 +162,12 @@ instead.
   `finish` then records the close without staging anything. `start` takes the
   starting point inside the submodule. `finish` commits staged roadmap files
   with the task's files.
+- A reviewed-increment checkpoint no longer unstages your whole index when
+  `ROADMAP.jsonl` is already staged. `safe-commit.js finish` without a
+  roadmap close now leaves a staged roadmap or archive file staged and out
+  of the checkpoint commit. The handoff also says to run `task.js start`
+  again after the last checkpoint commit, so the close no longer meets a
+  stale starting point and records itself unstaged.
 - On Linux and macOS a shell command is now read only as Bash reads it, since
   Bash runs it there. Before, Foreman also read it as PowerShell would, so a
   commit such as ``echo `date`; cd other; git commit`` could draw this
