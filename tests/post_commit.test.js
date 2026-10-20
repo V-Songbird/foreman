@@ -1267,6 +1267,7 @@ describe('commit directory edge cases', () => {
     // and PowerShell's @( inside double quotes is text
     assert.deepEqual(commitDirs(`echo "'" '$(cd "${other}"; git commit -m x)'`, project), []);
     assert.deepEqual(commitDirs(`echo "it's $(cd "${other}"; git commit -m x) don't"`, project), [other]);
+    assert.deepEqual(commitDirs(`echo "it's $(git commit -m x) don't"`, project), [project]);
     assert.deepEqual(commitDirs(`Write-Output "@(Set-Location '${other}')"; git commit -m x`, project, true, true), [project]);
     assert.deepEqual(commitDirs(`Write-Output "$(Set-Location '${other}')"; git commit -m x`, project, true, true), [other]);
   });
@@ -1375,6 +1376,7 @@ describe('commit directory edge cases', () => {
     assert.deepEqual(commitDirs(command, project, true, false, 'linux'), []);
     assert.deepEqual(commitDirs(command, project, true, false, 'darwin'), []);
     assert.deepEqual(commitDirs('git -C `pwd` commit -m x', project, true, false, 'linux'), []);
+    assert.deepEqual(commitDirs('git -C "`pwd`" commit -m x', project, true, false, 'linux'), []);
     assert.deepEqual(commitDirs(command, project, true, false, 'win32'), [project]);
     const spaced = path.join(other, 'my dir');
     fs.mkdirSync(spaced);
