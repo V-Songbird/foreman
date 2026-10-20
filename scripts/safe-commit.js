@@ -260,6 +260,9 @@ function indexSnapshot(root) {
 function restoreIndex(snapshot, files) {
   const lock = `${snapshot.file}.lock`;
   try {
+    // A failed `git add` writes no index: nothing to put back, nothing staged.
+    const current = fs.existsSync(snapshot.file) ? fs.readFileSync(snapshot.file) : null;
+    if (current === null ? snapshot.content === null : snapshot.content?.equals(current)) return {};
     if (snapshot.content === null) {
       fs.rmSync(snapshot.file, { force: true });
       return {};

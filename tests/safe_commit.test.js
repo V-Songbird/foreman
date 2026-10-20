@@ -580,14 +580,40 @@ describe('safe-commit finish staging discipline', () => {
     assert.equal(before.trim().split('\n').length, 3);
   });
 
-  test('an index finish cannot put back is named in the refusal, not thrown', () => {
+  test('a git add that fails leaves the index untouched and names nothing as left staged', () => {
     const baseline = commitWith({ 'src/a.js': 'base a\n' });
     writeFile('src/a.js', 'worktree a\n');
     fs.writeFileSync(path.join(project, '.git', 'index.lock'), '');
     const json = finishRefused(baseline);
     assert.equal(json.reason, 'staging_failed');
+    assert.equal(json.left_staged, undefined, 'the failed add staged nothing');
+    assert.equal(json.restore_error, undefined);
+    assert.equal(git('diff', '--cached', '--name-only'), '');
+  });
+
+  test('an index finish cannot put back after its own git add is named in the refusal, not thrown', () => {
+    const baseline = commitWith({ 'src/a.js': 'base a\n' });
+    writeFile('src/a.js', 'worktree a\n');
+    strayAfterStaging();
+    // Takes the index lock as soon as finish's `git add` returns.
+    const shim = path.join(path.dirname(project), 'lock-after-add.js');
+    fs.writeFileSync(shim, `
+      const cp = require('child_process');
+      const fs = require('fs');
+      const path = require('path');
+      const real = cp.execFileSync;
+      cp.execFileSync = function (file, args, options) {
+        const out = real.apply(this, arguments);
+        if (args[0] === 'add') fs.writeFileSync(path.join(options.cwd, '.git', 'index.lock'), '');
+        return out;
+      };
+    `);
+    env = { ...env, NODE_OPTIONS: `--require ${JSON.stringify(shim)}` };
+    const json = finishRefused(baseline);
+    assert.equal(json.reason, 'unexpected_files');
     assert.deepEqual(json.left_staged, ['src/a.js']);
     assert.match(json.restore_error, /EEXIST/);
+    assert.equal(git('show', ':src/a.js'), 'worktree a\n', 'left_staged names what finish staged');
   });
 
   test('a commit landing between begin and finish is refused', () => {
