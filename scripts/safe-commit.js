@@ -21,6 +21,7 @@
 
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
 const crypto = require("crypto");
 // [Foreman: 125] One collision rule for planning and for picking — the same
 // touchesOverlap next-candidates uses.
@@ -55,6 +56,20 @@ function git(root, args, options = {}) {
     timeout: 30000,
     ...options,
   });
+}
+
+// [Foreman: 1160] `files` go to git through --pathspec-from-file, so no list
+// of paths can outgrow the Windows command-line limit. A temp file rather
+// than stdin: run-git's sandbox fallback refuses `input`.
+function gitWithPaths(root, args, files, options) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "foreman-paths-"));
+  try {
+    const list = path.join(dir, "paths");
+    fs.writeFileSync(list, files.join("\0"));
+    return git(root, [...args, `--pathspec-from-file=${list}`, "--pathspec-file-nul"], options);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 // -z output, forward-slashed so a Windows checkout compares against the
@@ -256,19 +271,27 @@ function indexSnapshot(root) {
 // Written the way git writes it, through index.lock, so a running git that
 // holds the lock fails this rather than racing it. The old mtime goes back
 // too (floored, so never later): git's racy-entry check compares against it.
-// Returns the fields a refusal adds when the index could not be put back.
+// Returns the fields a refusal adds: staged:false once the index is back,
+// or what finish left staged when it could not be put back.
 function restoreIndex(snapshot, files) {
   const lock = `${snapshot.file}.lock`;
   try {
     // A failed `git add` writes no index: nothing to put back, nothing staged.
     const current = fs.existsSync(snapshot.file) ? fs.readFileSync(snapshot.file) : null;
-    if (current === null ? snapshot.content === null : snapshot.content?.equals(current)) return {};
+    if (current === null ? snapshot.content === null : snapshot.content?.equals(current)) return { staged: false };
     if (snapshot.content === null) {
       fs.rmSync(snapshot.file, { force: true });
-      return {};
+      return { staged: false };
     }
-    fs.writeFileSync(lock, snapshot.content, { flag: "wx" });
+    // Only a lock this call created is removed: one that already exists is
+    // another git's.
+    const fd = fs.openSync(lock, "wx");
     try {
+      try {
+        fs.writeFileSync(fd, snapshot.content);
+      } finally {
+        fs.closeSync(fd);
+      }
       const mtime = Math.floor(snapshot.mtimeMs) / 1000;
       fs.utimesSync(lock, mtime, mtime);
       fs.renameSync(lock, snapshot.file);
@@ -276,7 +299,7 @@ function restoreIndex(snapshot, files) {
       fs.rmSync(lock, { force: true });
       throw error;
     }
-    return {};
+    return { staged: false };
   } catch (error) {
     return { left_staged: files, restore_error: error.message };
   }
@@ -286,12 +309,17 @@ function restoreIndex(snapshot, files) {
 // pointer in the index. Staging one records whatever commit the submodule
 // sits on, so a close whose work lives inside a submodule would land its
 // trailer on a superproject commit.
+// [Foreman: 1160] The whole index is read and matched exactly: ls-files takes
+// no --pathspec-from-file, and an argument per path can outgrow the Windows
+// command-line limit.
 function gitlinksIn(root, files) {
   if (!files.length) return [];
-  return git(root, ["ls-files", "--stage", "-z", "--", ...files])
+  const wanted = new Set(files);
+  return git(root, ["ls-files", "--stage", "-z"], { maxBuffer: 64 * 1024 * 1024 })
     .split("\0")
     .filter((line) => line.startsWith("160000 "))
-    .map((line) => line.slice(line.indexOf("\t") + 1).replaceAll("\\", "/"));
+    .map((line) => line.slice(line.indexOf("\t") + 1).replaceAll("\\", "/"))
+    .filter((file) => wanted.has(file));
 }
 
 // An expected entry is an area hint, exactly as `touches` is: `src/api`
@@ -463,23 +491,31 @@ function finishUnit(root, options) {
   // [Foreman: 1154] A refusal below puts back what the user had staged
   // rather than HEAD.
   const before = indexSnapshot(root);
+  // [Foreman: 1160] Every git step from `git add` to the commit refuses
+  // through here, so none of them throws with finish's staging in the index.
+  const failedAfterStaging = (reason, error) => ({
+    ok: false,
+    reason,
+    baseline,
+    error: error.stderr ? String(error.stderr).trim() : error.message,
+    ...restoreIndex(before, toStage),
+  });
   if (toStage.length) {
     try {
-      git(root, ["add", "--", ...toStage]);
+      gitWithPaths(root, ["add"], toStage);
     } catch (error) {
-      return {
-        ok: false,
-        reason: "staging_failed",
-        baseline,
-        error: error.stderr ? String(error.stderr).trim() : error.message,
-        ...restoreIndex(before, toStage),
-      };
+      return failedAfterStaging("staging_failed", error);
     }
   }
   // [Foreman: 1140] Bookkeeping already staged when finish runs (by a staged
   // close, or by hand) is not this unit's: it stays staged and out of the
   // commit.
-  const stagedAll = stagedSince(root, baseline);
+  let stagedAll;
+  try {
+    stagedAll = stagedSince(root, baseline);
+  } catch (error) {
+    return failedAfterStaging("staging_failed", error);
+  }
   const heldStaged = stagedAll.filter(
     (file) => bookkeeping(file) && !(roadmapClose && CLOSE_BOOKKEEPING.has(file))
   );
@@ -508,7 +544,6 @@ function finishUnit(root, options) {
           error: `${restored.join(", ")} is staged, but the working tree holds its baseline content: stage the content you want, or unstage it, then run finish again`,
         }
         : {}),
-      staged: false,
       ...restoreIndex(before, toStage),
     };
   }
@@ -530,7 +565,19 @@ function finishUnit(root, options) {
     : ["-m", messageTitle];
   // A pathspec commit (--only) records just these paths and leaves the held
   // bookkeeping staged; the worktree matches the index for each of them here.
-  git(root, ["commit", "-q", ...messageArgs, ...(heldStaged.length ? ["--", ...staged] : [])]);
+  // No timeout, as in task.js: a project's pre-commit hook may run its suite.
+  try {
+    if (heldStaged.length) gitWithPaths(root, ["commit", "-q", ...messageArgs], staged, { timeout: 0 });
+    else git(root, ["commit", "-q", ...messageArgs], { timeout: 0 });
+  } catch (error) {
+    // A rejecting hook leaves HEAD on the baseline. A commit that landed
+    // before git failed keeps its index and is attested below.
+    let head = baseline;
+    try {
+      head = git(root, ["rev-parse", "HEAD"]).trim();
+    } catch {}
+    if (head === baseline) return failedAfterStaging("commit_failed", error);
+  }
   const commit = git(root, ["rev-parse", "HEAD"]).trim();
   const attested = attestCommit(root, { baseline, commit, id, roadmapClose });
   return {
@@ -589,6 +636,8 @@ error; a refusal is a successful call reporting ok:false).
             --allow-unexpected only after the user approved those files.
             A file staged and then put back to its baseline content in the
             tree is refused as staging_incomplete, named in restored_files.
+            A git commit that fails, as when a pre-commit hook refuses,
+            is refused as commit_failed.
             A refusal after staging leaves the index as finish found it;
             when it cannot write the index back, left_staged names the
             files finish staged and restore_error says why.

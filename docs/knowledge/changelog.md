@@ -108,6 +108,12 @@ instead.
   `restored_files`. Before, the commit recorded the staged content the
   working tree no longer held, or, with Foreman's bookkeeping staged, left
   the file out and overwrote what was staged.
+- When `git commit` fails inside `safe-commit.js finish`, for example because
+  a pre-commit hook refuses it, `finish` now refuses with `commit_failed` and
+  puts back your staged content. Before, it stopped with an error and left
+  its own staging in the index. The commit also no longer stops after 30
+  seconds, so a pre-commit hook that runs a test suite can finish, and
+  `finish` stages and commits any number of files on Windows.
 - Foreman's reference pages now describe the `task.js start` and
   `task.js finish` close on every host. A task-split run with an entry
   takes its commit boundary from the entry paragraph's `task.js start` and

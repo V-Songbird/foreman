@@ -613,7 +613,100 @@ describe('safe-commit finish staging discipline', () => {
     assert.equal(json.reason, 'unexpected_files');
     assert.deepEqual(json.left_staged, ['src/a.js']);
     assert.match(json.restore_error, /EEXIST/);
+    assert.equal(json.staged, undefined, 'the index was not put back, so the refusal does not claim it');
+    assert.equal(fs.existsSync(path.join(project, '.git', 'index.lock')), true, 'a lock finish did not take stays');
     assert.equal(git('show', ':src/a.js'), 'worktree a\n', 'left_staged names what finish staged');
+  });
+
+  // [Foreman: 1160] Every step after finish's `git add` refuses with the index
+  // put back; before, a throw there left finish's staging over the user's.
+  function stagedOverWorktree() {
+    const baseline = commitWith({ 'src/a.js': 'base a\n' });
+    writeFile('src/a.js', 'staged a\n');
+    git('add', 'src/a.js');
+    writeFile('src/a.js', 'worktree a\n');
+    return baseline;
+  }
+
+  function withShim(name, source) {
+    const shim = path.join(path.dirname(project), name);
+    fs.writeFileSync(shim, source);
+    env = { ...env, NODE_OPTIONS: `--require ${JSON.stringify(shim)}` };
+  }
+
+  test('a pre-commit hook that rejects the commit is refused as commit_failed, the user\'s staging put back', () => {
+    const baseline = stagedOverWorktree();
+    const hooks = path.join(project, '.git', 'hooks');
+    fs.mkdirSync(hooks, { recursive: true });
+    fs.writeFileSync(path.join(hooks, 'pre-commit'), '#!/bin/sh\necho hook says no >&2\nexit 1\n', { mode: 0o755 });
+    git('config', 'core.hooksPath', hooks);
+    const json = finishRefused(baseline);
+    assert.equal(json.reason, 'commit_failed');
+    assert.match(json.error, /hook says no/);
+    assert.equal(json.staged, false);
+    assert.equal(git('rev-parse', 'HEAD').trim(), baseline, 'no commit was made');
+    assert.equal(git('show', ':src/a.js'), 'staged a\n', 'the user\'s staged content, not finish\'s');
+  });
+
+  test('a git read that fails after finish\'s git add is refused, the user\'s staging put back', () => {
+    const baseline = stagedOverWorktree();
+    // Fails the first `git diff --cached` that runs after `git add`.
+    withShim('fail-after-add.js', `
+      const cp = require('child_process');
+      const real = cp.execFileSync;
+      let added = false;
+      cp.execFileSync = function (file, args) {
+        if (added && args[0] === 'diff' && args.includes('--cached')) {
+          throw Object.assign(new Error('git diff failed'), { stderr: 'fatal: simulated diff failure' });
+        }
+        const out = real.apply(this, arguments);
+        if (args[0] === 'add') added = true;
+        return out;
+      };
+    `);
+    const json = finishRefused(baseline);
+    assert.equal(json.reason, 'staging_failed');
+    assert.match(json.error, /simulated diff failure/);
+    assert.equal(git('show', ':src/a.js'), 'staged a\n');
+  });
+
+  test('an index write that fails midway removes its own index.lock and reports nothing as unstaged', () => {
+    const baseline = commitWith({ 'src/a.js': 'base a\n' });
+    writeFile('src/a.js', 'worktree a\n');
+    strayAfterStaging();
+    // Writes one byte of the index copy, then fails as a full disk would.
+    withShim('fail-index-write.js', `
+      const fs = require('fs');
+      const real = fs.writeFileSync;
+      fs.writeFileSync = function (file, data) {
+        if (typeof file === 'number' || String(file).endsWith('index.lock')) {
+          real.call(this, file, Buffer.from(data).subarray(0, 1));
+          throw Object.assign(new Error('ENOSPC: no space left on device, write'), { code: 'ENOSPC' });
+        }
+        return real.apply(this, arguments);
+      };
+    `);
+    const json = finishRefused(baseline);
+    assert.equal(json.reason, 'unexpected_files');
+    assert.match(json.restore_error, /ENOSPC/);
+    assert.equal(fs.existsSync(path.join(project, '.git', 'index.lock')), false, 'later git commands still run');
+    assert.deepEqual(json.left_staged, ['src/a.js']);
+  });
+
+  test('a commit of more paths than a Windows command line holds goes through', () => {
+    const many = Array.from({ length: 700 }, (_, i) => `src/many/${'y'.repeat(44)}${String(i).padStart(3, '0')}.js`);
+    const baseline = commitWith(Object.fromEntries(many.map((file) => [file, 'base\n'])));
+    for (const file of many) writeFile(file, 'worktree\n');
+    // Held bookkeeping makes the commit a pathspec commit of every path.
+    writeRoadmap(project, [{ ...entry('001'), notes: 'flipped' }]);
+    git('add', '--', 'ROADMAP.jsonl');
+    const { json } = run(['finish', '--baseline', baseline], {
+      expected: ['src'],
+      message_title: 'task 1/2: many',
+    });
+    assert.equal(json.ok, true, JSON.stringify(json).slice(0, 500));
+    assert.equal(json.files.length, many.length);
+    assert.equal(git('diff', '--cached', '--name-only').trim(), 'ROADMAP.jsonl', 'the roadmap is still staged');
   });
 
   test('a commit landing between begin and finish is refused', () => {
