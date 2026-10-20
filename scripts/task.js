@@ -367,7 +367,7 @@ function cmdFinish(root, flags, payload) {
     // The staged close: ROADMAP.jsonl rides in the task's own commit.
     closed = cmdUpdateStatus(root, { ...close, staged: true });
     try {
-      made = commit(cwd, text, flags.baseline);
+      made = commit(cwd, text, unit.baseline);
     } catch (error) {
       return refusal(root, "commit_failed", {
         error: gitFailureCause(error),
@@ -381,7 +381,7 @@ function cmdFinish(root, flags, payload) {
     // A submodule commit or a git-ignored roadmap: commit first, then record
     // the sha, which roadmap.js resolves inside the submodule.
     try {
-      made = commit(cwd, text, flags.baseline);
+      made = commit(cwd, text, unit.baseline);
     } catch (error) {
       return refusal(root, "commit_failed", {
         error: gitFailureCause(error),
@@ -406,7 +406,7 @@ function cmdFinish(root, flags, payload) {
   }
   let attested;
   try {
-    attested = attestCommit(cwd, { baseline: flags.baseline, commit: sha, id, roadmapClose: stagedClose });
+    attested = attestCommit(cwd, { baseline: unit.baseline, commit: sha, id, roadmapClose: stagedClose });
   } catch (error) {
     attested = { ok: false, reasons: [`git could not check it: ${gitFailureCause(error)}`] };
   }

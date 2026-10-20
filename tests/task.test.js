@@ -530,6 +530,36 @@ describe('task.js finish', () => {
     assert.match(result.warnings.join(' '), /unable to write new index file/);
   });
 
+  test('an abbreviated --baseline with a rejecting hook is still commit_failed, not a landed commit', () => {
+    repo();
+    const hooks = path.join(path.dirname(project), 'hooks');
+    fs.mkdirSync(hooks);
+    fs.writeFileSync(path.join(hooks, 'pre-commit'), '#!/bin/sh\necho refused >&2\nexit 1\n', { mode: 0o755 });
+    git('config', 'core.hooksPath', hooks);
+    const start = ok(['start', '--id', '001']);
+    write('src/a.js', 'two\n');
+    const result = runThen(start.then.replace(start.baseline, start.baseline.slice(0, 9)), { status: 'done', files: ['src/a.js'], message: 'Change a' });
+    assert.equal(result.reason, 'commit_failed', JSON.stringify(result));
+    assert.equal(head(), start.baseline);
+  });
+
+  test('a git failure while attesting a landed commit is a warning, not a crash', () => {
+    repo();
+    const start = ok(['start', '--id', '001']);
+    write('src/a.js', 'two\n');
+    shimGit('fail-attest-1171.js', `
+      if (committed && args[0] === 'rev-list') {
+        throw Object.assign(new Error('git read failed'), { stderr: 'fatal: simulated attest failure' });
+      }
+      const out = real.apply(this, arguments);
+      if (args[0] === 'commit') committed = true;
+      return out;
+    `);
+    const result = runThen(start.then, { status: 'done', files: ['src/a.js'], message: 'Change a' });
+    assert.equal(result.commit, head(), JSON.stringify(result));
+    assert.match(result.warnings.join(' '), /the commit did not pass attestation: git could not check it: .*simulated attest failure/);
+  });
+
   // [Foreman: 1112] Without a baseline, finish knows only that start took no
   // boundary, not that someone else's changes were there.
   test('a hand-run finish without --baseline names the missing boundary, not foreign changes', () => {
