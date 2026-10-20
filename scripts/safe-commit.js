@@ -258,13 +258,14 @@ function indexEntries(root, files) {
 }
 
 // Puts each of `files` back to the entry `before` recorded, or out of the
-// index when it had none. Arguments, not stdin: run-git's sandbox fallback
-// refuses `input`.
+// index when it had none. --add lets an entry `git add` dropped (a tracked
+// file deleted in the worktree) come back. Arguments, not stdin: run-git's
+// sandbox fallback refuses `input`.
 function restoreIndex(root, files, before) {
   const present = files.filter((file) => before.has(file));
   const absent = files.filter((file) => !before.has(file));
   if (present.length) {
-    git(root, ["update-index", ...present.flatMap((file) => ["--cacheinfo", before.get(file)[0], before.get(file)[1], file])]);
+    git(root, ["update-index", "--add", ...present.flatMap((file) => ["--cacheinfo", before.get(file)[0], before.get(file)[1], file])]);
   }
   if (absent.length) git(root, ["update-index", "--force-remove", "--", ...absent]);
 }
@@ -474,7 +475,12 @@ function finishUnit(root, options) {
     ? []
     : staged.filter((file) => !isOwned(file, allowed));
   const missing = changed.filter((file) => !staged.includes(file));
-  if (strayStaged.length || missing.length) {
+  // [Foreman: 1154] Staged, then put back to the baseline in the worktree:
+  // no diff against the baseline lists it, and the commit would record
+  // content the worktree lacks, or, as a pathspec commit, drop it and
+  // overwrite the staged blob.
+  const restored = staged.filter((file) => !changedAll.includes(file) && !strayStaged.includes(file));
+  if (strayStaged.length || missing.length || restored.length) {
     restoreIndex(root, toStage, before);
     return {
       ok: false,
@@ -484,6 +490,12 @@ function finishUnit(root, options) {
       changed_files: changed,
       ...(strayStaged.length ? { unexpected_files: strayStaged } : {}),
       ...(missing.length ? { missing_files: missing } : {}),
+      ...(restored.length
+        ? {
+          restored_files: restored,
+          error: `${restored.join(", ")} is staged, but the working tree holds its baseline content: stage the content you want, or unstage it, then run finish again`,
+        }
+        : {}),
       staged: false,
     };
   }
@@ -562,6 +574,9 @@ error; a refusal is a successful call reporting ok:false).
             ROADMAP.jsonl too), or when a changed file matches no expected
             entry -- unexpected_files names them. Re-run with
             --allow-unexpected only after the user approved those files.
+            A file staged and then put back to its baseline content in the
+            tree is refused as staging_incomplete, named in restored_files.
+            A refusal after staging leaves the index as finish found it.
             A changed submodule gitlink is refused as gitlink_not_expected
             unless expected names that exact path; neither an area hint
             nor --allow-unexpected stages one. Work inside a submodule

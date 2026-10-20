@@ -425,6 +425,7 @@ describe('safe-commit finish staging discipline', () => {
   function refuseAfterStaging() {
     cleanRepo();
     writeFile('src/a.js', 'base a\n');
+    writeFile('src/del.js', 'base del\n');
     writeFile('notes/b.md', 'base b\n');
     git('add', '-A');
     git('commit', '-q', '-m', 'add a and b');
@@ -433,6 +434,7 @@ describe('safe-commit finish staging discipline', () => {
     git('add', 'src/a.js');
     writeFile('src/a.js', 'worktree a\n');
     writeFile('src/c.js', 'new c\n');
+    fs.rmSync(path.join(project, 'src', 'del.js'));
     writeFile('notes/b.md', 'staged b\n');
     git('add', 'notes/b.md');
     writeFile('notes/b.md', 'base b\n');
@@ -450,12 +452,36 @@ describe('safe-commit finish staging discipline', () => {
     refuseAfterStaging();
     assert.equal(git('show', ':src/a.js'), 'staged a\n', 'the user\'s staged content, not HEAD\'s or the worktree\'s');
     assert.equal(git('ls-files', '--', 'src/c.js'), '', 'a file finish added leaves the index again');
+    assert.equal(git('show', ':src/del.js'), 'base del\n', 'a tracked file deleted in the worktree is back in the index');
     assert.equal(fs.readFileSync(path.join(project, 'src', 'a.js'), 'utf-8'), 'worktree a\n');
   });
 
   test('a refusal after staging leaves a path finish did not stage as the user staged it', () => {
     refuseAfterStaging();
     assert.equal(git('show', ':notes/b.md'), 'staged b\n');
+  });
+
+  test('an owned file staged and then restored to the baseline is refused, its staged content kept', () => {
+    cleanRepo();
+    writeFile('src/r.js', 'base r\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'add r');
+    const baseline = begin().baseline.head;
+    writeFile('src/r.js', 'staged r\n');
+    git('add', 'src/r.js');
+    writeFile('src/r.js', 'base r\n');
+    writeFile('src/a.js', 'owned\n');
+    const { json } = run(['finish', '--baseline', baseline], {
+      id: '001',
+      expected: ['src'],
+      message_title: 'do the thing',
+    });
+    assert.equal(json.ok, false, JSON.stringify(json));
+    assert.equal(json.reason, 'staging_incomplete');
+    assert.deepEqual(json.restored_files, ['src/r.js']);
+    assert.equal(git('rev-parse', 'HEAD').trim(), baseline, 'no commit was made');
+    assert.equal(git('show', ':src/r.js'), 'staged r\n');
+    assert.equal(git('ls-files', '--', 'src/a.js'), '', 'what finish staged leaves the index again');
   });
 
   test('a commit landing between begin and finish is refused', () => {

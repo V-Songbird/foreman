@@ -101,6 +101,11 @@ instead.
   it staged back to what the index held before, and leaves the rest of the
   index as you staged it. Before, the refusal reset every staged file to the
   last commit, so staged content that differed from the working tree was lost.
+  A file staged and then put back to its last-committed content in the
+  working tree is now refused as `staging_incomplete` and named in
+  `restored_files`. Before, the commit recorded the staged content the
+  working tree no longer held, or, with Foreman's bookkeeping staged, left
+  the file out and overwrote what was staged.
 - Foreman's reference pages now describe the `task.js start` and
   `task.js finish` close on every host. A task-split run with an entry
   takes its commit boundary from the entry paragraph's `task.js start` and
