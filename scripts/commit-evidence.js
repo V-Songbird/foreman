@@ -347,14 +347,20 @@ function changedSince(root, sha, paths, counts) {
   // [Foreman: 1143] Files under one item count for that item only, up to its
   // weight, so files added under a collapsed prefix since the anchor cannot
   // stand in for recorded paths outside that prefix. Inside it they still
-  // count, up to the prefix's stored number.
+  // count, up to the prefix's stored number. A file under two items (an
+  // unstored folder beside a path inside it) counts for the longest one only.
   // A moved submodule gitlink is reported as the bare folder name ("foreman"),
   // so a folder item matches its own name too.
   const under = (item, f) => (item.endsWith("/") ? f === item.slice(0, -1) || f.startsWith(item) : f === item || f.startsWith(`${item}/`));
-  const changedWeight = weighed.reduce(
-    (sum, [item, weight]) => sum + Math.min(weight, changed.filter((f) => under(item, f)).length),
-    0
-  );
+  const perItem = weighed.map(() => 0);
+  for (const f of changed) {
+    let best = -1;
+    weighed.forEach(([item], i) => {
+      if (under(item, f) && (best < 0 || item.length > weighed[best][0].length)) best = i;
+    });
+    if (best >= 0) perItem[best] += 1;
+  }
+  const changedWeight = weighed.reduce((sum, [, weight], i) => sum + Math.min(weight, perItem[i]), 0);
   return {
     state: changed.length ? "stale" : "fresh",
     changed,

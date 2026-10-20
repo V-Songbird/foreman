@@ -217,6 +217,19 @@ describe('submodule-hosted commits', () => {
     });
   });
 
+  // [Foreman: 1143] observed_touches may hold an unstored folder beside a path
+  // inside it; one changed file counts for the longest item covering it.
+  test('a changed file under two items counts once, for the longer item', () => {
+    initGitRepo(project);
+    const sha = commitFile(project, 'src/auth/a.js', 'a');
+    commitFile(project, 'src/auth/a.js', 'a2');
+
+    const result = changedSince(project, sha, ['src/auth/', 'src/auth/a.js'], {});
+    assert.deepEqual(result.changed, ['src/auth/a.js']);
+    assert.equal(result.checked, 2);
+    assert.equal(result.changed_weight, 1);
+  });
+
   test('shas nothing can show come back null rather than empty text', () => {
     initGitRepo(project);
     commitFile(project, 'root.js', 'root');
