@@ -316,6 +316,49 @@ describe('task.js finish', () => {
     assert.doesNotMatch(refusalFix({ reason: 'staging_failed', error: 'x' }), /still staged/);
   });
 
+  // [Foreman: 1168] The restore command names the left paths, so it does not
+  // unstage anything else; a repository with no commit has no HEAD to restore
+  // from, so the hint also gives `git rm --cached`.
+  test('the fix text gives an unstage command limited to the files left staged', () => {
+    const fix = refusalFix({ reason: 'staging_failed', error: 'x', left_staged: ['src/a.js', 'my file.js'], restore_error: 'e' });
+    assert.ok(fix.includes("`git restore --staged -- src/a.js 'my file.js'`"), fix);
+    assert.ok(fix.includes("`git rm --cached -- src/a.js 'my file.js'` when the repository has no commit yet"), fix);
+  });
+
+  test('a refusal through finish names the left paths in its restore command', () => {
+    repo();
+    const start = ok(['start', '--id', '001']);
+    write('src/a.js', 'two\n');
+    // Takes the index lock once `git add` returns, then fails the staged-file
+    // listing, so the helper refuses with its staging in the index and cannot put it back.
+    const shim = path.join(path.dirname(project), 'lock-after-add.js');
+    fs.writeFileSync(shim, `
+      const cp = require('child_process');
+      const fs = require('fs');
+      const path = require('path');
+      const real = cp.execFileSync;
+      let added = false;
+      cp.execFileSync = function (file, args, options) {
+        if (added && args[0] === 'diff' && args.includes('--cached')) throw new Error('listing failed');
+        const out = real.apply(this, arguments);
+        if (args[0] === 'add') { added = true; fs.writeFileSync(path.join(options.cwd, '.git', 'index.lock'), ''); }
+        return out;
+      };
+    `);
+    env = { ...env, NODE_OPTIONS: `--require ${JSON.stringify(shim)}` };
+    const result = runThen(start.then, { status: 'done', files: ['src/a.js'], message: 'Change a' });
+    assert.equal(result.next, 'refused', JSON.stringify(result));
+    assert.deepEqual(result.left_staged, ['ROADMAP.jsonl', 'src/a.js'], JSON.stringify(result));
+    assert.ok(result.fix.includes('`git restore --staged -- ROADMAP.jsonl src/a.js`'), result.fix);
+  });
+
+  test('the fix text surfaces missing_files for an unexpected_files refusal too', () => {
+    const fix = refusalFix({ reason: 'unexpected_files', missing_files: ['src/b.js'] });
+    assert.match(fix, /not: src\/b\.js\./);
+    assert.match(fix, /Nothing was staged or closed\./);
+    assert.match(refusalFix({ reason: 'staging_failed', error: 'x', missing_files: ['src/b.js'] }), /not: src\/b\.js\./);
+  });
+
   test('the fix text for staging_incomplete names the missing and restored files', () => {
     const fix = refusalFix({
       reason: 'staging_incomplete',

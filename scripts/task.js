@@ -219,20 +219,23 @@ function stringList(value, field) {
 // names those files instead of saying nothing was staged.
 function refusalFix(unit) {
   const left = unit.left_staged || [];
+  // [Foreman: 1168] The restore command names the left paths only, so it
+  // leaves any other staging alone. `git restore --staged` fails in a
+  // repository with no commit yet (probed: "could not resolve 'HEAD'"), where
+  // `git rm --cached` unstages instead.
+  const paths = left.map(quoteArg).join(" ");
   const stagedNote = left.length
-    ? ` The commit helper could not restore the index (${unit.restore_error}), so these files are still staged: ${left.join(", ")}. Tell the user, and unstage them with \`git restore --staged\` before anything else.`
+    ? ` The commit helper could not restore the index (${unit.restore_error}), so these files are still staged: ${left.join(", ")}. Tell the user, and unstage them with \`git restore --staged -- ${paths}\` (\`git rm --cached -- ${paths}\` when the repository has no commit yet) before anything else.`
     : "";
+  const missingNote = unit.missing_files ? `finish expected these changed files to be staged and they are not: ${unit.missing_files.join(", ")}.` : "";
   const untouched = stagedNote ? `${stagedNote} Nothing was closed.` : " Nothing was staged or closed.";
-  const incomplete = [
-    unit.missing_files ? `finish expected these changed files to be staged and they are not: ${unit.missing_files.join(", ")}.` : "",
-    unit.restored_files ? `${unit.error}.` : "",
-  ].filter(Boolean).join(" ");
+  const incomplete = [missingNote, unit.restored_files ? `${unit.error}.` : ""].filter(Boolean).join(" ");
   const fixes = {
-    unexpected_files: `Show the user these changed files that \`files\` does not list. Add the ones that are this task's to \`files\` and run the close again; with the user's approval of the rest, run it with --allow-unexpected.${untouched}`,
+    unexpected_files: `Show the user these changed files that \`files\` does not list. Add the ones that are this task's to \`files\` and run the close again; with the user's approval of the rest, run it with --allow-unexpected.${missingNote ? ` ${missingNote}` : ""}${untouched}`,
     no_task_changes: `Nothing changed since start. Run the close again without \`files\` to record it without a commit.${untouched}`,
     staging_incomplete: `${incomplete} Tell the user; nothing was closed.${stagedNote}`,
   };
-  return fixes[unit.reason] || `${unit.error || unit.reason}. Tell the user; nothing was closed.${stagedNote}`;
+  return fixes[unit.reason] || `${unit.error || unit.reason}. ${missingNote ? `${missingNote} ` : ""}Tell the user; nothing was closed.${stagedNote}`;
 }
 
 function refusal(root, reason, fields) {

@@ -39,6 +39,12 @@ instead.
   now names the files still staged and says why, instead of "Nothing was
   staged". A `staging_incomplete` refusal's `fix` now names the missing and
   restored files too.
+- That refusal's `fix` now gives an unstage command limited to the files
+  left staged, `git restore --staged -- <files>`, so it no longer resets
+  other staging; for a repository with no commit yet, where that command
+  fails, it also gives `git rm --cached -- <files>`. Every refusal's `fix`
+  now names the files `finish` expected to be staged and were not, not only
+  `staging_incomplete`.
 - The README nav check now recognises a nested list item indented with a tab,
   so a link in a paragraph under it is no longer skipped as code.
 - An entry that closes with more than 100 files now stores them as folder
