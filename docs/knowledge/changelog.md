@@ -73,7 +73,9 @@ instead.
   is kept as written. A recalled lead's freshness stamp no longer reads
   "possibly stale: 0 of its N files changed since": a changed file that none
   of the lead's recorded paths names, such as one an older `add_touches`
-  path or a glob matched, now counts as one changed file.
+  path or a glob matched, now counts as one changed file, up to the weight of
+  the glob-like paths that named no file, so it cannot stand in for paths
+  recorded under a collapsed prefix or a plain path that did not change.
 - Picking a task now runs `roadmap.js step pick`, which decides each step of
   the pick and tells the skill what to do next with a short code. The script
   builds the task menu and its labels, records the pick in the trial log,

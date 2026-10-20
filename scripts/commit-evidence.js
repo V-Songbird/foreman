@@ -295,7 +295,8 @@ function touchWeight(counts, touch) {
  * `counts` (an entry's observed_touch_counts). `changed_weight` counts the
  * changed ones the same way: the files changed under each item, capped at
  * that item's weight, summed, so it never exceeds `checked`; a changed file
- * that no item claims by name counts one, so a "stale" state never reports 0
+ * that no item claims by name (a glob's match) counts one, up to the weight of
+ * the glob-like items that claimed none, and a "stale" state never reports 0
  * changed. Every failure --
  * no git, a sha nothing resolves, a sha off this history line, a diff git
  * would not run -- comes back "unknown" and never "fresh": a lead nobody can
@@ -365,13 +366,17 @@ function changedSince(root, sha, paths, counts) {
     else unclaimed += 1;
   }
   // [Foreman: 1166] Git matched these files through an item the string match
-  // above does not read as a path (a "./x" or "a\b" item stored before
-  // add_touches was normalized, a glob, a case-folded path). They are real
-  // changes, so each counts one, and the total never passes `checked`.
-  const changedWeight = Math.min(
-    checked,
-    weighed.reduce((sum, [, weight], i) => sum + Math.min(weight, perItem[i]), 0) + unclaimed,
-  );
+  // above does not read as a path: a glob, or a "./x" or "a\b" item stored
+  // before add_touches was normalized. They are real changes, so each counts
+  // one, but only up to the weight of those unreadable items that claimed no
+  // file. A plain path or folder that claimed nothing changed nothing, so its
+  // weight stays out: the files cannot stand in for paths recorded under it.
+  // Any other unclaimed file (a case-folded path) still counts one, so a stale
+  // state never reads 0 changed.
+  const plain = (item) => !/^(\.\/|:)|[*?[\\]|\/\//.test(item);
+  const claimed = weighed.reduce((sum, [, weight], i) => sum + Math.min(weight, perItem[i]), 0);
+  const open = weighed.reduce((sum, [item, weight], i) => sum + (perItem[i] || plain(item) ? 0 : weight), 0);
+  const changedWeight = Math.min(checked, Math.max(changed.length ? 1 : 0, claimed + Math.min(unclaimed, open)));
   return {
     state: changed.length ? "stale" : "fresh",
     changed,

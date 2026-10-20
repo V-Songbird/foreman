@@ -258,6 +258,20 @@ describe('submodule-hosted commits', () => {
     assert.equal(result.changed_weight, 1);
   });
 
+  // [Foreman: 1166] Files a glob matched are not recorded paths under the
+  // collapsed prefix beside it; they count only for the glob's own weight.
+  test('files no item claims do not stand in for a collapsed prefix that did not change', () => {
+    initGitRepo(project);
+    commitFile(project, 'src/a.js', 'a');
+    const sha = commitFile(project, 'docs/seed.md', 'seed');
+    for (const n of [1, 2, 3, 4, 5, 6]) commitFile(project, `docs/n${n}.md`, String(n));
+
+    const result = changedSince(project, sha, ['src/', 'docs/*.md'], { 'src/': 5 });
+    assert.equal(result.state, 'stale');
+    assert.equal(result.checked, 6);
+    assert.equal(result.changed_weight, 1);
+  });
+
   test('shas nothing can show come back null rather than empty text', () => {
     initGitRepo(project);
     commitFile(project, 'root.js', 'root');
