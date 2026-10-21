@@ -2311,10 +2311,10 @@ describe('--help', () => {
   // the quoted heredoc the skills use: copied with an apostrophe, they still run.
   test('the free-text examples are quoted heredocs, not single-quoted echo', () => {
     const { stdout } = runRoadmap(['--help'], undefined, env);
-    for (const verb of ['add', 'correct']) {
+    for (const verb of ['add', 'correct', 'reassign-id']) {
       assert.match(stdout, new RegExp(`\\n {2}node roadmap\\.js ${verb} <<'EOF'\\n\\{[^\\n]+\\}\\nEOF\\n`), verb);
     }
-    assert.doesNotMatch(stdout, /echo '\{[^\n]*"(title|why|what)"/);
+    assert.doesNotMatch(stdout, /echo '\{[^\n]*"(title|why|what|keep)"/);
     assert.match(stdout, /@'\.\.\.'@/);
   });
 

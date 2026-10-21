@@ -3168,8 +3168,9 @@ EOF
   node roadmap.js correct <<'EOF'
 {"id":"004","expected_updated_at":"2026-07-28","expected":{"what":"old what","planned_touches":["src/api"]},"what":"...","planned_touches":["src/api/retry.ts"]}
 EOF
-  echo '{"id":"130","keep":"Cache the rate lookup"}' \\
-    | node roadmap.js reassign-id
+  node roadmap.js reassign-id <<'EOF'
+{"id":"130","keep":"Cache the rate lookup"}
+EOF
   echo '{"ids":["001","003"]}' | node roadmap.js archive
   echo '{"ids":["003"]}' | node roadmap.js restore
   node roadmap.js list --archived --summary
