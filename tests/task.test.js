@@ -695,12 +695,29 @@ describe('a value opening with a quote stays one literal argument', () => {
       const values = [`’$x${quote}y`, `'$x${quote}y`, `$x’y`, `‘q’ $x${quote}`];
       for (const value of values) {
         const flag = carriedFlags({ orchestrator: value });
-        const fix = refusalFix({ reason: 'staging_failed', error: 'x', left_staged: [value], restore_error: 'e' });
+        const fix = refusalFix({ reason: 'staging_failed', error: 'x', left_staged: [value], restore_error: 'e' }, value);
         const file = /restore --staged -- (.+?)`/.exec(fix)[1];
-        const r = shell(`node '${argv}'${flag} ${file}`);
+        const sub = /git -C (.+?) restore/.exec(fix)[1];
+        const r = shell(`node '${argv}'${flag} ${file} ${sub}`);
         if (r === null) return t.skip('no bash found');
         assert.equal(r.status, 0, flag + ' ' + file + '\n' + r.stdout + r.stderr);
-        assert.deepEqual(JSON.parse(r.stdout), [`--orchestrator=${value}`, `:/${value}`], flag + ' ' + file);
+        assert.deepEqual(JSON.parse(r.stdout), [`--orchestrator=${value}`, `:/:${value}`, `./${value}`], flag + ' ' + file);
+      }
+      // git reads the path itself: a leading `!` or `^` is no exclude magic,
+      // so the unstage command drops that one file and keeps the rest staged.
+      const repo = path.join(project, 'pathspec').replaceAll('\\', '/');
+      fs.mkdirSync(repo, { recursive: true });
+      initGitRepo(repo);
+      const names = ['!it’s.txt', '^it’s.txt', '’$x.txt', "'$x.txt"];
+      for (const name of [...names, 'a.txt']) fs.writeFileSync(path.join(repo, name), '', 'utf-8');
+      const staged = () => spawnSync('git', ['ls-files', '-z'], { cwd: repo, encoding: 'utf-8' }).stdout.split('\0').filter(Boolean).sort();
+      for (const name of names) {
+        spawnSync('git', ['add', '-A'], { cwd: repo });
+        const fix = refusalFix({ reason: 'staging_failed', error: 'x', left_staged: [name], restore_error: 'e' });
+        const command = /`(git rm --cached -- .+?)`/.exec(fix)[1].replace('git', `git -C '${repo}'`);
+        const r = shell(command);
+        assert.equal(r.status, 0, command + '\n' + r.stdout + r.stderr);
+        assert.deepEqual(staged(), [...names, 'a.txt'].filter((n) => n !== name).sort(), command);
       }
     });
   }

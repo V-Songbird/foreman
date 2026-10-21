@@ -251,10 +251,12 @@ function refusalFix(unit, sub) {
   // submodule, so the command runs there with -C. `git restore --staged`
   // fails in a repository with no commit yet (probed: "could not resolve
   // 'HEAD'"), where `git rm --cached` unstages instead.
-  // A path that cannot open the word follows `:/`, git's top-of-repository
-  // pathspec, which names the same top-relative path.
-  const paths = left.map((file) => quoteArg(file, ":/")).join(" ");
-  const git = sub ? `git -C ${quoteArg(sub)}` : "git";
+  // A path that cannot open the word follows `:/:`, git's top-of-repository
+  // pathspec, which names the same top-relative path; the closing `:` keeps a
+  // leading `!`, `^` or `:` of the path from reading as magic. A submodule
+  // path follows `./`, since the command runs from the root.
+  const paths = left.map((file) => quoteArg(file, ":/:")).join(" ");
+  const git = sub ? `git -C ${quoteArg(sub, "./")}` : "git";
   const reason = unit.restore_error || "no reason given";
   const how = left.length
     ? `these files are still staged: ${left.join(", ")}. Unstage them with \`${git} restore --staged -- ${paths}\` (\`${git} rm --cached -- ${paths}\` when the repository has no commit yet) before anything else.`
