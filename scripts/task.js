@@ -274,17 +274,22 @@ function refusalFix(unit, sub) {
   const git = sub ? `git -C ${quoteArg(sub, "./")}` : "git";
   const reason = unit.restore_error || "no reason given";
   // A listed path with a backtick takes a code span too, or its backtick
-  // would pair with the command's fence.
-  const listed = left.map((file) => (file.includes("`") ? codeSpan(file) : file)).join(", ");
+  // would pair with the command's fence. The missing and restored lists come
+  // before that fence, so they are listed the same way.
+  const list = (files) => files.map((file) => (file.includes("`") ? codeSpan(file) : file)).join(", ");
+  const listed = list(left);
   const how = left.length
     ? `these files are still staged: ${listed}. Unstage them with ${codeSpan(`${git} restore --staged -- ${paths}`)} (${codeSpan(`${git} rm --cached -- ${paths}`)} when the repository has no commit yet) before anything else.`
     : "files may still be staged. Run `git status` and unstage them before anything else.";
   const stagedNote = left.length || unit.restore_error ? ` The commit helper could not restore the index (${reason}), so ${how}` : "";
-  const missingNote = unit.missing_files ? `finish expected these changed files to be staged and they are not: ${unit.missing_files.join(", ")}.` : "";
+  const missingNote = unit.missing_files ? `finish expected these changed files to be staged and they are not: ${list(unit.missing_files)}.` : "";
   // "Tell the user" appears once in each fix.
   const closing = `Tell the user; nothing was closed.${stagedNote}`;
   const untouched = stagedNote ? ` ${closing}` : " Nothing was staged or closed.";
-  const incomplete = [missingNote, unit.restored_files ? `${unit.error}.` : ""].filter(Boolean).join(" ");
+  // safe-commit.js opens the restored error with the raw list; swap it in.
+  const raw = unit.restored_files ? unit.restored_files.join(", ") : "";
+  const restoredNote = unit.restored_files ? `${String(unit.error).startsWith(raw) ? list(unit.restored_files) + unit.error.slice(raw.length) : unit.error}.` : "";
+  const incomplete = [missingNote, restoredNote].filter(Boolean).join(" ");
   const fixes = {
     unexpected_files: `Show the user these changed files that \`files\` does not list. Add the ones that are this task's to \`files\` and run the close again; with the user's approval of the rest, run it with --allow-unexpected.${missingNote ? ` ${missingNote}` : ""}${untouched}`,
     no_task_changes: `Nothing changed since start. Run the close again without \`files\` to record it without a commit.${untouched}`,

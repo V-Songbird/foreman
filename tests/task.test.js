@@ -387,6 +387,23 @@ describe('task.js finish', () => {
     ], fix);
   });
 
+  test('a backtick in a missing or restored path stays inside its own code span', () => {
+    const fix = refusalFix({
+      reason: 'staging_incomplete',
+      missing_files: ['a`b.js'],
+      restored_files: ['r`.js'],
+      error: 'r`.js is staged, but the working tree holds its baseline content',
+      left_staged: ['x.js'],
+      restore_error: 'e',
+    });
+    assert.deepEqual(codeSpans(fix), [
+      'a`b.js',
+      'r`.js',
+      'git restore --staged -- x.js',
+      'git rm --cached -- x.js',
+    ], fix);
+  });
+
   test('the fix text surfaces missing_files for an unexpected_files refusal too', () => {
     const fix = refusalFix({ reason: 'unexpected_files', missing_files: ['src/b.js'] });
     assert.match(fix, /not: src\/b\.js\./);
