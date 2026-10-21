@@ -36,7 +36,8 @@ instead.
   version, they now say to read that version with `git show <rev>:<path>` or
   `git diff <rev> -- <path>`, never with `git checkout`, `git stash` or
   `git worktree add`, which change the working tree. This includes the rules a
-  delegated worker gets, in a Claude Code commit hook or a Codex checkpoint.
+  delegated worker gets, after a commit on every host, at a Codex checkpoint
+  and in a Codex task handoff.
 - `roadmap.js --help` now shows the `add` and `correct` examples as quoted
   heredocs, so copying one with an apostrophe in the text works, and the
   runtime reference no longer says commands show their JSON after `echo`.
