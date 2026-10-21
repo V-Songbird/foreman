@@ -46,15 +46,20 @@ const { projectDir, parseFlags, printHelp } = require("./runtime");
 // single quote is written as a bare first character followed by single-quoted
 // runs, each run of single quotes double-quoted between them: both shells
 // then read one argument, whereas PowerShell splits a word that opens with a
-// quote. A value whose first character could
-// not stand bare keeps the JSON string `step pick` writes.
+// quote.
 // [Foreman: 1153] PowerShell also ends a single-quoted string at U+2018 to
 // U+201B, as in `John’s Projects`, so those count as single quotes here.
-function shellQuote(value) {
+// [Foreman: 1197] No word opening with a quote reads as one argument in all
+// three shells, so a value holding one whose first character cannot stand
+// bare follows the bare `head` its caller gives, and only that value does.
+// The JSON string this used to fall back to expanded `$` and broke on `"` in
+// PowerShell.
+function shellQuote(value, head = "") {
   const text = String(value);
   if (!/['‘-‛]/.test(text)) return `'${text}'`;
-  if (!/^[\w/]/.test(text)) return JSON.stringify(text);
-  return text[0] + text.slice(1).split(/(['‘-‛]+)/).map((run, i) => (i % 2 ? `"${run}"` : run && `'${run}'`)).join("");
+  const bare = /^[\w/]/.test(text);
+  if (!bare && !head) throw new Error(`shellQuote needs a bare head for ${text}`);
+  return (bare ? text[0] : head) + text.slice(bare ? 1 : 0).split(/(['‘-‛]+)/).map((run, i) => (i % 2 ? `"${run}"` : run && `'${run}'`)).join("");
 }
 function nodeCommand(file) {
   return `node ${shellQuote(file.replaceAll("\\", "/"))}`;
@@ -62,9 +67,9 @@ function nodeCommand(file) {
 const SELF = nodeCommand(__filename);
 const ROADMAP_CMD = nodeCommand(path.join(__dirname, "roadmap.js"));
 
-function quoteArg(value) {
+function quoteArg(value, head = "") {
   const text = String(value);
-  return /^[\w.:@/-]+$/.test(text) ? text : shellQuote(text);
+  return /^[\w.:@/-]+$/.test(text) ? text : shellQuote(text, head);
 }
 
 // [Foreman: 410] The submodule every planned path sits inside, as .gitmodules
@@ -90,11 +95,14 @@ function holder(root, id, sub) {
 
 // The flags start passes on to the finish command it returns; the entry
 // paragraph bakes the same ones into its start command.
+// A name that needs a head takes the glued `--orchestrator=` form; no other
+// quoting of a name starts with `=`.
 function carriedFlags(flags) {
+  const name = flags.orchestrator ? quoteArg(flags.orchestrator, "=") : "";
   return [
     flags.investigation ? " --investigation" : "",
     flags.agent ? " --agent" : "",
-    flags.orchestrator ? ` --orchestrator ${quoteArg(flags.orchestrator)}` : "",
+    name ? ` --orchestrator${name.startsWith("=") ? "" : " "}${name}` : "",
   ].join("");
 }
 
@@ -243,7 +251,9 @@ function refusalFix(unit, sub) {
   // submodule, so the command runs there with -C. `git restore --staged`
   // fails in a repository with no commit yet (probed: "could not resolve
   // 'HEAD'"), where `git rm --cached` unstages instead.
-  const paths = left.map(quoteArg).join(" ");
+  // A path that cannot open the word follows `:/`, git's top-of-repository
+  // pathspec, which names the same top-relative path.
+  const paths = left.map((file) => quoteArg(file, ":/")).join(" ");
   const git = sub ? `git -C ${quoteArg(sub)}` : "git";
   const reason = unit.restore_error || "no reason given";
   const how = left.length

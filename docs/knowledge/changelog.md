@@ -47,6 +47,12 @@ instead.
 - The follow-up commands `task.js` returns now also run under PowerShell when
   the install path or the orchestrator name holds a typographic single quote,
   as in `John’s Projects`, which PowerShell reads as a quote.
+- When an orchestrator name or a file left staged starts with a quote and
+  holds a `$` or a `"`, the command `task.js` returns now passes it unchanged
+  in Bash, sh and PowerShell instead of expanding the `$` or failing to parse.
+  Such a name is written as `--orchestrator=<name>`, and such a path as
+  `:/<path>`. Windows PowerShell 5.1 still drops a `"` from any
+  argument it passes to a program; PowerShell 7 keeps it.
 - The commands `craft-handoff.js` writes into a handoff now also run under
   PowerShell when the install path holds a typographic single quote, as in
   `John’s Projects`.

@@ -14,7 +14,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const { makeTmpProject, writeRoadmap, writeArchiveFile, writeConfig, initGitRepo, runNodeScript, runBash, unlessTimedOut, SPAWN_TIMEOUT_MS, SCRIPTS_DIR } = require('./helpers.js');
-const { withTrailer, plannedSubmodule, refusalFix } =require(path.join(SCRIPTS_DIR, 'task.js'));
+const { withTrailer, plannedSubmodule, refusalFix, carriedFlags } =require(path.join(SCRIPTS_DIR, 'task.js'));
 const { checkpointEmbedText, claudeEntryParagraphText, codexEntryParagraphText } = require(path.join(SCRIPTS_DIR, 'craft-handoff.js'));
 
 const TASK = path.join(SCRIPTS_DIR, 'task.js');
@@ -670,6 +670,38 @@ describe('then runs from an install path holding a quote and a dollar', () => {
       const accepted = shell(accept, hostEnv);
       assert.equal(accepted.status, 0, accept + '\n' + accepted.stdout + accepted.stderr);
       assert.equal(stored().status, 'done');
+    });
+  }
+});
+
+// [Foreman: 1197] A value opening with a quote, holding `$` and `"`, reaches
+// node intact from the orchestrator flag and from the restore hint's path.
+// Windows PowerShell 5.1 drops every `"` from a native argument however it is
+// quoted, so powershell.exe gets the values without one; pwsh gets them whole.
+describe('a value opening with a quote stays one literal argument', () => {
+  const windows = process.platform === 'win32';
+  const run = (exe, args) => (command) => unlessTimedOut(spawnSync(exe, [...args, command], { encoding: 'utf-8', windowsHide: true, timeout: SPAWN_TIMEOUT_MS, env: { ...process.env, x: 'X' } }), exe);
+  const pwsh = spawnSync('pwsh', ['-NoProfile', '-Command', 'exit 0'], { windowsHide: true }).status === 0;
+  const shells = {
+    bash: { shell: (command) => runBash(command, { x: 'X' }), dquote: true },
+    [windows ? 'powershell.exe' : 'sh']: { shell: windows ? run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command']) : run('sh', ['-c']), dquote: !windows },
+    ...(pwsh ? { pwsh: { shell: run('pwsh', ['-NoProfile', '-NonInteractive', '-Command']), dquote: true } } : {}),
+  };
+  for (const [name, { shell, dquote }] of Object.entries(shells)) {
+    test(`under ${name}`, (t) => {
+      const argv = path.join(project, 'argv.js').replaceAll('\\', '/');
+      fs.writeFileSync(argv, 'console.log(JSON.stringify(process.argv.slice(2)));\n', 'utf-8');
+      const quote = dquote ? '"' : '';
+      const values = [`’$x${quote}y`, `'$x${quote}y`, `$x’y`, `‘q’ $x${quote}`];
+      for (const value of values) {
+        const flag = carriedFlags({ orchestrator: value });
+        const fix = refusalFix({ reason: 'staging_failed', error: 'x', left_staged: [value], restore_error: 'e' });
+        const file = /restore --staged -- (.+?)`/.exec(fix)[1];
+        const r = shell(`node '${argv}'${flag} ${file}`);
+        if (r === null) return t.skip('no bash found');
+        assert.equal(r.status, 0, flag + ' ' + file + '\n' + r.stdout + r.stderr);
+        assert.deepEqual(JSON.parse(r.stdout), [`--orchestrator=${value}`, `:/${value}`], flag + ' ' + file);
+      }
     });
   }
 });
