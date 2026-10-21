@@ -2318,6 +2318,15 @@ describe('--help', () => {
     assert.match(stdout, /@'\.\.\.'@/);
   });
 
+  // [Foreman: 1188] The header takes the PowerShell clause from discovery.js.
+  test('the heredoc header carries discovery.js\'s PowerShell clause', () => {
+    const { POWERSHELL_HEREDOC } = require('../scripts/discovery');
+    const { stdout } = runRoadmap(['--help'], undefined, env);
+    assert.ok(stdout.includes(`written; ${POWERSHELL_HEREDOC}):`), stdout);
+    const source = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'roadmap.js'), 'utf8');
+    assert.equal(source.includes('pipe a literal here-string'), false, 'roadmap.js repeats the clause as a literal');
+  });
+
   test('runtime.md no longer opens its payload section with the echo sentence', () => {
     const runtime = fs.readFileSync(path.join(__dirname, '..', 'skills', 'foreman', 'runtime.md'), 'utf8');
     const section = runtime.split('## JSON payloads\n')[1].split('\n## ')[0].trim();

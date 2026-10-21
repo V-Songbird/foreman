@@ -40,6 +40,7 @@ const {
 } = require("./commit-evidence");
 
 const { projectDir, parseFlags, detectHost } = require("./runtime");
+const { POWERSHELL_HEREDOC } = require("./discovery");
 
 function roadmapPath(root) {
   return path.join(root, "ROADMAP.jsonl");
@@ -3152,7 +3153,7 @@ naming the field, each line and code point.
                     plugin, or migrate with the Foreman that wrote it.
 
 Examples (free text goes through a quoted heredoc, which keeps an apostrophe as
-written; in PowerShell, pipe a literal here-string @'...'@ into the command):
+written; ${POWERSHELL_HEREDOC}):
   node roadmap.js add <<'EOF'
 {"title":"Add JWT refresh middleware","why":"...","what":"...","source":"user"}
 EOF

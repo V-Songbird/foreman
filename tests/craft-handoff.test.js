@@ -2819,6 +2819,15 @@ describe('the entry close in each roadmap mode', () => {
     assert.equal(source.includes('pipe a literal here-string'), false, 'craft-handoff.js repeats the clause as a literal');
   });
 
+  // [Foreman: 1188] A direct caller passing antigravity gets the Codex form.
+  test('incrementReviewText resolves the host itself: antigravity gets the JSON-stdin form', () => {
+    const { incrementReviewText } = require('../scripts/craft-handoff');
+    const block = incrementReviewText('001', 'antigravity');
+    assert.match(block, /JSON stdin: `/, block);
+    assert.doesNotMatch(block, /<<'EOF'|here-string/, block);
+    assert.equal(block, incrementReviewText('001', 'codex'));
+  });
+
   for (const host of ['codex']) {
     test(`a git-ignored roadmap commits first and closes with the sha, on host ${host}`, () => {
       roadmapRepo(true);

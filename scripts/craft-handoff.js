@@ -665,7 +665,8 @@ function verificationText(row) {
 
 // One protocol is read by local delivery and embedded in portable prompts.
 // This transports instructions; the executing Codex session owns the real wait.
-function incrementReviewText(entryId, host = resolveHost()) {
+function incrementReviewText(entryId, hostName) {
+  const host = resolveHost(hostName);
   const protocol = fs.readFileSync(path.join(PLUGIN_ROOT, "skills", "roadmap", "increment-review.md"), "utf8").trim();
   const closure = fs.readFileSync(path.join(PLUGIN_ROOT, "skills", "roadmap", "close-increments.md"), "utf8").trim();
   const record = entryId

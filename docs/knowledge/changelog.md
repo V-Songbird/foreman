@@ -44,6 +44,8 @@ instead.
 - The follow-up commands `task.js` returns now also run under PowerShell when
   the install path or the orchestrator name holds a typographic single quote,
   as in `John’s Projects`, which PowerShell reads as a quote.
+- `roadmap.js --help` now words its PowerShell here-string note from the same
+  text as Foreman's other free-text commands, so one edit reaches them all.
 - The README nav check now treats a tab after a list marker as part of the
   item, so a paragraph indented under `-<tab>item` is no longer skipped as
   code and its links are still checked.
