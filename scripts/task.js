@@ -242,18 +242,6 @@ function stringList(value, field) {
   return value.map((item) => item.trim());
 }
 
-// [Foreman: 1202] A Markdown code span around `text`. Its fence is the
-// shortest backtick run whose length no run inside matches, as CommonMark
-// reads it, so a backtick in a path cannot end the span early.
-function codeSpan(text) {
-  const runs = new Set((text.match(/`+/g) || []).map((run) => run.length));
-  let size = 1;
-  while (runs.has(size)) size += 1;
-  const fence = "`".repeat(size);
-  const pad = /^`|`$/.test(text) ? " " : "";
-  return `${fence}${pad}${text}${pad}${fence}`;
-}
-
 // [Foreman: 1161] The fix text for a refused finishUnit result. When the
 // helper could not put the index back, its staging is still there, so the text
 // names those files instead of saying nothing was staged.
@@ -273,23 +261,22 @@ function refusalFix(unit, sub) {
   const paths = left.map((file) => (file.startsWith(":") && !QUOTES.test(file) ? `:/:${shellQuote(file)}` : quoteArg(file, ":/:"))).join(" ");
   const git = sub ? `git -C ${quoteArg(sub, "./")}` : "git";
   const reason = unit.restore_error || "no reason given";
-  // A listed path with a backtick takes a code span too, or its backtick
-  // would pair with the command's fence. The missing and restored lists come
-  // before that fence, so they are listed the same way.
-  const list = (files) => files.map((file) => (file.includes("`") ? codeSpan(file) : file)).join(", ");
-  const listed = list(left);
+  // [Foreman: 1202] The commands end the text as a fenced block, on lines of
+  // their own, so a backtick in a path, the submodule or the raw text above
+  // (git's error, the restore error) cannot pair with one in a command: a
+  // code span never crosses a block. The fence outruns any backtick run in
+  // them. Every fix below ends with this note.
+  const commands = `${git} restore --staged -- ${paths}\n${git} rm --cached -- ${paths}`;
+  const fence = "`".repeat(Math.max(3, ...(commands.match(/`+/g) || []).map((run) => run.length + 1)));
   const how = left.length
-    ? `these files are still staged: ${listed}. Unstage them with ${codeSpan(`${git} restore --staged -- ${paths}`)} (${codeSpan(`${git} rm --cached -- ${paths}`)} when the repository has no commit yet) before anything else.`
+    ? `these files are still staged: ${left.join(", ")}. Unstage them with the first command below before anything else, or with the second when the repository has no commit yet:\n\n${fence}\n${commands}\n${fence}`
     : "files may still be staged. Run `git status` and unstage them before anything else.";
   const stagedNote = left.length || unit.restore_error ? ` The commit helper could not restore the index (${reason}), so ${how}` : "";
-  const missingNote = unit.missing_files ? `finish expected these changed files to be staged and they are not: ${list(unit.missing_files)}.` : "";
+  const missingNote = unit.missing_files ? `finish expected these changed files to be staged and they are not: ${unit.missing_files.join(", ")}.` : "";
   // "Tell the user" appears once in each fix.
   const closing = `Tell the user; nothing was closed.${stagedNote}`;
   const untouched = stagedNote ? ` ${closing}` : " Nothing was staged or closed.";
-  // safe-commit.js opens the restored error with the raw list; swap it in.
-  const raw = unit.restored_files ? unit.restored_files.join(", ") : "";
-  const restoredNote = unit.restored_files ? `${String(unit.error).startsWith(raw) ? list(unit.restored_files) + unit.error.slice(raw.length) : unit.error}.` : "";
-  const incomplete = [missingNote, restoredNote].filter(Boolean).join(" ");
+  const incomplete = [missingNote, unit.restored_files ? `${unit.error}.` : ""].filter(Boolean).join(" ");
   const fixes = {
     unexpected_files: `Show the user these changed files that \`files\` does not list. Add the ones that are this task's to \`files\` and run the close again; with the user's approval of the rest, run it with --allow-unexpected.${missingNote ? ` ${missingNote}` : ""}${untouched}`,
     no_task_changes: `Nothing changed since start. Run the close again without \`files\` to record it without a commit.${untouched}`,

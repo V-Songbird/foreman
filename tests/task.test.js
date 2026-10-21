@@ -86,9 +86,10 @@ function ok(argv, payload) {
   return json;
 }
 
-/** The contents of each Markdown code span in `text`, as CommonMark reads them. */
-function codeSpans(text) {
-  return [...text.matchAll(/(?<!`)(`+)(?!`)(.*?)(?<!`)\1(?!`)/g)].map((m) => (/^ .* $/.test(m[2]) ? m[2].slice(1, -1) : m[2]));
+/** The lines of the fenced code block that ends `text`: a fence of three or more backticks on a line of its own opens it, and the same fence closes it. */
+function fencedLines(text) {
+  const m = /\n\n(`{3,})\n([^]*)\n\1$/.exec(text);
+  return m ? m[2].split('\n') : [];
 }
 
 /** Run a returned `then` command without a shell: `node '<script>' <args>`. */
@@ -326,8 +327,8 @@ describe('task.js finish', () => {
   // from, so the hint also gives `git rm --cached`.
   test('the fix text gives an unstage command limited to the files left staged', () => {
     const fix = refusalFix({ reason: 'staging_failed', error: 'x', left_staged: ['src/a.js', 'my file.js'], restore_error: 'e' });
-    assert.ok(fix.includes("`git restore --staged -- src/a.js 'my file.js'`"), fix);
-    assert.ok(fix.includes("`git rm --cached -- src/a.js 'my file.js'` when the repository has no commit yet"), fix);
+    assert.match(fix, /with the first command below before anything else, or with the second when the repository has no commit yet:/);
+    assert.deepEqual(fencedLines(fix), ["git restore --staged -- src/a.js 'my file.js'", "git rm --cached -- src/a.js 'my file.js'"], fix);
   });
 
   test('a refusal through finish names the left paths in its restore command', () => {
@@ -354,7 +355,7 @@ describe('task.js finish', () => {
     const result = runThen(start.then, { status: 'done', files: ['src/a.js'], message: 'Change a' });
     assert.equal(result.next, 'refused', JSON.stringify(result));
     assert.deepEqual(result.left_staged, ['ROADMAP.jsonl', 'src/a.js'], JSON.stringify(result));
-    assert.ok(result.fix.includes('`git restore --staged -- ROADMAP.jsonl src/a.js`'), result.fix);
+    assert.equal(fencedLines(result.fix)[0], 'git restore --staged -- ROADMAP.jsonl src/a.js', result.fix);
   });
 
   test('the fix text says "Tell the user" once and keys the staged note on restore_error', () => {
@@ -371,36 +372,17 @@ describe('task.js finish', () => {
 
   test('a submodule close names the submodule in the unstage command', () => {
     const fix = refusalFix({ reason: 'staging_failed', error: 'x', left_staged: ['a.js'], restore_error: 'e' }, 'lib');
-    assert.ok(fix.includes('`git -C lib restore --staged -- a.js`'), fix);
-    assert.ok(fix.includes('`git -C lib rm --cached -- a.js`'), fix);
+    assert.deepEqual(fencedLines(fix), ['git -C lib restore --staged -- a.js', 'git -C lib rm --cached -- a.js'], fix);
   });
 
-  // [Foreman: 1202] A backtick in a path or submodule cannot end the
-  // command's code span early, so a reader copies the whole command.
-  test('a backtick in a path or submodule stays inside the code span', () => {
-    const fix = refusalFix({ reason: 'staging_failed', error: 'x', left_staged: ['a`b.js', 'c``'], restore_error: 'e' }, 'li`b');
-    assert.deepEqual(codeSpans(fix), [
-      'a`b.js',
-      'c``',
-      "git -C 'li`b' restore --staged -- 'a`b.js' 'c``'",
-      "git -C 'li`b' rm --cached -- 'a`b.js' 'c``'",
-    ], fix);
-  });
-
-  test('a backtick in a missing or restored path stays inside its own code span', () => {
-    const fix = refusalFix({
-      reason: 'staging_incomplete',
-      missing_files: ['a`b.js'],
-      restored_files: ['r`.js'],
-      error: 'r`.js is staged, but the working tree holds its baseline content',
-      left_staged: ['x.js'],
-      restore_error: 'e',
-    });
-    assert.deepEqual(codeSpans(fix), [
-      'a`b.js',
-      'r`.js',
-      'git restore --staged -- x.js',
-      'git rm --cached -- x.js',
+  // [Foreman: 1202] The commands end the text in a fenced block whose fence
+  // outruns any backtick run in them, so no backtick cuts one short.
+  test('the unstage commands end the fix text in a fence longer than their backtick runs', () => {
+    const fix = refusalFix({ reason: 'staging_failed', error: "fatal: pathspec 'a`b.js' did not match any files", left_staged: ['a`b.js', 'c```'], restore_error: 'e' }, 'li`b');
+    assert.match(fix, /\n\n````\ngit /, fix);
+    assert.deepEqual(fencedLines(fix), [
+      "git -C 'li`b' restore --staged -- 'a`b.js' 'c```'",
+      "git -C 'li`b' rm --cached -- 'a`b.js' 'c```'",
     ], fix);
   });
 
@@ -730,8 +712,9 @@ describe('a value opening with a quote stays one literal argument', () => {
       for (const value of values) {
         const flag = carriedFlags({ orchestrator: value });
         const fix = refusalFix({ reason: 'staging_failed', error: 'x', left_staged: [value], restore_error: 'e' }, value);
-        const file = /restore --staged -- (.+?)`/.exec(fix)[1];
-        const sub = /git -C (.+?) restore/.exec(fix)[1];
+        const [restore] = fencedLines(fix);
+        const file = /restore --staged -- (.+)$/.exec(restore)[1];
+        const sub = /^git -C (.+?) restore/.exec(restore)[1];
         const r = shell(`node '${argv}'${flag} ${file} ${sub}`);
         if (r === null) return t.skip('no bash found');
         assert.equal(r.status, 0, flag + ' ' + file + '\n' + r.stdout + r.stderr);
@@ -744,11 +727,11 @@ describe('a value opening with a quote stays one literal argument', () => {
       initGitRepo(repo);
       const names = ['!it’s.txt', '^it’s.txt', '’$x.txt', "'$x.txt"];
       for (const name of [...names, 'a.txt']) fs.writeFileSync(path.join(repo, name), '', 'utf-8');
-      const staged = () => spawnSync('git', ['ls-files', '-z'], { cwd: repo, encoding: 'utf-8' }).stdout.split('\0').filter(Boolean).sort();
+      const staged = (cwd = repo) => spawnSync('git', ['ls-files', '-z'], { cwd, encoding: 'utf-8' }).stdout.split('\0').filter(Boolean).sort();
       for (const name of names) {
         spawnSync('git', ['add', '-A'], { cwd: repo });
         const fix = refusalFix({ reason: 'staging_failed', error: 'x', left_staged: [name], restore_error: 'e' });
-        const command = /`(git rm --cached -- .+?)`/.exec(fix)[1].replace('git', `git -C '${repo}'`);
+        const command = fencedLines(fix)[1].replace('git', `git -C '${repo}'`);
         const r = shell(command);
         assert.equal(r.status, 0, command + '\n' + r.stdout + r.stderr);
         assert.deepEqual(staged(), [...names, 'a.txt'].filter((n) => n !== name).sort(), command);
@@ -763,10 +746,39 @@ describe('a value opening with a quote stays one literal argument', () => {
         spawnSync('git', ['add', '-A'], { cwd: repo });
         for (const n of colons) spawnSync('git', ['update-index', '--add', '--cacheinfo', `100644,${blob},${n}`], { cwd: repo });
         const fix = refusalFix({ reason: 'staging_failed', error: 'x', left_staged: [name], restore_error: 'e' });
-        const command = codeSpans(fix).find((span) => span.startsWith('git rm --cached -- ')).replace('git', `git -C '${repo}'`);
+        const command = fencedLines(fix)[1].replace('git', `git -C '${repo}'`);
         const r = shell(command);
         assert.equal(r.status, 0, command + '\n' + r.stdout + r.stderr);
         assert.deepEqual(staged(), [...names, 'a.txt', ...colons].filter((n) => n !== name).sort(), command);
+      }
+      // [Foreman: 1202] A backtick in the text above the commands, as git and
+      // the commit helper write it, cannot pair with one in a command: the
+      // fenced command unstages both files from a repository whose path holds
+      // one too, as a submodule's can.
+      const sub = path.join(project, 'li`b').replaceAll('\\', '/');
+      fs.mkdirSync(sub, { recursive: true });
+      initGitRepo(sub);
+      const ticked = ['a`b.js', 'c``.js'];
+      for (const name of [...ticked, 'd.js']) fs.writeFileSync(path.join(sub, name), '', 'utf-8');
+      const restoreError = `EEXIST: file already exists, open '${path.join(project, '.git', 'modules', 'li`b', 'index.lock')}'`;
+      const units = [
+        { reason: 'staging_failed', error: "fatal: pathspec 'a`b.js' did not match any files", restore_error: restoreError },
+        {
+          reason: 'staging_incomplete',
+          missing_files: ['c``.js'],
+          restored_files: ['a`b.js'],
+          error: 'a`b.js is staged, but the working tree holds its baseline content: stage the content you want, or unstage it, then run finish again',
+          restore_error: restoreError,
+        },
+      ];
+      for (const unit of units) {
+        spawnSync('git', ['add', '-A'], { cwd: sub });
+        const fix = refusalFix({ ...unit, left_staged: ticked }, sub);
+        const command = fencedLines(fix)[1];
+        assert.ok(command, fix);
+        const r = shell(command);
+        assert.equal(r.status, 0, command + '\n' + r.stdout + r.stderr);
+        assert.deepEqual(staged(sub), ['d.js'], command);
       }
     });
   }
