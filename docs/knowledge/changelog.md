@@ -50,15 +50,20 @@ instead.
 - When an orchestrator name, a file left staged or a submodule path starts
   with a quote and holds a `$` or a `"`, the command `task.js` returns now
   passes it unchanged in Bash, sh and PowerShell instead of expanding the `$`
-  or failing to parse. Such a name is written as `--orchestrator=<name>`, such
-  a file as `:/:<path>`, so git reads a leading `!` or `^` as part of the
-  name, and such a submodule as `./<path>`. Windows PowerShell 5.1 still drops a `"` from any
+  or failing to parse. Such a name is written as `--orchestrator=<name>`, and
+  such a file or submodule as `./<path>`. Windows PowerShell 5.1 still drops a `"` from any
   argument it passes to a program; PowerShell 7 keeps it.
-- When a file left staged starts with `:`, the unstage command a refused
-  `task.js finish` gives now writes it as `:/:<path>`, so git unstages that
-  file instead of reading `:!x` as "everything but x". That command now ends
+- When a file left staged starts with `:`, `!` or `^`, the unstage command a
+  refused `task.js finish` gives now unstages that file instead of reading
+  `:!x` as "everything but x". That command now ends
   the fix text as a fenced code block, so a backtick in a file, the
   submodule path or the error text above it no longer cuts the command short.
+- The unstage commands a refused `task.js finish` gives now unstage only the
+  files they name, so `a[b].txt` no longer also unstages `ab.txt`; quote a
+  file, submodule or orchestrator name starting with `@`, which PowerShell
+  refused; keep a multi-line error from breaking the commands' code block;
+  and are also given for staged files whose working copy went back to its
+  last committed content.
 - The commands `craft-handoff.js` writes into a handoff now also run under
   PowerShell when the install path holds a typographic single quote, as in
   `John’s Projects`.

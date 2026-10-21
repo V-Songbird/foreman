@@ -328,7 +328,7 @@ describe('task.js finish', () => {
   test('the fix text gives an unstage command limited to the files left staged', () => {
     const fix = refusalFix({ reason: 'staging_failed', error: 'x', left_staged: ['src/a.js', 'my file.js'], restore_error: 'e' });
     assert.match(fix, /with the first command below before anything else, or with the second when the repository has no commit yet:/);
-    assert.deepEqual(fencedLines(fix), ["git restore --staged -- src/a.js 'my file.js'", "git rm --cached -- src/a.js 'my file.js'"], fix);
+    assert.deepEqual(fencedLines(fix), ["git --literal-pathspecs restore --staged -- src/a.js 'my file.js'", "git --literal-pathspecs rm --cached -- src/a.js 'my file.js'"], fix);
   });
 
   test('a refusal through finish names the left paths in its restore command', () => {
@@ -355,7 +355,7 @@ describe('task.js finish', () => {
     const result = runThen(start.then, { status: 'done', files: ['src/a.js'], message: 'Change a' });
     assert.equal(result.next, 'refused', JSON.stringify(result));
     assert.deepEqual(result.left_staged, ['ROADMAP.jsonl', 'src/a.js'], JSON.stringify(result));
-    assert.equal(fencedLines(result.fix)[0], 'git restore --staged -- ROADMAP.jsonl src/a.js', result.fix);
+    assert.equal(fencedLines(result.fix)[0], 'git --literal-pathspecs restore --staged -- ROADMAP.jsonl src/a.js', result.fix);
   });
 
   test('the fix text says "Tell the user" once and keys the staged note on restore_error', () => {
@@ -372,7 +372,7 @@ describe('task.js finish', () => {
 
   test('a submodule close names the submodule in the unstage command', () => {
     const fix = refusalFix({ reason: 'staging_failed', error: 'x', left_staged: ['a.js'], restore_error: 'e' }, 'lib');
-    assert.deepEqual(fencedLines(fix), ['git -C lib restore --staged -- a.js', 'git -C lib rm --cached -- a.js'], fix);
+    assert.deepEqual(fencedLines(fix), ['git -C lib --literal-pathspecs restore --staged -- a.js', 'git -C lib --literal-pathspecs rm --cached -- a.js'], fix);
   });
 
   // [Foreman: 1202] The commands end the text in a fenced block whose fence
@@ -381,9 +381,27 @@ describe('task.js finish', () => {
     const fix = refusalFix({ reason: 'staging_failed', error: "fatal: pathspec 'a`b.js' did not match any files", left_staged: ['a`b.js', 'c```'], restore_error: 'e' }, 'li`b');
     assert.match(fix, /\n\n````\ngit /, fix);
     assert.deepEqual(fencedLines(fix), [
-      "git -C 'li`b' restore --staged -- 'a`b.js' 'c```'",
-      "git -C 'li`b' rm --cached -- 'a`b.js' 'c```'",
+      "git -C 'li`b' --literal-pathspecs restore --staged -- 'a`b.js' 'c```'",
+      "git -C 'li`b' --literal-pathspecs rm --cached -- 'a`b.js' 'c```'",
     ], fix);
+  });
+
+  // [Foreman: 1203] Git's error, the restore error and a path can span lines;
+  // they join the prose as one line, so none of their lines opens a fence
+  // that swallows the commands.
+  test('raw text with line breaks stays on one line above the commands', () => {
+    const fix = refusalFix({ reason: 'staging_failed', error: 'error: one\n```\nhint: two', left_staged: ['a\n```.js'], missing_files: ['b\r\n~~~.js'], restore_error: 'e\n<pre>' });
+    const prose = fix.slice(0, fix.lastIndexOf('\n\n'));
+    assert.doesNotMatch(prose, /[\r\n]/, fix);
+    assert.match(prose, /^error: one ``` hint: two\. /, fix);
+    assert.deepEqual(fencedLines(fix), ["git --literal-pathspecs restore --staged -- 'a\n```.js'", "git --literal-pathspecs rm --cached -- 'a\n```.js'"].join('\n').split('\n'), fix);
+  });
+
+  // [Foreman: 1203] A bare word opening with `@` is splatting in PowerShell.
+  test('a value opening with @ is quoted', () => {
+    const fix = refusalFix({ reason: 'staging_failed', error: 'x', left_staged: ['@a.js', 'b@c.js'], restore_error: 'e' }, '@lib');
+    assert.equal(fencedLines(fix)[0], "git -C '@lib' --literal-pathspecs restore --staged -- '@a.js' b@c.js", fix);
+    assert.equal(carriedFlags({ orchestrator: '@bob' }), " --orchestrator '@bob'");
   });
 
   test('the fix text surfaces missing_files for an unexpected_files refusal too', () => {
@@ -393,16 +411,54 @@ describe('task.js finish', () => {
     assert.match(refusalFix({ reason: 'staging_failed', error: 'x', missing_files: ['src/b.js'] }), /not: src\/b\.js\./);
   });
 
+  // [Foreman: 1203] A restored file stays staged, so the fix offers its
+  // unstage commands, and its note opens with words: a path opening with
+  // ``` at the start of the text would open a fence.
   test('the fix text for staging_incomplete names the missing and restored files', () => {
     const fix = refusalFix({
       reason: 'staging_incomplete',
       missing_files: ['src/b.js'],
-      restored_files: ['src/r.js'],
-      error: 'src/r.js is staged, but the working tree holds its baseline content',
+      restored_files: ['src/r.js', '```r.js'],
+      error: 'src/r.js, ```r.js is staged, but the working tree holds its baseline content',
     });
     assert.match(fix, /not: src\/b\.js\./);
-    assert.match(fix, /src\/r\.js is staged, but the working tree holds its baseline content\./);
+    assert.match(fix, /These files are staged, but the working tree holds their baseline content: src\/r\.js, ```r\.js\. Stage the content you want, or unstage them with the first command below/);
     assert.match(fix, /nothing was closed\./);
+    assert.deepEqual(fencedLines(fix), ["git --literal-pathspecs restore --staged -- src/r.js '```r.js'", "git --literal-pathspecs rm --cached -- src/r.js '```r.js'"], fix);
+    const led = refusalFix({ reason: 'staging_incomplete', restored_files: ['```r.js'], error: '```r.js is staged' });
+    assert.match(led, /^These files are staged/, led);
+  });
+
+  test('an unexpected_files refusal names the restored files and offers their commands', () => {
+    const fix = refusalFix({ reason: 'unexpected_files', unexpected_files: ['src/c.js'], restored_files: ['src/r.js'], error: 'src/r.js is staged' });
+    assert.match(fix, /baseline content: src\/r\.js\./);
+    assert.deepEqual(fencedLines(fix), ['git --literal-pathspecs restore --staged -- src/r.js', 'git --literal-pathspecs rm --cached -- src/r.js'], fix);
+    // The index could not be put back: its block names the files left staged
+    // first, and the restored files keep their staged content.
+    const left = refusalFix({ reason: 'staging_incomplete', restored_files: ['src/r.js'], error: 'x', left_staged: ['src/a.js'], restore_error: 'e' });
+    assert.deepEqual(fencedLines(left), ['git --literal-pathspecs restore --staged -- src/a.js', 'git --literal-pathspecs rm --cached -- src/a.js'], left);
+    assert.match(left, /or unstage them, then run the close again\./);
+  });
+
+  test('a restored file through finish gets a command that unstages it alone', (t) => {
+    repo();
+    write('src/r.js', 'base r\n');
+    git('add', 'src/r.js');
+    git('commit', '-q', '-m', 'add r');
+    const start = ok(['start', '--id', '001']);
+    write('src/r.js', 'staged r\n');
+    git('add', 'src/r.js');
+    write('src/r.js', 'base r\n');
+    write('src/a.js', 'two\n');
+    const result = runThen(start.then, { status: 'done', files: ['src/a.js', 'src/r.js'], message: 'Change a' });
+    assert.equal(result.next, 'refused', JSON.stringify(result));
+    assert.deepEqual(result.restored_files, ['src/r.js'], JSON.stringify(result));
+    const [restore] = fencedLines(result.fix);
+    assert.equal(restore, 'git --literal-pathspecs restore --staged -- src/r.js', result.fix);
+    const r = runBash(restore.replace('git', `git -C '${project.replaceAll('\\', '/')}'`));
+    if (r === null) return t.skip('no bash found');
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(!stagedNames().includes('src/r.js'), stagedNames().join(', '));
   });
 
   test('a git-ignored roadmap commits the task files first and records the sha', () => {
@@ -714,18 +770,28 @@ describe('a value opening with a quote stays one literal argument', () => {
         const fix = refusalFix({ reason: 'staging_failed', error: 'x', left_staged: [value], restore_error: 'e' }, value);
         const [restore] = fencedLines(fix);
         const file = /restore --staged -- (.+)$/.exec(restore)[1];
-        const sub = /^git -C (.+?) restore/.exec(restore)[1];
+        const sub = /^git -C (.+?) --literal-pathspecs restore/.exec(restore)[1];
         const r = shell(`node '${argv}'${flag} ${file} ${sub}`);
         if (r === null) return t.skip('no bash found');
         assert.equal(r.status, 0, flag + ' ' + file + '\n' + r.stdout + r.stderr);
-        assert.deepEqual(JSON.parse(r.stdout), [`--orchestrator=${value}`, `:/:${value}`, `./${value}`], flag + ' ' + file);
+        assert.deepEqual(JSON.parse(r.stdout), [`--orchestrator=${value}`, `./${value}`, `./${value}`], flag + ' ' + file);
+      }
+      // [Foreman: 1203] Nor does a value opening with `@`, which PowerShell
+      // reads as splatting when it stands bare.
+      {
+        const flag = carriedFlags({ orchestrator: '@bob' });
+        const [restore] = fencedLines(refusalFix({ reason: 'staging_failed', error: 'x', left_staged: ['@a.js'], restore_error: 'e' }, '@lib'));
+        const [, sub, file] = /^git -C (.+?) --literal-pathspecs restore --staged -- (.+)$/.exec(restore);
+        const r = shell(`node '${argv}'${flag} ${file} ${sub}`);
+        assert.equal(r.status, 0, restore + '\n' + r.stdout + r.stderr);
+        assert.deepEqual(JSON.parse(r.stdout), ['--orchestrator', '@bob', '@a.js', '@lib'], restore);
       }
       // git reads the path itself: a leading `!` or `^` is no exclude magic,
       // so the unstage command drops that one file and keeps the rest staged.
       const repo = path.join(project, 'pathspec').replaceAll('\\', '/');
       fs.mkdirSync(repo, { recursive: true });
       initGitRepo(repo);
-      const names = ['!it’s.txt', '^it’s.txt', '’$x.txt', "'$x.txt"];
+      const names = ['!it’s.txt', '^it’s.txt', '’$x.txt', "'$x.txt", '@d.txt'];
       for (const name of [...names, 'a.txt']) fs.writeFileSync(path.join(repo, name), '', 'utf-8');
       const staged = (cwd = repo) => spawnSync('git', ['ls-files', '-z'], { cwd, encoding: 'utf-8' }).stdout.split('\0').filter(Boolean).sort();
       for (const name of names) {
@@ -741,7 +807,7 @@ describe('a value opening with a quote stays one literal argument', () => {
       // the check that keeps `:` out of a Windows index.
       spawnSync('git', ['config', 'core.protectNTFS', 'false'], { cwd: repo });
       const blob = spawnSync('git', ['hash-object', '-w', '--stdin'], { cwd: repo, input: '', encoding: 'utf-8' }).stdout.trim();
-      const colons = [':!a.txt', ':^a.txt', ':(top)a.txt', ':/:a.txt', ":'x.txt", ':`b.txt'];
+      const colons = [':!a.txt', ':^a.txt', ':(top)a.txt', ':/:a.txt', ":'x.txt", ':`b.txt', ':c.txt'];
       for (const name of colons) {
         spawnSync('git', ['add', '-A'], { cwd: repo });
         for (const n of colons) spawnSync('git', ['update-index', '--add', '--cacheinfo', `100644,${blob},${n}`], { cwd: repo });
@@ -750,6 +816,19 @@ describe('a value opening with a quote stays one literal argument', () => {
         const r = shell(command);
         assert.equal(r.status, 0, command + '\n' + r.stdout + r.stderr);
         assert.deepEqual(staged(), [...names, 'a.txt', ...colons].filter((n) => n !== name).sort(), command);
+      }
+      // [Foreman: 1203] Nor as a glob: `a[b].txt` unstages that file, not
+      // `ab.txt` too. Windows has no file named with `*` or `?`, so these are
+      // staged without one as well.
+      const globs = ['a[b].txt', 'ab.txt', 'a*.txt', 'aX.txt', 'a?.txt'];
+      for (const name of ['a[b].txt', 'a*.txt', 'a?.txt']) {
+        spawnSync('git', ['add', '-A'], { cwd: repo });
+        for (const n of globs) spawnSync('git', ['update-index', '--add', '--cacheinfo', `100644,${blob},${n}`], { cwd: repo });
+        const fix = refusalFix({ reason: 'staging_failed', error: 'x', left_staged: [name], restore_error: 'e' });
+        const command = fencedLines(fix)[1].replace('git', `git -C '${repo}'`);
+        const r = shell(command);
+        assert.equal(r.status, 0, command + '\n' + r.stdout + r.stderr);
+        assert.deepEqual(staged(), [...names, 'a.txt', ...globs].filter((n) => n !== name).sort(), command);
       }
       // [Foreman: 1202] A backtick in the text above the commands, as git and
       // the commit helper write it, cannot pair with one in a command: the
@@ -762,18 +841,21 @@ describe('a value opening with a quote stays one literal argument', () => {
       for (const name of [...ticked, 'd.js']) fs.writeFileSync(path.join(sub, name), '', 'utf-8');
       const restoreError = `EEXIST: file already exists, open '${path.join(project, '.git', 'modules', 'li`b', 'index.lock')}'`;
       const units = [
-        { reason: 'staging_failed', error: "fatal: pathspec 'a`b.js' did not match any files", restore_error: restoreError },
+        { reason: 'staging_failed', error: "fatal: pathspec 'a`b.js' did not match any files", restore_error: restoreError, left_staged: ticked },
         {
           reason: 'staging_incomplete',
           missing_files: ['c``.js'],
           restored_files: ['a`b.js'],
           error: 'a`b.js is staged, but the working tree holds its baseline content: stage the content you want, or unstage it, then run finish again',
           restore_error: restoreError,
+          left_staged: ticked,
         },
+        // [Foreman: 1203] The index was put back: the block names the restored files.
+        { reason: 'staging_incomplete', restored_files: ticked, error: 'a`b.js, c``.js is staged, but the working tree holds its baseline content' },
       ];
       for (const unit of units) {
         spawnSync('git', ['add', '-A'], { cwd: sub });
-        const fix = refusalFix({ ...unit, left_staged: ticked }, sub);
+        const fix = refusalFix(unit, sub);
         const command = fencedLines(fix)[1];
         assert.ok(command, fix);
         const r = shell(command);

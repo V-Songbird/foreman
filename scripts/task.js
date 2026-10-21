@@ -68,9 +68,11 @@ function nodeCommand(file) {
 const SELF = nodeCommand(__filename);
 const ROADMAP_CMD = nodeCommand(path.join(__dirname, "roadmap.js"));
 
+// [Foreman: 1203] A bare word opening with `@` is splatting in PowerShell, a
+// parse error there, so such a value is quoted.
 function quoteArg(value, head = "") {
   const text = String(value);
-  return /^[\w.:@/-]+$/.test(text) ? text : shellQuote(text, head);
+  return /^(?!@)[\w.:@/-]+$/.test(text) ? text : shellQuote(text, head);
 }
 
 // [Foreman: 410] The submodule every planned path sits inside, as .gitmodules
@@ -247,42 +249,58 @@ function stringList(value, field) {
 // names those files instead of saying nothing was staged.
 function refusalFix(unit, sub) {
   const left = unit.left_staged || [];
-  // [Foreman: 1168] The restore command names the left paths only, so it
+  const restored = unit.restored_files || [];
+  // [Foreman: 1203] Raw text (paths, git's error, the restore error) joins
+  // the prose as one line, so no line of it can open a fenced block or an
+  // HTML block that swallows the commands below. The restored note opens
+  // with words, not with a path.
+  const line = (text) => String(text).replace(/[\r\n]+/g, " ");
+  const list = (files) => files.map(line).join(", ");
+  // [Foreman: 1168] The restore command names the given paths only, so it
   // leaves any other staging alone. A submodule close stages inside the
   // submodule, so the command runs there with -C. `git restore --staged`
   // fails in a repository with no commit yet (probed: "could not resolve
   // 'HEAD'"), where `git rm --cached` unstages instead.
-  // A path that cannot open the word follows `:/:`, git's top-of-repository
-  // pathspec, which names the same top-relative path; the closing `:` keeps a
-  // leading `!`, `^` or `:` of the path from reading as magic. A submodule
-  // path follows `./`, since the command runs from the root.
-  // [Foreman: 1202] A path opening with `:` always takes that head, since
-  // bare or single-quoted it would reach git as magic, as `:!x` does.
-  const paths = left.map((file) => (file.startsWith(":") && !QUOTES.test(file) ? `:/:${shellQuote(file)}` : quoteArg(file, ":/:"))).join(" ");
-  const git = sub ? `git -C ${quoteArg(sub, "./")}` : "git";
-  const reason = unit.restore_error || "no reason given";
+  // [Foreman: 1203] --literal-pathspecs reads every path as its own name:
+  // `a[b].txt` no longer also unstages `ab.txt`, and a leading `:`, `!` or
+  // `^` is no magic. A path that cannot open the word follows `./`, as a
+  // submodule path does, since the command runs from the root.
+  const git = `git${sub ? ` -C ${quoteArg(sub, "./")}` : ""} --literal-pathspecs`;
   // [Foreman: 1202] The commands end the text as a fenced block, on lines of
   // their own, so a backtick in a path, the submodule or the raw text above
   // (git's error, the restore error) cannot pair with one in a command: a
   // code span never crosses a block. The fence outruns any backtick run in
-  // them. Every fix below ends with this note.
-  const commands = `${git} restore --staged -- ${paths}\n${git} rm --cached -- ${paths}`;
-  const fence = "`".repeat(Math.max(3, ...(commands.match(/`+/g) || []).map((run) => run.length + 1)));
+  // them. Every fix below that names files to unstage ends with this block.
+  const unstage = (files) => {
+    const paths = files.map((file) => quoteArg(file, "./")).join(" ");
+    const commands = `${git} restore --staged -- ${paths}\n${git} rm --cached -- ${paths}`;
+    const fence = "`".repeat(Math.max(3, ...(commands.match(/`+/g) || []).map((run) => run.length + 1)));
+    return `\n\n${fence}\n${commands}\n${fence}`;
+  };
+  const reason = line(unit.restore_error || "no reason given");
   const how = left.length
-    ? `these files are still staged: ${left.join(", ")}. Unstage them with the first command below before anything else, or with the second when the repository has no commit yet:\n\n${fence}\n${commands}\n${fence}`
+    ? `these files are still staged: ${list(left)}. Unstage them with the first command below before anything else, or with the second when the repository has no commit yet:${unstage(left)}`
     : "files may still be staged. Run `git status` and unstage them before anything else.";
   const stagedNote = left.length || unit.restore_error ? ` The commit helper could not restore the index (${reason}), so ${how}` : "";
-  const missingNote = unit.missing_files ? `finish expected these changed files to be staged and they are not: ${unit.missing_files.join(", ")}.` : "";
+  const missingNote = unit.missing_files ? `finish expected these changed files to be staged and they are not: ${list(unit.missing_files)}.` : "";
+  // [Foreman: 1203] A restored file stays staged after the refusal, its
+  // staged content kept, so its unstage commands are offered, not ordered.
+  // When the index could not be put back, the block names the files left
+  // staged; the next close names these again.
+  const restoredNote = restored.length
+    ? `These files are staged, but the working tree holds their baseline content: ${list(restored)}. Stage the content you want, or unstage them${left.length ? "" : " with the first command below, or with the second when the repository has no commit yet"}, then run the close again.`
+    : "";
+  const restoredBlock = restored.length && !left.length ? unstage(restored) : "";
   // "Tell the user" appears once in each fix.
   const closing = `Tell the user; nothing was closed.${stagedNote}`;
   const untouched = stagedNote ? ` ${closing}` : " Nothing was staged or closed.";
-  const incomplete = [missingNote, unit.restored_files ? `${unit.error}.` : ""].filter(Boolean).join(" ");
+  const incomplete = [missingNote, restoredNote].filter(Boolean).join(" ");
   const fixes = {
-    unexpected_files: `Show the user these changed files that \`files\` does not list. Add the ones that are this task's to \`files\` and run the close again; with the user's approval of the rest, run it with --allow-unexpected.${missingNote ? ` ${missingNote}` : ""}${untouched}`,
+    unexpected_files: `Show the user these changed files that \`files\` does not list. Add the ones that are this task's to \`files\` and run the close again; with the user's approval of the rest, run it with --allow-unexpected.${incomplete ? ` ${incomplete}` : ""}${untouched}${restoredBlock}`,
     no_task_changes: `Nothing changed since start. Run the close again without \`files\` to record it without a commit.${untouched}`,
-    staging_incomplete: `${incomplete} ${closing}`,
+    staging_incomplete: `${incomplete} ${closing}${restoredBlock}`,
   };
-  return fixes[unit.reason] || `${unit.error || unit.reason}. ${missingNote ? `${missingNote} ` : ""}${closing}`;
+  return fixes[unit.reason] || `${line(unit.error || unit.reason)}. ${missingNote ? `${missingNote} ` : ""}${closing}`;
 }
 
 function refusal(root, reason, fields) {
