@@ -47,6 +47,9 @@ instead.
 - The follow-up commands `task.js` returns now also run under PowerShell when
   the install path or the orchestrator name holds a typographic single quote,
   as in `John’s Projects`, which PowerShell reads as a quote.
+- The commands `craft-handoff.js` writes into a handoff now also run under
+  PowerShell when the install path holds a typographic single quote, as in
+  `John’s Projects`.
 - `roadmap.js --help` now words its PowerShell here-string note from the same
   text as Foreman's other free-text commands, so one edit reaches them all.
 - The README nav check now treats a tab after a list marker as part of the

@@ -973,6 +973,37 @@ describe('installed Codex plugin commands', () => {
     assert.ok(after.find((entry) => entry.id === '001').notes.endsWith(notes));
   });
 
+  // [Foreman: 1196] PowerShell also reads U+2018 to U+201B as single quotes, so
+  // the opening command must still run from an install path holding them.
+  test('emitted opening command runs from an installation path holding typographic quotes', () => {
+    writeRoadmap(project, [entryFields()]);
+    const base = makeTmpProject();
+    const copy = path.join(base, 'plugin-copy');
+    fs.mkdirSync(copy);
+    fs.cpSync(SCRIPTS_DIR, path.join(copy, 'scripts'), { recursive: true });
+    fs.cpSync(path.join(SCRIPTS_DIR, '..', 'hooks'), path.join(copy, 'hooks'), { recursive: true });
+    fs.cpSync(path.join(SCRIPTS_DIR, '..', 'skills'), path.join(copy, 'skills'), { recursive: true });
+    fs.copyFileSync(TEMPLATE_PATH, path.join(copy, 'prompt-template.md'));
+    // fs.cpSync garbles a non-ASCII destination on Windows, so copy, then rename.
+    const plugin = path.join(base, 'John’s ‘q‛ $x plugin');
+    fs.renameSync(copy, plugin);
+    const crafted = runNodeScript(path.join(plugin, 'scripts', 'craft-handoff.js'), [], {
+      entry: '001', destination: 'task', host: 'codex', judgment: goodJudgment(),
+    }, { FOREMAN_PROJECT_DIR: project });
+    assert.equal(crafted.status, 0, crafted.stdout + crafted.stderr);
+    const match = JSON.parse(crafted.stdout).prompt.match(/Command: `([^\n]+)`/);
+    assert.ok(match, 'no opening lifecycle command');
+    const windows = process.platform === 'win32';
+    const opened = unlessTimedOut(spawnSync(windows ? 'powershell.exe' : 'sh', windows
+      ? ['-NoProfile', '-NonInteractive', '-Command', match[1]]
+      : ['-c', match[1]], {
+      encoding: 'utf8', windowsHide: true, timeout: SPAWN_TIMEOUT_MS,
+      env: { ...process.env, FOREMAN_HOST: 'codex', FOREMAN_PROJECT_DIR: project },
+    }), 'the opening lifecycle command');
+    assert.equal(opened.status, 0, match[1] + '\n' + opened.stdout + opened.stderr);
+    assert.equal(JSON.parse(opened.stdout).dispatchReady, true);
+  });
+
   test('resolves runnable paths independently of legacy root environment variables', () => {
     writeRoadmap(project, [entryFields()]);
     const {json} = run(project, {entry: '001', destination: 'task', host: 'codex', judgment: goodJudgment()}, {CLAUDE_PLUGIN_ROOT: 'Z:/missing/legacy-plugin'});

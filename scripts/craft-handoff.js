@@ -116,7 +116,9 @@ function holdUserRoot(value) {
 // from it at craft time.
 const PLUGIN_ROOT = path.resolve(__dirname, "..").replace(/\\/g, "/");
 function shellQuote(value, shell = process.platform === "win32" ? "powershell" : "posix") {
-  return shell === "powershell" ? `'${String(value).replace(/'/g, "''")}'` : `'${String(value).replace(/'/g, "'\"'\"'")}'`;
+  // [Foreman: 1196] PowerShell also ends a single-quoted string at U+2018 to
+  // U+201B, so each of them is doubled like the ASCII quote.
+  return shell === "powershell" ? `'${String(value).replace(/['‘-‛]/g, "$&$&")}'` : `'${String(value).replace(/'/g, "'\"'\"'")}'`;
 }
 function pluginCommand(script, args = "", shell = process.platform === "win32" ? "powershell" : "posix") {
   const file = path.resolve(PLUGIN_ROOT, "scripts", script).replace(/\\/g, "/");
