@@ -1495,8 +1495,15 @@ describe('the discovery inclusion bar', () => {
     }
   });
 
-  test('both discovery wordings read an earlier version without changing the tree', () => {
-    for (const text of [discoveryBlock('claude'), discoveryBlock('claude', false), discoveryInstructions()]) {
+  test('every discovery wording reads an earlier version without changing the tree', () => {
+    for (const text of [
+      discoveryBlock('claude'),
+      discoveryBlock('claude', false),
+      discoveryInstructions(),
+      discoveryBlock('claude', true, 'Orchestrator'),
+      discoveryBlock('codex', true, 'Orchestrator'),
+    ]) {
+      assert.ok(text.includes('When a finding needs an earlier version to confirm it'), text);
       assert.ok(text.includes('`git show <rev>:<path>`'), text);
       assert.ok(text.includes('`git diff <rev> -- <path>`'), text);
       assert.match(text, /Never use `git checkout`,\s+`git stash` or `git worktree add`/);

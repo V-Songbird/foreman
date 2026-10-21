@@ -33,6 +33,13 @@ function duplicateCheckStep(scriptPath) {
   );
 }
 
+// [Foreman: 1183] The read-only way to compare with an earlier version, one
+// sentence for Claude Code's block and a delegated session's alike.
+const EARLIER_VERSION_RULE =
+  "When a finding needs an earlier version to confirm it, read it without changing " +
+  "the working tree: `git show <rev>:<path>` or `git diff <rev> -- <path>`. " +
+  "Never use `git checkout`, `git stash` or `git worktree add` for it.";
+
 // [Foreman: 825, 828] A session delegatedAcceptance lists gets this in place
 // of the ask-the-user policy, after a commit and at a Codex checkpoint alike.
 function delegatedDiscoveryInstructions(orchestrator, host, scriptPath) {
@@ -40,6 +47,7 @@ function delegatedDiscoveryInstructions(orchestrator, host, scriptPath) {
     "[Foreman] Roadmap discovery is enabled for this project. Scan this " +
     "session's work for CONFIRMED opportunities, bugs, or ideas — not vague " +
     "hunches — and for work it already did beyond its entry's `what`. " +
+    EARLIER_VERSION_RULE + " " +
     duplicateCheckStep(scriptPath) + " " +
     `Acceptance for this session belongs to the orchestrator ${orchestrator}, so ` +
     "don't ask the user. A worker lists each unmatched candidate, with its " +
@@ -49,4 +57,4 @@ function delegatedDiscoveryInstructions(orchestrator, host, scriptPath) {
   );
 }
 
-module.exports = { discoveryEnabled, discoveryInstructions, duplicateCheckStep, delegatedDiscoveryInstructions, POWERSHELL_HEREDOC };
+module.exports = { discoveryEnabled, discoveryInstructions, duplicateCheckStep, delegatedDiscoveryInstructions, POWERSHELL_HEREDOC, EARLIER_VERSION_RULE };

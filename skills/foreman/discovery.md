@@ -8,9 +8,9 @@ symbols, behavior and impact. A concrete missing behavior or improvement can
 qualify without being a reproduced bug; label uncertainty and propose an
 investigation when the cause is unknown. Do not launch another audit or invent findings.
 
-To compare with an earlier version, read it without changing the working tree:
-`git show <rev>:<path>` or `git diff <rev> -- <path>`. Never use `git checkout`,
-`git stash` or `git worktree add` for it.
+When a finding needs an earlier version to confirm it, read it without changing
+the working tree: `git show <rev>:<path>` or `git diff <rev> -- <path>`.
+Never use `git checkout`, `git stash` or `git worktree add` for it.
 
 In the executing project, require `ROADMAP.jsonl` and honor
 `.foreman/config.json`'s `discoverySuggestions:false`. A missing setting defaults

@@ -12,7 +12,7 @@ const { runGit } = require("../scripts/run-git");
 const { readEntries, today, touchesOverlap, trailerIdsIn } = require("../scripts/roadmap");
 const { resolveHookScope } = require("../scripts/commit-evidence");
 const { readConfigFile, delegatedOrchestrator } = require("../scripts/foreman-config");
-const { discoveryInstructions, duplicateCheckStep, delegatedDiscoveryInstructions, POWERSHELL_HEREDOC } = require("../scripts/discovery");
+const { discoveryInstructions, duplicateCheckStep, delegatedDiscoveryInstructions, POWERSHELL_HEREDOC, EARLIER_VERSION_RULE } = require("../scripts/discovery");
 
 const PLUGIN_ROOT = pluginDir();
 const SCRIPT_PATH = path.join(PLUGIN_ROOT, "scripts", "roadmap.js");
@@ -703,9 +703,7 @@ function claudeDiscoveryBlock(requireVerification = true) {
     "symbol names, the specific behavior observed) — do NOT run extra " +
     "Read/Grep/Bash calls just to enrich the entry, that spends tokens now " +
     "instead of saving them for whoever picks it up later. " +
-    "If you must compare against an earlier version, read it without changing " +
-    "the working tree: `git show <rev>:<path>` or `git diff <rev> -- <path>`. " +
-    "Never use `git checkout`, `git stash` or `git worktree add` for it. " +
+    EARLIER_VERSION_RULE + " " +
     duplicateCheckStep(SCRIPT_PATH) +
     " Only when there's no match, ask the user " +
     "(AskUserQuestion) what to do with it: Add to roadmap / Execute here " +
