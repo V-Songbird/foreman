@@ -48,11 +48,13 @@ const { projectDir, parseFlags, printHelp } = require("./runtime");
 // then read one argument, whereas PowerShell splits a word that opens with a
 // quote. A value whose first character could
 // not stand bare keeps the JSON string `step pick` writes.
+// [Foreman: 1153] PowerShell also ends a single-quoted string at U+2018 to
+// U+201B, as in `John’s Projects`, so those count as single quotes here.
 function shellQuote(value) {
   const text = String(value);
-  if (!text.includes("'")) return `'${text}'`;
+  if (!/['‘-‛]/.test(text)) return `'${text}'`;
   if (!/^[\w/]/.test(text)) return JSON.stringify(text);
-  return text[0] + text.slice(1).split(/('+)/).map((run, i) => (i % 2 ? `"${run}"` : run && `'${run}'`)).join("");
+  return text[0] + text.slice(1).split(/(['‘-‛]+)/).map((run, i) => (i % 2 ? `"${run}"` : run && `'${run}'`)).join("");
 }
 function nodeCommand(file) {
   return `node ${shellQuote(file.replaceAll("\\", "/"))}`;

@@ -611,24 +611,43 @@ describe('then runs from an install path holding a quote and a dollar', () => {
       ? ['-NoProfile', '-NonInteractive', '-Command', command]
       : ['-c', command], { encoding: 'utf-8', windowsHide: true, timeout: SPAWN_TIMEOUT_MS, env: { ...process.env, ...hostEnv } }), 'the then command'),
   };
+  // [Foreman: 1153] PowerShell also reads U+2018 to U+201B as single quotes,
+  // so the path and the name carry typographic ones too. A done close holds
+  // for the orchestrator, whose name the say text must carry intact.
   for (const host of ['claude', 'codex']) for (const [name, shell] of Object.entries(shells)) {
     test(`from ${host} under ${name}`, (t) => {
       repo();
-      const plugin = path.join(path.dirname(project), "it's $x plugin");
-      fs.cpSync(SCRIPTS_DIR, path.join(plugin, 'scripts'), { recursive: true });
-      fs.copyFileSync(path.join(SCRIPTS_DIR, '..', 'prompt-template.md'), path.join(plugin, 'prompt-template.md'));
+      const plugin = path.join(path.dirname(project), "it's $x John’s ‘q‛ plugin");
+      const pluginTask = path.join(plugin, 'scripts', 'task.js');
+      // fs.cpSync garbles a non-ASCII destination on Windows, so copy, then rename.
+      const copy = path.join(path.dirname(project), 'plugin-copy');
+      fs.cpSync(SCRIPTS_DIR, path.join(copy, 'scripts'), { recursive: true });
+      fs.copyFileSync(path.join(SCRIPTS_DIR, '..', 'prompt-template.md'), path.join(copy, 'prompt-template.md'));
+      fs.renameSync(copy, plugin);
       const hostEnv = { ...env, FOREMAN_HOST: host };
-      const started = runNodeScript(path.join(plugin, 'scripts', 'task.js'), ['start', '--id', '001', '--orchestrator', "o'$x"], null, hostEnv);
+      const who = "o'$x‘y’$z";
+      const started = runNodeScript(pluginTask, ['start', '--id', '001', '--orchestrator', who], null, hostEnv);
       assert.equal(started.status, 0, started.stdout + started.stderr);
       const { then } = JSON.parse(started.stdout);
       const payload = path.join(project, 'payload.json').replaceAll('\\', '/');
-      fs.writeFileSync(payload, JSON.stringify({ status: 'dropped' }), 'utf-8');
+      fs.writeFileSync(payload, JSON.stringify({ status: 'done' }), 'utf-8');
       const pipe = name === 'PowerShell' ? `Get-Content -LiteralPath '${payload}' -Raw -Encoding utf8` : `cat '${payload}'`;
       const r = shell(`${pipe} | ${then}`, hostEnv);
       if (r === null) return t.skip('no bash found');
       assert.equal(r.status, 0, then + '\n' + r.stdout + r.stderr);
-      assert.equal(JSON.parse(r.stdout).next, 'closed', r.stdout);
-      assert.equal(stored().status, 'dropped');
+      const held = JSON.parse(r.stdout);
+      assert.equal(held.next, 'report_acceptance', r.stdout);
+      assert.ok(held.say.includes(`belongs to the orchestrator ${who}, so`), held.say);
+      assert.equal(stored().status, 'awaiting_acceptance');
+
+      // The Accept option's then, from the same install path.
+      writeRoadmap(project, [entry({ status: 'in_progress' })]);
+      const asked = runNodeScript(pluginTask, ['finish', '--id', '001'], { status: 'done' }, hostEnv);
+      assert.equal(asked.status, 0, asked.stdout + asked.stderr);
+      const accept = JSON.parse(asked.stdout).options.find((o) => o.label.startsWith('Accept')).then;
+      const accepted = shell(accept, hostEnv);
+      assert.equal(accepted.status, 0, accept + '\n' + accepted.stdout + accepted.stderr);
+      assert.equal(stored().status, 'done');
     });
   }
 });

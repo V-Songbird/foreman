@@ -39,6 +39,9 @@ instead.
 - `roadmap.js --help` now shows the `add` and `correct` examples as quoted
   heredocs, so copying one with an apostrophe in the text works, and the
   runtime reference no longer says commands show their JSON after `echo`.
+- The follow-up commands `task.js` returns now also run under PowerShell when
+  the install path or the orchestrator name holds a typographic single quote,
+  as in `John’s Projects`, which PowerShell reads as a quote.
 - The README nav check now treats a tab after a list marker as part of the
   item, so a paragraph indented under `-<tab>item` is no longer skipped as
   code and its links are still checked.
