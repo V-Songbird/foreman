@@ -793,7 +793,8 @@ function checkpointsConfig(root) {
 // (the one every planned path sits in) moves the branch, every checkpoint and
 // the last close inside that submodule; task.js finish picks the rest of the
 // close's form itself.
-function checkpointEmbedText(cfg, checkCount, entryId, hasReview = false, reviewEachIncrement = false, host = resolveHost(), close = {}) {
+function checkpointEmbedText(cfg, checkCount, entryId, hasReview = false, reviewEachIncrement = false, hostName, close = {}) {
+  const host = resolveHost(hostName);
   const { submodule = null } = close || {};
   const sub = submodule ? `\`${submodule}\`` : "";
   const branchLine = (submodule ? `inside the submodule ${sub}, where this run commits: ` : "") + (cfg.baseBranch

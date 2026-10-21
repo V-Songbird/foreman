@@ -2876,6 +2876,14 @@ describe('the entry close in each roadmap mode', () => {
     assert.equal(block, taskRulesText(...args, 'codex'));
   });
 
+  // [Foreman: 1201] And the checkpoint embed.
+  test('checkpointEmbedText resolves the host itself: antigravity gets the Codex form', () => {
+    const cfg = { baseBranch: null, branch: true, onFinish: 'ask' };
+    const embed = checkpointEmbedText(cfg, 2, '001', false, false, 'antigravity');
+    assert.doesNotMatch(embed, /TaskCreate/, embed);
+    assert.equal(embed, checkpointEmbedText(cfg, 2, '001', false, false, 'codex'));
+  });
+
   for (const host of ['codex']) {
     test(`a git-ignored roadmap commits first and closes with the sha, on host ${host}`, () => {
       roadmapRepo(true);
