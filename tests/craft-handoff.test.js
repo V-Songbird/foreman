@@ -2859,6 +2859,23 @@ describe('the entry close in each roadmap mode', () => {
     assert.equal(block, incrementReviewText('001', 'codex'));
   });
 
+  // [Foreman: 1199] The same for the resume block and the rules block.
+  test('incrementResumeText resolves the host itself: antigravity quotes the id like codex', () => {
+    const { incrementResumeText } = require('../scripts/craft-handoff');
+    const record = { id: "it's", notes: [] };
+    const block = incrementResumeText(record, 'antigravity');
+    assert.equal(block, incrementResumeText(record, 'codex'));
+    assert.doesNotMatch(block, /--ids it's/, block);
+  });
+
+  test('taskRulesText resolves the host itself: antigravity gets the Codex wording', () => {
+    const { taskRulesText } = require('../scripts/craft-handoff');
+    const args = [{ id: '001', kind: 'task', planned_touches: ['a.js'] }, { steps: ['do it'] }, false, '', '', false];
+    const block = taskRulesText(...args, 'antigravity');
+    assert.match(block, /Suggested approach/, block);
+    assert.equal(block, taskRulesText(...args, 'codex'));
+  });
+
   for (const host of ['codex']) {
     test(`a git-ignored roadmap commits first and closes with the sha, on host ${host}`, () => {
       roadmapRepo(true);

@@ -681,7 +681,8 @@ function incrementReviewText(entryId, hostName) {
 // Escape note text so recorded examples cannot become prompt structure.
 // [Foreman: 789] Built only for an entry: an entry-less handoff has no notes
 // to recover.
-function incrementResumeText(record, host = resolveHost()) {
+function incrementResumeText(record, hostName) {
+  const host = resolveHost(hostName);
   const protocol = fs.readFileSync(path.join(PLUGIN_ROOT, "skills", "roadmap", "resume-increments.md"), "utf8").trim();
   const refresh = `Refresh the selected entry before recovery:\nCommand: \`${scriptCommand(host, "roadmap.js", "list --ids " + (host === "codex" ? shellQuote(record.id) : record.id))}\``;
   // [Foreman: 786] The same cap as <context>.
@@ -690,7 +691,8 @@ function incrementResumeText(record, host = resolveHost()) {
   return `<increment_resume>\n${protocol}\n\n${refresh}${marker}\n${recordedEvidence("recorded_increment_notes", kept)}\n</increment_resume>`;
 }
 
-function taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkpointEmbed, reviewEachIncrement = false, host = resolveHost(), workflowAgent = false) {
+function taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkpointEmbed, reviewEachIncrement = false, hostName, workflowAgent = false) {
+  const host = resolveHost(hostName);
   const lines = [];
   if (record.kind === "decision") {
     lines.push(
