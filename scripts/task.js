@@ -54,9 +54,10 @@ const { projectDir, parseFlags, printHelp } = require("./runtime");
 // bare follows the bare `head` its caller gives, and only that value does.
 // The JSON string this used to fall back to expanded `$` and broke on `"` in
 // PowerShell.
+const QUOTES = /['‘-‛]/;
 function shellQuote(value, head = "") {
   const text = String(value);
-  if (!/['‘-‛]/.test(text)) return `'${text}'`;
+  if (!QUOTES.test(text)) return `'${text}'`;
   const bare = /^[\w/]/.test(text);
   if (!bare && !head) throw new Error(`shellQuote needs a bare head for ${text}`);
   return (bare ? text[0] : head) + text.slice(bare ? 1 : 0).split(/(['‘-‛]+)/).map((run, i) => (i % 2 ? `"${run}"` : run && `'${run}'`)).join("");
@@ -241,6 +242,18 @@ function stringList(value, field) {
   return value.map((item) => item.trim());
 }
 
+// [Foreman: 1202] A Markdown code span around `text`. Its fence is the
+// shortest backtick run whose length no run inside matches, as CommonMark
+// reads it, so a backtick in a path cannot end the span early.
+function codeSpan(text) {
+  const runs = new Set((text.match(/`+/g) || []).map((run) => run.length));
+  let size = 1;
+  while (runs.has(size)) size += 1;
+  const fence = "`".repeat(size);
+  const pad = /^`|`$/.test(text) ? " " : "";
+  return `${fence}${pad}${text}${pad}${fence}`;
+}
+
 // [Foreman: 1161] The fix text for a refused finishUnit result. When the
 // helper could not put the index back, its staging is still there, so the text
 // names those files instead of saying nothing was staged.
@@ -255,11 +268,16 @@ function refusalFix(unit, sub) {
   // pathspec, which names the same top-relative path; the closing `:` keeps a
   // leading `!`, `^` or `:` of the path from reading as magic. A submodule
   // path follows `./`, since the command runs from the root.
-  const paths = left.map((file) => quoteArg(file, ":/:")).join(" ");
+  // [Foreman: 1202] A path opening with `:` always takes that head, since
+  // bare or single-quoted it would reach git as magic, as `:!x` does.
+  const paths = left.map((file) => (file.startsWith(":") && !QUOTES.test(file) ? `:/:${shellQuote(file)}` : quoteArg(file, ":/:"))).join(" ");
   const git = sub ? `git -C ${quoteArg(sub, "./")}` : "git";
   const reason = unit.restore_error || "no reason given";
+  // A listed path with a backtick takes a code span too, or its backtick
+  // would pair with the command's fence.
+  const listed = left.map((file) => (file.includes("`") ? codeSpan(file) : file)).join(", ");
   const how = left.length
-    ? `these files are still staged: ${left.join(", ")}. Unstage them with \`${git} restore --staged -- ${paths}\` (\`${git} rm --cached -- ${paths}\` when the repository has no commit yet) before anything else.`
+    ? `these files are still staged: ${listed}. Unstage them with ${codeSpan(`${git} restore --staged -- ${paths}`)} (${codeSpan(`${git} rm --cached -- ${paths}`)} when the repository has no commit yet) before anything else.`
     : "files may still be staged. Run `git status` and unstage them before anything else.";
   const stagedNote = left.length || unit.restore_error ? ` The commit helper could not restore the index (${reason}), so ${how}` : "";
   const missingNote = unit.missing_files ? `finish expected these changed files to be staged and they are not: ${unit.missing_files.join(", ")}.` : "";

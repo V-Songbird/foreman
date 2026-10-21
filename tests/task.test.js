@@ -86,6 +86,11 @@ function ok(argv, payload) {
   return json;
 }
 
+/** The contents of each Markdown code span in `text`, as CommonMark reads them. */
+function codeSpans(text) {
+  return [...text.matchAll(/(?<!`)(`+)(?!`)(.*?)(?<!`)\1(?!`)/g)].map((m) => (/^ .* $/.test(m[2]) ? m[2].slice(1, -1) : m[2]));
+}
+
 /** Run a returned `then` command without a shell: `node '<script>' <args>`. */
 function runThen(then, payload) {
   const m = /^node '([^']+)' (.+)$/.exec(then);
@@ -368,6 +373,18 @@ describe('task.js finish', () => {
     const fix = refusalFix({ reason: 'staging_failed', error: 'x', left_staged: ['a.js'], restore_error: 'e' }, 'lib');
     assert.ok(fix.includes('`git -C lib restore --staged -- a.js`'), fix);
     assert.ok(fix.includes('`git -C lib rm --cached -- a.js`'), fix);
+  });
+
+  // [Foreman: 1202] A backtick in a path or submodule cannot end the
+  // command's code span early, so a reader copies the whole command.
+  test('a backtick in a path or submodule stays inside the code span', () => {
+    const fix = refusalFix({ reason: 'staging_failed', error: 'x', left_staged: ['a`b.js', 'c``'], restore_error: 'e' }, 'li`b');
+    assert.deepEqual(codeSpans(fix), [
+      'a`b.js',
+      'c``',
+      "git -C 'li`b' restore --staged -- 'a`b.js' 'c``'",
+      "git -C 'li`b' rm --cached -- 'a`b.js' 'c``'",
+    ], fix);
   });
 
   test('the fix text surfaces missing_files for an unexpected_files refusal too', () => {
@@ -718,6 +735,21 @@ describe('a value opening with a quote stays one literal argument', () => {
         const r = shell(command);
         assert.equal(r.status, 0, command + '\n' + r.stdout + r.stderr);
         assert.deepEqual(staged(), [...names, 'a.txt'].filter((n) => n !== name).sort(), command);
+      }
+      // [Foreman: 1202] Nor does a path opening with `:` read as magic. No
+      // such file can exist on Windows, so each is staged without one, past
+      // the check that keeps `:` out of a Windows index.
+      spawnSync('git', ['config', 'core.protectNTFS', 'false'], { cwd: repo });
+      const blob = spawnSync('git', ['hash-object', '-w', '--stdin'], { cwd: repo, input: '', encoding: 'utf-8' }).stdout.trim();
+      const colons = [':!a.txt', ':^a.txt', ':(top)a.txt', ':/:a.txt', ":'x.txt", ':`b.txt'];
+      for (const name of colons) {
+        spawnSync('git', ['add', '-A'], { cwd: repo });
+        for (const n of colons) spawnSync('git', ['update-index', '--add', '--cacheinfo', `100644,${blob},${n}`], { cwd: repo });
+        const fix = refusalFix({ reason: 'staging_failed', error: 'x', left_staged: [name], restore_error: 'e' });
+        const command = codeSpans(fix).find((span) => span.startsWith('git rm --cached -- ')).replace('git', `git -C '${repo}'`);
+        const r = shell(command);
+        assert.equal(r.status, 0, command + '\n' + r.stdout + r.stderr);
+        assert.deepEqual(staged(), [...names, 'a.txt', ...colons].filter((n) => n !== name).sort(), command);
       }
     });
   }

@@ -54,6 +54,11 @@ instead.
   a file as `:/:<path>`, so git reads a leading `!` or `^` as part of the
   name, and such a submodule as `./<path>`. Windows PowerShell 5.1 still drops a `"` from any
   argument it passes to a program; PowerShell 7 keeps it.
+- When a file left staged starts with `:`, the unstage command a refused
+  `task.js finish` gives now writes it as `:/:<path>`, so git unstages that
+  file instead of reading `:!x` as "everything but x". A backtick in a staged
+  file or submodule path no longer cuts that command short where it is shown
+  as code.
 - The commands `craft-handoff.js` writes into a handoff now also run under
   PowerShell when the install path holds a typographic single quote, as in
   `John’s Projects`.
