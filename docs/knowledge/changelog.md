@@ -32,6 +32,9 @@ instead.
 - A Bash `( ... )` subshell now works on its own copy of the `pushd` stack, as a
   `$( ... )` substitution already did, so a `popd` or `pushd` inside it no
   longer changes which folder a later commit is credited to.
+- A PowerShell `( ... )` grouping, as in `(Set-Location <path>); git commit`,
+  now keeps the folder it moved to after it closes, as PowerShell does, since
+  it runs in the caller's session; a later commit is credited to that folder.
 - When Foreman's discovery rules have you confirm a finding against an earlier
   version, they now say to read that version with `git show <rev>:<path>` or
   `git diff <rev> -- <path>`, never with `git checkout`, `git stash` or

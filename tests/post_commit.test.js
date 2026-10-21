@@ -1143,7 +1143,7 @@ describe('commit directory edge cases', () => {
     // a paren inside quotes neither opens nor closes anything
     assert.deepEqual(commitDirs(`(cd "${other}" && git commit -m "a (b"); git commit -m y`, project), [other, project]);
     assert.deepEqual(commitDirs(`(cd "${other}" && git commit -m 'a (b'); git commit -m y`, project), [other, project]);
-    assert.deepEqual(commitDirs(`(cd "${other}" && git commit -m "a (b"); git commit -m y`, project, true, true), [other, project]);
+    assert.deepEqual(commitDirs(`(cd "${other}" && git commit -m "a (b"); git commit -m y`, project, true, true), [other, other]);
     // the same goes for the folder of git -C
     assert.deepEqual(commitDirs('git -C `pwd` commit -m x', project), []);
     assert.deepEqual(commitDirs('git -C "$(pwd)" commit -m x', project), []);
@@ -1417,6 +1417,12 @@ describe('commit directory edge cases', () => {
     assert.deepEqual(commitDirs(`pushd "${other}"; (popd); popd; git commit -m x`, project), [project]);
     assert.deepEqual(commitDirs(`pushd "${other}"; (pushd "${project}/third"); popd; git commit -m x`, project), [project]);
     assert.deepEqual(commitDirs(`pushd "${other}"; (popd; git commit -m x)`, project), [project]);
+  });
+
+  // [Foreman: 1191]
+  test('a PowerShell ( ... ) grouping runs in the caller\'s session and keeps its directory', () => {
+    assert.deepEqual(commitDirs(`(Set-Location "${other}"); git commit -m x`, project, true, true), [other]);
+    assert.deepEqual(commitDirs(`Push-Location "${other}"; (Pop-Location); Pop-Location; git commit -m x`, project, true, true), [project]);
   });
 
   test('env and sudo read their directory option inside a group of short options', () => {

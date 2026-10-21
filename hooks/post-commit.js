@@ -142,7 +142,10 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false, pl
   const targets = [];
   const text = command.replace(HEREDOC_RE, (match, heredoc) => heredoc ?? "''");
   for (let part of text.match(shell.part) || []) {
-    for (part = part.trim(); part.startsWith("("); part = part.slice(1).trimStart()) subshells.push([dir, bashBackticks ? [...pushed] : null]);
+    // [Foreman: 1191] PowerShell runs a `( ... )` grouping in the caller's
+    // session, so its Set-Location and Pop-Location outlast it; only a Bash
+    // subshell has a directory and pushd stack to restore when it closes.
+    for (part = part.trim(); part.startsWith("("); part = part.slice(1).trimStart()) subshells.push(bashBackticks ? [dir, [...pushed]] : null);
     // [Foreman: 1093] A `)` that closes a `$(` or `(` of the same command is
     // not the end of a subshell; parentheses inside quotes are text.
     const bare = part.replace(shell.quoted, "");
@@ -234,9 +237,10 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false, pl
       if (tokens[0] === "commit" && gitDir !== null) targets.push(gitDir);
     }
     for (; closes && subshells.length; closes--) {
-      const [back, stack] = subshells.pop();
-      dir = back;
-      if (stack) pushed.splice(0, pushed.length, ...stack);
+      const saved = subshells.pop();
+      if (!saved) continue;
+      dir = saved[0];
+      pushed.splice(0, pushed.length, ...saved[1]);
     }
   }
   end.dir = dir;
