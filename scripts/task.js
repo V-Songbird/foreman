@@ -392,8 +392,9 @@ function cmdFinish(root, flags, payload) {
         then: rerun(),
       });
     }
-    // An unreadable HEAD leaves no sha to record; the close is recorded without one.
-    closed = cmdUpdateStatus(root, made.sha ? { ...close, commit: made.sha } : close);
+    // An unreadable HEAD leaves no sha to record; the close keeps the files as
+    // observed touches instead, as unstaged() does.
+    closed = cmdUpdateStatus(root, made.sha ? { ...close, commit: made.sha } : { ...close, add_touches: files });
   }
   const sha = made.sha;
   const landedWarnings = [...(closed.warnings || []), ...(made.warning ? [made.warning] : [])];

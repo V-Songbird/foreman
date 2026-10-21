@@ -45,6 +45,10 @@ instead.
 - The README nav check now treats a tab after a list marker as part of the
   item, so a paragraph indented under `-<tab>item` is no longer skipped as
   code and its links are still checked.
+- When `task.js finish` commits inside a submodule or for a git-ignored roadmap
+  and git cannot read the new commit afterwards, the entry now keeps the
+  closed files as observed touches instead of recording neither them nor the
+  commit.
 
 ### Claude Code
 
