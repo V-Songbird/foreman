@@ -2808,6 +2808,17 @@ describe('the entry close in each roadmap mode', () => {
     }
   });
 
+  // [Foreman: 1146] Both heredoc wordings in craft-handoff.js take the
+  // PowerShell clause from discovery.js, so one edit there reaches them all.
+  test('the Claude Code close and bookkeeping wordings share discovery.js\'s PowerShell clause', () => {
+    const { POWERSHELL_HEREDOC } = require('../scripts/discovery');
+    roadmapRepo(false);
+    const { json } = run(project, { entry: '001', destination: 'task', host: 'claude', judgment: goodJudgment() });
+    assert.ok(json.prompt.includes(`through a quoted heredoc, which keeps every apostrophe as written (${POWERSHELL_HEREDOC}):\n<start's then>`), json.prompt);
+    const source = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'craft-handoff.js'), 'utf8');
+    assert.equal(source.includes('pipe a literal here-string'), false, 'craft-handoff.js repeats the clause as a literal');
+  });
+
   for (const host of ['codex']) {
     test(`a git-ignored roadmap commits first and closes with the sha, on host ${host}`, () => {
       roadmapRepo(true);

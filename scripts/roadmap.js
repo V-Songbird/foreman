@@ -3151,9 +3151,11 @@ naming the field, each line and code point.
                     one clear error naming both versions -- upgrade the
                     plugin, or migrate with the Foreman that wrote it.
 
-Examples:
-  echo '{"title":"Add JWT refresh middleware","why":"...","what":"...","source":"user"}' \\
-    | node roadmap.js add
+Examples (free text goes through a quoted heredoc, which keeps an apostrophe as
+written; in PowerShell, pipe a literal here-string @'...'@ into the command):
+  node roadmap.js add <<'EOF'
+{"title":"Add JWT refresh middleware","why":"...","what":"...","source":"user"}
+EOF
   echo '{"id":"003","status":"done","commit":"a1b2c3d"}' \\
     | node roadmap.js update-status
   echo '{"id":"003","status":"done","commit":"a1b2c3d","add_touches":["docs/migration.md"]}' \\
@@ -3163,8 +3165,9 @@ Examples:
     | node roadmap.js update-status   # then commit with "Foreman: 003" as the last line
   echo '{"id":"004","add_depends_on":["002"]}' \\
     | node roadmap.js update-deps
-  echo '{"id":"004","expected_updated_at":"2026-07-28","expected":{"what":"old what","planned_touches":["src/api"]},"what":"...","planned_touches":["src/api/retry.ts"]}' \\
-    | node roadmap.js correct
+  node roadmap.js correct <<'EOF'
+{"id":"004","expected_updated_at":"2026-07-28","expected":{"what":"old what","planned_touches":["src/api"]},"what":"...","planned_touches":["src/api/retry.ts"]}
+EOF
   echo '{"id":"130","keep":"Cache the rate lookup"}' \\
     | node roadmap.js reassign-id
   echo '{"ids":["001","003"]}' | node roadmap.js archive

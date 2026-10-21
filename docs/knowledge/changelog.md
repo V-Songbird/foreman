@@ -33,6 +33,16 @@ instead.
   version, they now say to read that version with `git show <rev>:<path>` or
   `git diff <rev> -- <path>`, never with `git checkout`, `git stash` or
   `git worktree add`, which change the working tree.
+- `roadmap.js --help` now shows the `add` and `correct` examples as quoted
+  heredocs, so copying one with an apostrophe in the text works, and the
+  runtime reference no longer says commands show their JSON after `echo`.
+
+### Claude Code
+
+- The review `annotate` and the entry close in a handoff carry the same
+  PowerShell here-string wording as Foreman's other free-text commands.
+  Antigravity and Codex handoffs send those payloads as JSON on stdin and
+  never reach the heredoc form.
 
 ## 4.2.0 — 2026-10-20
 

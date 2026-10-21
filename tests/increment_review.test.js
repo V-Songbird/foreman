@@ -251,3 +251,17 @@ test('the Claude Code review annotate keeps an apostrophe in its notes through b
   const stored = fs.readFileSync(path.join(root, 'ROADMAP.jsonl'), 'utf8').trim().split('\n').map(JSON.parse).find((e) => e.id === '001');
   assert.ok(stored.notes.endsWith(notes), stored.notes);
 });
+
+// [Foreman: 1146] Antigravity resolves to the Codex form in craft-handoff.js, so
+// the heredoc annotate (and its PowerShell clause) reaches Claude Code only.
+test('the review annotate is a heredoc on Claude Code and a JSON-stdin command on Antigravity and Codex', (t) => {
+  const { POWERSHELL_HEREDOC } = require('../scripts/discovery');
+  const review = (host) => incrementReviewText('001', host);
+  assert.ok(review('claude').includes(POWERSHELL_HEREDOC), review('claude'));
+  for (const host of ['antigravity', 'codex']) {
+    const prompt = assemble(fixture(t), { ...input('clipboard'), host }).prompt;
+    const block = prompt.match(/<increment_review>[\s\S]*?<\/increment_review>/)[0];
+    assert.match(block, /JSON stdin: `/, host);
+    assert.doesNotMatch(block, /<<'EOF'|here-string/, host);
+  }
+});

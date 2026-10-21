@@ -38,7 +38,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { discoveryEnabled, discoveryInstructions, delegatedDiscoveryInstructions } = require("./discovery");
+const { discoveryEnabled, discoveryInstructions, delegatedDiscoveryInstructions, POWERSHELL_HEREDOC } = require("./discovery");
 const { readConfigFile, delegatedOrchestrator } = require("./foreman-config");
 const { render, projectDir, readConfig } = require("./render-sections.js");
 const { detectHost, sessionId, parseFlags, printHelp } = require("./runtime");
@@ -137,7 +137,7 @@ function scriptCommand(host, script, args = "") {
 function bookkeepingCommand(host, script, args, payload) {
   return host === "codex"
     ? jsonCommand(script, args, payload)
-    : `Send this JSON through the quoted heredoc as written (in PowerShell, pipe a literal here-string \`@'...'@\` into the command instead):\n${scriptCommand(host, script, args)} <<'EOF'\n${JSON.stringify(payload)}\nEOF`;
+    : `Send this JSON through the quoted heredoc as written (${POWERSHELL_HEREDOC}):\n${scriptCommand(host, script, args)} <<'EOF'\n${JSON.stringify(payload)}\nEOF`;
 }
 const AUTONOMY_MARKER = "You are operating autonomously.";
 // [Foreman: 459] Its user-present counterpart, Claude Code only.
@@ -913,7 +913,7 @@ function claudeEntryParagraphText({ id, resume, notesPlace = null, requireVerifi
   ];
   // [Foreman: 1112] A quoted heredoc, not a single-quoted echo: an apostrophe
   // in the message or the notes would end the echo's quoting.
-  const closeCall = `When the work concludes, close the entry with the status it actually earned (\`done\`, \`dropped\`, \`rejected\`) and your full findings in \`notes\`, by sending this JSON to start's \`then\` through a quoted heredoc, which keeps every apostrophe as written (in PowerShell, pipe a literal here-string \`@'...'@\` into it instead):\n<start's then> <<'EOF'\n{${fields.join(",")}}\nEOF`;
+  const closeCall = `When the work concludes, close the entry with the status it actually earned (\`done\`, \`dropped\`, \`rejected\`) and your full findings in \`notes\`, by sending this JSON to start's \`then\` through a quoted heredoc, which keeps every apostrophe as written (${POWERSHELL_HEREDOC}):\n<start's then> <<'EOF'\n{${fields.join(",")}}\nEOF`;
   const hold = requireVerification
     ? ` It records an earned \`done\` as \`awaiting_acceptance\`: this project holds finished work for ${delegatedTo ? `the orchestrator ${delegatedTo}'s` : "the user's"} acceptance.`
     : "";

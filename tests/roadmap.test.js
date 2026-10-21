@@ -2307,6 +2307,24 @@ describe('--help', () => {
     assert.throws(() => JSON.parse(result.stdout));
   });
 
+  // [Foreman: 1146] The add and correct examples carry free text, so they show
+  // the quoted heredoc the skills use: copied with an apostrophe, they still run.
+  test('the free-text examples are quoted heredocs, not single-quoted echo', () => {
+    const { stdout } = runRoadmap(['--help'], undefined, env);
+    for (const verb of ['add', 'correct']) {
+      assert.match(stdout, new RegExp(`\\n {2}node roadmap\\.js ${verb} <<'EOF'\\n\\{[^\\n]+\\}\\nEOF\\n`), verb);
+    }
+    assert.doesNotMatch(stdout, /echo '\{[^\n]*"(title|why|what)"/);
+    assert.match(stdout, /@'\.\.\.'@/);
+  });
+
+  test('runtime.md no longer opens its payload section with the echo sentence', () => {
+    const runtime = fs.readFileSync(path.join(__dirname, '..', 'skills', 'foreman', 'runtime.md'), 'utf8');
+    const section = runtime.split('## JSON payloads\n')[1].split('\n## ')[0].trim();
+    assert.doesNotMatch(section, /^Commands show their JSON after `echo` for readability/);
+    assert.match(section, /^Commands that carry user-written text show their JSON in a quoted heredoc/);
+  });
+
   test('-h is the same as --help', () => {
     const result = runRoadmap(['-h'], undefined, env);
     assert.equal(result.status, 0);

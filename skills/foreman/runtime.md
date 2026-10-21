@@ -21,10 +21,11 @@ commands in the user's project.
 
 ## JSON payloads
 
-Commands show their JSON after `echo` for readability. Never interpolate
-user-written text into a shell command: send that JSON through a quoted heredoc
-(`<<'EOF'`), a PowerShell literal here-string (`@'...'@`), or a UTF-8 payload
-file piped to the script. Windows PowerShell 5.1 pipes text to `node` as
+Commands that carry user-written text show their JSON in a quoted heredoc
+(`<<'EOF'`), and a few short ones with only ids and statuses still show it
+after `echo` for readability. Never interpolate
+user-written text into a shell command: send that JSON through a quoted
+heredoc, a PowerShell literal here-string (`@'...'@`), or a UTF-8 payload file piped to the script. Windows PowerShell 5.1 pipes text to `node` as
 ASCII, so there a here-string or `Get-Content` pipe stores every non-ASCII
 character as `?`; first run
 `$OutputEncoding = [System.Text.UTF8Encoding]::new($false)`, then pipe
