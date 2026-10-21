@@ -142,7 +142,7 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false, pl
   const targets = [];
   const text = command.replace(HEREDOC_RE, (match, heredoc) => heredoc ?? "''");
   for (let part of text.match(shell.part) || []) {
-    for (part = part.trim(); part.startsWith("("); part = part.slice(1).trimStart()) subshells.push(dir);
+    for (part = part.trim(); part.startsWith("("); part = part.slice(1).trimStart()) subshells.push([dir, bashBackticks ? [...pushed] : null]);
     // [Foreman: 1093] A `)` that closes a `$(` or `(` of the same command is
     // not the end of a subshell; parentheses inside quotes are text.
     const bare = part.replace(shell.quoted, "");
@@ -155,7 +155,8 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false, pl
     // [Foreman: 1133] Inside double quotes only that quote's rules hold: an
     // apostrophe there opens no single-quoted span, and PowerShell's `@(` is text.
     // [Foreman: 1128] The substitution shares the caller's Push-Location
-    // stack in PowerShell, and works on a copy of it in a Bash subshell.
+    // stack in PowerShell, and works on a copy of it in a Bash subshell, whether a
+    // `$( ... )` substitution or a plain `( ... )` [Foreman: 1148].
     const subs = (part.match(shell.substitution) || []).flatMap((s) => (s[0] === '"' ? s.slice(1, -1).match(shell.dqSubstitution) || [] : s));
     for (const sub of subs) {
       if (sub.length < 3 || !/^(?:[$@]\(|`)/.test(sub)) continue;
@@ -232,7 +233,11 @@ function commitDirs(command, cwd, powershell = false, powershellTool = false, pl
       else if (repo && moveTo(gitDir, repo) === null) gitDir = null;
       if (tokens[0] === "commit" && gitDir !== null) targets.push(gitDir);
     }
-    for (; closes && subshells.length; closes--) dir = subshells.pop();
+    for (; closes && subshells.length; closes--) {
+      const [back, stack] = subshells.pop();
+      dir = back;
+      if (stack) pushed.splice(0, pushed.length, ...stack);
+    }
   }
   end.dir = dir;
   return targets;

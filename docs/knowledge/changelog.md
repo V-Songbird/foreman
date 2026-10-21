@@ -29,6 +29,9 @@ instead.
 
 ### Every host
 
+- A Bash `( ... )` subshell now works on its own copy of the `pushd` stack, as a
+  `$( ... )` substitution already did, so a `popd` or `pushd` inside it no
+  longer changes which folder a later commit is credited to.
 - When Foreman's discovery rules have you confirm a finding against an earlier
   version, they now say to read that version with `git show <rev>:<path>` or
   `git diff <rev> -- <path>`, never with `git checkout`, `git stash` or

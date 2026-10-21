@@ -1412,6 +1412,13 @@ describe('commit directory edge cases', () => {
     assert.deepEqual(commitDirs(`pushd "${other}"; out=$(popd; git commit -m x)`, project), [project]);
   });
 
+  // [Foreman: 1148]
+  test('a plain Bash subshell works on a copy of the pushd stack', () => {
+    assert.deepEqual(commitDirs(`pushd "${other}"; (popd); popd; git commit -m x`, project), [project]);
+    assert.deepEqual(commitDirs(`pushd "${other}"; (pushd "${project}/third"); popd; git commit -m x`, project), [project]);
+    assert.deepEqual(commitDirs(`pushd "${other}"; (popd; git commit -m x)`, project), [project]);
+  });
+
   test('env and sudo read their directory option inside a group of short options', () => {
     assert.deepEqual(commitDirs(`env -iC "${other}" git commit -m x`, project), [other]);
     assert.deepEqual(commitDirs(`env -iC"${other}" git commit -m x`, project), [other]);
