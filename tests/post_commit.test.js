@@ -1488,6 +1488,14 @@ describe('the discovery inclusion bar', () => {
     }
   });
 
+  test('both discovery wordings read an earlier version without changing the tree', () => {
+    for (const text of [discoveryBlock('claude'), discoveryBlock('claude', false), discoveryInstructions()]) {
+      assert.ok(text.includes('`git show <rev>:<path>`'), text);
+      assert.ok(text.includes('`git diff <rev> -- <path>`'), text);
+      assert.match(text, /Never use `git checkout`,\s+`git stash` or `git worktree add`/);
+    }
+  });
+
   // [Foreman: 742] A background agent keeps its findings on every host, as
   // skills/foreman/discovery.md says: it hands them back instead of
   // dropping them.

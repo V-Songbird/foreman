@@ -25,6 +25,15 @@ listings pin a release commit and carry no version of their own. Claude Code
 releases up to 2.7.0 kept their number in the foundry marketplace listing
 instead.
 
+## Unreleased
+
+### Every host
+
+- When Foreman's discovery rules have you confirm a finding against an earlier
+  version, they now say to read that version with `git show <rev>:<path>` or
+  `git diff <rev> -- <path>`, never with `git checkout`, `git stash` or
+  `git worktree add`, which change the working tree.
+
 ## 4.2.0 — 2026-10-20
 
 ### Every host

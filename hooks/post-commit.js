@@ -698,6 +698,9 @@ function claudeDiscoveryBlock(requireVerification = true) {
     "symbol names, the specific behavior observed) — do NOT run extra " +
     "Read/Grep/Bash calls just to enrich the entry, that spends tokens now " +
     "instead of saving them for whoever picks it up later. " +
+    "If you must compare against an earlier version, read it without changing " +
+    "the working tree: `git show <rev>:<path>` or `git diff <rev> -- <path>`. " +
+    "Never use `git checkout`, `git stash` or `git worktree add` for it. " +
     duplicateCheckStep(SCRIPT_PATH) +
     " Only when there's no match, ask the user " +
     "(AskUserQuestion) what to do with it: Add to roadmap / Execute here " +
