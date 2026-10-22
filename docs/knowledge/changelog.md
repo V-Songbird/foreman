@@ -25,7 +25,7 @@ listings pin a release commit and carry no version of their own. Claude Code
 releases up to 2.7.0 kept their number in the foundry marketplace listing
 instead.
 
-## Unreleased
+## 4.2.2 — 2026-10-22
 
 ### Every host
 
