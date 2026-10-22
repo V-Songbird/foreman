@@ -25,6 +25,14 @@ listings pin a release commit and carry no version of their own. Claude Code
 releases up to 2.7.0 kept their number in the foundry marketplace listing
 instead.
 
+## Unreleased
+
+### Every host
+
+- Two roadmap commands that clear the same abandoned roadmap lock at once no
+  longer crash with `EPERM`, `ENOENT` or `ENOTEMPTY`, as one could on Windows;
+  a permission error that persists still stops the command.
+
 ## 4.2.1 — 2026-10-21
 
 ### Every host
