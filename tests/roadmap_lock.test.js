@@ -241,6 +241,48 @@ describe("withRoadmapLock", () => {
     assert.deepEqual(activeClaims(lockPath), []);
   });
 
+  test("treats EPERM from a concurrent removal of an abandoned claim as removed", (t) => {
+    const project = makeTemporaryDirectory("foreman-lock-concurrent-removal");
+    const lockPath = lockPathForRoot(project);
+    const exitedChild = spawnSync(process.execPath, ["-e", ""]);
+    const claimPath = writeAbandonedClaim(lockPath, exitedChild.pid, "removed-by-another");
+    const rmSync = fs.rmSync;
+    let interrupted = false;
+    // What Windows reports while another contender's delete is still pending.
+    t.mock.method(fs, "rmSync", (target, options) => {
+      if (target === claimPath && !interrupted) {
+        interrupted = true;
+        throw Object.assign(new Error("operation not permitted, scandir"), { code: "EPERM" });
+      }
+      return rmSync(target, options);
+    });
+
+    const result = withRoadmapLock(project, () => "recovered");
+
+    assert.equal(interrupted, true);
+    assert.equal(result, "recovered");
+    assert.deepEqual(activeClaims(lockPath), []);
+  });
+
+  test("rethrows a permission error that outlasts retries on an abandoned claim", (t) => {
+    const project = makeTemporaryDirectory("foreman-lock-removal-denied");
+    const lockPath = lockPathForRoot(project);
+    const exitedChild = spawnSync(process.execPath, ["-e", ""]);
+    const claimPath = writeAbandonedClaim(lockPath, exitedChild.pid, "denied");
+    const rmSync = fs.rmSync;
+    const denied = Object.assign(new Error("operation not permitted"), { code: "EPERM" });
+    t.mock.method(fs, "rmSync", (target, options) => {
+      if (target === claimPath) throw denied;
+      return rmSync(target, options);
+    });
+
+    assert.throws(
+      () => withRoadmapLock(project, () => assert.fail("mutation must not run")),
+      (err) => err === denied
+    );
+    assert.ok(fs.existsSync(claimPath));
+  });
+
   test("recovers an abandoned claim even when its pid has been reused", () => {
     const project = makeTemporaryDirectory("foreman-lock-pid-reuse");
     const lockPath = lockPathForRoot(project);

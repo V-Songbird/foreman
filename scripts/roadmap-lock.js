@@ -13,6 +13,8 @@ const DEFAULT_RETRY_MS = 25;
 const DEFAULT_STALE_MS = 30000;
 const OWNER_FILE = "owner.json";
 const TICKET_FILE = "ticket.json";
+const CONCURRENT_REMOVAL_CODES = new Set(["EPERM", "ENOENT", "ENOTEMPTY"]);
+const CONCURRENT_REMOVAL_ATTEMPTS = 5;
 
 function resolvedProjectPath(root) {
   let resolved = path.resolve(root);
@@ -204,8 +206,21 @@ function removeAbandonedClaim(claimPath, staleMs, deadline = Infinity) {
   // Claim paths contain a cryptographically random token and are never
   // reused. Removing this exact abandoned path therefore cannot delete a
   // later contender's claim, unlike replacing one shared stale-lock path.
-  fs.rmSync(claimPath, { recursive: true, force: true });
-  return true;
+  // Two contenders can remove the same abandoned claim at once: Windows then
+  // reports the other's delete-pending directory as EPERM, and either side can
+  // see ENOENT or ENOTEMPTY from a subtree the other just changed. Those mean
+  // removed once the path is gone; one that outlasts a few retries is real.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      fs.rmSync(claimPath, { recursive: true, force: true });
+      return true;
+    } catch (err) {
+      if (!CONCURRENT_REMOVAL_CODES.has(err.code)) throw err;
+      if (!fs.existsSync(claimPath)) return true;
+      if (attempt >= CONCURRENT_REMOVAL_ATTEMPTS) throw err;
+      sleepSync(DEFAULT_RETRY_MS);
+    }
+  }
 }
 
 function lockTimeoutError(lockPath, waitMs) {
