@@ -293,14 +293,18 @@ function refusalFix(unit, sub) {
   const restoredBlock = restored.length && !left.length ? unstage(restored) : "";
   // "Tell the user" appears once in each fix.
   const closing = `Tell the user; nothing was closed.${stagedNote}`;
-  const untouched = stagedNote ? ` ${closing}` : " Nothing was staged or closed.";
+  // [Foreman: 1205] Restored files stay staged, so the text says only that
+  // nothing was closed.
+  const untouched = stagedNote ? ` ${closing}` : restored.length ? " Nothing was closed." : " Nothing was staged or closed.";
   const incomplete = [missingNote, restoredNote].filter(Boolean).join(" ");
   const fixes = {
     unexpected_files: `Show the user these changed files that \`files\` does not list. Add the ones that are this task's to \`files\` and run the close again; with the user's approval of the rest, run it with --allow-unexpected.${incomplete ? ` ${incomplete}` : ""}${untouched}${restoredBlock}`,
     no_task_changes: `Nothing changed since start. Run the close again without \`files\` to record it without a commit.${untouched}`,
     staging_incomplete: `${incomplete} ${closing}${restoredBlock}`,
   };
-  return fixes[unit.reason] || `${line(unit.error || unit.reason)}. ${missingNote ? `${missingNote} ` : ""}${closing}`;
+  // [Foreman: 1205] Opens with words: an error such as gitlink_not_expected's
+  // starts with a path, and one opening with ``` would open a fence.
+  return fixes[unit.reason] || `The commit helper refused: ${line(unit.error || unit.reason)}. ${missingNote ? `${missingNote} ` : ""}${closing}`;
 }
 
 function refusal(root, reason, fields) {
