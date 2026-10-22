@@ -32,6 +32,10 @@ instead.
 - Two roadmap commands that clear the same abandoned roadmap lock at once no
   longer crash with `EPERM`, `ENOENT` or `ENOTEMPTY`, as one could on Windows;
   a permission error that persists still stops the command.
+- A refused close's fix text opens with words, never with a path, so a path
+  that opens with ``` no longer turns it into a code block; a refusal that
+  leaves restored files staged no longer says nothing was staged, and their
+  error reads in the plural for several files.
 
 ## 4.2.1 — 2026-10-21
 

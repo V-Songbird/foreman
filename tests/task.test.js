@@ -393,7 +393,7 @@ describe('task.js finish', () => {
     const fix = refusalFix({ reason: 'staging_failed', error: 'error: one\n```\nhint: two', left_staged: ['a\n```.js'], missing_files: ['b\r\n~~~.js'], restore_error: 'e\n<pre>' });
     const prose = fix.slice(0, fix.lastIndexOf('\n\n'));
     assert.doesNotMatch(prose, /[\r\n]/, fix);
-    assert.match(prose, /^error: one ``` hint: two\. /, fix);
+    assert.match(prose, /^The commit helper refused: error: one ``` hint: two\. /, fix);
     assert.deepEqual(fencedLines(fix), ["git --literal-pathspecs restore --staged -- 'a\n```.js'", "git --literal-pathspecs rm --cached -- 'a\n```.js'"].join('\n').split('\n'), fix);
   });
 
@@ -440,6 +440,38 @@ describe('task.js finish', () => {
     assert.match(left, /or unstage them, then run the close again\./);
   });
 
+  // [Foreman: 1205] gitlink_not_expected's error opens with the submodule
+  // paths; at the start of the text, one opening with ``` would open a fence.
+  test('a gitlink refusal fix opens with words, not the submodule path', () => {
+    const fix = refusalFix({ reason: 'gitlink_not_expected', error: '```lib, <pre>x is a submodule: commit the work inside it' });
+    assert.match(fix, /^The commit helper refused: ```lib, <pre>x is a submodule/, fix);
+  });
+
+  test('an unexpected_files refusal with restored files never says nothing was staged', () => {
+    const fix = refusalFix({ reason: 'unexpected_files', unexpected_files: ['src/c.js'], restored_files: ['src/r.js'] });
+    assert.match(fix, /These files are staged/, fix);
+    assert.doesNotMatch(fix, /Nothing was staged/, fix);
+    assert.match(fix, /Nothing was closed\./, fix);
+  });
+
+  test('the restored_files error opens with words and names several files in the plural', () => {
+    repo();
+    write('src/r.js', 'base r\n');
+    write('src/s.js', 'base s\n');
+    git('add', 'src/r.js', 'src/s.js');
+    git('commit', '-q', '-m', 'add r and s');
+    const start = ok(['start', '--id', '001']);
+    write('src/r.js', 'staged r\n');
+    write('src/s.js', 'staged s\n');
+    git('add', 'src/r.js', 'src/s.js');
+    write('src/r.js', 'base r\n');
+    write('src/s.js', 'base s\n');
+    write('src/a.js', 'two\n');
+    const result = runThen(start.then, { status: 'done', files: ['src/a.js', 'src/r.js', 'src/s.js'], message: 'Change a' });
+    assert.deepEqual(result.restored_files, ['src/r.js', 'src/s.js'], JSON.stringify(result));
+    assert.equal(result.error, 'These files are staged, but the working tree holds their baseline content: src/r.js, src/s.js. Stage the content you want, or unstage them, then run finish again');
+  });
+
   test('a restored file through finish gets a command that unstages it alone', (t) => {
     repo();
     write('src/r.js', 'base r\n');
@@ -453,6 +485,7 @@ describe('task.js finish', () => {
     const result = runThen(start.then, { status: 'done', files: ['src/a.js', 'src/r.js'], message: 'Change a' });
     assert.equal(result.next, 'refused', JSON.stringify(result));
     assert.deepEqual(result.restored_files, ['src/r.js'], JSON.stringify(result));
+    assert.match(result.error, /^This file is staged, but the working tree holds its baseline content: src\/r\.js\. /);
     const [restore] = fencedLines(result.fix);
     assert.equal(restore, 'git --literal-pathspecs restore --staged -- src/r.js', result.fix);
     const r = runBash(restore.replace('git', `git -C '${project.replaceAll('\\', '/')}'`));

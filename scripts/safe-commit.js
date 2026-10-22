@@ -540,6 +540,8 @@ function finishUnit(root, options) {
   // content the worktree lacks, or, as a pathspec commit, drop it and
   // overwrite the staged blob.
   const restored = staged.filter((file) => !changedAll.includes(file) && !strayStaged.includes(file));
+  // [Foreman: 1205] The error opens with words, not a path, in the file's number.
+  const one = restored.length === 1;
   if (strayStaged.length || missing.length || restored.length) {
     return {
       ok: false,
@@ -552,7 +554,7 @@ function finishUnit(root, options) {
       ...(restored.length
         ? {
           restored_files: restored,
-          error: `${restored.join(", ")} is staged, but the working tree holds its baseline content: stage the content you want, or unstage it, then run finish again`,
+          error: `${one ? "This file is" : "These files are"} staged, but the working tree holds ${one ? "its" : "their"} baseline content: ${restored.join(", ")}. Stage the content you want, or unstage ${one ? "it" : "them"}, then run finish again`,
         }
         : {}),
       ...restoreIndex(before, toStage),
