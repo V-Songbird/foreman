@@ -1682,7 +1682,7 @@ describe('workflow-stage flavor', () => {
         assert.equal(norm(scope), norm(canonical.workflowScopeDiscipline));
         assert.ok(norm(scope).endsWith(norm(STAGE_APPROVAL_SOURCE_SENTENCE)));
         assert.ok(!norm(prompt).includes(norm(APPROVAL_SOURCE_SENTENCE)));
-        assert.ok(prompt.includes('Expected file surface: src/auth/middleware.js. Anything beyond this list is left unwritten and named in your structured report, so the coordinator can decide on it.'));
+        assert.ok(prompt.includes('Expected file surface: src/auth/middleware.js. Before your first edit, search the project for every other use of each name or text this change renames, removes or redefines. Anything beyond this list is left unwritten and named in your structured report, so the coordinator can decide on it.'));
         assert.ok(prompt.includes(`<plan>\n${canonical[plan]}\n</plan>`));
         assert.doesNotMatch(prompt, /flagged to the user|open step runs|close step after/);
       });
@@ -2735,8 +2735,9 @@ describe('the entry relays its own why and file surface', () => {
   });
 
   // The surface line is shared; the rule for work beyond it is each host's own.
+  // Claude Code also asks for a search for every other use of what the change renames.
   const SURFACE_RULE = {
-    claude: 'Anything beyond this list gets flagged to the user before it is written, not after.',
+    claude: 'Before your first edit, search the project for every other use of each name or text this change renames, removes or redefines. Anything beyond this list gets flagged to the user before it is written, not after.',
     codex: 'Flag a changed forecast before writing outside it; continue when the necessary work is already authorized.',
   };
   for (const host of ['claude', 'codex']) {
@@ -3042,7 +3043,9 @@ describe('the stop-and-report rule and the verification paragraph', () => {
     assert.doesNotMatch(claude.stageStopAndReport, /\bthe user\b|\bat the end\b/);
     assert.ok(verifyParagraph.includes('A syntax-only check, or a check command that failed to start, does not count;'), verifyParagraph);
     assert.ok(verifyParagraph.includes('install them with its own package manager and lockfile'), verifyParagraph);
-    assert.ok(verifyParagraph.endsWith('say which one you did not run and why instead of reporting the change as done.'), verifyParagraph);
+    assert.ok(verifyParagraph.includes('say which one you did not run and why instead of reporting the change as done. Then try the change once by hand'), verifyParagraph);
+    // Foreman's own sentence follows the quoted paragraph: one ad hoc edge check, never a new test.
+    assert.ok(verifyParagraph.endsWith('run it ad hoc rather than adding it to the suite, and state in one line what you tried and what it returned.'), verifyParagraph);
   });
 
   for (const [profile, updated] of profiles) {

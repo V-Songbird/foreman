@@ -87,7 +87,10 @@
                crafted under an earlier wording of the paragraph, and either
                way it must be crafted again.
                The Claude `verification_scope` quotes their coding-verification
-               paragraph verbatim. It follows the fix-ceiling line, so both
+               paragraph verbatim, then adds one Foreman sentence: a single
+               hand-run check on the edge input a reviewer would try first,
+               because many defects reviews found in finished work were such
+               inputs. It follows the fix-ceiling line, so both
                profiles carry it on an implementation's verification block; an
                investigation or a decision, which changes no code, closes its
                verification block another way and takes none, as on Codex.
@@ -554,7 +557,7 @@ implementation instead of the contract and will pass a broken change.
 Omit the ordering for a task whose failure is loud.]
 Do NOT claim success without running this. If it fails, fix and re-run — but after two failed fix attempts, stop and report what is still failing instead of widening the change to make the check pass.
 <verification_scope host="claude">
-When you change code that can be run, built, or type-checked, run a real check that exercises the change before reporting it done: the project's tests, type-checker, or build, or the changed command itself. A syntax-only check, or a check command that failed to start, does not count; if all that is missing is the project's declared dependencies, install them with its own package manager and lockfile (e.g. npm install, pip install -r requirements.txt), never via sudo or the system package manager, unless told not to. Only if no real check can run here, say which one you did not run and why instead of reporting the change as done.
+When you change code that can be run, built, or type-checked, run a real check that exercises the change before reporting it done: the project's tests, type-checker, or build, or the changed command itself. A syntax-only check, or a check command that failed to start, does not count; if all that is missing is the project's declared dependencies, install them with its own package manager and lockfile (e.g. npm install, pip install -r requirements.txt), never via sudo or the system package manager, unless told not to. Only if no real check can run here, say which one you did not run and why instead of reporting the change as done. Then try the change once by hand on the input a reviewer would try first and these checks do not cover, such as an empty or quoted value, a boundary or a Windows path; run it ad hoc rather than adding it to the suite, and state in one line what you tried and what it returned.
 </verification_scope>
 <verification_scope host="codex">
 Complete the required checks and any additional checks justified by the change. Once they pass, repeat or broaden testing only for new changes, failures, or unresolved concerns. Report an unavailable check as a verification limit.
