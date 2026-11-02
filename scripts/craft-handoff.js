@@ -141,6 +141,8 @@ function bookkeepingCommand(host, script, args, payload) {
     ? jsonCommand(script, args, payload)
     : `Send this JSON through the quoted heredoc as written (${POWERSHELL_HEREDOC}):\n${scriptCommand(host, script, args)} <<'EOF'\n${JSON.stringify(payload)}\nEOF`;
 }
+// Many defects reviews found in finished work were other uses of a changed name left behind.
+const USAGE_SEARCH = "Before your first edit, search the project for every other use of each name or text this change renames, removes or redefines.";
 const AUTONOMY_MARKER = "You are operating autonomously.";
 // [Foreman: 459] Its user-present counterpart, Claude Code only.
 const KEEP_GOING_MARKER = "Keep going until the goal above is met:";
@@ -722,8 +724,8 @@ function taskRulesText(record, judgment, hasVerification, fixCeilingLine, checkp
       host === "codex"
         ? `Expected file surface: ${surface}. Flag a changed forecast before writing outside it; continue when the necessary work is already authorized. Ask only before crossing an explicit file boundary or making a material scope change.`
         : workflowAgent
-          ? `Expected file surface: ${surface}. Anything beyond this list is left unwritten and named in your structured report, so the coordinator can decide on it.`
-          : `Expected file surface: ${surface}. Anything beyond this list gets flagged to the user before it is written, not after.`
+          ? `Expected file surface: ${surface}. ${USAGE_SEARCH} Anything beyond this list is left unwritten and named in your structured report, so the coordinator can decide on it.`
+          : `Expected file surface: ${surface}. ${USAGE_SEARCH} Anything beyond this list gets flagged to the user before it is written, not after.`
     );
   }
   if (constraintLines.length) {

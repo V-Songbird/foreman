@@ -25,6 +25,18 @@ listings pin a release commit and carry no version of their own. Claude Code
 releases up to 2.7.0 kept their number in the foundry marketplace listing
 instead.
 
+## Unreleased
+
+### Claude Code
+
+- An implementation handoff now asks for one hand-run check on the edge input
+  a reviewer would try first, such as an empty or quoted value, a boundary or
+  a Windows path, after the verification checks; the session runs it ad hoc
+  and states what it tried, without adding a test.
+- The `Expected file surface:` line now asks the session to search the project,
+  before its first edit, for every other use of each name or text the change
+  renames, removes or redefines.
+
 ## 4.2.2 — 2026-10-22
 
 ### Every host
