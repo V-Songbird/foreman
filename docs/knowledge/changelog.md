@@ -27,6 +27,13 @@ instead.
 
 ## Unreleased
 
+### Every host
+
+- The `roadmap` skill's description now opens with what the skill does and adds
+  "Use when" and "Not for" clauses that send first-time setup to `init`,
+  checking entries against the code to `survey` and a prompt with no roadmap
+  entry to `craft-prompt`, so a host picks the right skill more reliably.
+
 ### Codex
 
 - Each of the five skills now declares a starter prompt for Codex that names
