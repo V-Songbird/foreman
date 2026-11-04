@@ -131,7 +131,7 @@ Public source names and attribution are allowed in documentation and commit mess
 
 ## Versions and the changelog
 
-Add an entry to [`docs/knowledge/changelog.md`](docs/knowledge/changelog.md), under the unreleased version at the top, for every user-visible change, and say which host it affects when it is not both. Follow the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
+Add an entry to [`docs/knowledge/changelog.md`](docs/knowledge/changelog.md), under `## Unreleased` at the top, for every user-visible change. File it under the host subsection it affects: `### Every host`, `### Claude Code`, `### Codex`, `### Antigravity`, or a combined one such as `### Codex and Antigravity`. A released version is a `## <version> — <date>` heading with the same subsections. Read the top entries first and match their wording.
 
 One version number covers every host. Bump it in the three manifests, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json` and `plugin.json`, in the release commit; a test fails when they differ. Claude Code reads a plugin's version from `plugin.json` before anything in its marketplace entry, so the version lives only in the manifests. Both [foundry](https://github.com/V-Songbird/foundry) catalogs pin the same `main` commit with `ref: "main"` and carry no version for Foreman: a release only moves their `source.sha` to the release commit.
 
