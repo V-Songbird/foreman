@@ -27,6 +27,13 @@ instead.
 
 ## Unreleased
 
+### Codex
+
+- Each of the five skills now declares a starter prompt for Codex that names
+  the skill with the `$<skill>` mention form, such as
+  `Use $roadmap to pick the next task.` The form is pinned by a test but has
+  not been checked in a live Codex session.
+
 ### Claude Code
 
 - An implementation handoff now asks for one hand-run check on the edge input

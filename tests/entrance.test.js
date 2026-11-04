@@ -175,6 +175,9 @@ describe("one package for Claude Code and Codex", () => {
       assert.match(yaml, /interface:\s+display_name: ".+"/);
       const blurb = yaml.match(/short_description: "([^"]+)"/);
       assert.ok(blurb && blurb[1].length >= 25 && blurb[1].length <= 64);
+      const starter = yaml.match(/default_prompt: "([^"]+)"/);
+      assert.ok(starter, "the Codex starter prompt is missing");
+      assert.ok(starter[1].includes("$" + name), "the starter mentions its skill as $" + name);
     });
   }
 

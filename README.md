@@ -53,11 +53,11 @@ Plain sentences work in every assistant: "add this to the roadmap", "where are w
 
 | You want to… | Claude Code | Codex | Antigravity |
 | --- | --- | --- | --- |
-| Ask in your own words | `/foreman:foreman` | the `foreman` skill | `/foreman` |
-| Set up a roadmap for a project (once) | `/foreman:init` | the `init` skill | `/init` |
-| Pick, add, correct or review work | `/foreman:roadmap` | the `roadmap` skill | `/roadmap` |
-| Check the plan against your code | `/foreman:survey` | the `survey` skill | `/survey` |
-| Write a one-off prompt with no roadmap entry | `/foreman:craft-prompt` | the `craft-prompt` skill | `/craft-prompt` |
+| Ask in your own words | `/foreman:foreman` | the `foreman` skill, or `$foreman` in a prompt | `/foreman` |
+| Set up a roadmap for a project (once) | `/foreman:init` | the `init` skill, or `$init` in a prompt | `/init` |
+| Pick, add, correct or review work | `/foreman:roadmap` | the `roadmap` skill, or `$roadmap` in a prompt | `/roadmap` |
+| Check the plan against your code | `/foreman:survey` | the `survey` skill, or `$survey` in a prompt | `/survey` |
+| Write a one-off prompt with no roadmap entry | `/foreman:craft-prompt` | the `craft-prompt` skill, or `$craft-prompt` in a prompt | `/craft-prompt` |
 
 ## Install
 
