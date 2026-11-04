@@ -24,8 +24,15 @@ Foreman is one package for three hosts — the assistants it runs inside, Claude
                          # the hooks field that names hooks/codex-hooks.json
 plugin.json              # Antigravity metadata and the same release version
 hooks.json               # Antigravity hook wiring, keyed by the plugin name
+.github/
+└── workflows/
+    └── test.yml         # CI: runs the test suite
 AGENTS.md                # contributor rules for every host; CLAUDE.md imports it
+CLAUDE.md                # imports AGENTS.md for Claude Code
+CODE_OF_CONDUCT.md      # community conduct rules
+SECURITY.md             # how to report a vulnerability
 LICENSE                  # MIT
+assets/                  # README banners, logos and graphics
 README.md                # one README for every host
 HOW-IT-WORKS.md          # how Foreman works, with the host differences
 settings.md              # .foreman/config.json reference
@@ -53,6 +60,7 @@ hooks/
 │                        # runs the shared hooks as child processes
 └── *.js                 # hook scripts; lib.js resolves the project and host
 scripts/                 # dependency-free Node.js CLIs; runtime.js detects the host
+└── git-hooks/           # pre-commit hook and the README nav check
 tests/                   # behavioral tests for the three hosts
 ```
 
