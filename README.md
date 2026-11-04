@@ -49,15 +49,15 @@ The roadmap lives in your project. Foreman reads it, checks the relevant context
 
 ### How to ask
 
-Plain sentences work in every assistant: "add this to the roadmap", "where are we?", "what's next?", "check whether the plan still matches the code" or "craft a prompt for this". If you would rather call Foreman by name, each assistant has its own way. In Codex, the `$<skill>` mention form is pinned by a test but has not been checked in a live Codex session. If a mention does not work, name the skill in plain words.
+Plain sentences work in every assistant: "add this to the roadmap", "where are we?", "what's next?", "check whether the plan still matches the code" or "craft a prompt for this". If you would rather call Foreman by name, each assistant has its own way. In Codex, mention a skill with its plugin prefix, such as `$foreman:roadmap`, and Codex attaches that skill's instructions to your message. A bare `$roadmap` is not attached; Codex leaves it to the model to find the skill.
 
 | You want to… | Claude Code | Codex | Antigravity |
 | --- | --- | --- | --- |
-| Ask in your own words | `/foreman:foreman` | the `foreman` skill, or `$foreman` in a prompt | `/foreman` |
-| Set up a roadmap for a project (once) | `/foreman:init` | the `init` skill, or `$init` in a prompt | `/init` |
-| Pick, add, correct or review work | `/foreman:roadmap` | the `roadmap` skill, or `$roadmap` in a prompt | `/roadmap` |
-| Check the plan against your code | `/foreman:survey` | the `survey` skill, or `$survey` in a prompt | `/survey` |
-| Write a one-off prompt with no roadmap entry | `/foreman:craft-prompt` | the `craft-prompt` skill, or `$craft-prompt` in a prompt | `/craft-prompt` |
+| Ask in your own words | `/foreman:foreman` | the `foreman` skill, or `$foreman:foreman` in a prompt | `/foreman` |
+| Set up a roadmap for a project (once) | `/foreman:init` | the `init` skill, or `$foreman:init` in a prompt | `/init` |
+| Pick, add, correct or review work | `/foreman:roadmap` | the `roadmap` skill, or `$foreman:roadmap` in a prompt | `/roadmap` |
+| Check the plan against your code | `/foreman:survey` | the `survey` skill, or `$foreman:survey` in a prompt | `/survey` |
+| Write a one-off prompt with no roadmap entry | `/foreman:craft-prompt` | the `craft-prompt` skill, or `$foreman:craft-prompt` in a prompt | `/craft-prompt` |
 
 ## Install
 
@@ -72,7 +72,7 @@ codex plugin marketplace add V-Songbird/foundry
 codex plugin add foreman@foundry
 ```
 
-Review and trust its hooks with `/hooks`, then start a new Codex session. Ask Foreman to initialize the project, or select its installed `init` skill. Typing `$init` in a prompt is the unchecked mention form described under How to ask.
+Review and trust its hooks with `/hooks`, then start a new Codex session. Ask Foreman to initialize the project, or select its installed `init` skill. You can also type `$foreman:init` in a prompt.
 
 ### Claude Code
 

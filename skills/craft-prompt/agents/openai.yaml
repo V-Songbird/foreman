@@ -1,6 +1,6 @@
 interface:
   display_name: "Foreman Craft Prompt"
   short_description: "Craft verified prompts for a fresh Codex session"
-  default_prompt: "Use $craft-prompt to build a prompt for a fresh session."
+  default_prompt: "Use $foreman:craft-prompt to build a prompt for a fresh session."
   icon_small: "./assets/icon.svg"
   icon_large: "./assets/icon.png"

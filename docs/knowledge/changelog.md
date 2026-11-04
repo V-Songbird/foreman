@@ -37,9 +37,10 @@ instead.
 ### Codex
 
 - Each of the five skills now declares a starter prompt for Codex that names
-  the skill with the `$<skill>` mention form, such as
-  `Use $roadmap to pick the next task.` The form is pinned by a test but has
-  not been checked in a live Codex session.
+  the skill with its plugin prefix, such as
+  `Use $foreman:roadmap to pick the next task.` Codex attaches a skill's
+  instructions only for the prefixed mention; a bare `$roadmap` is left to the
+  model to match.
 
 ### Claude Code
 

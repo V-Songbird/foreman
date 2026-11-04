@@ -1,6 +1,6 @@
 interface:
   display_name: "Foreman Init"
   short_description: "Start a durable roadmap from project goals"
-  default_prompt: "Use $init to set up a roadmap for this project."
+  default_prompt: "Use $foreman:init to set up a roadmap for this project."
   icon_small: "./assets/icon.svg"
   icon_large: "./assets/icon.png"

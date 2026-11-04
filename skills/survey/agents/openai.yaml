@@ -1,6 +1,6 @@
 interface:
   display_name: "Foreman Survey"
   short_description: "Reconcile roadmap claims with current code"
-  default_prompt: "Use $survey to check the next roadmap tasks against the code."
+  default_prompt: "Use $foreman:survey to check the next roadmap tasks against the code."
   icon_small: "./assets/icon.svg"
   icon_large: "./assets/icon.png"

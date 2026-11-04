@@ -177,7 +177,7 @@ describe("one package for Claude Code and Codex", () => {
       assert.ok(blurb && blurb[1].length >= 25 && blurb[1].length <= 64);
       const starter = yaml.match(/default_prompt: "([^"]+)"/);
       assert.ok(starter, "the Codex starter prompt is missing");
-      assert.ok(starter[1].startsWith("Use $" + name + " "), "the starter begins \"Use $" + name + " \"");
+      assert.ok(starter[1].startsWith("Use $foreman:" + name + " "), "the starter begins \"Use $foreman:" + name + " \"");
     });
   }
 
