@@ -22,13 +22,13 @@
 
 You finish a session with a fix, a side request and an issue still waiting. Next time, you need to know which one comes first and why. Foreman keeps that context in a roadmap beside your code.
 
-Ask "what’s next?" and it recommends a task with its reason and a prompt checked against the project’s files. Completed work brings evidence back into the plan; acceptance stays a separate decision.
+Ask "what's next?" and it recommends a task with its reason and a prompt checked against the project's files. Completed work brings evidence back into the plan; acceptance stays a separate decision.
 
 <p align="center"><img src="assets/mascot.svg" alt="Ember gathers scattered papers into a task list and points to the next task." width="700"></p>
 
 ## Why you'd want it
 
-- Pick up where the last session stopped.
+- Resume where the last session stopped.
 - Keep the task, its reason and its constraints together.
 - Check stale plans against the code before acting.
 - Keep acceptance of finished work separate from a successful test run.
@@ -49,7 +49,7 @@ The roadmap lives in your project. Foreman reads it, checks the relevant context
 
 ### How to ask
 
-Plain sentences work in every assistant: "add this to the roadmap", "where are we?", "what's next?", "check whether the plan still matches the code" or "craft a prompt for this". If you would rather call Foreman by name, each assistant has its own way:
+Plain sentences work in every assistant: "add this to the roadmap", "where are we?", "what's next?", "check whether the plan still matches the code" or "craft a prompt for this". If you would rather call Foreman by name, each assistant has its own way. In Codex, the `$<skill>` mention form is pinned by a test but has not been checked in a live Codex session. If a mention does not work, name the skill in plain words.
 
 | You want to… | Claude Code | Codex | Antigravity |
 | --- | --- | --- | --- |
@@ -72,7 +72,7 @@ codex plugin marketplace add V-Songbird/foundry
 codex plugin add foreman@foundry
 ```
 
-Review and trust its hooks with `/hooks`, then start a new Codex session. Ask Foreman to initialize the project, or select its installed `init` skill.
+Review and trust its hooks with `/hooks`, then start a new Codex session. Ask Foreman to initialize the project, or select its installed `init` skill. Typing `$init` in a prompt is the unchecked mention form described under How to ask.
 
 ### Claude Code
 
