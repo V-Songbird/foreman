@@ -1,5 +1,12 @@
 # Branch: Pick the next task
 
+## Contents
+
+- [The loop](#the-loop)
+- [Reconcile and pick — the deeper mode, only when the user asks](#reconcile-and-pick--the-deeper-mode-only-when-the-user-asks)
+- [Checks](#checks)
+- [Craft](#craft)
+
 <!-- [Foreman: 141] -->
 This is **Fast pick**, the default and the whole of this branch — nothing
 below changes because the other mode exists. **Reconcile and pick** is the

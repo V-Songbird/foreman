@@ -1,5 +1,6 @@
 interface:
   display_name: "Foreman Roadmap"
   short_description: "Pick, update, and review tracked project work"
+  default_prompt: "Use $roadmap to pick the next task."
   icon_small: "./assets/icon.svg"
   icon_large: "./assets/icon.png"

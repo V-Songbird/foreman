@@ -1,5 +1,16 @@
 # Running Foreman
 
+## Contents
+
+- [Paths](#paths)
+- [JSON payloads](#json-payloads)
+- [Roadmap stores](#roadmap-stores)
+- [Intent and questions](#intent-and-questions)
+- [Work and delegation](#work-and-delegation)
+- [Bookkeeping and commits](#bookkeeping-and-commits)
+- [Discovery](#discovery)
+- [Trial events](#trial-events)
+
 Foreman runs in Claude Code, Codex and Antigravity from the same files. Every
 rule here applies to every host unless a paragraph names one. A handoff adds the goal,
 evidence, constraints, and completion criteria to the destination's own

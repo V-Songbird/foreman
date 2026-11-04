@@ -1,5 +1,6 @@
 interface:
   display_name: "Foreman"
   short_description: "Plan the next task and preserve project history"
+  default_prompt: "Use $foreman to tell Foreman what you want in plain words."
   icon_small: "./assets/icon.svg"
   icon_large: "./assets/icon.png"
