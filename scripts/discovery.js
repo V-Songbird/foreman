@@ -27,9 +27,12 @@ function duplicateCheckStep(scriptPath) {
     `the only thing between a suggestion and a duplicate (a quoted heredoc keeps an apostrophe as written; ${POWERSHELL_HEREDOC}):\n` +
     `node "${scriptPath}" check-duplicate <<'EOF'\n{"title":"...","why":"..."}\nEOF\n` +
     "Matches carry each entry's status. A rejected match means the user " +
-    "already declined it: skip silently. Any other status (planned/" +
-    "in_progress/done/...) means it's already tracked: skip it, or mention " +
-    "the existing entry's id if the new observation adds something."
+    "already declined it: skip silently. When the result carries `addTo`, " +
+    "that planned entry can take the finding: offer Add to <addTo> beside a " +
+    "new entry; on that choice, append the finding to it instead of adding one:\n" +
+    `node "${scriptPath}" annotate <<'EOF'\n{"id":"<addTo>","notes":"Added finding: <title>. <why>"}\nEOF\n` +
+    "Any other match (in_progress/done/...) means it's already tracked: skip it, " +
+    "or mention the existing entry's id if the new observation adds something."
   );
 }
 
@@ -50,8 +53,10 @@ function delegatedDiscoveryInstructions(orchestrator, host, scriptPath) {
     EARLIER_VERSION_RULE + " " +
     duplicateCheckStep(scriptPath) + " " +
     `Acceptance for this session belongs to the orchestrator ${orchestrator}, so ` +
-    "don't ask the user. A worker lists each unmatched candidate, with its " +
-    `evidence, in its report to ${orchestrator}; the orchestrator adds it itself, through a quoted heredoc (${POWERSHELL_HEREDOC}):\n` +
+    "don't ask the user. A worker lists each unmatched candidate, and each " +
+    "candidate with its `addTo` id, with its evidence, in its report to " +
+    `${orchestrator}; the orchestrator appends an addTo candidate with the annotate call above, ` +
+    `and adds any other itself, through a quoted heredoc (${POWERSHELL_HEREDOC}):\n` +
     `node "${scriptPath}" add <<'EOF'\n{"title":"...","why":"...","what":"...","source":"${host}-suggested","status":"planned"}\nEOF\n` +
     "Say nothing if nothing is confirmed."
   );

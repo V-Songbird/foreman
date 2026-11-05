@@ -527,6 +527,17 @@ describe('delegatedAcceptance', () => {
     assert.ok(discoveryBlock('claude', true, 'orch-1').includes(step));
   });
 
+  // A planned match takes the finding as a note: every wording names addTo
+  // and the annotate call, and the shared policy says the same.
+  test('every discovery wording offers Add to <addTo> through annotate', () => {
+    const step = duplicateCheckStep(SCRIPT_PATH);
+    assert.match(step, /addTo/);
+    assert.match(step, /annotate <<'EOF'\n\{"id":"<addTo>"/);
+    assert.match(discoveryBlock('claude'), /Add to <addTo>/);
+    assert.match(discoveryBlock('claude', true, 'orch-1'), /appends an addTo candidate/);
+    assert.match(discoveryInstructions(), /Add to `<addTo>`/);
+  });
+
   // The delegated wording already routes findings, so the dispatch-marker
   // block would only repeat it.
   test('a listed session gets no separate dispatch-marker block', () => {

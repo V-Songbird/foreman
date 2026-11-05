@@ -21,7 +21,10 @@
    id/title/status in one line and ask whether to add anyway — one question,
    `AskUserQuestion` in Claude Code or the picker in
    [questions.md](../foreman/questions.md) in Codex: `Add it anyway` /
-   `Never mind`. A `rejected` match means the user already declined this: say
+   `Never mind`. When the result carries `addTo`, that planned entry can take
+   the work: offer `Add to <addTo>` first, and on that choice append it with
+   `roadmap.js annotate` (`{"id":"<addTo>","notes":"Added: <title>. <why> <what>"}`)
+   instead of adding an entry; confirm with that id. A `rejected` match means the user already declined this: say
    so, and never revive it silently. No match: add it without comment — an
    explicit request to add needs no further approval. If the user confirms an
    exact-title match is genuinely separate, ask them for a distinguishing

@@ -48,7 +48,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
-const { runRoadmap, makeTmpProject, writeRoadmap, initGitRepo, commitFile } = require('./helpers');
+const { runRoadmap, makeTmpProject, writeRoadmap, writeArchiveFile, initGitRepo, commitFile } = require('./helpers');
 
 let project;
 let env;
@@ -980,6 +980,30 @@ describe('check-duplicate', () => {
     assert.equal(json.duplicate, true);
     assert.equal(json.matches[0].id, '002');
     assert.equal(json.matches[0].status, 'planned');
+  });
+
+  test('names a planned match as addTo, and never a rejected one', () => {
+    const planned = run(['check-duplicate'], { title: 'Unrelated planned task', why: 'Totally different thing' }).json;
+    assert.equal(planned.addTo, '002');
+    const rejected = run(['check-duplicate'], {
+      title: 'Extract duplicated retry logic',
+      why: 'Same backoff loop copy-pasted across API clients',
+    }).json;
+    assert.equal(rejected.duplicate, true);
+    assert.equal(rejected.addTo, undefined);
+  });
+
+  test('gives no addTo for in_progress, deferred or archived matches', () => {
+    writeRoadmap(project, [
+      { id: '003', title: 'Retry the webhook delivery', why: 'Webhook delivery drops on timeout', status: 'in_progress', source: 'user' },
+      { id: '004', title: 'Retry the webhook delivery later', why: 'Webhook delivery drops on timeout', status: 'deferred', source: 'user' },
+    ]);
+    writeArchiveFile(project, [
+      { id: '005', title: 'Retry the webhook delivery', why: 'Webhook delivery drops on timeout', status: 'planned', source: 'user' },
+    ]);
+    const { json } = run(['check-duplicate'], { title: 'Retry the webhook delivery', why: 'Webhook delivery drops on timeout' });
+    assert.equal(json.duplicate, true);
+    assert.equal(json.addTo, undefined);
   });
 
   test('unrelated text finds no match', () => {

@@ -2392,7 +2392,11 @@ function cmdCheckDuplicate(root, payload) {
     .filter((m) => m.score >= DUPLICATE_THRESHOLD)
     .sort((a, b) => b.score - a.score)
     .slice(0, MAX_MATCHES);
-  return { duplicate: matches.length > 0, matches };
+  // The best match still waiting to start can take the finding as a note
+  // instead of a new entry. Only `planned`: in_progress work belongs to a
+  // running session, and deferred work waits on another decision.
+  const addTo = matches.find((m) => m.status === "planned" && !m.archived)?.id;
+  return { duplicate: matches.length > 0, matches, ...(addTo ? { addTo } : {}) };
 }
 
 // [Foreman: 132]

@@ -709,7 +709,8 @@ function claudeDiscoveryBlock(requireVerification = true) {
     "instead of saving them for whoever picks it up later. " +
     EARLIER_VERSION_RULE + " " +
     duplicateCheckStep(SCRIPT_PATH) +
-    " Only when there's no match, ask the user " +
+    " With an `addTo` id, ask the user (AskUserQuestion): Add to <addTo> / " +
+    "Add to roadmap as a new entry / Reject. Only when there's no match, ask the user " +
     "(AskUserQuestion) what to do with it: Add to roadmap / Execute here " +
     "(work it now in this session) / Execute with a " +
     "background Agent (run_in_background: true) / Reject — both Add and " +

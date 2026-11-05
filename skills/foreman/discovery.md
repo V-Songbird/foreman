@@ -20,15 +20,20 @@ A background subagent returns candidates and evidence to its coordinator;
 it must not discard them, ask the user, or add entries itself. When
 `.foreman/config.json`'s `delegatedAcceptance` lists this session (a Foreman
 commit reminder or checkpoint names its orchestrator), nobody asks the user
-either: after step 1, a worker lists each unmatched candidate and any inline
-work, with its evidence, in its report to that orchestrator, and the
-orchestrator adds it with step 3's call. Otherwise the coordinator or
+either: after step 1, a worker lists each unmatched candidate, each candidate with
+an `addTo` id and any inline work, with its evidence, in its report to that
+orchestrator; the orchestrator appends an `addTo` candidate with step 1's
+`annotate` call and adds the others with step 3's call. Otherwise the coordinator or
 user-facing executor handles the following steps:
 
 1. Run `roadmap.js check-duplicate` with each candidate's title and why before
-   offering it. Suppress rejected matches; for other existing matches, reference
-   the entry only when new evidence adds something. Do not repeat a proposal
-   already answered or pending in this conversation.
+   offering it. Suppress rejected matches. When the result carries `addTo`,
+   that planned entry can take the finding: ask **Add to `<addTo>` / Add as a
+   new entry / Reject**, and on Add to, append it with `roadmap.js annotate`
+   (`{"id":"<addTo>","notes":"Added finding: <title>. <why>"}`) instead of
+   adding an entry. For other existing matches, reference the entry only when
+   new evidence adds something. Do not repeat a proposal already answered or
+   pending in this conversation.
 2. For each unmatched candidate, explain the finding and ask the user:
    **Add to roadmap / Execute here / Execute with a background subagent / Reject**.
    Use the active host's available question mechanism, or ask a concise
