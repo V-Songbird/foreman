@@ -9,6 +9,7 @@
   "homepage": "https://github.com/V-Songbird/foreman",
   "repository": "https://github.com/V-Songbird/foreman",
   "license": "MIT",
+  "logo": "assets/icon-on-light.png",
   "keywords": [
     "roadmap",
     "planning",
