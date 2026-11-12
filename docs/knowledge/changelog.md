@@ -25,11 +25,20 @@ listings pin a release commit and carry no version of their own. Claude Code
 releases up to 2.7.0 kept their number in the foundry marketplace listing
 instead.
 
-## Unreleased
+## 4.4.0 — 2026-11-12
+
+### Every host
+
+- When a new finding resembles an entry that is still planned, discovery,
+  delegated sessions and the add flow now offer "Add to <id>" beside adding a
+  new entry. That choice appends the finding to the planned entry, so its
+  handoff carries it. Entries in progress, deferred or archived never get the
+  offer.
 
 ### Antigravity
 
-The root `plugin.json` now names `assets/icon-on-light.png` as its `logo`, so Antigravity shows Foreman's icon instead of a generic one.
+- The root `plugin.json` now names `assets/icon-on-light.png` as its `logo`,
+  so Antigravity shows Foreman's icon instead of a generic one.
 
 ## 4.3.0 — 2026-11-04
 
