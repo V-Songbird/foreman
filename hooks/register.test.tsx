@@ -86,8 +86,10 @@ const session = async (...[$, on, draft = '', language = 'Español']: [...Parame
     seen.closes.push(e.id)
     return { value: undefined }
   })
-  on('prompt.read', () => ({ value: { text: draft, cursor: draft.length } }))
+  let box = draft
+  on('prompt.read', () => ({ value: { text: box, cursor: box.length } }))
   on('prompt.fill', (_, e) => {
+    box = e.text
     seen.filled.push({ text: e.text, mode: e.mode })
     return { isFilled: true }
   })
@@ -281,15 +283,24 @@ test('a section past 12 rows shows 12 and a press shows more, even two presses b
 })
 
 test('To prompt keeps the draft as a hint and never submits; a draft that already starts with it stays', async ($, on) => {
-  expect(draftWith('Start entry 3.', '')).toBe('Start entry 3.')
-  expect(draftWith('Start entry 3.', 'only the auth part')).toBe('Start entry 3. only the auth part')
-  expect(draftWith('Start entry 3.', 'Start entry 3. only auth')).toBe('Start entry 3. only auth')
+  const start = EN.ask.pick('3')
+  expect(draftWith(start, '')).toBe(start)
+  expect(draftWith(start, 'only the auth part')).toBe(`${start} only the auth part`)
+  expect(draftWith(start, `${EN.ask.resume('2')} only auth`)).toBe(`${start} only auth`)
+  expect(draftWith(start, `${ES.ask.accept('2')} only auth`)).toBe(`${start} only auth`)
+  expect(draftWith(start, start)).toBe(start)
 
   const { seen, ui } = await opened($, on, 'only the auth part', 'English')
   await ui.press({ key: '003' })
   expect(seen.filled).toEqual([])
   await ui.press({ key: 'fill-003' })
-  expect(seen.filled).toEqual([{ text: 'Start roadmap entry 003 with Foreman. only the auth part', mode: 'replace' }])
+  // A second fill, for another entry, replaces the first request and keeps the hint.
+  await ui.press({ key: '002' })
+  await ui.press({ key: 'fill-002' })
+  expect(seen.filled).toEqual([
+    { text: 'Start roadmap entry 003 with Foreman. only the auth part', mode: 'replace' },
+    { text: 'Resume roadmap entry 002 with Foreman. only the auth part', mode: 'replace' },
+  ])
   expect(seen.submitted).toEqual([])
   await ui.unmount()
 })
@@ -416,7 +427,7 @@ test('the card says the status, when and by whom, what the entry depends on and 
   await ui.unmount()
 })
 
-test('a large roadmap keeps all pending work within 40 rows', async ($, on) => {
+test('a large roadmap shows the pending work and folds the deferred entries', async ($, on) => {
   const touches = (n: number) => JSON.stringify(Array.from({ length: n }, (_, i) => `src/area/file-${i}.ts`))
   const lines = [
     `{"id":"1337","title":"Rigid bodies that turn: rotation, torque and box contacts in the baked simulation","status":"in_progress","planned_touches":${touches(7)}}`,
@@ -429,13 +440,11 @@ test('a large roadmap keeps all pending work within 40 rows', async ($, on) => {
   file.text = lines.join('\n')
   file.mtimeMs = 2
   await ui.press({ key: 'refresh' })
-  // Rows the pane draws: summary and bar (2), four sections each a gap and a heading (8),
-  // at most two per entry shown (its title wrapped), no file lines, the footer with its gap (2).
+  // 190 deferred entries stay folded and the planned ones show: ten rows, no file lines.
   const entries = (await ui.findAll({ type: 'Button' })).filter(x => /^\d+$/.test(x.key ?? '')).length
   const files = (await ui.findAll({ type: 'Text', text: /^src\/area\// })).length
   expect(entries).toBe(10)
   expect(files).toBe(0)
-  expect(2 + 8 + 2 * entries + 2).toBeLessThanOrEqual(40)
   expect(await ui.find({ key: '1378' })).toBeDefined()
   await ui.unmount()
 })

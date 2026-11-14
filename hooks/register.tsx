@@ -152,10 +152,18 @@ export const actionFor = (x: Entry): Action | undefined =>
     : x.status === 'planned' && x.waitsOn.length === 0 ? 'pick'
     : undefined
 
-/** The prompt box after a fill: the request, then the person's draft, which Foreman reads as a hint. A draft that already starts with the request stays as it is. */
+// A request this pane wrote earlier, in either language, at the start of the prompt box.
+const OWN = new RegExp(
+  `^(?:${[EN, ES]
+    .flatMap(t => Object.values(t.ask))
+    .map(ask => ask('\u0001').replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace('\u0001', '\\S+'))
+    .join('|')})\\s*`,
+)
+
+/** The prompt box after a fill: the request, then the person's draft, which Foreman reads as a hint. A request this pane wrote earlier is replaced. */
 export const draftWith = (ask: string, draft: string): string => {
-  const rest = draft.trim()
-  return rest.startsWith(ask) ? rest : rest ? `${ask} ${rest}` : ask
+  const rest = draft.replace(OWN, '').trim()
+  return rest ? `${ask} ${rest}` : ask
 }
 
 /** Reads the roadmap; unless forced, only when its size or mtime changed since the last read. */
