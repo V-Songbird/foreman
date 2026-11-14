@@ -161,8 +161,13 @@ export const draftWith = (ask: string, draft: string): string => {
 }
 
 /** The folder Foreman works in, as its hooks resolve it (hooks/lib.js projectDir): FOREMAN_PROJECT_DIR, then CLAUDE_PROJECT_DIR, then the session's own. */
-const rootOf = async ($: EngineInterface): Promise<string> =>
-  (await $.env.get('FOREMAN_PROJECT_DIR')) || (await $.env.get('CLAUDE_PROJECT_DIR')) || (await $.session.root())
+const rootOf = async ($: EngineInterface): Promise<string> => {
+  // A variable the engine will not read counts as unset, so the pane still finds the session's folder.
+  // The engine takes only a literal name, so each read is written out.
+  const none = () => undefined
+
+  return (await $.env.get('FOREMAN_PROJECT_DIR').catch(none)) || (await $.env.get('CLAUDE_PROJECT_DIR').catch(none)) || (await $.session.root())
+}
 
 /** Reads the roadmap; unless forced, only when its size or mtime changed since the last read. Resolves whether the file exists. */
 const load = async ($: EngineInterface, force = true): Promise<boolean> => {
