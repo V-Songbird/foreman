@@ -47,7 +47,7 @@ The same check runs over the prompt itself: a missing step, or a verification co
 
 ### Finished is not the same as accepted
 
-A task whose work is committed and checked waits for you, marked `awaiting_acceptance`. Your yes closes it; "not ready" sends it back with what you said. Passing tests are evidence, not acceptance, and so is a background worker's report that it succeeded. To close tasks as soon as their commit lands, set `requireVerification` to `false`.
+A task whose work is committed and checked waits for you, marked `awaiting_acceptance`. Your yes closes it; "not ready" sends it back with what you said. Passing tests are evidence, not acceptance, and so is a background worker's report that it succeeded. The `requireVerification` setting turns this hold off.
 
 ### Big tasks get split
 
@@ -98,11 +98,11 @@ Settings live in `.foreman/config.json`, one file for every host. Init writes it
 | Setting | Values | Effect |
 | --- | --- | --- |
 | `requireVerification` | `true` (default) or `false` | `true` holds a committed task at `awaiting_acceptance` until you confirm it; `false` closes it as soon as its commit lands. It never cancels reviews you asked for |
-| `discoverySuggestions` | `true` (default) or `false` | Offers work Foreman noticed that the roadmap does not track, and asks before anything is added. Claude Code offers after each commit; Codex and Antigravity also offer in every handoff and before reporting completion. The roadmap is never pasted into the commit's context |
+| `discoverySuggestions` | `true` (default) or `false` | Offers work Foreman noticed that the roadmap does not track, and asks before anything is added; [Differences between hosts](#differences-between-hosts) says when each host offers it. The roadmap is never pasted into the commit's context |
 | `checkpoints` | `{"baseBranch": "<branch>", "branch": true, "onFinish": "ask"}`; `onFinish` is `ask`, `squash`, `merge`, `pr` or `keep` | How a split run saves its work. By default it commits on a `foreman/<slug>` branch and asks once, at the end of the first split run, what to do with it; your answer is written here. Checkpoint commits stay local, and Foreman never picks a protected branch on its own |
 | `usePersona` | `true` (default) or `false` | Whether handoff prompts open with a "You are a…" role sentence or plain domain framing. It never chooses the model |
 | `omitSections` | A list of `tone`, `example`, `background`, `output_format`; default none | Prompt sections to leave out. The grounding and acceptance rules always stay, and so does the block that points a Codex or Antigravity session at its host instructions |
-| `taskCloseGate` | `"off"` (default) or `"block"` | What happens when a tracked task finishes with its entry still open. In Claude Code, `"block"` stops the first completion attempt with instructions to close the entry, and the retry passes. In Codex, an explicit `hooks/codex-task.js check` that finds the entry open makes the next `Stop` or `SubagentStop` ask for one more turn. Antigravity has no event for it, so `"block"` changes nothing there. An entry waiting for your acceptance is never held back |
+| `taskCloseGate` | `"off"` (default) or `"block"` | What happens when a tracked task finishes with its entry still open: `"block"` asks for the entry to be closed first, in the way [Differences between hosts](#differences-between-hosts) describes for each host. An entry waiting for your acceptance is never held back |
 | `delegatedAcceptance` | `{"orchestrator": "<name>", "sessions": ["<session id>", ...]}`; off by default | Hands acceptance to an orchestrator session that runs other sessions on the roadmap. A listed session records its commit, moves the entry to `awaiting_acceptance` even with `requireVerification` off, and reports to the orchestrator instead of asking you. Every unlisted session keeps the usual prompts. The orchestrator writes the key when its run starts and removes it when the run ends |
 | `trialLog` | `true` or `false` (default) | Keeps a local log of how Foreman is used, in `.foreman/trial-log.jsonl`, so its health numbers can be measured. It records counts, booleans, ranks, elapsed seconds, dates without times and names from a closed list, never a task title, file path, entry id or anything you typed. It never leaves your machine, and you can delete it at any moment |
 
@@ -165,7 +165,7 @@ In Claude Code, refresh the catalog, update the plugin, then start a new session
 /plugin update foreman@foundry
 ```
 
-In Codex, refresh the catalog, add the plugin again, then start a new session. If a release changed Foreman's hook registrations, `/hooks` asks you to trust them again.
+In Codex, refresh the catalog, add the plugin again, then start a new session. If a release changed Foreman's hook registrations, those hooks stay off until you review and trust them again in `/hooks`.
 
 ```text
 codex plugin marketplace upgrade foundry
@@ -203,13 +203,13 @@ Foreman does the same job in every assistant. The host — the assistant Foreman
 | Stopping for your approval after each result of a task | Not offered: reviewed increments are Codex only | On explicit request | Not offered: reviewed increments are Codex only |
 | Model recorded when a task closes | Family name, such as `sonnet` | Exact model id | Exact model id |
 
-On every host, a shell command can still write the roadmap file. A prompt copied out of one assistant carries that assistant's script paths, so craft it again in the other; an Antigravity session gets the Codex form of the prompt, run with its own tools.
+A prompt copied out of one assistant carries that assistant's script paths, so craft it again in the other; an Antigravity session gets the Codex form of the prompt, run with its own tools.
 
 ### Host limits
 
 - **Claude Code.** Built and tested against Claude Code 2.1.x. Foreman cannot tell when a host stops sending an event it relies on; its automatic help just goes quiet. Asking `/foreman:roadmap` to check the roadmap lists the hook events Foreman depends on in each host, and every command keeps working by hand.
-- **Codex.** Hooks run only after you trust them with `/hooks`. In the Codex desktop app's default permission mode on Windows, Git writes need your approval to leave the sandbox, and the CLI's `workspace-write` sandbox cannot write to `.git` either. The Codex side was last checked live with Codex CLI 0.157.1 on Windows 11 and the Codex app 26.924.51851; not checked: the app on macOS, reviewed increments or background subagents in the app, and Linux or macOS for a resumed review.
-- **Antigravity.** Checked in live `agy` 1.2.9 sessions on Windows: `/init`, a `/roadmap` pick copied to the clipboard, a commit, and a direct write to `ROADMAP.jsonl`, which the host refused. Antigravity lets a hook answer a tool call only with a decision, so what Foreman has to say after a commit arrives at the model's next call instead of with the command. Antigravity started from a Claude Code shell inherits `CLAUDECODE` and counts as Claude Code; remove it first, with `env -u CLAUDECODE agy` in Bash or `Remove-Item Env:CLAUDECODE` in PowerShell, or start `agy` with `FOREMAN_HOST=antigravity`.
+- **Codex.** Hooks run only after you trust them with `/hooks`. In the Codex desktop app's default permission mode on Windows, Git writes need your approval to leave the sandbox, and on Windows the CLI's `workspace-write` sandbox cannot write to `.git` either. The Codex side was last checked live with Codex CLI 0.157.1 on Windows 11 and the Codex app 26.924.51851; not checked: the app on macOS, reviewed increments or background subagents in the app, and Linux or macOS for a resumed review.
+- **Antigravity.** Checked in live `agy` 1.2.9 sessions on Windows: `/init`, a `/roadmap` pick copied to the clipboard, a commit, and a direct write to `ROADMAP.jsonl`, which the host refused. Antigravity started from a Claude Code shell inherits `CLAUDECODE` and counts as Claude Code; remove it first, with `env -u CLAUDECODE agy` in Bash or `Remove-Item Env:CLAUDECODE` in PowerShell, or start `agy` with `FOREMAN_HOST=antigravity`.
 
 ### Ids a committed roadmap publishes
 
