@@ -57,6 +57,12 @@ When a prompt is ready, Foreman asks where it should run: here, here split by ch
 
 Every commit Foreman makes ends with a line like `Foreman: 019`, so `git log` traces any change to its task. When a task names a function, the prompt lists the earlier tasks that changed it, as history, and a `[Foreman: 019]` comment next to code names the task that settled it.
 
+### The roadmap pane
+
+Claude Code only; Codex and Antigravity have no pane. It is made for the Claude Code desktop app; the terminal draws a plainer version of the same pane, which has not been tried in a live terminal. In a project that has a `ROADMAP.jsonl`, a **Roadmap** button joins the mode labels at the right of the prompt footer. It opens a side pane with the open tasks in four sections: in progress, ready, blocked and deferred. Press a task to see its card: its status, who made it and when, what it depended on, up to three planned files and its reason. A search box filters by number, title or reason. A project with no `ROADMAP.jsonl` shows no button.
+
+The pane only reads the file; it never writes it. On a card, **Start**, **Resume** or **Accept** sends Foreman a plain request such as "Resume roadmap entry 12 with Foreman", sent as your next prompt, so the change still goes through Foreman. **To prompt** puts that sentence in the prompt box instead, ahead of anything you already typed, so you can add a hint before sending. The pane speaks Spanish when Claude Code's `language` setting names Spanish. A roadmap over 4 MiB is not shown; ask Foreman to archive the finished tasks.
+
 ### Review between increments
 
 Codex only; Claude Code and Antigravity do not offer it. You can ask Foreman to run one roadmap task in increments, results you can look at and try, and wait for your decision after each one. Start a new Codex task after installing or updating, then ask plainly, for example: "Foreman, run this task here in increments and wait for my approval after each result." Only that explicit request turns it on, for that one run; it is not a setting.
@@ -196,6 +202,7 @@ Each host offers Foreman different events and tools, so a few things work differ
 | A new session's reminder of open entries | On startup and clear, not when a session resumes | The same | At the first model call of a conversation |
 | Offering untracked work Foreman noticed | After a commit | After a commit, in every handoff and before reporting completion | After a commit, at the next model call, in every handoff and before reporting completion |
 | Advice based on how full the session is | When your auto-compact window is set ([settings](#settings)) | Not available: Codex does not report it | Not available: Antigravity does not report it |
+| Roadmap pane ([The roadmap pane](#the-roadmap-pane)) | A footer button, made for the desktop app | Not available | Not available |
 | Model recorded when a task closes | Family name, such as `sonnet` | Exact model id | Exact model id |
 
 A prompt carries the script paths of the assistant and install that crafted it, so craft it again in another assistant, or after reinstalling the plugin elsewhere; an Antigravity session gets the Codex form of the prompt, run with its own tools. A copied prompt's file stays in the project's `tmp/` folder when the copy fails or you ask for the file only; move it out or delete it before a task runs in the project, because an untracked file makes the tree look changed.
