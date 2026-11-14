@@ -2086,8 +2086,8 @@ function cmdNextCandidates(root, filters) {
   }
   // [Foreman: 208] The menu the user is about to read, recorded where the
   // facts already are. `--menu` is the projection the pick branch asks for
-  // before a question is put to anyone, so this is the moment TRIALS.md
-  // names — and it costs the skill no instruction tokens, because the skill
+  // before a question is put to anyone, so this is the moment the trial
+  // log's menu_shown event names — and it costs the skill no instruction tokens, because the skill
   // was already making this call. Silent no-op unless the project opted in;
   // never throws.
   //

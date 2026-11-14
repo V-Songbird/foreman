@@ -3,8 +3,9 @@
 
 // [Foreman: 208] The writer for the opt-in project trial log.
 //
-// TRIALS.md (plugin root) defines the log: what may be recorded, the
-// closed vocabulary, and the privacy rules. Until now nothing wrote one, so
+// This file defines the log: what may be recorded, the closed vocabulary,
+// and the privacy rules, which the README's `trialLog` setting states for
+// users. Before this writer existed, nothing wrote a log, so
 // roadmap-health.js and attention-cost.js reported every usage-dependent rate
 // as null with reason "no_trial_log". This is the write half.
 //
@@ -21,7 +22,7 @@
 //    throws.
 //
 // The vocabulary check is a real trust boundary, not a formality: the callers
-// include hooks and scripts driven by a model, and TRIALS.md's privacy
+// include hooks and scripts driven by a model, and the log's privacy
 // guarantee is only worth anything if a free-text value cannot reach the file
 // by mistake. Anything not on the list below is refused and nothing is
 // written.
@@ -39,7 +40,7 @@ const LOG_FILE = "trial-log.jsonl";
 // do.
 const SESSION_FILE = "trial-session";
 
-// ---- the closed vocabulary, TRIALS.md "Event records", verbatim.
+// ---- the closed vocabulary.
 //
 // `fields` maps each extra field to its check. A field marked optional is
 // absent-or-valid; everything else is required. No event accepts a field
@@ -58,7 +59,7 @@ const FLOWS = ["init", "pick", "add", "correct", "status", "survey"];
 const HOOKS = ["safe-commit", "post-commit", "task-completed"];
 // The refusal names scripts/safe-commit.js returns, commit_failed among
 // them, which scripts/task.js finish also returns for its own commit, plus
-// the requireVerification hold; TRIALS.md lists the same names. Names only:
+// the requireVerification hold. Names only:
 // never a count of dirty files, never which files were unexpected.
 // safe-commit's own `reason` string is prose about the user's working tree
 // and is deliberately not what this records.
@@ -68,8 +69,8 @@ const REASON_CLASSES = [
   "no_task_changes",
   "unexpected_files",
   "staging_incomplete",
-  // TRIALS.md's rule is "the refusal names scripts/safe-commit.js already
-  // returns"; its enumeration missed these two, and dropping them would make
+  // The rule is "the refusal names scripts/safe-commit.js already
+  // returns"; its first enumeration missed these two, and dropping them would make
   // the metric a floor for no reason.
   "staging_failed",
   "post_commit_attestation_failed",
@@ -108,8 +109,8 @@ function logPath(root) {
   return path.join(foremanDir(root), LOG_FILE);
 }
 
-// Date only. TRIALS.md: "the day is enough resolution for a rate, and a
-// timestamp is one more identifying signal". Local date, never toISOString —
+// Date only: the day is enough resolution for a rate, and a timestamp is
+// one more identifying signal. Local date, never toISOString —
 // same rule as roadmap.js's today().
 function today() {
   const now = new Date();
@@ -235,8 +236,8 @@ function readEvents(root) {
  * recent `init_completed`, which is a pure event count and needs no clock.
  *
  * `seconds_since_init` is always null here, and that is not a placeholder.
- * TRIALS.md records dates only, deliberately — "a timestamp is one more
- * identifying signal" — so an elapsed time cannot be derived from the log.
+ * The log records dates only, deliberately — a timestamp is one more
+ * identifying signal — so an elapsed time cannot be derived from the log.
  * It would have to be measured inside the one process that saw both ends,
  * and no process sees both: init is a skill flow, delivery is this script.
  * Reporting null is the honest answer, and attention-cost.js already treats
@@ -264,9 +265,9 @@ function recordFirstPick(options = {}) {
 /**
  * The success half of resume recovery, recorded when a task closes.
  *
- * The honest problem TRIALS.md already names: pairing a recovery to the run
- * it recovered "would need an entry identifier in the log, and no
- * privacy-safe version of that is worth the number". So this does not pair
+ * The honest problem: pairing a recovery to the run it recovered would need
+ * an entry identifier in the log, and no privacy-safe version of that is
+ * worth the number. So this does not pair
  * by identity — it pairs by ALTERNATION, which the log's own order already
  * carries. A success is recorded only when the most recent
  * resume-in-progress row is a failure, and writing the success makes the
@@ -279,8 +280,7 @@ function recordFirstPick(options = {}) {
  * a recorded recovery, permanently, from the first interruption onward.
  * Session start writes one failure per still-open interrupted entry, so a
  * project with three of them and one close reports one success against four
- * attempts: the per-day view of recovery TRIALS.md describes, not a per-run
- * one.
+ * attempts: a per-day view of recovery, not a per-run one.
  */
 function recordResumeRecovered(options = {}) {
   const root = options.root || projectDir();

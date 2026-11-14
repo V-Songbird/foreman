@@ -95,7 +95,7 @@ an absent key is the record that the user was never asked, so it gets asked
 once, the first time it could matter, at the first split run.
 
 Any of it can be set by hand later — see
-[`settings.md`](../../settings.md).
+[the README's settings table](../../README.md#settings).
 
 ---
 

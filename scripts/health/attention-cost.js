@@ -9,7 +9,7 @@
 // records what a task predicted and what it actually touched, and the two
 // handoff profiles are fixed text on disk. Four are facts about a person being
 // set up, questioned, interrupted, or recovering, so they come from the same
-// opt-in trial log roadmap-health.js reads (see TRIALS.md), written by
+// opt-in trial log roadmap-health.js reads, written by
 // scripts/trial-log.js to .foreman/trial-log.jsonl when the project opts in.
 //
 // This entry DEFINES the measurements, exactly as 142 did. It records nothing:
@@ -341,7 +341,7 @@ const NO_LOG_METRICS = {
 };
 
 /**
- * The four usage-dependent metrics, over a trial log in TRIALS.md's format.
+ * The four usage-dependent metrics, over a trial log in trial-log.js's format.
  * `log` is null when no --trial-log was given: they are reported null with a
  * reason, never as zero.
  *

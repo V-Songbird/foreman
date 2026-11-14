@@ -439,7 +439,7 @@ describe('trial log — wired surfaces', () => {
   });
 
   // safe-commit's `begin` reports a dirty tree with ok:true and a prose
-  // reason about the user's working tree. TRIALS.md says that prose is
+  // reason about the user's working tree. trial-log.js says that prose is
   // deliberately not what reason_class records — the closed name is.
   test('a dirty-tree refusal records the class, never safe-commit\'s prose reason', () => {
     on();

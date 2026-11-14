@@ -922,33 +922,13 @@ describe('the Claude Code entry paragraph drives task.js', () => {
   });
 });
 
-// [Foreman: 1120] The reference pages describe task.js as it runs on every
-// host. A rename of a task.js reason or a trial-log reason class, or a page
-// that drifts back to the old Codex close, fails here.
-describe('the reference pages describe task.js on every host', () => {
+// [Foreman: 1120] The skills and the template describe task.js as it runs on
+// every host. A rename of a task.js reason, or a page that drifts back to the
+// old Codex close, fails here.
+describe('the skills and the template describe task.js on every host', () => {
   const ROOT = path.join(SCRIPTS_DIR, '..');
   const read = (...parts) => fs.readFileSync(path.join(ROOT, ...parts), 'utf-8').replace(/\r\n/g, '\n');
   const flat = (text) => text.replace(/\s+/g, ' ');
-  const row = (text, step) => text.split('\n').find((line) => line.startsWith(`| ${step} |`)) || '';
-
-  test('HOW-IT-WORKS.md opens and finishes a task through task.js on all three hosts', () => {
-    const page = read('HOW-IT-WORKS.md');
-    const [, claude, codex, antigravity] = row(page, 'Opening a task').split(' | ');
-    assert.match(claude, /`TaskCreated` hook marks the entry in progress.*`scripts\/task\.js start` opens the entry on every other destination and, outside an investigation, takes the commit boundary/);
-    assert.match(codex, /`hooks\/codex-task\.js start`.*outside an investigation, `scripts\/task\.js start` then takes the commit boundary/);
-    assert.match(antigravity, /The same two starts/);
-    const [, claudeEnd, codexEnd, antigravityEnd] = row(page, 'Finishing a task').split(' | ');
-    for (const cell of [claudeEnd, codexEnd]) assert.match(cell, /`scripts\/task\.js finish` stages the task's files, closes the entry and commits once/);
-    assert.match(codexEnd, /an investigation closes with `roadmap\.js update-status`.*`hooks\/codex-task\.js check` reports what is still open/);
-    assert.match(antigravityEnd, /The same close and `hooks\/codex-task\.js check`; there is no stop reminder/);
-  });
-
-  test('CODEX.md names task.js beside the TaskCreated hook and codex-task.js', () => {
-    const page = read('CODEX.md');
-    assert.match(row(page, 'Opening a task'), /`TaskCreated` hook, or the prompt's `scripts\/task\.js start` where no task is created; that start runs either way and takes the commit boundary \| `hooks\/codex-task\.js start` with readiness and status guards, then `scripts\/task\.js start` for the commit boundary/);
-    assert.match(row(page, 'Closing a task'), /`scripts\/task\.js finish` stages the task's files, closes the entry and commits once \| The same `scripts\/task\.js finish`, then `hooks\/codex-task\.js check`/);
-    assert.ok(flat(page).includes('Between those two calls, an entry handoff takes the commit boundary with `scripts/task.js start --id 001` and closes the entry with `scripts/task.js finish --id 001 --baseline <baseline>`'));
-  });
 
   test('the runtimes run the entry paragraph through task.js on every host', () => {
     const shared = flat(read('skills', 'foreman', 'runtime.md'));
@@ -978,18 +958,14 @@ describe('the reference pages describe task.js on every host', () => {
   // [Foreman: 1141] The entry paragraphs craft-handoff.js writes for Codex: an
   // investigation and a delegated subagent never call task.js, and the pages
   // that name the close say so.
-  test('the Codex investigation and subagent paragraphs call no task.js, and the pages agree', () => {
+  test('the Codex investigation and subagent paragraphs call no task.js, and the close protocol agrees', () => {
     for (const options of [{ investigation: true, destination: 'task' }, { investigation: false, destination: 'agent', reviewEachIncrement: true }]) {
       const paragraph = codexEntryParagraphText({ id: '001', resume: false, requireVerification: true, ...options });
       assert.doesNotMatch(paragraph, /scripts\/task\.js/, JSON.stringify(options));
       assert.match(paragraph, /roadmap\.js'? update-status/);
     }
-    const codex = flat(read('CODEX.md'));
-    assert.ok(codex.includes('An investigation skips both and closes with `roadmap.js update-status`. A delegated subagent runs neither: its coordinator owns the start, the close and the check, and closes with `roadmap.js update-status`.'), codex);
-    assert.ok(codex.includes('a delegated Codex subagent runs no `task.js` call, because its coordinator closes with `roadmap.js update-status` |'));
     const protocol = flat(read('skills', 'roadmap', 'close-increments.md'));
     assert.ok(protocol.includes('A Codex or Antigravity investigation and a Codex subagent\'s coordinator close with `roadmap.js update-status` instead.'), protocol);
-    assert.ok(flat(read('docs', 'knowledge', 'changelog.md')).includes('on Codex and Antigravity, an investigation, which closes itself with `roadmap.js update-status`, and a delegated subagent, whose coordinator closes it the same way; a Claude Code background Agent still runs them.'));
   });
 
   // [Foreman: 1141] checkpointEmbedText checks `git status --porcelain` for a
@@ -1015,7 +991,6 @@ describe('the reference pages describe task.js on every host', () => {
       assert.match(embed, /git status --porcelain/, host);
       assert.ok(embed.includes('safe-commit begin/finish boundaries'), host);
     }
-    assert.ok(flat(read('docs', 'knowledge', 'changelog.md')).includes('The prompt template says why a reviewed run pasted without an entry checks `git status --porcelain` before its first task and still commits each checkpoint through `safe-commit` `begin` and `finish`.'));
   });
 
   test('a reviewed close runs task.js finish, not a staged close by hand', () => {
@@ -1036,42 +1011,14 @@ describe('the reference pages describe task.js on every host', () => {
     assert.ok(bullet.includes('`task.js finish` records the close without touching the index and commits nothing, and returns `report_dirty`'));
   });
 
-  test("TRIALS.md lists exactly trial-log.js's reason classes, commit_failed included", () => {
+  // [Foreman: 1157] commit_failed is one of safe-commit.js's own refusals
+  // since 1160; task.js finish returns it too.
+  test("trial-log.js names commit_failed as a refusal of both safe-commit.js and task.js finish", () => {
     const { REASON_CLASSES } = require(path.join(SCRIPTS_DIR, 'trial-log.js'));
-    const trials = read('TRIALS.md');
-    const start = trials.indexOf('`reason_class` is one of the refusal names');
-    const paragraph = trials.slice(start + '`reason_class`'.length, trials.indexOf('Names only', start));
-    const listed = [...paragraph.matchAll(/`([a-z]+(?:_[a-z]+)+)`/g)].map((m) => m[1]);
-    assert.deepEqual([...new Set(listed)].sort(), [...REASON_CLASSES].sort());
-    // [Foreman: 1157] commit_failed is one of safe-commit.js's own refusals
-    // since 1160; task.js finish returns it too.
-    assert.ok(flat(paragraph).includes('`commit_failed` (`git commit` itself failing, as when a pre-commit hook refuses; `scripts/task.js finish` returns it too when its own commit fails)'), flat(paragraph));
-    assert.doesNotMatch(flat(trials), /plus `commit_failed` \(`scripts\/task\.js finish`/);
-    assert.ok(flat(trials).includes('plus `scripts/task.js finish` when its own `git commit` fails (`commit_failed`)'));
+    assert.ok(REASON_CLASSES.includes('commit_failed'));
     const trialLog = read('scripts', 'trial-log.js');
     assert.ok(trialLog.includes('commit_failed among\n// them, which scripts/task.js finish also returns'));
     assert.ok(trialLog.includes('since [Foreman: 1160],\n  // safe-commit.js finish.'));
-  });
-
-  // [Foreman: 1141] The commit_interrupted bullet names every refusal
-  // safe-commit.js returns, and says which of them are ok:false.
-  test('TRIALS.md commit_interrupted lists the safe-commit refusals, begin\'s dirty as ok:true', () => {
-    const { REASON_CLASSES } = require(path.join(SCRIPTS_DIR, 'trial-log.js'));
-    const trials = read('TRIALS.md');
-    const start = trials.indexOf('- **`commit_interrupted`**');
-    const bullet = flat(trials.slice(start, trials.indexOf('- **`recovery_attempted`, `reinit-snapshot`**', start)));
-    // [Foreman: 1157] commit_failed is among finish's refusals, and every
-    // reason begin can give is named as a dirty_tree answer.
-    const safeCommit = REASON_CLASSES.filter((reason) => !['dirty_tree', 'verification_declined'].includes(reason));
-    for (const reason of safeCommit) assert.ok(bullet.includes(`\`${reason}\``), `commit_interrupted lists ${reason}`);
-    const source = read('scripts', 'safe-commit.js');
-    const state = source.slice(source.indexOf('function repositoryState'), source.indexOf('function gitFailureCause'));
-    const beginReasons = [...state.matchAll(/reason: "([a-z_]+)"/g)].map((m) => m[1]);
-    assert.ok(beginReasons.length > 0);
-    for (const reason of beginReasons) assert.ok(bullet.includes(`\`${reason}\``), `commit_interrupted names begin's ${reason}`);
-    assert.ok(bullet.includes('recorded as `dirty_tree` whatever its `reason`'), bullet);
-    assert.ok(bullet.includes('`begin` reporting `dirty: true`, which is an `ok:true` answer recorded as `dirty_tree`'), bullet);
-    assert.doesNotMatch(bullet, /every `ok:false` return/);
   });
 
   test('roadmap-schema.md says which finish stages which close bookkeeping', () => {

@@ -100,10 +100,13 @@
                the Run:/Expected: pairs and the fix ceiling, are already
                refused when missing. `craft-handoff.js` is its only source,
                and its tests pin where it goes and where it does not.
-               Codex keeps its own wording:
-               CODEX-PROMPTING.md bases its verification scope on OpenAI's
-               guidance, and these pages are Claude model guidance.
-     codex sources: CODEX-PROMPTING.md, checked 2026-09-06 -->
+               Codex keeps its own wording: its verification scope follows
+               OpenAI's guidance, and these pages are Claude model guidance.
+     codex sources, checked 2026-09-06:
+               https://learn.chatgpt.com/guides/best-practices
+               https://developers.openai.com/cookbook/examples/gpt-5/codex_prompting_guide
+               https://developers.openai.com/api/docs/guides/latest-model/gpt-6-astra.md#prompting-best-practices
+               https://developers.openai.com/api/docs/guides/reasoning-best-practices#how-to-prompt-reasoning-models-effectively -->
 
 The handed-off session — whether run here in this session, by a background
 agent, or copy-pasted elsewhere — has **zero memory** of this conversation.

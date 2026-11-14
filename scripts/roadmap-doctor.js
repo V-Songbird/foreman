@@ -556,7 +556,7 @@ function oneOf(values) {
 // finding: nothing reads the value, so no value is wrong.
 const RETIRED = { ok: () => true };
 
-// Documented in settings.md; the accepted values come from the modules that
+// Documented in the README's settings table; the accepted values come from the modules that
 // actually read them, so this table can never drift from the readers.
 const CONFIG_SPEC = {
   discoverySuggestions: BOOL,

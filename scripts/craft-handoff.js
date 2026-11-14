@@ -1453,7 +1453,7 @@ function assemble(root, input) {
   }
 
   // [Foreman: 208] The first delivered handoff of this project's life. This
-  // is the moment TRIALS.md names — a prompt that never passed the gate is
+  // is the moment the trial log's first_pick event names — a prompt that never passed the gate is
   // not a first useful task — and it costs no skill instruction, because
   // every crafting flow already ends here. Silent no-op unless the project
   // opted in, no-op again on every later handoff, and never throws.
