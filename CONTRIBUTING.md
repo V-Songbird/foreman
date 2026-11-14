@@ -90,7 +90,7 @@ PRs that change script behavior without updating tests will not be merged. Prese
 
 Validate the package for each host when you can:
 
-- **Claude Code:** `claude plugin validate .`
+- **Claude Code:** `claude plugin validate .`, and `claude plugin test .` for the roadmap pane's tests in `hooks/register.test.tsx`. `tests/desktop_mod.test.js` covers the part Node can run: how the pane is registered, its reader of `ROADMAP.jsonl` against what `roadmap.js` writes, and the requests its card buttons send.
 - **Codex:** the installed plugin-creator validator for `.codex-plugin/plugin.json`, and skill-creator's `quick_validate.py` for edited skills. Those validators live in the Codex installation, not in this repository. The plugin-creator validator does not accept the manifest's `hooks` field yet, although Codex itself reads it.
 - **Antigravity:** `agy plugin validate .` with the Antigravity CLI installed.
 
