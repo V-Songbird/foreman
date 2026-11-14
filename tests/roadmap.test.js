@@ -1995,6 +1995,17 @@ describe('flag values', () => {
     assert.equal(status, 1);
     assert.equal(json.error, `unknown subcommand: bogus. Use ${Object.keys(SUBCOMMAND_FLAGS).join('|')}`);
   });
+
+  // [Foreman: 1263] get, show and help were tried as subcommands in real use.
+  test('get and show name list --ids, help names --help, other words get no hint', () => {
+    const { SUBCOMMAND_FLAGS } = require('../scripts/roadmap');
+    const base = Object.keys(SUBCOMMAND_FLAGS).join('|');
+    for (const word of ['get', 'show']) {
+      assert.equal(run([word]).json.error, `unknown subcommand: ${word}. Use ${base}. To read one entry, use list --ids <id>`);
+    }
+    assert.equal(run(['help']).json.error, `unknown subcommand: help. Use ${base}. For usage, pass --help`);
+    assert.equal(run(['constructor']).json.error, `unknown subcommand: constructor. Use ${base}`);
+  });
 });
 
 describe('doc field', () => {

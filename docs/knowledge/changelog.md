@@ -25,6 +25,13 @@ listings pin a release commit and carry no version of their own. Claude Code
 releases up to 2.7.0 kept their number in the foundry marketplace listing
 instead.
 
+## Unreleased
+
+### Every host
+
+- `roadmap.js` now answers an unknown `get` or `show` subcommand with the way
+  to read one entry, `list --ids <id>`, and an unknown `help` with `--help`.
+
 ## 4.4.0 — 2026-11-12
 
 ### Every host
