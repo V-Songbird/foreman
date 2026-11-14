@@ -122,7 +122,7 @@ Foreman is one plugin for the three assistants. Install it in the one you use; o
 
 ### Claude Code
 
-Requirements: Node.js and Git 2.25 or later (tested with Node.js 22). In Claude Code, Foreman needs version 2.1.147 or later.
+Requirements: Node.js and Git 2.25 or later (tested with Node.js 22). In Claude Code, Foreman needs version 2.1.323 or later.
 
 Inside Claude Code:
 
