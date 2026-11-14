@@ -18,15 +18,15 @@ const reconcile = read("skills", "roadmap", "reconcile.md");
 const survey = read("skills", "survey", "scope.md");
 const entrance = read("skills", "foreman", "SKILL.md");
 const destination = read("skills", "roadmap", "destination-question.md");
-const howItWorks = read("HOW-IT-WORKS.md");
+const readme = read("README.md");
 
 describe("two confidence modes", () => {
-  // The README is the plain-language front page; the two pick modes are a
-  // mechanism, so they live in HOW-IT-WORKS.md. Both must still name them.
-  test("both modes are named, in the roadmap skill and HOW-IT-WORKS.md", () => {
+  // The README's How it works section is where a user learns the two pick
+  // modes. The skill and the README must both name them.
+  test("both modes are named, in the roadmap skill and the README", () => {
     for (const [name, text] of [
       ["roadmap skill", roadmap],
-      ["HOW-IT-WORKS.md", howItWorks],
+      ["README.md", readme],
     ]) {
       assert.match(text, /\*\*Fast pick\*\*/, `${name} does not name Fast pick`);
       assert.match(text, /\*\*Reconcile and pick\*\*/, `${name} does not name Reconcile and pick`);

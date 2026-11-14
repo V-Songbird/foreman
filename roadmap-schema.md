@@ -144,7 +144,7 @@ occupies one entry. `reviewEachIncrement`, verification rows and
 roadmap fields or project settings. Result evidence, limits, decisions and
 references are recorded as short append-only `notes` through `annotate`; there
 is no separate increment store and no stored per-row status. See
-[review between increments](HOW-IT-WORKS.md#review-between-increments).
+[review between increments](README.md#review-between-increments).
 
 **Prefixes in `notes`.** Some note lines start with a prefix that organizes the
 prose. `accepted:` records a reviewed result the user accepted; `unverified:`
@@ -543,7 +543,7 @@ change is `ROADMAP.jsonl` with `no_task_changes`.
 Sibling runtime file at `.foreman/config.json`, also committed. Plain JSON,
 no CLI wraps it (unlike `ROADMAP.jsonl`) — edited directly when a flag
 needs to change. Full field reference is in
-[`settings.md`](settings.md); the one relevant to this file's
+[the README's settings table](README.md#settings); the one relevant to this file's
 own consumer (`post-commit.js`) is `discoverySuggestions` — missing or
 unparseable → treated as `true` (on by default); an explicit `false` is the
 only way out.
@@ -638,7 +638,7 @@ transition `planned` → `in_progress`, through `roadmap.js`'s own
   checks readiness under the roadmap lock, and reports `dispatchReady:true`
   only for an entry that can run; a refused start never authorizes work.
   `check` reports whether bookkeeping remains open and can scope a `Stop`
-  reminder. Exporting a prompt calls neither. See [Foreman in Codex](CODEX.md).
+  reminder. Exporting a prompt calls neither.
 - `foreman/hooks/stop.js` — registered for `Stop` and `SubagentStop`. With
   `taskCloseGate:"block"`, an explicit unresolved `check` in that session or
   subagent can request one continuation. It never writes this file, never

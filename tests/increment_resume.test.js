@@ -127,7 +127,7 @@ test('resume.md offers the Codex session a paused note names, decision on stdin'
   assert.ok(offered, 'resume.md offers codex exec resume');
   assert.equal(offered[1].replace('<id>', id), 'codex exec resume 0000-probe -');
   assert.match(resumeMd, /standard input/);
-  for (const file of ['skills/roadmap/resume.md', 'skills/roadmap/resume-increments.md', 'skills/roadmap/increment-review.md', 'CODEX.md']) {
+  for (const file of ['skills/roadmap/resume.md', 'skills/roadmap/resume-increments.md', 'skills/roadmap/increment-review.md', 'README.md']) {
     const text = fs.readFileSync(path.join(__dirname, '..', file), 'utf8').replace(/\s+/g, ' ');
     assert.doesNotMatch(text, /<their decision>/, file);
     for (const [command] of text.matchAll(/`codex exec resume <[^`]*`/g)) assert.match(command, / -`$/, `${file}: ${command}`);
@@ -185,13 +185,13 @@ test('a declined resume after a paused note ends the close gate review pass', (t
   assert.equal(stopFor(`${pause}\n2026-09-28 resume declined: codex exec resume 0000-probe`), 'block');
 });
 
-// [Foreman: 942] The session id stays in the roadmap notes, and CODEX.md says
+// [Foreman: 942] The session id stays in the roadmap notes, and the README says
 // plainly that it only works with the local CODEX_HOME and that committing the
 // roadmap publishes it.
-test('CODEX.md says the Codex session id is local and published with a committed roadmap', () => {
-  const codexMd = fs.readFileSync(path.join(__dirname, '../CODEX.md'), 'utf8');
-  const found = codexMd.match(/### Resume a paused review\n[\s\S]*?(?=\n#{2,3} |$(?![\s\S]))/);
-  assert.ok(found, 'CODEX.md has the Resume a paused review section');
+test('the README says the Codex session id is local and published with a committed roadmap', () => {
+  const readme = fs.readFileSync(path.join(__dirname, '../README.md'), 'utf8');
+  const found = readme.match(/### Ids a committed roadmap publishes\n[\s\S]*?(?=\n#{2,3} |$(?![\s\S]))/);
+  assert.ok(found, 'the README has the Ids a committed roadmap publishes section');
   const section = found[0].replace(/\s+/g, ' ');
   assert.match(section, /The session id stays in the roadmap on purpose/);
   assert.match(section, /under the `CODEX_HOME` directory of the machine that ran it/);

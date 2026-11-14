@@ -27,23 +27,13 @@ hooks.json               # Antigravity hook wiring, keyed by the plugin name
 .github/
 └── workflows/
     └── test.yml         # CI: runs the test suite
-AGENTS.md                # contributor rules for every host; CLAUDE.md imports it
-CLAUDE.md                # imports AGENTS.md for Claude Code
-CODE_OF_CONDUCT.md      # community conduct rules
 SECURITY.md             # how to report a vulnerability
 LICENSE                  # MIT
-assets/                  # README banners, logos and graphics
-README.md                # one README for every host
-HOW-IT-WORKS.md          # how Foreman works, with the host differences
-settings.md              # .foreman/config.json reference
+assets/                  # the icons the Codex and Antigravity manifests name
+README.md                # one README for every host, settings included
 roadmap-schema.md        # ROADMAP.jsonl and .foreman/ file reference
-TRIALS.md                # the local trial log
-CODEX.md                 # Codex host notes and limits
-CODEX-PROMPTING.md       # the guidance Codex handoffs follow
 prompt-template.md       # the one handoff template; host-tuned blocks
                          # carry host="claude" or host="codex"
-docs/knowledge/          # product scope, the incremental-acceptance contract
-                         # and the changelog, one history for every host
 skills/                  # the five skills, shared by every host
 └── <skill>/
     ├── SKILL.md         # skill instructions
@@ -64,7 +54,7 @@ scripts/                 # dependency-free Node.js CLIs; runtime.js detects the 
 tests/                   # behavioral tests for the three hosts
 ```
 
-Foreman keeps one README for every host, plain-language sections first and technical depth behind links; [`AGENTS.md`](AGENTS.md) says where the host-specific parts go.
+The repository holds only what the plugin uses at run time, plus its tests, CI and these project files. Foreman keeps one README for every host: its shared sections read the same for everyone, and host differences sit in the How to ask table, one Install subsection per host, the Differences between hosts table and one results table per host under The numbers.
 
 ---
 
@@ -112,7 +102,36 @@ Installed-host smoke tests complement the local hook fixtures; report which one 
 
 This tries the Codex reviewed-increment workflow from this checkout, without installing anything, editing a marketplace or publishing.
 
-1. Read the [workflow and complete payload](HOW-IT-WORKS.md#review-between-increments). Save the JSON example as a UTF-8 file in a temporary location and add `"host": "codex"` to it, so the builder writes the Codex form of the prompt even outside Codex. From this checkout, run `Get-Content -Raw '<payload-file>' | node ./scripts/craft-handoff.js` in PowerShell, or `node ./scripts/craft-handoff.js < '<payload-file>'` in a POSIX shell.
+1. Read the [workflow](README.md#review-between-increments). Save this payload, which asks for one reviewed documentation result with no roadmap entry behind it, as a UTF-8 file in a temporary location. Its `"host": "codex"` makes the builder write the Codex form of the prompt even outside Codex. One `judgment.verification` row is one increment; a row needs at least one complete pair, `run` with `expected` or `review.action` with `review.expected`, and in a reviewed run every row needs `review`.
+
+   ```json
+   {
+     "title": "Clarify the review example",
+     "why": "Readers need to know when execution waits for them.",
+     "what": "Clarify the review example in README.md.",
+     "touches": ["README.md"],
+     "host": "codex",
+     "destination": "clipboard",
+     "reviewEachIncrement": true,
+     "judgment": {
+       "role": "a documentation editor",
+       "goal": "to make the review example clear and actionable",
+       "context": "This is the Codex-only reviewed-increment workflow.",
+       "steps": ["Read the existing example and clarify its wait behavior."],
+       "constraints": ["Keep the existing task acceptance policy."],
+       "verification": [{
+         "goal": "Explain the wait before the next result",
+         "files": ["README.md"],
+         "review": {
+           "action": "Read the revised review example",
+           "expected": "You can tell when to accept, request changes or pause; no installation is included"
+         }
+       }]
+     }
+   }
+   ```
+
+   From this checkout, run `Get-Content -Raw '<payload-file>' | node ./scripts/craft-handoff.js` in PowerShell, or `node ./scripts/craft-handoff.js < '<payload-file>'` in a POSIX shell.
 2. Inspect the returned `ok`, `gate`, `warnings` and `prompt`. Assembly validates the payload and generates text; it does not implement the example, copy it to the clipboard, or demonstrate a real wait. The embedded script paths refer to this checkout. For another project, set `FOREMAN_PROJECT_DIR` and adjust the example's files and checks to real ones.
 3. Run `node --test tests/*.test.js` for runtime regressions. Keep any behavioral exercise in a disposable project with its own files and roadmap. Run the generated prompt only when you intend to start that work, keeping its review protocol and actual source paths.
 4. Observe a real pause before dependent work, give a real decision, then resume. Exercise Request changes and Pause deliberately, and label those exercises as rehearsals. Interrupt and resume once with sufficient evidence and once with an ambiguous or changed artifact; the latter must ask for revalidation. A run without a human channel must leave the review pending.
@@ -137,9 +156,9 @@ Public source names and attribution are allowed in documentation and commit mess
 
 ---
 
-## Versions and the changelog
+## Versions and release notes
 
-Add an entry to [`docs/knowledge/changelog.md`](docs/knowledge/changelog.md), under `## Unreleased` at the top, for every user-visible change. File it under the host subsection it affects: `### Every host`, `### Claude Code`, `### Codex`, `### Antigravity`, or a combined one such as `### Codex and Antigravity`. A released version is a `## <version> — <date>` heading with the same subsections. Read the top entries first and match their wording.
+Release notes live on the [releases page](https://github.com/V-Songbird/foreman/releases), one release per version, and there is no changelog file in the repository. Describe every user-visible change in your pull request, under the host it affects: every host, Claude Code, Codex, Antigravity, or a combination such as Codex and Antigravity. Those descriptions become the next release's notes.
 
 One version number covers every host. Bump it in the three manifests, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json` and `plugin.json`, in the release commit; a test fails when they differ. Claude Code reads a plugin's version from `plugin.json` before anything in its marketplace entry, so the version lives only in the manifests. Both [foundry](https://github.com/V-Songbird/foundry) catalogs pin the same `main` commit with `ref: "main"` and carry no version for Foreman: a release only moves their `source.sha` to the release commit.
 
@@ -147,4 +166,4 @@ One version number covers every host. Bump it in the three manifests, `.claude-p
 
 ## Code of conduct
 
-This project follows the [Contributor Covenant 2.1](./CODE_OF_CONDUCT.md).
+This project follows the [Contributor Covenant, version 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/). Be kind, be patient and assume good intent. To report behavior that goes against it, contact the maintainer privately through the address in [SECURITY.md](SECURITY.md).
