@@ -2001,9 +2001,9 @@ describe('flag values', () => {
     const { SUBCOMMAND_FLAGS } = require('../scripts/roadmap');
     const base = Object.keys(SUBCOMMAND_FLAGS).join('|');
     for (const word of ['get', 'show']) {
-      assert.equal(run([word]).json.error, `unknown subcommand: ${word}. Use ${base}. To read one entry with list --ids <id>`);
+      assert.equal(run([word]).json.error, `unknown subcommand: ${word}. Use ${base}. To read one entry, use list --ids <id>`);
     }
-    assert.equal(run(['help']).json.error, `unknown subcommand: help. Use ${base}. To see usage with --help`);
+    assert.equal(run(['help']).json.error, `unknown subcommand: help. Use ${base}. For usage, pass --help`);
     assert.equal(run(['constructor']).json.error, `unknown subcommand: constructor. Use ${base}`);
   });
 });

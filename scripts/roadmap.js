@@ -3227,9 +3227,10 @@ function main() {
   }
   if (!Object.hasOwn(SUBCOMMAND_FLAGS, sub)) {
     // [Foreman: 1263] Transcripts show `get`, `show` and `help` tried as subcommands.
-    const hint = new Map([["get", "read one entry with list --ids <id>"], ["show", "read one entry with list --ids <id>"], ["help", "see usage with --help"]]).get(sub);
+    const readOne = "To read one entry, use list --ids <id>";
+    const hint = new Map([["get", readOne], ["show", readOne], ["help", "For usage, pass --help"]]).get(sub);
     throw new Error(
-      `unknown subcommand: ${sub}. Use ${Object.keys(SUBCOMMAND_FLAGS).join("|")}` + (hint ? `. To ${hint}` : ""),
+      `unknown subcommand: ${sub}. Use ${Object.keys(SUBCOMMAND_FLAGS).join("|")}` + (hint ? `. ${hint}` : ""),
     );
   }
   // [Foreman: 735] `<subcommand> --help` prints that subcommand's section of
