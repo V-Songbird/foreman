@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Entry, Section } from '../types'
+import type { RoadmapEntry as Entry, RoadmapSection as Section } from '../types'
 import { parse } from './roadmap-entries.mjs'
 
 const PANE = 'foreman-roadmap'
@@ -32,14 +32,12 @@ const isOpen = atom({ plugin: 'foreman', key: 'roadmapOpen' } as const, false)
 export const EN = {
   readFailed: (file: string, why: string) => `Could not read ${file}: ${why}`,
   tooBig: (file: string) => `${file} is too large to show here. Ask Foreman to archive the finished tasks.`,
+  unreadable: (file: string) => `${file} has a line Foreman cannot read, so this list could be incomplete. Ask Foreman to check the roadmap.`,
   refresh: 'Refresh',
   reading: 'Reading the roadmap…',
-  verb: { resume: 'Resume', accept: 'Accept', pick: 'Start' },
-  ask: {
-    resume: (id: string) => `Resume roadmap entry ${id} with Foreman.`,
-    accept: (id: string) => `Accept roadmap entry ${id} with Foreman.`,
-    pick: (id: string) => `Start roadmap entry ${id} with Foreman.`,
-  },
+  verb: { resume: 'Resume', accept: 'Accept', pick: 'Pick' },
+  // One request for every button: Foreman's pick flow routes a named entry by its status.
+  ask: (id: string) => `Pick roadmap entry ${id} with Foreman.`,
   inProgress: 'in progress',
   awaiting: 'awaiting your acceptance',
   waitsOn: (ids: string) => `waits on ${ids}`,
@@ -80,14 +78,11 @@ export const EN = {
 export const ES: typeof EN = {
   readFailed: (file, why) => `No pude leer ${file}: ${why}`,
   tooBig: file => `${file} es demasiado grande para mostrarse aquí. Pide a Foreman que archive las tareas terminadas.`,
+  unreadable: file => `${file} tiene una línea que Foreman no puede leer, así que esta lista podría estar incompleta. Pide a Foreman que revise el roadmap.`,
   refresh: 'Actualizar',
   reading: 'Leyendo el roadmap…',
-  verb: { resume: 'Reanudar', accept: 'Aceptar', pick: 'Empezar' },
-  ask: {
-    resume: id => `Reanuda la entrada ${id} del roadmap con Foreman.`,
-    accept: id => `Acepta la entrada ${id} del roadmap con Foreman.`,
-    pick: id => `Empieza la entrada ${id} del roadmap con Foreman.`,
-  },
+  verb: { resume: 'Reanudar', accept: 'Aceptar', pick: 'Elegir' },
+  ask: id => `Elige la entrada ${id} del roadmap con Foreman.`,
   inProgress: 'en curso',
   awaiting: 'espera tu aceptación',
   waitsOn: ids => `espera ${ids}`,
@@ -154,8 +149,7 @@ export const actionFor = (x: Entry): Action | undefined =>
 
 // A request this pane wrote earlier, in either language, at the start of the prompt box.
 const OWN = new RegExp(
-  `^(?:${[EN, ES]
-    .flatMap(t => Object.values(t.ask))
+  `^(?:${[EN.ask, ES.ask]
     .map(ask => ask('\u0001').replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace('\u0001', '\\S+'))
     .join('|')})\\s*`,
 )
@@ -166,42 +160,47 @@ export const draftWith = (ask: string, draft: string): string => {
   return rest ? `${ask} ${rest}` : ask
 }
 
-/** Reads the roadmap; unless forced, only when its size or mtime changed since the last read. */
-const load = async ($: EngineInterface, force = true): Promise<void> => {
+/** The folder Foreman works in, as its hooks resolve it (hooks/lib.js projectDir): FOREMAN_PROJECT_DIR, then CLAUDE_PROJECT_DIR, then the session's own. */
+const rootOf = async ($: EngineInterface): Promise<string> =>
+  (await $.env.get('FOREMAN_PROJECT_DIR')) || (await $.env.get('CLAUDE_PROJECT_DIR')) || (await $.session.root())
+
+/** Reads the roadmap; unless forced, only when its size or mtime changed since the last read. Resolves whether the file exists. */
+const load = async ($: EngineInterface, force = true): Promise<boolean> => {
   const t = await stringsOf($)
   try {
-    const root = await $.session.root()
+    const root = await rootOf($)
     const path = `${root}/${FILE}`
     if (!(await $.fs.exists(path))) {
       await update($, hasRoadmap, () => false)
       await update($, board, () => null)
       await update($, error, () => null)
       if (await read($, isOpen)) await close($)
-      return
+      return false
     }
     const { size, mtimeMs } = await $.fs.stat(path)
     const last = await read($, board)
-    if (!force && last?.root === root && last.size === size && last.mtimeMs === mtimeMs) return
+    if (!force && last?.root === root && last.size === size && last.mtimeMs === mtimeMs) return true
     if (size > READ_MAX) {
       await update($, error, () => t.tooBig(FILE))
-      return
+      return true
     }
-    const { entries, deferred } = parse(await $.fs.read(path))
+    const { entries, deferred, unreadable } = parse(await $.fs.read(path))
     const readAt = await $.clock.now()
     await update($, board, () => ({ root, entries, deferred, readAt, mtimeMs, size }))
-    await update($, error, () => null)
-    // An entry stays marked as sent until the file changes its status.
+    await update($, error, () => (unreadable > 0 ? t.unreadable(FILE) : null))
+    // A status change ends an entry's sent mark at once; the next turn ends the rest.
     const status = new Map([...entries, ...deferred].map(x => [x.id, x.status]))
     await update($, sent, s => Object.fromEntries(Object.entries(s).filter(([id, was]) => status.get(id) === was)))
   } catch (err) {
     await update($, error, () => t.readFailed(FILE, err instanceof Error ? err.message : String(err)))
   }
+  return true
 }
 
 /** Whether the project has a roadmap, for the footer button. */
 const check = async ($: EngineInterface): Promise<void> => {
   try {
-    const exists = await $.fs.exists(`${await $.session.root()}/${FILE}`)
+    const exists = await $.fs.exists(`${await rootOf($)}/${FILE}`)
     await update($, hasRoadmap, () => exists)
   } catch {
     await update($, hasRoadmap, () => false)
@@ -210,9 +209,12 @@ const check = async ($: EngineInterface): Promise<void> => {
 
 /** Reads the roadmap and opens the pane. */
 const open = async ($: EngineInterface): Promise<void> => {
-  await load($)
-  if (!(await read($, hasRoadmap))) return
-  await $.ui.open({ id: PANE, title: 'Roadmap' })
+  if (!(await load($))) return
+  try {
+    await $.ui.open({ id: PANE, title: 'Roadmap' })
+  } catch {
+    return
+  }
   await update($, isOpen, () => true)
 }
 
@@ -223,7 +225,7 @@ const close = async ($: EngineInterface): Promise<void> => {
 }
 
 /** What the pane asks of Foreman for an entry, in the person's language. */
-const askOf = async ($: EngineInterface, action: Action, id: string): Promise<string> => (await stringsOf($)).ask[action](id)
+const askOf = async ($: EngineInterface, id: string): Promise<string> => (await stringsOf($)).ask(id)
 
 /** Puts the request in the prompt box, keeping what the person typed there. */
 const fill = async ($: EngineInterface, ask: string): Promise<void> => {
@@ -245,7 +247,7 @@ const send = async ($: EngineInterface, x: Entry, ask: string): Promise<void> =>
 
 const cut = (s: string, n: number): string => (s.length > n ? `${s.slice(0, Math.max(1, n - 1)).trimEnd()}…` : s)
 
-// The dot of an entry sent to Foreman, until the file changes its status.
+// The dot of an entry sent to Foreman, until the next turn.
 const SENT = 'suggestion'
 // The detail card's reason, cut so a long one leaves the list some rows.
 const WHY_MAX = 200
@@ -270,7 +272,8 @@ const statusOf = (x: Entry, t: Strings): string =>
     : x.status === 'awaiting_acceptance' ? t.awaiting
     : x.waitsOn.length > 0 ? t.waitsOn(x.waitsOn.join(', '))
     : x.status === 'deferred' ? t.deferredOne
-    : t.readyOne
+    : x.status === 'planned' ? t.readyOne
+    : x.status
 
 /** The dependencies an entry no longer waits on, said as done, as "235, 236 (done)". */
 const metOf = (x: Entry, t: Strings): string => {
@@ -310,17 +313,26 @@ const DIVIDER =
   '<svg xmlns="http://www.w3.org/2000/svg" width="4096" height="1" viewBox="0 0 4096 1" preserveAspectRatio="none">' +
   '<rect width="4096" height="1" fill="currentColor" fill-opacity=".06"/></svg>'
 
+const reset = async ($: EngineInterface): Promise<void> => {
+  await update($, board, () => null)
+  await update($, error, () => null)
+  await update($, view, () => view.initial)
+  await update($, sent, () => sent.initial)
+  await update($, picked, () => null)
+  await update($, query, () => '')
+  await update($, isOpen, () => false)
+  await check($)
+}
+
 export const register: Register = on => {
-  // Start from nothing: a clear, a resume or a reload keeps what an earlier session left in the state.
+  // Start from nothing, at a session start and at a /clear, which raises no session.start: the state keeps what an earlier session left.
   on('session.start', async ($, e, next) => {
-    await update($, board, () => null)
-    await update($, error, () => null)
-    await update($, view, () => view.initial)
-    await update($, sent, () => sent.initial)
-    await update($, picked, () => null)
-    await update($, query, () => '')
-    await update($, isOpen, () => false)
-    await check($)
+    await reset($)
+    return next(e)
+  })
+
+  on('session.end', async ($, e, next) => {
+    if (e.reason === 'clear') await reset($)
     return next(e)
   })
 
@@ -338,7 +350,7 @@ export const register: Register = on => {
     )
   })
 
-  // However the pane closes (its own control, the toggle, Escape), stop reading the file.
+  // However the pane closes (the person closing it, the toggle, Escape), stop reading the file.
   on('ui.close', async ($, e, next) => {
     const r = await next(e)
     if (e.id === PANE) await update($, isOpen, () => false)
@@ -349,7 +361,11 @@ export const register: Register = on => {
   // Closed, only look for the file, so the button appears once /foreman:init writes it.
   on('turn.complete', async ($, e, next) => {
     const r = await next(e)
-    if (!e.agentId) await ((await read($, isOpen)) ? load($) : check($))
+    if (!e.agentId) {
+      // The request is answered by now: bring the card's buttons back.
+      await update($, sent, () => ({}))
+      await ((await read($, isOpen)) ? load($, false) : check($))
+    }
     return r
   })
 
@@ -372,13 +388,15 @@ export const register: Register = on => {
     const isSearching = q.trim() !== ''
     const t = await stringsOf($)
     const isTerminal = e.surface === 'terminal'
+    // The desktop app seats a minimized pane as 'widget', a value the terminal's types leave out.
+    const isWidget = (e.props.placement as string) === 'widget'
     const refresh = <Button key="refresh" label={t.refresh} onPress={() => load($)} />
 
     if (err !== null) {
       return (
         <Box flexDirection="column" gap="md">
           <Text>{err}</Text>
-          <Box>{refresh}</Box>
+          {!isWidget && <Box>{refresh}</Box>}
         </Box>
       )
     }
@@ -389,19 +407,24 @@ export const register: Register = on => {
     const blocked = b.entries.filter(x => x.status === 'planned' && x.waitsOn.length > 0)
 
     const pick = (id: string | null) => update($, picked, () => id)
+    // Two entries can share an id: the second row's key says so.
+    const used = new Map<string, number>()
 
     // A row is its dot, its id and its title on one line: a press shows the entry's card, a second press hides it.
     // The terminal wraps a long Button label, so there the title is cut to the columns left after "● <id> ".
     const row = (x: Entry) => {
       const isSent = x.id in s
-      const title = isTerminal ? cut(x.title, e.props.bodyColumns - x.id.length - 3) : x.title
+      const n = (used.get(x.id) ?? 0) + 1
+      used.set(x.id, n)
+      const key = n === 1 ? x.id : `${x.id}#${n}`
+      const title = isTerminal ? cut(x.title, e.props.bodyColumns - x.id.length - 4) : x.title
       return (
-        <Box key={`row-${x.id}`} flexDirection="row" gap={1}>
+        <Box key={`row-${key}`} flexDirection="row" gap={1} paddingLeft={1}>
           <Text color={isSent ? SENT : fillOf(x)}>●</Text>
           {/* A Button draws its content as one line of text at its natural width; minWidth 0 holds it to the pane, */}
           {/* so a long title ends in "…", as the session sidebar's do. The card shows it whole. */}
           <Box flexGrow={1} minWidth={0}>
-            <Button key={x.id} plain dimColor={isSent} hover={{ underline: true }} onPress={() => pick(p === x.id ? null : x.id)}>
+            <Button key={key} plain dimColor={isSent} hover={{ underline: true }} onPress={() => pick(p === x.id ? null : x.id)}>
               <Text color="subtle">{x.id} </Text>
               <Text weight={p === x.id ? 'medium' : 'regular'}>{title}</Text>
             </Button>
@@ -457,8 +480,8 @@ export const register: Register = on => {
           {action !== undefined && !isSent && (
             // As the session panel's compaction row: the quiet action at the left, the button at the right.
             <Box key="card-actions" flexDirection="row" justifyContent="space-between" alignItems="center" gap={1}>
-              <Button key={`fill-${x.id}`} plain dimColor label={t.toPrompt} onPress={async () => fill($, await askOf($, action, x.id))} />
-              <Button key={`send-${x.id}`} label={t.verb[action]} onPress={async () => send($, x, await askOf($, action, x.id))} />
+              <Button key={`fill-${x.id}`} plain dimColor label={t.toPrompt} onPress={async () => fill($, await askOf($, x.id))} />
+              <Button key={`send-${x.id}`} label={t.verb[action]} onPress={async () => send($, x, await askOf($, x.id))} />
             </Box>
           )}
         </Box>
@@ -497,7 +520,7 @@ export const register: Register = on => {
       )
     }
 
-    const open = active.length + ready.length + blocked.length
+    const total = active.length + ready.length + blocked.length
     const time = new Date(b.readAt).toTimeString().slice(0, 5)
     const parts = [
       { n: active.length, color: FILL.active },
@@ -512,6 +535,40 @@ export const register: Register = on => {
     // their height at the foot, and the list takes the rest, clipped: it does not scroll then.
     const isPinned = !isTerminal && shown !== undefined
     const { bodyRows } = e.props.scroll
+
+    const summary = (
+          <Box key="summary" flexDirection="column" gap="xs">
+            {/* Like the session panel's headline: the count regular, the summary as a muted footnote. */}
+            <Box flexDirection="row" justifyContent="space-between" alignItems="flex-end">
+              <Text tabular>{t.openCount(total)}</Text>
+              <Text size="footnote" color="subtle" tabular>{t.readyCount(ready.length)}</Text>
+            </Box>
+            {total > 0 && (
+              // Like the session panel's context bar (a 4px stacked meter): square pieces with a 1px seam, round only at the ends.
+              // Desktop rounds a Box only through a `round` border, so the bar wears one in the track's own color, padding undone,
+              // and clips its pieces to it. Pieces grow by their count, so the seams never push the bar past its width.
+              // The terminal draws plain cells.
+              <Box
+                key="bar"
+                flexDirection="row"
+                {...(isTerminal ? { height: 1 } : {
+                  height: 0.32,
+                  flexShrink: 0,
+                  columnGap: 0.15,
+                  overflow: 'hidden' as const,
+                  borderStyle: 'round' as const,
+                  borderColor: 'promptBorder',
+                  backgroundColor: 'promptBorder',
+                  padding: 0 as const,
+                })}
+              >
+                {parts.map(p => <Box key={`bar-${p.color}`} width={0} flexGrow={p.n} backgroundColor={p.color} />)}
+              </Box>
+            )}
+          </Box>
+    )
+    // A minimized pane is a small card the app may not pass clicks to: counts and bar only.
+    if (isWidget) return summary
 
     return (
       <Box flexDirection="column" gap="md" {...(isTerminal ? {} : isPinned ? { height: bodyRows } : { minHeight: bodyRows })}>
@@ -533,35 +590,7 @@ export const register: Register = on => {
             />
           </Box>
         )}
-        <Box key="summary" flexDirection="column" gap="xs">
-          {/* Like the session panel's headline: the count regular, the summary as a muted footnote. */}
-          <Box flexDirection="row" justifyContent="space-between" alignItems="flex-end">
-            <Text tabular>{t.openCount(open)}</Text>
-            <Text size="footnote" color="subtle" tabular>{t.readyCount(ready.length)}</Text>
-          </Box>
-          {open > 0 && (
-            // Like the session panel's context bar (a 4px stacked meter): square pieces with a 1px seam, round only at the ends.
-            // Desktop rounds a Box only through a `round` border, so the bar wears one in the track's own color, padding undone,
-            // and clips its pieces to it. Pieces grow by their count, so the seams never push the bar past its width.
-            // The terminal draws plain cells.
-            <Box
-              key="bar"
-              flexDirection="row"
-              {...(isTerminal ? { height: 1 } : {
-                height: 0.32,
-                flexShrink: 0,
-                columnGap: 0.15,
-                overflow: 'hidden' as const,
-                borderStyle: 'round' as const,
-                borderColor: 'promptBorder',
-                backgroundColor: 'promptBorder',
-                padding: 0 as const,
-              })}
-            >
-              {parts.map(p => <Box key={`bar-${p.color}`} width={0} flexGrow={p.n} backgroundColor={p.color} />)}
-            </Box>
-          )}
-        </Box>
+        {summary}
         <Box key="list" flexDirection="column" gap="md" {...(isTerminal ? {} : isPinned ? { flexGrow: 1, minHeight: 0, overflow: 'hidden' as const } : { flexGrow: 1 })}>
           {isSearching && hits.length === 0 && (
             <Box key="no-hits"><Text color="subtle">{t.noHits(q.trim())}</Text></Box>

@@ -97,11 +97,30 @@ test('each card button asks for an entry that step pick routes to the matching b
   assert.equal(next(waiting), 'accept');
   assert.equal(next(ready), 'gather_checks');
 
-  // The prompts name the entry and the action in plain words and no slash command.
-  const ask = mod.match(/ask: \{\n([\s\S]*?)\n {2}\},/)[1];
-  assert.deepStrictEqual([...ask.matchAll(/(resume|accept|pick): \(id: string\) => `([^`]*)`/g)].map((m) => m[2].replace('${id}', 'ID')), [
-    'Resume roadmap entry ID with Foreman.',
-    'Accept roadmap entry ID with Foreman.',
-    'Start roadmap entry ID with Foreman.',
-  ]);
+  // Every button sends the one pick sentence, which names the entry and asserts no decision.
+  const ask = [...mod.matchAll(/^ {2}ask: (?:\(id: string\)|id) => `([^`]*)`/gm)].map((m) => m[1].replace('${id}', 'ID'));
+  assert.deepStrictEqual(ask, ['Pick roadmap entry ID with Foreman.', 'Elige la entrada ID del roadmap con Foreman.']);
+});
+
+test('the pane reader copes with what roadmap.js reads: a BOM, format 1, repeated ids, and says when a line is unreadable', async () => {
+  const { parse } = await import(pathToFileURL(path.join(HOOKS_DIR, 'roadmap-entries.mjs')).href);
+  const project = makeTmpProject();
+  const file = path.join(project, 'ROADMAP.jsonl');
+  const lines = [
+    '\ufeff{"id":"1","title":"Old format","status":"planned","touches":["a.js"]}',
+    '{"id":"2","title":"Twin","status":"planned"}',
+    '{"id":"2","title":"Twin again","status":"planned"}',
+    '{"id":"3","title":"Odd","status":"reviewing"}',
+  ];
+  fs.writeFileSync(file, `${lines.join('\r\n')}\r\n`);
+  const mine = parse(fs.readFileSync(file, 'utf-8'));
+  const theirs = roadmap.readEntries(project);
+  assert.deepStrictEqual(mine.entries.map((x) => x.id), theirs.map((x) => x.id));
+  assert.deepStrictEqual(mine.entries[0].touches, theirs[0].planned_touches);
+  assert.equal(mine.unreadable, 0);
+  assert.equal(mine.entries.find((x) => x.id === '3').status, 'reviewing');
+
+  fs.appendFileSync(file, '{"id":"4"\n');
+  assert.throws(() => roadmap.readEntries(project), /not valid JSON/);
+  assert.equal(parse(fs.readFileSync(file, 'utf-8')).unreadable, 1);
 });

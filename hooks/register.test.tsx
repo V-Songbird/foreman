@@ -13,7 +13,6 @@ const ROADMAP = [
   '{"id":"005","title":"Parked","status":"deferred"}',
   '{"id":"006","title":"Waits on parked","status":"planned","depends_on":["005"]}',
   '{"id":"007","title":"Needs a yes","status":"awaiting_acceptance","source":"codex-suggested"}',
-  'not json',
 ].join('\n')
 
 const PANE = {
@@ -47,7 +46,6 @@ test('the language setting names Spanish in its own words, in English or as a ta
   for (const v of [undefined, '', 'English', 'Estonian', 'Deutsch', 42]) expect(isSpanish(v)).toBe(false)
   expect(Object.keys(ES).sort()).toEqual(Object.keys(EN).sort())
   expect(Object.keys(ES.verb).sort()).toEqual(Object.keys(EN.verb).sort())
-  expect(Object.keys(ES.ask).sort()).toEqual(Object.keys(EN.ask).sort())
   expect(ES.months).toHaveLength(12)
   expect(EN.months).toHaveLength(12)
 })
@@ -62,10 +60,14 @@ const engineFooter = (on: Parameters<TestBody>[1]) =>
 /** A session in a project whose roadmap the test can change; counts the reads and records fills, submits, opens and closes. */
 const session = async (...[$, on, draft = '', language = 'Español']: [...Parameters<TestBody>, string?, string?]) => {
   const file = { exists: true, text: ROADMAP, mtimeMs: 1 }
-  const seen = { reads: 0, stats: 0, filled: [] as { text: string; mode: string }[], submitted: [] as string[], refuse: false, opens: [] as string[], closes: [] as string[] }
+  const seen = { reads: 0, stats: 0, filled: [] as { text: string; mode: string }[], submitted: [] as string[], refuse: false, env: {} as Record<string, string>, paths: [] as string[], openFails: false, opens: [] as string[], closes: [] as string[] }
   on('settings.read', () => ({ value: { language } }))
   on('session.root', () => ({ value: '/p' }))
-  on('fs.exists', () => ({ value: file.exists }))
+  on('env.get', (_, e) => ({ value: seen.env[e.name] }))
+  on('fs.exists', (_, e) => {
+    seen.paths.push(e.path.replaceAll('\\', '/').replace(/^[A-Za-z]:/, ''))
+    return { value: file.exists }
+  })
   on('fs.stat', () => {
     seen.stats++
     return { value: { kind: 'file', size: file.text.length, mtimeMs: file.mtimeMs, isLink: false } }
@@ -78,7 +80,9 @@ const session = async (...[$, on, draft = '', language = 'Español']: [...Parame
   on('turn.complete', () => ({ text: '' }))
   on('tool.call', () => ({ result: {} }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.end', () => ({ sessionId: 's1' }))
   on('ui.open', (_, e) => {
+    if (seen.openFails) throw new Error('no room')
     seen.opens.push(e.id)
     return { value: { isPlaced: true } }
   })
@@ -214,7 +218,7 @@ test('with no language set the pane speaks English', async ($, on) => {
   expect((await ui.find({ key: 'card-head' }))?.text).toBe('Task 003Close')
   expect((await ui.find({ key: 'card-made' }))?.text).toBe('CreatedNov 3 · You')
   expect((await ui.find({ key: 'card-met' }))?.text).toBe('Depends on001 (done)')
-  expect((await ui.find({ key: 'send-003' }))?.text).toBe('Start')
+  expect((await ui.find({ key: 'send-003' }))?.text).toBe('Pick')
   await ui.unmount()
 })
 
@@ -283,11 +287,11 @@ test('a section past 12 rows shows 12 and a press shows more, even two presses b
 })
 
 test('To prompt keeps the draft as a hint and never submits; a draft that already starts with it stays', async ($, on) => {
-  const start = EN.ask.pick('3')
+  const start = EN.ask('3')
   expect(draftWith(start, '')).toBe(start)
   expect(draftWith(start, 'only the auth part')).toBe(`${start} only the auth part`)
-  expect(draftWith(start, `${EN.ask.resume('2')} only auth`)).toBe(`${start} only auth`)
-  expect(draftWith(start, `${ES.ask.accept('2')} only auth`)).toBe(`${start} only auth`)
+  expect(draftWith(start, `${EN.ask('2')} only auth`)).toBe(`${start} only auth`)
+  expect(draftWith(start, `${ES.ask('2')} only auth`)).toBe(`${start} only auth`)
   expect(draftWith(start, start)).toBe(start)
 
   const { seen, ui } = await opened($, on, 'only the auth part', 'English')
@@ -298,16 +302,16 @@ test('To prompt keeps the draft as a hint and never submits; a draft that alread
   await ui.press({ key: '002' })
   await ui.press({ key: 'fill-002' })
   expect(seen.filled).toEqual([
-    { text: 'Start roadmap entry 003 with Foreman. only the auth part', mode: 'replace' },
-    { text: 'Resume roadmap entry 002 with Foreman. only the auth part', mode: 'replace' },
+    { text: 'Pick roadmap entry 003 with Foreman. only the auth part', mode: 'replace' },
+    { text: 'Pick roadmap entry 002 with Foreman. only the auth part', mode: 'replace' },
   ])
   expect(seen.submitted).toEqual([])
   await ui.unmount()
 })
 
-test('each card button asks Foreman in plain words, as the person, and marks the entry until its status changes', async ($, on) => {
+test('each card button asks Foreman in plain words, as the person, and marks the entry until the next turn', async ($, on) => {
   const { file, seen, ui } = await opened($, on, 'my draft', 'English')
-  for (const [id, verb] of [['003', 'Start'], ['002', 'Resume'], ['007', 'Accept']] as const) {
+  for (const [id, verb] of [['003', 'Pick'], ['002', 'Resume'], ['007', 'Accept']] as const) {
     await ui.press({ key: id })
     expect((await ui.find({ key: `send-${id}` }))?.text).toBe(verb)
     await ui.press({ key: 'card-close' })
@@ -317,17 +321,20 @@ test('each card button asks Foreman in plain words, as the person, and marks the
     await ui.press({ key: `send-${id}` })
   }
   expect(seen.submitted).toEqual([
-    'Start roadmap entry 003 with Foreman.',
-    'Resume roadmap entry 002 with Foreman.',
-    'Accept roadmap entry 007 with Foreman.',
+    'Pick roadmap entry 003 with Foreman.',
+    'Pick roadmap entry 002 with Foreman.',
+    'Pick roadmap entry 007 with Foreman.',
   ])
   expect(seen.filled).toEqual([])
   expect(await ui.find({ text: /Sent · awaiting your acceptance/ })).toBeDefined()
   expect(await ui.find({ key: 'send-007' })).toBeUndefined()
 
-  // Same file after the turn: still marked.
-  await $.turn.complete(TURN)
+  // A subagent's turn leaves the mark; the next main-loop turn clears it, so the buttons come back.
+  await $.turn.complete({ ...TURN, agentId: 'a1' })
   expect(await ui.find({ key: 'send-007' })).toBeUndefined()
+  await $.turn.complete(TURN)
+  expect(await ui.find({ key: 'send-007' })).toBeDefined()
+  expect(await ui.find({ text: /Sent/ })).toBeUndefined()
 
   // Foreman starts 003: its mark goes and the row moves to in progress, with Resume on its card.
   file.text = ROADMAP.replace('"Ready one","status":"planned"', '"Ready one","status":"in_progress"')
@@ -348,11 +355,14 @@ test('a prompt the engine refuses leaves the entry unmarked and its card button 
   await ui.unmount()
 })
 
-test('a main-loop turn reads the file again; a subagent turn does not', async ($, on) => {
-  const { seen, ui } = await opened($, on)
+test('a main-loop turn reads the file again only when it changed; a subagent turn does not', async ($, on) => {
+  const { file, seen, ui } = await opened($, on)
   expect(seen.reads).toBe(1)
   await $.turn.complete({ ...TURN, agentId: 'a1' })
   expect(seen.reads).toBe(1)
+  await $.turn.complete(TURN)
+  expect(seen.reads).toBe(1)
+  file.mtimeMs = 2
   await $.turn.complete(TURN)
   expect(seen.reads).toBe(2)
   await ui.unmount()
@@ -462,4 +472,95 @@ test('the card lists up to three planned files, the folder after the name, and c
   expect(await ui.find({ key: 'card-file-d.md' })).toBeUndefined()
   expect((await ui.find({ key: 'card-file-more' }))?.text).toBe('and 2 more')
   await ui.unmount()
+})
+
+test('the roadmap folder is FOREMAN_PROJECT_DIR, then CLAUDE_PROJECT_DIR, then the session root, as Foreman hooks resolve it', async ($, on) => {
+  const { seen, footer } = await session($, on)
+  expect(seen.paths.at(-1)).toBe('/p/ROADMAP.jsonl')
+  seen.env.CLAUDE_PROJECT_DIR = '/claude'
+  await footer.unmount()
+  await $.session.start(START)
+  expect(seen.paths.at(-1)).toBe('/claude/ROADMAP.jsonl')
+  seen.env.FOREMAN_PROJECT_DIR = '/foreman'
+  await $.session.start(START)
+  expect(seen.paths.at(-1)).toBe('/foreman/ROADMAP.jsonl')
+  seen.env.FOREMAN_PROJECT_DIR = ''
+  await $.session.start(START)
+  expect(seen.paths.at(-1)).toBe('/claude/ROADMAP.jsonl')
+})
+
+test('a /clear starts the pane over, and so does a session start', async ($, on) => {
+  const { footer, ui } = await opened($, on)
+  await ui.press({ key: '003' })
+  await ui.input({ key: 'search', text: 'video', kind: 'change' })
+  await ui.unmount()
+  await footer.unmount()
+  await $.session.end({ reason: 'clear' })
+  const again = await $.ui.mount({ ...FOOTER, surface: 'desktop' })
+  await again.press({ key: 'roadmap-toggle' })
+  await again.unmount()
+  const pane = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await pane.find({ key: 'card' })).toBeUndefined()
+  expect(await pane.find({ key: '003' })).toBeDefined()
+  await pane.unmount()
+})
+
+test('a line Foreman cannot read is said, not hidden behind a healthy-looking list', async ($, on) => {
+  const { file, ui } = await opened($, on, '', 'English')
+  file.text = `${ROADMAP}\n{"id":"009"`
+  file.mtimeMs = 2
+  await ui.press({ key: 'refresh' })
+  expect(await ui.find({ text: /line Foreman cannot read/ })).toBeDefined()
+  expect(await ui.find({ key: '003' })).toBeUndefined()
+  file.text = ROADMAP
+  file.mtimeMs = 3
+  await ui.press({ key: 'refresh' })
+  expect(await ui.find({ key: '003' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('two entries with one id both show, and a status the pane does not know shows as written', async ($, on) => {
+  const { file, ui } = await opened($, on, '', 'English')
+  file.text = [
+    '{"id":"5","title":"First five","status":"planned"}',
+    '{"id":"5","title":"Second five","status":"planned"}',
+    '{"id":"6","title":"Odd","status":"reviewing"}',
+  ].join('\n')
+  file.mtimeMs = 2
+  await ui.press({ key: 'refresh' })
+  expect(await ui.find({ text: /First five/ })).toBeDefined()
+  expect(await ui.find({ text: /Second five/ })).toBeDefined()
+  await ui.press({ key: '6' })
+  expect((await ui.find({ key: 'card-state' }))?.text).toBe('Status● Reviewing')
+  await ui.unmount()
+})
+
+test('a minimized pane draws its counts and bar and nothing a click is needed for', async ($, on) => {
+  const { ui } = await opened($, on)
+  await ui.unmount()
+  const widget = await $.ui.mount({ ...PANE, surface: 'desktop', props: { ...PANE.props, placement: 'widget' } })
+  expect((await widget.find({ text: /abiertas/ }))?.text).toMatch(/^5 abiertas/)
+  expect(await widget.find({ type: 'Button' })).toBeUndefined()
+  expect(await widget.find({ key: 'search' })).toBeUndefined()
+  await widget.unmount()
+})
+
+test('a refused ui.open leaves the pane closed and the button ready for another try', async ($, on) => {
+  const { seen, footer } = await session($, on)
+  seen.openFails = true
+  await footer.press({ key: 'roadmap-toggle' })
+  await $.turn.complete(TURN)
+  expect(seen.reads).toBe(1)
+  seen.openFails = false
+  await footer.press({ key: 'roadmap-toggle' })
+  expect(seen.opens).toEqual(['foreman-roadmap'])
+  await footer.unmount()
+})
+
+test('a roadmap deleted just before the press opens no pane', async ($, on) => {
+  const { file, seen, footer } = await session($, on)
+  file.exists = false
+  await footer.press({ key: 'roadmap-toggle' })
+  expect(seen.opens).toEqual([])
+  await footer.unmount()
 })

@@ -1,5 +1,5 @@
 /** One open roadmap entry, with all it depends on, the open entries it still waits on, and what its detail card shows. */
-export type Entry = {
+export type RoadmapEntry = {
   id: string
   title: string
   status: string
@@ -12,21 +12,21 @@ export type Entry = {
 }
 
 /** What the pane draws: the project it read, its open and deferred entries, when, and the file's stat at that read. */
-export type Board = { root: string; entries: Entry[]; deferred: Entry[]; readAt: number; mtimeMs: number; size: number }
+export type RoadmapBoard = { root: string; entries: RoadmapEntry[]; deferred: RoadmapEntry[]; readAt: number; mtimeMs: number; size: number }
 
 /** The pane's sections, in the order it draws them. */
-export type Section = 'active' | 'ready' | 'blocked' | 'deferred'
+export type RoadmapSection = 'active' | 'ready' | 'blocked' | 'deferred'
 
 /** Per section: whether it is open, and how many rows it shows. */
-export type View = Record<Section, { isOpen: boolean; rows: number }>
+export type RoadmapView = Record<RoadmapSection, { isOpen: boolean; rows: number }>
 
 declare module 'claude-code' {
   interface PluginState {
     foreman: {
-      roadmapBoard: Shaped<Board | null>
+      roadmapBoard: Shaped<RoadmapBoard | null>
       roadmapError: string | null
-      roadmapView: View
-      /** Entries asked of Foreman from the pane, with the status each had then. */
+      roadmapView: RoadmapView
+      /** Entries asked of Foreman from the pane, with the status each had then, until the next turn. */
       roadmapSent: Record<string, string>
       /** The entry whose detail card shows at the foot of the pane. */
       roadmapPicked: string | null
