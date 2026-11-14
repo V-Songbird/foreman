@@ -6,7 +6,7 @@
 // Foreman's product-evidence set asks for nine numbers across recommendation
 // quality and roadmap health. Six of them are already in the files Foreman
 // owns; three need a user actually choosing, so they come from the opt-in
-// trial log (see TRIALS.md), written by scripts/trial-log.js to
+// trial log, written by scripts/trial-log.js to
 // .foreman/trial-log.jsonl when the project opts in.
 //
 // This entry DEFINES the measurements. It records nothing and never writes,
@@ -201,7 +201,7 @@ function ratio(hits, total) {
 const NO_LOG = { rate: null, reason: "no_trial_log" };
 
 /**
- * The usage-dependent rates, over a trial log in TRIALS.md's format.
+ * The usage-dependent rates, over a trial log in trial-log.js's format.
  * `log` is null when no --trial-log was given: the rates are reported as
  * null with a reason, never as zero.
  */

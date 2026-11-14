@@ -181,7 +181,7 @@ function roadmapParts(root) {
   // [Foreman: 208] The failure half of resume recovery: an `in_progress`
   // entry that already carries commits or observed files is work that was
   // interrupted and has NOT come back yet. One row per such entry per
-  // startup, which is why TRIALS.md calls this a per-day view of recovery
+  // startup, which is why the trial log holds a per-day view of recovery
   // rather than a per-run one. The success half is task-completed.js's.
   //
   // `awaiting_acceptance` is deliberately excluded even though it is an open

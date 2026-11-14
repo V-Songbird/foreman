@@ -121,7 +121,7 @@ describe("host detection and the prompt form", () => {
 
   // [Foreman: 894] Antigravity started from a Claude Code shell carries the
   // same names as Claude Code started from Antigravity, so it reads as Claude
-  // Code; settings.md tells the user to remove CLAUDECODE before starting agy.
+  // Code; the README tells the user to remove CLAUDECODE before starting agy.
   test("both nestings read as Claude Code until CLAUDECODE is removed", () => {
     const nested = { CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: "claude", ANTIGRAVITY_CONVERSATION_ID: "conversation", ANTIGRAVITY_AGENT: "1" };
     assert.equal(detectHost(nested), "claude");

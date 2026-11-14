@@ -712,7 +712,7 @@ Examples:
 //
 // A dirty tree is the one refusal that reports `ok: true` (it is a legitimate
 // state, not a failure), so it is matched on `dirty` and translated to the
-// name TRIALS.md uses. Anything whose reason is not in the closed vocabulary
+// name trial-log.js uses. Anything whose reason is not in the closed vocabulary
 // is skipped by the writer itself, which is why nothing is filtered here.
 function recordInterruption(result, root) {
   if (!result || typeof result !== "object") return;
