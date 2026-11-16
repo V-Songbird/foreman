@@ -22,7 +22,7 @@ cheaper (one shell call instead of read, reason, edit and reread) and safer
 
 This isn't just convention — `hooks/guard-roadmap-edit.js` (`PreToolUse` on
 `Edit`/`Write` in Claude Code, on `apply_patch`/`Edit`/`Write` in Codex, and on
-`write_to_file`/`replace_file_content`/`multi_replace_file_content` in
+`write_file`/`edit_file` and the older `write_to_file`/`replace_file_content`/`multi_replace_file_content` in
 Antigravity, through `hooks/antigravity-hook.js`) denies any direct edit of a file named `ROADMAP.jsonl` or `archive.jsonl` (see [Archived entries](#archived-entries--foremanarchivejsonl)),
 pointing back at the CLI. Reading the file is still fine (inspecting it is
 harmless); only writing it through a file tool is blocked. A shell command is
@@ -555,7 +555,7 @@ only way out.
 All access — from any caller — goes through `scripts/roadmap.js`, and
 `hooks/guard-roadmap-edit.js` mechanically blocks the alternative (direct
 `Edit`/`Write` in Claude Code, `apply_patch`/`Edit`/`Write` in Codex,
-`write_to_file`/`replace_file_content`/`multi_replace_file_content` in
+`write_file`/`edit_file` and the older `write_to_file`/`replace_file_content`/`multi_replace_file_content` in
 Antigravity), not just prose. A shell command is outside that guard on every
 host. Skill names below are the same on every host; Claude Code calls them as
 `/foreman:<skill>` and Antigravity as `/<skill>`.

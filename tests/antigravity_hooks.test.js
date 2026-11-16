@@ -81,7 +81,7 @@ describe("the Antigravity manifest and registration", () => {
       }
     }
     const matches = (event, tool) => new RegExp(hooks.foreman[event][0].matcher).test(tool);
-    for (const tool of ["write_to_file", "replace_file_content", "multi_replace_file_content"]) {
+    for (const tool of ["write_file", "edit_file", "write_to_file", "replace_file_content", "multi_replace_file_content"]) {
       assert.ok(matches("PreToolUse", tool), tool);
       assert.ok(!matches("PostToolUse", tool), `no PostToolUse hook watches ${tool}`);
     }
@@ -146,6 +146,18 @@ describe("PreToolUse guards the roadmap stores", () => {
     assert.equal(out.decision, "deny");
     assert.match(out.reason, /direct Write of ROADMAP\.jsonl is blocked/);
     assert.match(out.reason, /roadmap\.js/);
+  });
+
+  test("write_file and edit_file, the names current Antigravity sends with Path, are denied too", () => {
+    const write = run("PreToolUse", call("write_file", { Path: inProject("ROADMAP.jsonl"), Content: "{}", Overwrite: true }));
+    assert.equal(write.decision, "deny");
+    assert.match(write.reason, /direct Write of ROADMAP\.jsonl is blocked/);
+    const edit = run("PreToolUse", call("edit_file", { Path: inProject(".foreman", "archive.jsonl"), Target: "a", Replacement: "b" }));
+    assert.equal(edit.decision, "deny");
+    assert.match(edit.reason, /archive\.jsonl/);
+    assert.deepEqual(run("PreToolUse", call("write_file", { Path: inProject("src", "index.js"), Content: "" })), { decision: "allow" });
+    const bare = run("PreToolUse", { ...call("write_file", { Path: inProject("ROADMAP.jsonl") }), workspacePaths: [] });
+    assert.equal(bare.decision, "deny");
   });
 
   test("replace_file_content and multi_replace_file_content are read as edits", () => {

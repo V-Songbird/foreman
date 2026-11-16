@@ -22,11 +22,16 @@ const { spawnSync } = require("child_process");
 const { readInput } = require("./lib");
 const { configPath, readConfigFile, delegatedOrchestrator } = require("../scripts/foreman-config");
 
+// Current Antigravity names the file tools write_file and edit_file and their
+// path Path; the three older names, with TargetFile, stay for older releases.
+const targetOf = (args) => args.TargetFile ?? args.Path;
 const TOOLS = {
   run_command: (args) => ({ tool_name: "Bash", tool_input: { command: args.CommandLine || "" } }),
-  write_to_file: (args) => ({ tool_name: "Write", tool_input: { file_path: args.TargetFile } }),
-  replace_file_content: (args) => ({ tool_name: "Edit", tool_input: { file_path: args.TargetFile } }),
-  multi_replace_file_content: (args) => ({ tool_name: "Edit", tool_input: { file_path: args.TargetFile } }),
+  write_file: (args) => ({ tool_name: "Write", tool_input: { file_path: targetOf(args) } }),
+  edit_file: (args) => ({ tool_name: "Edit", tool_input: { file_path: targetOf(args) } }),
+  write_to_file: (args) => ({ tool_name: "Write", tool_input: { file_path: targetOf(args) } }),
+  replace_file_content: (args) => ({ tool_name: "Edit", tool_input: { file_path: targetOf(args) } }),
+  multi_replace_file_content: (args) => ({ tool_name: "Edit", tool_input: { file_path: targetOf(args) } }),
 };
 
 // Inherited host markers would make lib.js read another session's project or
@@ -39,7 +44,7 @@ function translate(data) {
   const args = call && call.args && typeof call.args === "object" ? call.args : {};
   const absolute = (value) => (typeof value === "string" && path.isAbsolute(value) ? value : null);
   const workspace = Array.isArray(data.workspacePaths) ? absolute(data.workspacePaths[0]) : null;
-  const target = absolute(args.TargetFile);
+  const target = absolute(targetOf(args));
   const translated = call ? (TOOLS[call.name] || ((a) => ({ tool_name: call.name, tool_input: a })))(args) : {};
   return {
     workspace,
