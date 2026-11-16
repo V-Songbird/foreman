@@ -20,20 +20,24 @@
 
 ## What is this?
 
-You finish a session with a fix, a side request and an issue waiting. Next time, which comes first, and why? Foreman keeps that context in a roadmap beside your code.
+Foreman is a plugin for Claude Code, an AI coding assistant. It also runs on Codex and Antigravity, two other coding assistants.
 
-Ask "what's next?" and it recommends a task, its reason and a prompt checked against your files. Finished work brings evidence back. Acceptance stays your decision.
+You finish a session with a fix, a side request and an issue waiting. Next time, which comes first, and why? Foreman keeps that context in a roadmap beside your code.
 
 <p align="center"><img src="assets/mascot.svg" alt="Papers labeled Task #1, Side Request and Issue 104 gather into a plan. Ember answers 'What's next? This one.' and a stamp presses the Foreman seal on it." width="700"></p>
 
-You ask in plain words. Foreman answers with ranked tasks, each with its reason, and one marked recommended. Then it asks where to run your pick. The [recorded demo](#the-numbers) shows one exchange.
+*Ember is the mascot of the Foundry plugins. The scene is an illustration, not a measurement.*
+
+**You ask:** "What's next?"
+
+**You get:** ranked tasks, each with its reason, and one marked recommended. Your pick comes with a prompt checked against your files. Then Foreman asks where to run it.
 
 ## Why you'd want it
 
-- Resume where the last session stopped.
-- Keep each task with its reason and limits.
-- Check stale plans against the code.
-- Keep acceptance apart from a passing test run.
+- **Pick up where you stopped.** The next session starts from the plan.
+- **Tasks keep their reasons.** Each carries its why and its limits.
+- **Stale plans get checked.** Foreman can compare the plan with the code.
+- **You decide what is done.** A passing test run is not acceptance.
 
 ## How it works
 
@@ -48,11 +52,15 @@ Foreman keeps your plan in `ROADMAP.jsonl`, a text file with one task per line. 
 
 A task with committed, checked work waits as `awaiting_acceptance`. Your yes closes it. Passing tests are evidence, not acceptance.
 
-[How Foreman works](docs/knowledge/how-it-works.md) covers the rest, from the prompt check to reviewed increments.
+One task id links the plan to the commit. An illustration, not a measurement:
+
+<p align="center"><img src="assets/hero.svg" alt="One task id, 019, appears at four checkpoints: the roadmap, the decision note, the code anchor and the commit." width="700"></p>
+
+[How Foreman works](docs/knowledge/how-it-works.md) covers the rest.
 
 ## What you can do
 
-| You want to | Outcome |
+| You want to | What you get |
 | --- | --- |
 | Add work to the roadmap | Requested work recorded with its reason and boundaries |
 | See where things stand | Status, blockers and work waiting for acceptance |
@@ -64,9 +72,9 @@ A task with committed, checked work waits as `awaiting_acceptance`. Your yes clo
 
 ### How to ask
 
-Plain sentences work in every assistant: "add this to the roadmap", "where are we?", "what's next?". To call Foreman by name, use the table; [the Codex `$` prefix](docs/knowledge/how-it-works.md#calling-foreman-by-name) has notes.
+Plain sentences work in every assistant: "add this to the roadmap" or "what's next?". To call Foreman by name, use a skill, a command the plugin adds. [Calling Foreman by name](docs/knowledge/how-it-works.md#calling-foreman-by-name) covers the Codex `$` prefix.
 
-| You want to… | Claude Code | Codex | Antigravity |
+| You want to | Claude Code | Codex | Antigravity |
 | --- | --- | --- | --- |
 | Ask in your own words | `/foreman:foreman` | the `foreman` skill, or `$foreman:foreman` in a prompt | `/foreman` |
 | Set up a roadmap for a project (once) | `/foreman:init` | the `init` skill, or `$foreman:init` in a prompt | `/init` |
@@ -78,11 +86,11 @@ Plain sentences work in every assistant: "add this to the roadmap", "where are w
 
 Settings live in `.foreman/config.json`, one file for every host. Init writes it as `{}`, and a missing key means the default. Three are common:
 
-| Setting | What it does |
-| --- | --- |
-| `requireVerification` | `true` (default) holds a committed task at `awaiting_acceptance` until you confirm it. `false` closes it when its commit lands |
-| `discoverySuggestions` | `true` (default) offers work Foreman noticed that the roadmap does not track, and asks before adding anything |
-| `checkpoints` | How a split run saves its work: the base branch, whether to use a branch and what to do at the end |
+| Setting | Values | What it does |
+| --- | --- | --- |
+| `requireVerification` | `true` (default), `false` | `true` holds a committed task at `awaiting_acceptance` until you confirm it. `false` closes it when its commit lands. |
+| `discoverySuggestions` | `true` (default), `false` | `true` offers work Foreman noticed that the roadmap does not track, and asks before adding anything. |
+| `checkpoints` | An object | How a split run saves its work: the base branch, whether to use a branch and what to do at the end. |
 
 [Foreman settings](docs/knowledge/settings.md) lists every setting and variable.
 
@@ -90,71 +98,80 @@ Settings live in `.foreman/config.json`, one file for every host. Init writes it
 
 ### Claude Code
 
-Requirements: Node.js and Git 2.25 or later (tested with Node.js 22), and Claude Code 2.1.323 or later.
+You need Claude Code 2.1.323 or later, Node.js, and Git 2.25 or later. Foreman is tested with Node.js 22.
+
+Inside Claude Code, run:
 
 ```text
 /plugin marketplace add V-Songbird/foundry
 /plugin install foreman@foundry
 ```
 
-Start a new session, then run `/foreman:init` once in the project. When it worked, init creates `ROADMAP.jsonl` and `.foreman/config.json`.
+Then start a new session.
+
+To check that it worked, run `claude plugin list` in a terminal. The list names `foreman`. Then run `/foreman:init` once in the project. Init creates `ROADMAP.jsonl` and `.foreman/config.json`.
 
 ### Codex
 
-Requirements: Node.js and Git 2.25 or later (tested with Node.js 22), and Codex with plugin support.
+You need Codex with plugin support, Node.js, and Git 2.25 or later.
+
+In a terminal, run:
 
 ```text
 codex plugin marketplace add V-Songbird/foundry
 codex plugin add foreman@foundry
 ```
 
-Trust its hooks with `/hooks`; they do nothing until you do. Start a new Codex session. `codex plugin list --marketplace foundry` shows the status. Then ask Foreman to initialize the project, or type `$foreman:init`.
+Trust its hooks with `/hooks`; they do nothing until you do. Then start a new session.
+
+To check that it worked, run `codex plugin list --marketplace foundry`. Then ask Foreman to initialize the project, or type `$foreman:init`.
 
 ### Antigravity
 
-Requirements: Node.js and Git 2.25 or later (tested with Node.js 22), and the Antigravity CLI.
+You need the Antigravity CLI, Node.js, and Git 2.25 or later. Antigravity has no marketplace for third-party plugins, so you install from a copy of the [Foundry repository](https://github.com/V-Songbird/foundry). Replace `<path-to-clone>` with a folder of your choice.
 
-Antigravity has no marketplace for third-party plugins. Install the `foreman` folder of a [foundry](https://github.com/V-Songbird/foundry) clone, pinned at the current release. A direct clone of the foreman repository can hold unreleased work, so do not use it. Replace `<path-to-foundry>` with the clone's directory:
+In a terminal, run:
 
 ```shell
-git clone --recurse-submodules https://github.com/V-Songbird/foundry.git
-agy plugin install "<path-to-foundry>/foreman"
+git clone --recurse-submodules https://github.com/V-Songbird/foundry.git <path-to-clone>
+agy plugin install <path-to-clone>/foreman
 agy plugin list
 ```
 
-The list should name `foreman`. Start a new conversation, then run `/init` once. The install is a copy, so it changes only when you install again.
+Then start a new conversation. The list names `foreman` when it worked. Run `/init` once in the project.
 
 ### Update
 
-Claude Code, then a new session:
+In Claude Code, run these. Then start a new session:
 
 ```text
 /plugin marketplace update foundry
 /plugin update foreman@foundry
 ```
 
-Codex, then a new session. Changed hook registrations stay off until you trust them again in `/hooks`:
+In Codex, run these. Then start a new session. A changed hook stays off until you trust it again in `/hooks`:
 
 ```text
 codex plugin marketplace upgrade
+codex plugin remove foreman@foundry
 codex plugin add foreman@foundry
 ```
 
-Antigravity, then a new conversation:
+In Antigravity, run these. Then start a new conversation:
 
 ```shell
-git -C "<path-to-foundry>" pull
-git -C "<path-to-foundry>" submodule update --init foreman
+git -C <path-to-clone> pull
+git -C <path-to-clone> submodule update --init
 agy plugin uninstall foreman
-agy plugin install "<path-to-foundry>/foreman"
+agy plugin install <path-to-clone>/foreman
 ```
 
 ## Good to know
 
-Foreman is for a solo developer. It is no team tracker, code-review service, unattended scheduler or workflow server. Your project keeps its own data, and Foreman needs no server or account.
-
-| Limit | What it means |
+| Limit | What it means for you |
 | --- | --- |
+| Built for one developer | Foreman is no team tracker, code-review service, unattended scheduler or workflow server. Your project keeps its own data, and Foreman needs no server or account. |
+| Antigravity installs | Install only from a Foundry copy. A direct clone of the Foreman repository can hold unreleased work. The install is a copy, so it changes only when you install again. |
 | Hand edits | A hook stops the assistant's file-editing tools from changing `ROADMAP.jsonl`. A shell command is not stopped on any host. |
 | Cost of a pick | **Fast pick**, the default, reads no code and still adds roughly 9,000 to 11,000 tokens. **Reconcile and pick** reads your code first, so it always costs more. Foreman never starts it on its own. |
 | Switching between assistants | Every assistant reads the same files, so a project can move between them. Update an older install first, and do not reinitialize. |
@@ -166,7 +183,7 @@ Foreman is for a solo developer. It is no team tracker, code-review service, una
 | Codex, unverified | Several Codex paths were never run live, such as a full reviewed-increment handoff, the app on macOS, and Codex on Linux or macOS. |
 | Antigravity | Four actions were checked live in `agy` 1.2.9 on Windows. Other hook behavior rests on the host's documentation and the test suite. |
 
-[Foreman limits](docs/knowledge/limits.md) states each one in full, with the differences between hosts.
+[Foreman limits](docs/knowledge/limits.md) states each one in full.
 
 ### Ids a committed roadmap publishes
 
@@ -177,7 +194,7 @@ Foreman is for a solo developer. It is no team tracker, code-review service, una
 
 ## The numbers
 
-Each result belongs to its named model and run.
+Each figure comes from recorded test sessions. The figures describe those runs, not yours, and results vary between runs.
 
 ### Claude Code results
 
@@ -189,18 +206,14 @@ Each result belongs to its named model and run.
 | Claude Opus 5 | Written task paragraph | 100% | $0.1627 |
 | Claude Opus 5 | Foreman | 100% | $0.1746 |
 
-Measured on 2026-08-29, Foreman tied the well-written paragraph on correctness and cost more: 8.3% on Sonnet and 7.3% on Opus. Neither the sample size nor the Foreman revision was recorded. These are historical comparisons, not a claim about the current release or another model.
+The run is from 2026-08-29. Neither the sample size nor the Foreman revision was recorded. These are historical comparisons, not a claim about the current release or another model.
 
-*Results can vary between runs.*
-
-The task trail is an illustration.
-
-<p align="center"><img src="assets/hero.svg" alt="Nothing gets lost: one task id, 019, appears at four checkpoints, the roadmap, the decision note, the code anchor and the commit, so it can be followed from the roadmap to git history." width="700"></p>
+**Foreman cost more.** It tied on correctness and added 8.3% on Sonnet and 7.3% on Opus.
 
 <details>
-<summary>Watch the Claude Code demo: one real exchange on Claude Opus 5</summary>
+<summary>Watch the recorded demo: one "what's next?" exchange, on Claude Opus 5</summary>
 
-<p align="center"><img src="assets/demo.svg" alt="A recorded session on a small command-line notes tool with three tasks on its roadmap. The user asks what is next, Foreman ranks two tasks with a reason each and recommends saving notes to a file, the user copies the prompt to the clipboard, and a fresh session receives the handoff prompt." width="700"></p>
+<p align="center"><img src="assets/demo.svg" alt="A recorded session. The user asks what is next. Foreman ranks two tasks with a reason each and recommends one. The user copies the prompt, and a fresh session receives it." width="700"></p>
 
 </details>
 
@@ -209,10 +222,9 @@ The task trail is an illustration.
 <!-- foundry:evidence {"platform":"Codex","status":"pending","source":"docs/knowledge/benchmarks.md","reason":"Functional Codex validation exists; equivalent paired performance measurements are not available."} -->
 | Model | Setup | Correct tasks | Mean session cost |
 | --- | --- | --- | --- |
-| Not measured | Without plugin | Not measured | Not measured |
-| Not measured | foreman | Not measured | Not measured |
+| Not measured | Not measured | Not measured | Not measured |
 
-Codex functional tests establish specific behaviors, not a speed, cost or correctness advantage. Comparative performance is unmeasured, and no Claude Code result stands in for it.
+No Codex session has been measured yet. Codex functional tests establish specific behaviors, not a speed, cost or correctness advantage. No Claude Code result stands in for it.
 
 ### Antigravity results
 
@@ -221,15 +233,17 @@ Codex functional tests establish specific behaviors, not a speed, cost or correc
 | --- | --- | --- | --- |
 | Not measured | Not measured | Not measured | Not measured |
 
+No Antigravity session has been measured yet.
+
 [Foreman benchmarks](docs/knowledge/benchmarks.md) holds each figure's limits.
 
 ## Going deeper
 
 [How Foreman works](docs/knowledge/how-it-works.md) · [Foreman settings](docs/knowledge/settings.md) · [Foreman limits](docs/knowledge/limits.md) · [Foreman benchmarks](docs/knowledge/benchmarks.md)
 
-Release notes are on the [Foreman releases page](https://github.com/V-Songbird/foreman/releases).
+Release notes are on the [Foreman releases page](https://github.com/V-Songbird/foreman/releases). [Foundry](https://github.com/V-Songbird/foundry) lists the whole family.
 
-Report a vulnerability as [SECURITY.md](SECURITY.md) says. To change Foreman, read [CONTRIBUTING.md](CONTRIBUTING.md).
+Report a bug or ask a question on [Foreman's issue tracker](https://github.com/V-Songbird/foreman/issues). Report a vulnerability as [SECURITY.md](SECURITY.md) says. To change Foreman, read [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
