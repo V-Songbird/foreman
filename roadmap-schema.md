@@ -144,7 +144,7 @@ occupies one entry. `reviewEachIncrement`, verification rows and
 roadmap fields or project settings. Result evidence, limits, decisions and
 references are recorded as short append-only `notes` through `annotate`; there
 is no separate increment store and no stored per-row status. See
-[review between increments](README.md#review-between-increments).
+[review between increments](docs/knowledge/how-it-works.md#review-between-increments).
 
 **Prefixes in `notes`.** Some note lines start with a prefix that organizes the
 prose. `accepted:` records a reviewed result the user accepted; `unverified:`

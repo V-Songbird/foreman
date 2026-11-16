@@ -29,8 +29,11 @@ hooks.json               # Antigravity hook wiring, keyed by the plugin name
     └── test.yml         # CI: runs the test suite
 SECURITY.md             # how to report a vulnerability
 LICENSE                  # MIT
-assets/                  # the icons the Codex and Antigravity manifests name
-README.md                # one README for every host, settings included
+assets/                  # the README art (banners, host cards, Ember scene,
+                         # hero, demo) and the icons the manifests name
+docs/
+└── knowledge/           # how-it-works.md, settings.md, benchmarks.md
+README.md                # one README for every host, the front page
 roadmap-schema.md        # ROADMAP.jsonl and .foreman/ file reference
 prompt-template.md       # the one handoff template; host-tuned blocks
                          # carry host="claude" or host="codex"
@@ -54,7 +57,7 @@ scripts/                 # dependency-free Node.js CLIs; runtime.js detects the 
 tests/                   # behavioral tests for the three hosts
 ```
 
-The repository holds only what the plugin uses at run time, plus its tests, CI and these project files. Foreman keeps one README for every host: its shared sections read the same for everyone, and host differences sit in the How to ask table, one Install subsection per host, the Differences between hosts table and one results table per host under The numbers.
+The repository holds what the plugin uses at run time, its tests, CI and these project files, plus the README art in `assets/` and the detail pages in `docs/knowledge/`. Foreman keeps one README for every host: its shared sections read the same for everyone, and host differences sit in the How to ask table, one Install subsection per host, the Differences between hosts table and one results table per host under The numbers. The pages in `docs/knowledge/` hold the detail the README links.
 
 ---
 
@@ -102,7 +105,7 @@ Installed-host smoke tests complement the local hook fixtures; report which one 
 
 This tries the Codex reviewed-increment workflow from this checkout, without installing anything, editing a marketplace or publishing.
 
-1. Read the [workflow](README.md#review-between-increments). Save this payload, which asks for one reviewed documentation result with no roadmap entry behind it, as a UTF-8 file in a temporary location. Its `"host": "codex"` makes the builder write the Codex form of the prompt even outside Codex. One `judgment.verification` row is one increment; a row needs at least one complete pair, `run` with `expected` or `review.action` with `review.expected`, and in a reviewed run every row needs `review`.
+1. Read the [workflow](docs/knowledge/how-it-works.md#review-between-increments). Save this payload, which asks for one reviewed documentation result with no roadmap entry behind it, as a UTF-8 file in a temporary location. Its `"host": "codex"` makes the builder write the Codex form of the prompt even outside Codex. One `judgment.verification` row is one increment; a row needs at least one complete pair, `run` with `expected` or `review.action` with `review.expected`, and in a reviewed run every row needs `review`.
 
    ```json
    {
