@@ -9,6 +9,7 @@
   },
   "homepage": "https://github.com/V-Songbird/foreman",
   "repository": "https://github.com/V-Songbird/foreman",
+  "icon": "./assets/icon-on-light.png",
   "types": "./types/index.d.ts",
   "keywords": ["roadmap", "planning", "project-continuity", "task-selection", "handoff", "background-agent", "automation"]
 }
