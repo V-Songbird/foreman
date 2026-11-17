@@ -1,7 +1,7 @@
 ---
 name: foreman
-description: "The one entrance to Foreman, which keeps a project's plan and task history. Say what you want in plain language and this routes it to one of the six things Foreman does to a project: add work, show status, correct work, check the roadmap, pick work, or reconcile and pick. It owns no flow of its own. Use for Foreman or roadmap requests, not ordinary implementation work."
-when_to_use: "Trigger on any plain-language Foreman request that does not already name a command — \"what should I work on\", \"add this to the roadmap\", \"where does the project stand\", \"that entry's description is wrong\", \"my roadmap is broken\", \"is the roadmap file healthy\", \"check the roadmap's still right and then give me something\", \"foreman\" on its own, or invokes /foreman:foreman. Skip it when the user named the specialized skill they want (/foreman:roadmap, /foreman:survey, /foreman:init, /foreman:craft-prompt) — go straight there."
+description: "The one entrance to Foreman, which keeps a project's plan and task history. Routes a plain-language request to add work, show status, correct work, check the roadmap, pick work, or reconcile and pick. Use for Foreman or roadmap requests, not ordinary implementation work."
+when_to_use: "Trigger on a Foreman request that names no command: \"what should I work on\", \"add this to the roadmap\", \"where does the project stand\", \"that entry's description is wrong\", \"my roadmap is broken\", \"is the roadmap file healthy\", \"check the roadmap's still right and then give me something\", \"foreman\" alone, or /foreman:foreman. When the user names another foreman skill, go straight there."
 argument-hint: "<what you want, in plain language>"
 allowed-tools: AskUserQuestion, Skill, Read
 ---
