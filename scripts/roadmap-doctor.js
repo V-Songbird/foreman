@@ -726,6 +726,37 @@ function hookDependencies() {
   ];
 }
 
+// The roadmap pane (hooks/register.tsx, READ_MAX) cannot show a ROADMAP.jsonl
+// over 4 MiB: the host caps what a mod may read. Past that the pane shows only
+// an error, so doctor warns at three quarters of it, while archiving the
+// finished tasks is still a calm choice rather than a repair.
+const PANE_READ_MAX = 4 * 1024 * 1024;
+const SIZE_WARN_AT = PANE_READ_MAX * 0.75;
+
+function validateSize(file) {
+  let size;
+  try {
+    size = fs.statSync(file).size;
+  } catch {
+    return [];
+  }
+  if (size < SIZE_WARN_AT) return [];
+  const mib = (size / (1024 * 1024)).toFixed(1);
+  const state = size > PANE_READ_MAX
+    ? "is over the 4 MiB the roadmap pane in Claude Code can show, so the pane shows an error instead of the tasks"
+    : "is close to the 4 MiB the roadmap pane in Claude Code can show";
+  return [
+    finding(
+      "roadmap_size",
+      "warning",
+      [],
+      `ROADMAP.jsonl is ${mib} MiB, which ${state}. Archive the finished tasks to shrink it; `
+        + "archived tasks keep their history and still resolve as dependencies.",
+      { bytes: size, limit_bytes: PANE_READ_MAX }
+    ),
+  ];
+}
+
 function summarize(findings) {
   return {
     ok: !findings.some((item) => item.severity === "error"),
@@ -739,6 +770,7 @@ function summarize(findings) {
 
 module.exports = {
   hookDependencies,
+  validateSize,
   validateEntries,
   validateHiddenCharacters,
   hiddenIn,

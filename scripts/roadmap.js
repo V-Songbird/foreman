@@ -25,6 +25,7 @@ const {
   enrichDuplicates,
   validateConfig,
   hookDependencies,
+  validateSize,
   applyRepairs,
   summarize,
 } = require("./roadmap-doctor");
@@ -2753,6 +2754,7 @@ function allFindings(root) {
     })),
     ...validateAcrossFiles(active, archived, archivedAt),
     ...validateConfig(root),
+    ...validateSize(roadmapPath(root)),
     ...hookDependencies(),
   ], active, archived);
 }
