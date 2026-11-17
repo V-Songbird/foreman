@@ -44,7 +44,7 @@ A hook stops the assistant's file-editing tools from changing the file directly.
 
 ## Two ways to get a task
 
-- **Fast pick** is the default. Foreman sorts the roadmap it already has and recommends one task. It reads no code. Its own instructions still add roughly 9,000 to 11,000 tokens to the session, depending on the host.
+- **Fast pick** is the default. Foreman sorts the roadmap it already has and recommends one task. It reads no code. Its own instructions still add roughly 10,000 to 16,000 tokens to the session, depending on the host.
 - **Reconcile and pick** reads your code first, finds where the plan has gone stale, and offers you each fix before recommending anything. It does everything Fast pick does and reads code on top, so it always costs more. Foreman never starts it on its own; you have to ask.
 
 ## The prompt is checked before you see it
@@ -111,7 +111,7 @@ The pane only reads the file; it never writes it. A card's **Resume**, **Accept*
 
 **To prompt** puts the same sentence in the prompt box instead, ahead of anything you already typed, so you can add a hint before sending.
 
-The pane speaks Spanish when Claude Code's `language` setting names Spanish. A roadmap over 4 MiB is not shown; ask Foreman to archive the finished tasks. If a line of `ROADMAP.jsonl` cannot be read, the pane says so instead of listing the rest.
+The pane speaks Spanish when Claude Code's `language` setting names Spanish. A roadmap over 4 MiB is not shown; ask Foreman to archive the finished tasks. The roadmap check warns once the file reaches 3 MiB. If a line of `ROADMAP.jsonl` cannot be read, the pane says so instead of listing the rest.
 
 ## Review between increments
 

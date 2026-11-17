@@ -145,6 +145,30 @@ describe('doctor on a healthy roadmap', () => {
     assert.equal(json.summary.errors, 1);
   });
 
+  // The roadmap pane cannot read a file over 4 MiB, and nothing else says so
+  // before the pane goes dark, so doctor warns at three quarters of that.
+  test('a roadmap near the pane limit warns, and one past it says the pane is dark', () => {
+    const { validateSize } = require(path.join(SCRIPTS_DIR, 'roadmap-doctor.js'));
+    const file = path.join(project, 'ROADMAP.jsonl');
+    const sized = (bytes) => {
+      fs.writeFileSync(file, 'x'.repeat(bytes));
+      return validateSize(file);
+    };
+    assert.deepEqual(sized(3 * 1024 * 1024 - 1), []);
+    const [near] = sized(3 * 1024 * 1024);
+    assert.equal(near.code, 'roadmap_size');
+    assert.equal(near.severity, 'warning');
+    assert.match(near.message, /3\.0 MiB, which is close to/);
+    const [over] = sized(4 * 1024 * 1024 + 1);
+    assert.match(over.message, /shows an error instead of the tasks/);
+    assert.deepEqual(validateSize(path.join(project, 'missing.jsonl')), []);
+
+    writeRoadmap(project, [base('001', { notes: 'n'.repeat(3 * 1024 * 1024) })]);
+    const report = doctor();
+    assertFinding(report, 'roadmap_size', 'warning');
+    assert.equal(report.ok, true);
+  });
+
   // Each host registers its own events, and a host that stops delivering one
   // leaves Foreman quiet rather than failing, so the disclosure must name
   // exactly what each registration file carries.

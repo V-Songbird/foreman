@@ -46,6 +46,9 @@ selects work.
      `observed_touches`/`commits`/`notes`), a self-dependency, or a
      repeated dependency (`repairable: true`) → offer
      `roadmap.js doctor --fix`, which applies only those mechanical repairs
+   - a `ROADMAP.jsonl` near or past the 4 MiB the roadmap pane can show
+     (`roadmap_size`) → offer to archive the finished tasks, the
+     archive-finished-work step in [menu.md](menu.md)
    - anything else — an unrecognized `source`, a bad date, two entries that
      just read alike (`similar_titles`) or a `.foreman/config.json` finding —
      has no `roadmap.js` repair command; say so, name the

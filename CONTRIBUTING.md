@@ -10,7 +10,7 @@ Foreman is one package for three hosts — the assistants it runs inside, Claude
 
 - Check existing issues first — the problem may already be tracked or intentionally deferred.
 - For substantial changes (new skills, significant refactors), open an issue first to align on direction before writing code.
-- Branch from `main` and open the pull request against `main`, the package branch. The separate Claude Code and Codex releases ended with 2.7.0 and 3.0.4-codex.1.
+- Branch from `main` and open the pull request against `main`, the package branch.
 
 ---
 
@@ -32,7 +32,7 @@ LICENSE                  # MIT
 assets/                  # the README art (banners, host cards, Ember scene,
                          # hero, demo) and the icons the manifests name
 docs/
-└── knowledge/           # how-it-works.md, settings.md, benchmarks.md
+└── knowledge/           # how-it-works.md, settings.md, limits.md, benchmarks.md
 README.md                # one README for every host, the front page
 roadmap-schema.md        # ROADMAP.jsonl and .foreman/ file reference
 prompt-template.md       # the one handoff template; host-tuned blocks
@@ -57,7 +57,7 @@ scripts/                 # dependency-free Node.js CLIs; runtime.js detects the 
 tests/                   # behavioral tests for the three hosts
 ```
 
-The repository holds what the plugin uses at run time, its tests, CI and these project files, plus the README art in `assets/` and the detail pages in `docs/knowledge/`. Foreman keeps one README for every host: its shared sections read the same for everyone, and host differences sit in the How to ask table, one Install subsection per host, the Differences between hosts table and one results table per host under The numbers. The pages in `docs/knowledge/` hold the detail the README links.
+The repository holds what the plugin uses at run time, its tests, CI and these project files, plus the README art in `assets/` and the detail pages in `docs/knowledge/`. Foreman keeps one README for every host: its shared sections read the same for everyone, and host differences sit in the How to ask table, one Install subsection per host, the Good to know table and one results table per host under The numbers. The pages in `docs/knowledge/` hold the detail the README links.
 
 ---
 
