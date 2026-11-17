@@ -173,8 +173,8 @@ agy plugin install <path-to-clone>/foreman
 | Built for one developer | Foreman is no team tracker, code-review service, unattended scheduler or workflow server. Your project keeps its own data, and Foreman needs no server or account. |
 | Antigravity installs | Install only from a Foundry copy. A direct clone of the Foreman repository can hold unreleased work. The install is a copy, so it changes only when you install again. |
 | Hand edits | A hook stops the assistant's file-editing tools from changing `ROADMAP.jsonl`. A shell command is not stopped on any host. |
-| Cost of a pick | **Fast pick**, the default, reads no code and still adds roughly 9,000 to 11,000 tokens. **Reconcile and pick** reads your code first, so it always costs more. Foreman never starts it on its own. |
-| Switching between assistants | Every assistant reads the same files, so a project can move between them. Update an older install first, and do not reinitialize. |
+| Cost of a pick | **Fast pick**, the default, reads no code and still adds roughly 10,000 to 16,000 tokens, depending on the host. **Reconcile and pick** reads your code first, so it always costs more. Foreman never starts it on its own. |
+| Switching between assistants | Every assistant reads the same files, so a project can move between them. Keep the files as they are and do not reinitialize. |
 | Copied prompts | A prompt carries the script paths of the install that crafted it. Craft it again in another assistant. |
 | Prompt file left behind | A copied prompt's file can stay in the project's `tmp/` folder. Move it out before a task runs. |
 | Hosts differ | Each host offers different events and tools. The task-end reminder and the roadmap pane do not exist on every host. |
@@ -206,7 +206,7 @@ Each figure comes from recorded test sessions. The figures describe those runs, 
 | Claude Opus 5 | Written task paragraph | 100% | $0.1627 |
 | Claude Opus 5 | Foreman | 100% | $0.1746 |
 
-The run is from 2026-08-29. Neither the sample size nor the Foreman revision was recorded. These are historical comparisons, not a claim about the current release or another model.
+The run is from 2026-08-29. Neither the sample size nor the Foreman revision was recorded. The figures describe that run only. They are not a claim about the current release or another model, and the current release has no separate measurement.
 
 **Foreman cost more.** It tied on correctness and added 8.3% on Sonnet and 7.3% on Opus.
 

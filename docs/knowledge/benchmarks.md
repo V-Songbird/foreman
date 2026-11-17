@@ -31,7 +31,7 @@ The run compared Foreman with a well-written task paragraph on Claude Sonnet 5 a
 | Claude Opus 5 | Written task paragraph | 100% | $0.1627 |
 | Claude Opus 5 | Foreman | 100% | $0.1746 |
 
-Foreman tied the well-written paragraph on correctness and cost more: 8.3% on Sonnet and 7.3% on Opus. These are historical comparisons, not a claim about the current release or another model.
+Foreman tied the well-written paragraph on correctness and cost more: 8.3% on Sonnet and 7.3% on Opus. The figures describe that run only. They are not a claim about the current release or another model, and the current release has no separate measurement.
 
 *Results can vary between runs.*
 
