@@ -35,14 +35,17 @@ const { readInput, hostName } = require("./lib");
 
 const WATCHED_TOOLS = new Set(["Bash", "PowerShell"]);
 
-// The scripts a crafting flow runs before it asks the destination question:
-// `roadmap.js` (pick's `step pick` calls, which report the selected entry
-// before Q2), `resolve-symbols.js`
-// (craft-prompt's pre-question read), and `safe-commit.js` (the tree probe the
-// destination question itself takes before offering the split). Anything else
-// — including `craft-handoff.js`, which runs *after* the answer — is past the
+// The calls a crafting flow makes before it asks the destination question:
+// `roadmap.js step pick` (pick's steps, which report the selected entry
+// before Q2), `resolve-symbols.js` (craft-prompt's pre-question read), and
+// `safe-commit.js begin` (the tree probe the destination question itself takes
+// before offering the split). Only those subcommands: `roadmap.js annotate`,
+// `update-status`, `add`, `check-duplicate`, `list` and the rest run outside
+// any pick, where a repeated reading only reads as a warning. Anything else —
+// including `craft-handoff.js`, which runs *after* the answer — is past the
 // moment this number could change and is not worth a line.
-const PRE_QUESTION_SCRIPT = /scripts[\\/](roadmap|resolve-symbols|safe-commit)\.js/;
+const PRE_QUESTION_SCRIPT =
+  /scripts[\\/](?:resolve-symbols\.js|safe-commit\.js["']?\s+begin\b|roadmap\.js["']?\s+step\s+pick\b)/;
 
 // The share of the window at which executing in this session stops being the
 // obvious default. Deliberately not configurable: the window size underneath
@@ -149,7 +152,9 @@ function message(reading) {
     `If you reach "How do you want to run this?" this turn, apply the high-context ` +
     `rule in skills/roadmap/destination-question.md; in a roadmap pick, pass ` +
     `--context-high to roadmap.js step pick. This is a reading, not an ` +
-    `instruction to the user — never quote the number at them unless they ask.`
+    `instruction to the user — never quote the number at them unless they ask. ` +
+    `Outside that question it is no reason to stop, warn about context or ` +
+    `hand the work to a new session.`
   );
 }
 

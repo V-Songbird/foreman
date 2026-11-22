@@ -68,18 +68,35 @@ function payload(command, transcriptPath, tool) {
   };
 }
 
+// The call that leads every end-to-end case that should speak.
+const STEP_PICK = 'node "/p/foreman/scripts/roadmap.js" step pick';
+
 describe('context-fill — the command filter', () => {
-  test('matches the scripts a flow runs before the destination question', () => {
-    for (const script of ['roadmap.js', 'resolve-symbols.js', 'safe-commit.js']) {
-      assert.ok(
-        PRE_QUESTION_SCRIPT.test(`node "/plugins/foreman/scripts/${script}" next-candidates --menu`),
-        `${script} should match`
-      );
+  test('matches the calls a flow makes before the destination question', () => {
+    for (const command of [
+      'node "/plugins/foreman/scripts/roadmap.js" step pick',
+      "node '/plugins/foreman/scripts/roadmap.js' step pick --chose 12 --after q1",
+      'node /plugins/foreman/scripts/roadmap.js step pick --entry 12 --checks 2',
+      'node "/plugins/foreman/scripts/resolve-symbols.js" --json',
+      'node "/plugins/foreman/scripts/safe-commit.js" begin',
+    ]) {
+      assert.ok(PRE_QUESTION_SCRIPT.test(command), `${command} should match`);
     }
   });
 
+  // [Foreman: 1292] The reading fed nothing after these, and a repeated one
+  // read as a warning that pushed work out of the session.
+  test('does not match roadmap.js or safe-commit.js calls made outside a pick', () => {
+    for (const sub of ['annotate', 'update-status', 'add', 'check-duplicate', 'accept', 'list --ids 001',
+      'next-candidates --menu', 'correct', 'doctor', 'step', '--help']) {
+      const command = `node "/plugins/foreman/scripts/roadmap.js" ${sub}`;
+      assert.equal(PRE_QUESTION_SCRIPT.test(command), false, `${command} should not match`);
+    }
+    assert.equal(PRE_QUESTION_SCRIPT.test('node "/plugins/foreman/scripts/safe-commit.js" finish --baseline abc'), false);
+  });
+
   test('matches a Windows backslash plugin path', () => {
-    assert.ok(PRE_QUESTION_SCRIPT.test('node "C:\\plugins\\foreman\\scripts\\roadmap.js" list --ids 001'));
+    assert.ok(PRE_QUESTION_SCRIPT.test("node 'C:\\plugins\\foreman\\scripts\\roadmap.js' step pick --hint x"));
   });
 
   test('does not match craft-handoff.js — that call is past the question', () => {
@@ -180,7 +197,7 @@ describe('context-fill — the threshold decision', () => {
 describe('context-fill — end to end', () => {
   test('emits additionalContext above the line', () => {
     const file = writeTranscript([assistant({ input_tokens: OVER })]);
-    const res = runScriptRaw('context-fill.js', payload('node "/p/foreman/scripts/roadmap.js" next-candidates --menu', file), windowEnv());
+    const res = runScriptRaw('context-fill.js', payload(STEP_PICK, file), windowEnv());
     assert.equal(res.status, 0);
     const out = JSON.parse(res.stdout);
     assert.equal(out.hookSpecificOutput.hookEventName, 'PostToolUse');
@@ -189,15 +206,34 @@ describe('context-fill — end to end', () => {
 
   test('silent with no configured window, however full the session is', () => {
     const file = writeTranscript([assistant({ input_tokens: OVER })]);
-    const res = runScriptRaw('context-fill.js', payload('node "/p/foreman/scripts/roadmap.js" next-candidates --menu', file), noWindowEnv());
+    const res = runScriptRaw('context-fill.js', payload(STEP_PICK, file), noWindowEnv());
     assert.equal(res.status, 0);
     assert.equal(res.stdout.trim(), '');
   });
 
   test('silent below the line', () => {
     const file = writeTranscript([assistant({ input_tokens: UNDER })]);
-    const res = runScriptRaw('context-fill.js', payload('node "/p/foreman/scripts/roadmap.js" next-candidates --menu', file), windowEnv());
+    const res = runScriptRaw('context-fill.js', payload(STEP_PICK, file), windowEnv());
     assert.equal(res.stdout.trim(), '');
+  });
+
+  // [Foreman: 1292] Above the line, with a window set: the case that leaked.
+  test('silent after roadmap.js calls made outside a pick, however full the session is', () => {
+    const file = writeTranscript([assistant({ input_tokens: OVER })]);
+    for (const sub of ['annotate', 'update-status', 'add', 'check-duplicate', 'accept']) {
+      for (const tool of ['Bash', 'PowerShell']) {
+        const res = runScriptRaw('context-fill.js', payload(`node "/p/foreman/scripts/roadmap.js" ${sub}`, file, tool), windowEnv());
+        assert.equal(res.status, 0);
+        assert.equal(res.stdout.trim(), '', `${tool} ${sub}`);
+      }
+    }
+  });
+
+  test('the message says the reading is no reason to stop or hand off elsewhere', () => {
+    const file = writeTranscript([assistant({ input_tokens: OVER })]);
+    const res = runScriptRaw('context-fill.js', payload(STEP_PICK, file, 'PowerShell'), windowEnv());
+    const text = JSON.parse(res.stdout).hookSpecificOutput.additionalContext;
+    assert.match(text, /Outside that question it is no reason to stop/);
   });
 
   test('silent on a command that is not a pre-question script', () => {
@@ -208,12 +244,12 @@ describe('context-fill — end to end', () => {
 
   test('silent on a tool this hook does not watch', () => {
     const file = writeTranscript([assistant({ input_tokens: OVER })]);
-    const res = runScriptRaw('context-fill.js', payload('node "/p/foreman/scripts/roadmap.js" list', file, 'Read'), windowEnv());
+    const res = runScriptRaw('context-fill.js', payload(STEP_PICK, file, 'Read'), windowEnv());
     assert.equal(res.stdout.trim(), '');
   });
 
   test('silent, and still exits clean, with no transcript to read', () => {
-    const res = runScriptRaw('context-fill.js', payload('node "/p/foreman/scripts/roadmap.js" list', undefined), windowEnv());
+    const res = runScriptRaw('context-fill.js', payload(STEP_PICK, undefined), windowEnv());
     assert.equal(res.status, 0);
     assert.equal(res.stdout.trim(), '');
   });
@@ -245,7 +281,7 @@ describe('context-fill — end to end', () => {
     const file = writeTranscript([assistant({ input_tokens: OVER })]);
     const res = runScriptRaw(
       'context-fill.js',
-      payload('node "/p/foreman/scripts/roadmap.js" next-candidates --menu', file),
+      payload(STEP_PICK, file),
       { ...windowEnv(), FOREMAN_HOST: 'codex' }
     );
     assert.equal(res.status, 0);
@@ -257,7 +293,7 @@ describe('context-fill — end to end', () => {
     for (const marker of [{ model: 'codex-test' }, { turn_id: 'turn' }]) {
       const res = runScriptRaw(
         'context-fill.js',
-        { ...payload('node "/p/foreman/scripts/roadmap.js" next-candidates --menu', file), ...marker },
+        { ...payload(STEP_PICK, file), ...marker },
         windowEnv()
       );
       assert.equal(res.status, 0);
