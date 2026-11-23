@@ -10,8 +10,7 @@
 //   - sidechain records (a subagent's own window) are skipped
 //   - torn lines, a missing transcript, an empty one -> null, never a throw
 //   - the threshold decision against a configured compaction point
-//   - no configured window is silence: the share is unknowable, so nothing
-//     is claimed about it
+//   - the window comes from the env var, then settings.json, else 1,000,000
 //   - end to end: emits above the line, silent below it, and silent on the
 //     Codex host or a Codex payload (model, turn_id) however full the session
 //   - the wiring: hooks.json runs it on the same matcher as post-commit, and
@@ -27,7 +26,7 @@ const path = require('path');
 const { runScriptRaw } = require('./helpers');
 
 const hook = require(path.join(__dirname, '..', 'hooks', 'context-fill.js'));
-const { CONTEXT_SHARE, PRE_QUESTION_SCRIPT, assess, currentTokens, message } = hook;
+const { CONTEXT_SHARE, DEFAULT_WINDOW, PRE_QUESTION_SCRIPT, assess, currentTokens, message } = hook;
 
 // A compaction point to measure against, and two occupancies over and under
 // the line for it, with room to spare either way.
@@ -48,6 +47,13 @@ function writeTranscript(records) {
 
 function assistant(usage, extra) {
   return { type: 'assistant', message: { usage }, ...(extra || {}) };
+}
+
+/** An env whose settings.json holds the given text, with no env-var window. */
+function settingsEnv(text) {
+  const dir = tmpDir();
+  fs.writeFileSync(path.join(dir, 'settings.json'), text, 'utf-8');
+  return { CLAUDE_CONFIG_DIR: dir, CLAUDE_CODE_AUTO_COMPACT_WINDOW: '' };
 }
 
 /** An env that guarantees no window is configured, whatever the host has set. */
@@ -165,15 +171,14 @@ describe('context-fill — the threshold decision', () => {
   });
 
   test('the same occupancy reads differently against a different window', () => {
-    // Over the line against 200k, comfortably under it against 1M — which is
-    // exactly why an unconfigured window may not be guessed at.
+    // Over the line against 200k, comfortably under it against 1M.
     assert.equal(assess(OVER, 1000000), null);
     const reading = assess(OVER, 100000);
     assert.ok(reading);
     assert.equal(reading.window, 100000);
   });
 
-  test('no configured window is silence, however full the session is', () => {
+  test('a missing window passed to assess is silence', () => {
     for (const window of [null, undefined, 0]) {
       assert.equal(assess(OVER, window), null);
       assert.equal(assess(999999, window), null);
@@ -204,11 +209,41 @@ describe('context-fill — end to end', () => {
     assert.match(out.hookSpecificOutput.additionalContext, /\[Foreman\] Context reading/);
   });
 
-  test('silent with no configured window, however full the session is', () => {
-    const file = writeTranscript([assistant({ input_tokens: OVER })]);
+  // [Foreman: 1302] The limit comes from settings, else 1,000,000 tokens.
+  test('with no configured window, measures against the 1,000,000 default', () => {
+    assert.equal(DEFAULT_WINDOW, 1000000);
+    const file = writeTranscript([assistant({ input_tokens: 260000 })]);
+    const res = runScriptRaw('context-fill.js', payload(STEP_PICK, file), noWindowEnv());
+    assert.equal(res.status, 0);
+    const text = JSON.parse(res.stdout).hookSpecificOutput.additionalContext;
+    assert.match(text, /about 26% full/);
+    assert.match(text, /1,000,000-token compaction point/);
+  });
+
+  test('a fresh session of 112,000 tokens with no window stays under the line', () => {
+    const file = writeTranscript([assistant({ input_tokens: 112000 })]);
     const res = runScriptRaw('context-fill.js', payload(STEP_PICK, file), noWindowEnv());
     assert.equal(res.status, 0);
     assert.equal(res.stdout.trim(), '');
+  });
+
+  test('autoCompactWindow in settings.json sets the limit', () => {
+    const file = writeTranscript([assistant({ input_tokens: 112000 })]);
+    const res = runScriptRaw('context-fill.js', payload(STEP_PICK, file),
+      settingsEnv(JSON.stringify({ autoCompactWindow: 350000 })));
+    assert.equal(res.status, 0);
+    const text = JSON.parse(res.stdout).hookSpecificOutput.additionalContext;
+    assert.match(text, /about 32% full/);
+    assert.match(text, /350,000-token compaction point/);
+  });
+
+  test('an invalid or unreadable setting falls back to the default', () => {
+    const file = writeTranscript([assistant({ input_tokens: 260000 })]);
+    for (const text of ['{"autoCompactWindow":5}', '{"autoCompactWindow":2000000}', '{"autoCompactWindow":"x"}', 'null', 'not json']) {
+      const res = runScriptRaw('context-fill.js', payload(STEP_PICK, file), settingsEnv(text));
+      assert.equal(res.status, 0, text);
+      assert.match(JSON.parse(res.stdout).hookSpecificOutput.additionalContext, /1,000,000-token compaction point/, text);
+    }
   });
 
   test('silent below the line', () => {
