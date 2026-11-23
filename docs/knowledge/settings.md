@@ -42,7 +42,7 @@ Three switches live outside the settings file:
 | --- | --- | --- |
 | `FOREMAN_PROJECT_DIR` environment variable | A folder | Names the project root, the folder that holds `ROADMAP.jsonl`, and wins over everything else. Without it, hooks use the project their host reports and a script you run uses the host's project variable or the current folder |
 | `FOREMAN_HOST` environment variable | `claude`, `codex` or `antigravity` | Tells Foreman which host it runs in. Without it, Foreman reads each host's own environment variables, and a script run by hand in a terminal counts as Claude Code |
-| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` environment variable, or `autoCompactWindow` in your Claude Code `settings.json` | 100000 to 1000000 tokens | The point your Claude Code session compacts at. With it, "How do you want to run this?" can steer a filling session to the clipboard; without it, the question says nothing about context |
+| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` environment variable, or `autoCompactWindow` in your Claude Code `settings.json` | 100000 to 1000000 tokens | The point your Claude Code session compacts at. "How do you want to run this?" can steer a session past 25% of it to the clipboard. Without a valid value, Foreman measures against 1000000 tokens |
 
 ## Keys Foreman does not know
 

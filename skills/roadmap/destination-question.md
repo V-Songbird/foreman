@@ -83,8 +83,8 @@ option's label — never to two:
 
 1. **A context reading arrived this turn** saying this session is at or
    above Foreman's line. Only a current, reliable reading counts: in Claude
-   Code, Foreman's own `PostToolUse` hook emits it before this question when a
-   compaction window is configured; Codex and Antigravity supply none today. No reading at
+   Code, Foreman's own `PostToolUse` hook emits it before this question, against
+   the configured compaction window or 1,000,000 tokens; Codex and Antigravity supply none today. No reading at
    all means this rule does not hold, not that it fails — unknown context is
    unknown, so never infer a percentage from transcript length, model name, or
    another host's configuration. Recommend `Copy prompt to clipboard`. A

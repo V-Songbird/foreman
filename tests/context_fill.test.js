@@ -10,8 +10,7 @@
 //   - sidechain records (a subagent's own window) are skipped
 //   - torn lines, a missing transcript, an empty one -> null, never a throw
 //   - the threshold decision against a configured compaction point
-//   - no configured window is silence: the share is unknowable, so nothing
-//     is claimed about it
+//   - the window comes from the env var, then settings.json, else 1,000,000
 //   - end to end: emits above the line, silent below it, and silent on the
 //     Codex host or a Codex payload (model, turn_id) however full the session
 //   - the wiring: hooks.json runs it on the same matcher as post-commit, and
@@ -27,7 +26,7 @@ const path = require('path');
 const { runScriptRaw } = require('./helpers');
 
 const hook = require(path.join(__dirname, '..', 'hooks', 'context-fill.js'));
-const { CONTEXT_SHARE, PRE_QUESTION_SCRIPT, assess, currentTokens, message } = hook;
+const { CONTEXT_SHARE, DEFAULT_WINDOW, PRE_QUESTION_SCRIPT, assess, currentTokens, message } = hook;
 
 // A compaction point to measure against, and two occupancies over and under
 // the line for it, with room to spare either way.
@@ -50,6 +49,13 @@ function assistant(usage, extra) {
   return { type: 'assistant', message: { usage }, ...(extra || {}) };
 }
 
+/** An env whose settings.json holds the given text, with no env-var window. */
+function settingsEnv(text) {
+  const dir = tmpDir();
+  fs.writeFileSync(path.join(dir, 'settings.json'), text, 'utf-8');
+  return { CLAUDE_CONFIG_DIR: dir, CLAUDE_CODE_AUTO_COMPACT_WINDOW: '' };
+}
+
 /** An env that guarantees no window is configured, whatever the host has set. */
 function noWindowEnv() {
   return { CLAUDE_CONFIG_DIR: tmpDir(), CLAUDE_CODE_AUTO_COMPACT_WINDOW: '' };
@@ -68,18 +74,35 @@ function payload(command, transcriptPath, tool) {
   };
 }
 
+// The call that leads every end-to-end case that should speak.
+const STEP_PICK = 'node "/p/foreman/scripts/roadmap.js" step pick';
+
 describe('context-fill — the command filter', () => {
-  test('matches the scripts a flow runs before the destination question', () => {
-    for (const script of ['roadmap.js', 'resolve-symbols.js', 'safe-commit.js']) {
-      assert.ok(
-        PRE_QUESTION_SCRIPT.test(`node "/plugins/foreman/scripts/${script}" next-candidates --menu`),
-        `${script} should match`
-      );
+  test('matches the calls a flow makes before the destination question', () => {
+    for (const command of [
+      'node "/plugins/foreman/scripts/roadmap.js" step pick',
+      "node '/plugins/foreman/scripts/roadmap.js' step pick --chose 12 --after q1",
+      'node /plugins/foreman/scripts/roadmap.js step pick --entry 12 --checks 2',
+      'node "/plugins/foreman/scripts/resolve-symbols.js" --json',
+      'node "/plugins/foreman/scripts/safe-commit.js" begin',
+    ]) {
+      assert.ok(PRE_QUESTION_SCRIPT.test(command), `${command} should match`);
     }
   });
 
+  // [Foreman: 1292] The reading fed nothing after these, and a repeated one
+  // read as a warning that pushed work out of the session.
+  test('does not match roadmap.js or safe-commit.js calls made outside a pick', () => {
+    for (const sub of ['annotate', 'update-status', 'add', 'check-duplicate', 'accept', 'list --ids 001',
+      'next-candidates --menu', 'correct', 'doctor', 'step', '--help']) {
+      const command = `node "/plugins/foreman/scripts/roadmap.js" ${sub}`;
+      assert.equal(PRE_QUESTION_SCRIPT.test(command), false, `${command} should not match`);
+    }
+    assert.equal(PRE_QUESTION_SCRIPT.test('node "/plugins/foreman/scripts/safe-commit.js" finish --baseline abc'), false);
+  });
+
   test('matches a Windows backslash plugin path', () => {
-    assert.ok(PRE_QUESTION_SCRIPT.test('node "C:\\plugins\\foreman\\scripts\\roadmap.js" list --ids 001'));
+    assert.ok(PRE_QUESTION_SCRIPT.test("node 'C:\\plugins\\foreman\\scripts\\roadmap.js' step pick --hint x"));
   });
 
   test('does not match craft-handoff.js — that call is past the question', () => {
@@ -148,15 +171,14 @@ describe('context-fill — the threshold decision', () => {
   });
 
   test('the same occupancy reads differently against a different window', () => {
-    // Over the line against 200k, comfortably under it against 1M — which is
-    // exactly why an unconfigured window may not be guessed at.
+    // Over the line against 200k, comfortably under it against 1M.
     assert.equal(assess(OVER, 1000000), null);
     const reading = assess(OVER, 100000);
     assert.ok(reading);
     assert.equal(reading.window, 100000);
   });
 
-  test('no configured window is silence, however full the session is', () => {
+  test('a missing window passed to assess is silence', () => {
     for (const window of [null, undefined, 0]) {
       assert.equal(assess(OVER, window), null);
       assert.equal(assess(999999, window), null);
@@ -180,24 +202,73 @@ describe('context-fill — the threshold decision', () => {
 describe('context-fill — end to end', () => {
   test('emits additionalContext above the line', () => {
     const file = writeTranscript([assistant({ input_tokens: OVER })]);
-    const res = runScriptRaw('context-fill.js', payload('node "/p/foreman/scripts/roadmap.js" next-candidates --menu', file), windowEnv());
+    const res = runScriptRaw('context-fill.js', payload(STEP_PICK, file), windowEnv());
     assert.equal(res.status, 0);
     const out = JSON.parse(res.stdout);
     assert.equal(out.hookSpecificOutput.hookEventName, 'PostToolUse');
     assert.match(out.hookSpecificOutput.additionalContext, /\[Foreman\] Context reading/);
   });
 
-  test('silent with no configured window, however full the session is', () => {
-    const file = writeTranscript([assistant({ input_tokens: OVER })]);
-    const res = runScriptRaw('context-fill.js', payload('node "/p/foreman/scripts/roadmap.js" next-candidates --menu', file), noWindowEnv());
+  // [Foreman: 1302] The limit comes from settings, else 1,000,000 tokens.
+  test('with no configured window, measures against the 1,000,000 default', () => {
+    assert.equal(DEFAULT_WINDOW, 1000000);
+    const file = writeTranscript([assistant({ input_tokens: 260000 })]);
+    const res = runScriptRaw('context-fill.js', payload(STEP_PICK, file), noWindowEnv());
+    assert.equal(res.status, 0);
+    const text = JSON.parse(res.stdout).hookSpecificOutput.additionalContext;
+    assert.match(text, /about 26% full/);
+    assert.match(text, /1,000,000-token compaction point/);
+  });
+
+  test('a fresh session of 112,000 tokens with no window stays under the line', () => {
+    const file = writeTranscript([assistant({ input_tokens: 112000 })]);
+    const res = runScriptRaw('context-fill.js', payload(STEP_PICK, file), noWindowEnv());
     assert.equal(res.status, 0);
     assert.equal(res.stdout.trim(), '');
   });
 
+  test('autoCompactWindow in settings.json sets the limit', () => {
+    const file = writeTranscript([assistant({ input_tokens: 112000 })]);
+    const res = runScriptRaw('context-fill.js', payload(STEP_PICK, file),
+      settingsEnv(JSON.stringify({ autoCompactWindow: 350000 })));
+    assert.equal(res.status, 0);
+    const text = JSON.parse(res.stdout).hookSpecificOutput.additionalContext;
+    assert.match(text, /about 32% full/);
+    assert.match(text, /350,000-token compaction point/);
+  });
+
+  test('an invalid or unreadable setting falls back to the default', () => {
+    const file = writeTranscript([assistant({ input_tokens: 260000 })]);
+    for (const text of ['{"autoCompactWindow":5}', '{"autoCompactWindow":2000000}', '{"autoCompactWindow":"x"}', 'null', 'not json']) {
+      const res = runScriptRaw('context-fill.js', payload(STEP_PICK, file), settingsEnv(text));
+      assert.equal(res.status, 0, text);
+      assert.match(JSON.parse(res.stdout).hookSpecificOutput.additionalContext, /1,000,000-token compaction point/, text);
+    }
+  });
+
   test('silent below the line', () => {
     const file = writeTranscript([assistant({ input_tokens: UNDER })]);
-    const res = runScriptRaw('context-fill.js', payload('node "/p/foreman/scripts/roadmap.js" next-candidates --menu', file), windowEnv());
+    const res = runScriptRaw('context-fill.js', payload(STEP_PICK, file), windowEnv());
     assert.equal(res.stdout.trim(), '');
+  });
+
+  // [Foreman: 1292] Above the line, with a window set: the case that leaked.
+  test('silent after roadmap.js calls made outside a pick, however full the session is', () => {
+    const file = writeTranscript([assistant({ input_tokens: OVER })]);
+    for (const sub of ['annotate', 'update-status', 'add', 'check-duplicate', 'accept']) {
+      for (const tool of ['Bash', 'PowerShell']) {
+        const res = runScriptRaw('context-fill.js', payload(`node "/p/foreman/scripts/roadmap.js" ${sub}`, file, tool), windowEnv());
+        assert.equal(res.status, 0);
+        assert.equal(res.stdout.trim(), '', `${tool} ${sub}`);
+      }
+    }
+  });
+
+  test('the message says the reading is no reason to stop or hand off elsewhere', () => {
+    const file = writeTranscript([assistant({ input_tokens: OVER })]);
+    const res = runScriptRaw('context-fill.js', payload(STEP_PICK, file, 'PowerShell'), windowEnv());
+    const text = JSON.parse(res.stdout).hookSpecificOutput.additionalContext;
+    assert.match(text, /Outside that question it is no reason to stop/);
   });
 
   test('silent on a command that is not a pre-question script', () => {
@@ -208,12 +279,12 @@ describe('context-fill — end to end', () => {
 
   test('silent on a tool this hook does not watch', () => {
     const file = writeTranscript([assistant({ input_tokens: OVER })]);
-    const res = runScriptRaw('context-fill.js', payload('node "/p/foreman/scripts/roadmap.js" list', file, 'Read'), windowEnv());
+    const res = runScriptRaw('context-fill.js', payload(STEP_PICK, file, 'Read'), windowEnv());
     assert.equal(res.stdout.trim(), '');
   });
 
   test('silent, and still exits clean, with no transcript to read', () => {
-    const res = runScriptRaw('context-fill.js', payload('node "/p/foreman/scripts/roadmap.js" list', undefined), windowEnv());
+    const res = runScriptRaw('context-fill.js', payload(STEP_PICK, undefined), windowEnv());
     assert.equal(res.status, 0);
     assert.equal(res.stdout.trim(), '');
   });
@@ -245,7 +316,7 @@ describe('context-fill — end to end', () => {
     const file = writeTranscript([assistant({ input_tokens: OVER })]);
     const res = runScriptRaw(
       'context-fill.js',
-      payload('node "/p/foreman/scripts/roadmap.js" next-candidates --menu', file),
+      payload(STEP_PICK, file),
       { ...windowEnv(), FOREMAN_HOST: 'codex' }
     );
     assert.equal(res.status, 0);
@@ -257,7 +328,7 @@ describe('context-fill — end to end', () => {
     for (const marker of [{ model: 'codex-test' }, { turn_id: 'turn' }]) {
       const res = runScriptRaw(
         'context-fill.js',
-        { ...payload('node "/p/foreman/scripts/roadmap.js" next-candidates --menu', file), ...marker },
+        { ...payload(STEP_PICK, file), ...marker },
         windowEnv()
       );
       assert.equal(res.status, 0);

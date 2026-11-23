@@ -14,11 +14,11 @@
 // which a skill cannot invoke — so this hook derives it the one other way
 // available: the transcript's own last assistant `usage` block, summed.
 //
-// It speaks only when the session is at or above CONTEXT_SHARE of a
-// window the user actually configured, and only after one of the scripts a
-// crafting flow runs *before* that question. Below the line, or with no
-// configured window to measure against, it writes nothing and costs
-// nothing, which is the common case. The number is a fact for the flow to
+// It speaks only when the session is at or above CONTEXT_SHARE of the
+// window the user configured, or of DEFAULT_WINDOW when they set none, and
+// only after one of the scripts a crafting flow runs *before* that question.
+// Below the line it writes nothing and costs nothing, which is the common
+// case. The number is a fact for the flow to
 // apply; the rule that acts on it lives in skills/roadmap/destination-question.md, so the
 // wording of the recommendation stays in one place.
 //
@@ -35,14 +35,17 @@ const { readInput, hostName } = require("./lib");
 
 const WATCHED_TOOLS = new Set(["Bash", "PowerShell"]);
 
-// The scripts a crafting flow runs before it asks the destination question:
-// `roadmap.js` (pick's `step pick` calls, which report the selected entry
-// before Q2), `resolve-symbols.js`
-// (craft-prompt's pre-question read), and `safe-commit.js` (the tree probe the
-// destination question itself takes before offering the split). Anything else
-// — including `craft-handoff.js`, which runs *after* the answer — is past the
+// The calls a crafting flow makes before it asks the destination question:
+// `roadmap.js step pick` (pick's steps, which report the selected entry
+// before Q2), `resolve-symbols.js` (craft-prompt's pre-question read), and
+// `safe-commit.js begin` (the tree probe the destination question itself takes
+// before offering the split). Only those subcommands: `roadmap.js annotate`,
+// `update-status`, `add`, `check-duplicate`, `list` and the rest run outside
+// any pick, where a repeated reading only reads as a warning. Anything else —
+// including `craft-handoff.js`, which runs *after* the answer — is past the
 // moment this number could change and is not worth a line.
-const PRE_QUESTION_SCRIPT = /scripts[\\/](roadmap|resolve-symbols|safe-commit)\.js/;
+const PRE_QUESTION_SCRIPT =
+  /scripts[\\/](?:resolve-symbols\.js|safe-commit\.js["']?\s+begin\b|roadmap\.js["']?\s+step\s+pick\b)/;
 
 // The share of the window at which executing in this session stops being the
 // obvious default. Deliberately not configurable: the window size underneath
@@ -53,6 +56,9 @@ const CONTEXT_SHARE = 0.25;
 // The range `/autocompact` accepts, and so the only values worth believing.
 const WINDOW_MIN = 100000;
 const WINDOW_MAX = 1000000;
+
+// The window measured against when the user set none or set an invalid value.
+const DEFAULT_WINDOW = 1000000;
 
 // Read far enough back to clear the largest single tool result a turn can
 // hold, so the newest assistant record is inside the slice.
@@ -65,17 +71,17 @@ function windowValue(raw) {
 
 // How full the window may get before the host compacts on its own. The env
 // var wins over the setting `/autocompact` saves, matching the host's own
-// precedence. Null when the user set neither — no hook input carries the real
-// window size, so there is nothing else to read.
+// precedence. DEFAULT_WINDOW when neither holds a valid value — no hook input
+// carries the real window size, so there is nothing else to read.
 function autoCompactWindow() {
   const fromEnv = windowValue(process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW);
   if (fromEnv) return fromEnv;
   const dir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
   try {
     const settings = JSON.parse(fs.readFileSync(path.join(dir, "settings.json"), "utf-8"));
-    return windowValue(settings.autoCompactWindow);
+    return windowValue(settings.autoCompactWindow) || DEFAULT_WINDOW;
   } catch {
-    return null; // absent, unreadable, or not JSON — treat as unset
+    return DEFAULT_WINDOW; // absent, unreadable, or not JSON — treat as unset
   }
 }
 
@@ -127,11 +133,8 @@ function currentTokens(transcriptPath) {
 
 // The one decision: is this session full enough that the destination question
 // should hear about it? Returns null for silence, or the numbers the message
-// is built from. An unconfigured window is silence: window sizes range from
-// 100k to 1M, so any stand-in number is wrong by up to 5x in one direction or
-// the other, and a wrong reading recommends a fresh session to someone who has
-// most of their window left. Silence just leaves the default recommendation
-// standing, which is the right answer when the share is unknowable.
+// is built from. autoCompactWindow always supplies a window; a missing one
+// here is still silence.
 function assess(tokens, configuredWindow) {
   if (!Number.isFinite(tokens) || tokens <= 0) return null;
   if (!configuredWindow) return null;
@@ -144,12 +147,14 @@ function message(reading) {
   return (
     `[Foreman] Context reading for the destination question: this session is about ` +
     `${reading.percent}% full (${reading.tokens.toLocaleString("en-US")} tokens against ` +
-    `this session's ${reading.window.toLocaleString("en-US")}-token compaction point), ` +
+    `a ${reading.window.toLocaleString("en-US")}-token compaction point), ` +
     `at or above Foreman's ${Math.round(CONTEXT_SHARE * 100)}% line. ` +
     `If you reach "How do you want to run this?" this turn, apply the high-context ` +
     `rule in skills/roadmap/destination-question.md; in a roadmap pick, pass ` +
     `--context-high to roadmap.js step pick. This is a reading, not an ` +
-    `instruction to the user — never quote the number at them unless they ask.`
+    `instruction to the user — never quote the number at them unless they ask. ` +
+    `Outside that question it is no reason to stop, warn about context or ` +
+    `hand the work to a new session.`
   );
 }
 
@@ -195,6 +200,7 @@ if (require.main === module) {
 module.exports = {
   main,
   CONTEXT_SHARE,
+  DEFAULT_WINDOW,
   PRE_QUESTION_SCRIPT,
   autoCompactWindow,
   currentTokens,
