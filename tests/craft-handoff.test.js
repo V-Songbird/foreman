@@ -2266,6 +2266,55 @@ describe('the extras clause is not in the product', () => {
   });
 });
 
+// [Foreman: 1314] A background or pasted Claude Code session never loads
+// delivery.md, so the handoff carries that page's rule, read at craft time.
+describe('the review findings rule in Claude Code handoffs', () => {
+  const session = { CLAUDE_CODE_SESSION_ID: '', CODEX_SESSION_ID: '', CODEX_THREAD_ID: '', ANTIGRAVITY_CONVERSATION_ID: '' };
+  const craft = (input, judgment = {}) => {
+    const { status, json } = run(project, { entry: '001', host: 'claude', judgment: goodJudgment(judgment), ...input }, session);
+    assert.equal(status, 0, JSON.stringify(json));
+    assert.equal(json.ok, true, JSON.stringify(json));
+    return json.prompt;
+  };
+  const delivery = fs.readFileSync(path.join(SCRIPTS_DIR, '..', 'skills', 'roadmap', 'delivery.md'), 'utf8');
+  const source = delivery.slice(delivery.indexOf('## Review findings') + '## Review findings'.length).trim();
+
+  beforeEach(() => writeRoadmap(project, [entryFields()]));
+
+  test('background and clipboard handoffs carry the page text, with a link that resolves', () => {
+    const [before, after] = source.split('[discovery](../foreman/discovery.md)');
+    assert.ok(after, 'the page no longer links discovery as this test expects');
+    for (const destination of ['agent', 'clipboard']) {
+      const prompt = craft({ destination });
+      const block = prompt.match(/<review_findings>\n([\s\S]*?)\n<\/review_findings>/)?.[1];
+      assert.ok(block, destination);
+      assert.ok(block.startsWith(before), destination);
+      assert.ok(block.endsWith(after), destination);
+      for (const label of ['**Introduced here:**', '**Blocks the goal:**', '**Older:**']) assert.ok(block.includes(label), label);
+      assert.ok(block.includes('Recommend fixing now only the first two'), destination);
+      const linked = block.match(/discovery \(`(.+?\/skills\/foreman\/discovery\.md)`\)/)?.[1];
+      assert.ok(linked, destination);
+      if (destination === 'clipboard') assert.ok(fs.existsSync(linked.replace(/^'|'$/g, '')), linked);
+      else assert.equal(linked, '${CLAUDE_PLUGIN_ROOT}/skills/foreman/discovery.md');
+    }
+  });
+
+  test('handoffs outside that scope do not carry the block', () => {
+    const cases = [
+      [{ destination: 'task' }, {}],
+      [{ destination: 'agent', workflowStage: true }, {}],
+      [{ destination: 'agent', host: 'codex' }, {}],
+      [{ destination: 'clipboard', host: 'antigravity' }, {}],
+      [{ destination: 'clipboard' }, { question: 'Why does the refresh fail?', steps: [], verification: [] }],
+    ];
+    for (const [input, judgment] of cases) {
+      assert.ok(!craft(input, judgment).includes('<review_findings>'), JSON.stringify(input));
+    }
+    writeRoadmap(project, [entryFields({ kind: 'decision' })]);
+    assert.ok(!craft({ destination: 'agent' }).includes('<review_findings>'), 'decision');
+  });
+});
+
 // [Foreman: 1066] How much a session narrates belongs to its output style, not
 // to the handoff: no Claude handoff tells the destination to stay silent or
 // what to say between tool calls, and the closing still defers to the style.
