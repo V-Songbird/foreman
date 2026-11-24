@@ -1171,6 +1171,11 @@ checkpoint ordering. The preference belongs to this handoff, never to the
 roadmap schema or the project configuration. Structural validation proves
 transport; only a live run shows the wait.
 
+A Claude Code background or clipboard handoff for a roadmap entry that changes
+code carries `<review_findings>`, which the assembler reads from the [Review
+findings section](skills/roadmap/delivery.md#review-findings) of the delivery
+page. Change the rule there; this template holds no copy.
+
 ## Checkpointing a task-split run
 
 Only for the `Execute here, split by check` option. The crafting skill

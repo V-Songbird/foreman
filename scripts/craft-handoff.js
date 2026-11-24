@@ -679,6 +679,18 @@ function incrementReviewText(entryId, hostName) {
   return `<increment_review>\n${protocol}\n\n${closure}\n\nReview bookkeeping for this handoff:\n${record}\n</increment_review>`;
 }
 
+// [Foreman: 1314] A background or pasted Claude Code session never loads
+// delivery.md, so its one wording of the rule travels from there. A relative
+// link would not resolve from the prompt, so it becomes a plugin-root path.
+function reviewFindingsText() {
+  const page = fs.readFileSync(path.join(PLUGIN_ROOT, "skills", "roadmap", "delivery.md"), "utf8");
+  const section = page.match(/^## Review findings\r?\n([\s\S]*?)(?=^## |(?![\s\S]))/m)?.[1].trim();
+  if (!section) throw new Error("skills/roadmap/delivery.md has no \"## Review findings\" section to embed");
+  const rule = section.replace(/\[([^\]]+)\]\((\.\.?\/[^)\s]+)\)/g, (_, label, target) =>
+    `${label} (\`${CLAUDE_ROOT}/${path.posix.join("skills/roadmap", target)}\`)`);
+  return `<review_findings>\n${rule}\n</review_findings>`;
+}
+
 // Selected-entry recovery must not depend on the lossy cross-task recall path.
 // Escape note text so recorded examples cannot become prompt structure.
 // [Foreman: 789] Built only for an entry: an entry-less handoff has no notes
@@ -1274,6 +1286,13 @@ function assemble(root, input) {
   // side is held before they are built.
   const rulesBlock = taskRulesText(holdUserRoot(record), holdUserRoot(judgment), hasVerification, fixCeilingLine, checkpointEmbed, reviewEachIncrement, host, workflowAgent);
   const recoveryBlock = recoveryCarriesNotes ? incrementResumeText(holdUserRoot(record), host) : "";
+  // [Foreman: 1314] Only work that can receive a review of its own change: an
+  // investigation or decision changes no code, a Workflow stage reports to its
+  // coordinator, and a reviewed run already carries the rule in <increment_review>.
+  const reviewFindingsBlock = host === "claude" && isEntry && (destination === "agent" || destination === "clipboard")
+    && !workflowStage && !reviewEachIncrement && !judgment.question && !isDecision
+    ? reviewFindingsText()
+    : "";
   // [Foreman: 597, 605, 701, 783] <context> and <invariants> are task evidence
   // on every host and profile: judgment.context, the entry's notes (unless
   // <increment_resume> already carries them), its depends_on_docs, the pasted
@@ -1355,6 +1374,7 @@ function assemble(root, input) {
     if (reinforced) parts.push(noInventionLine);
     if (invariantsText) parts.push(invariantsText);
     parts.push(rulesBlock);
+    if (reviewFindingsBlock) parts.push(reviewFindingsBlock);
     if (exampleText) parts.push(exampleText);
     parts.push(requestSentence);
     if (destination === "agent" && autonomyParagraph) parts.push(workflowAgent ? stageAutonomyParagraph : autonomyParagraph);
