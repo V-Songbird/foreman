@@ -80,3 +80,23 @@ a row is awaiting review or correction ([increment review](increment-review.md))
 and use [close-increments.md](close-increments.md) to reconcile omitted checks
 with later evidence and to tell last-row acceptance from acceptance of the
 integrated task.
+
+## Review findings
+
+When a review of this task's work returns findings, label each one before
+fixing any:
+
+- **Introduced here:** this task's change caused it, exposed it or made it
+  worse. A finding is this unless one of the other two labels is shown.
+- **Blocks the goal:** whatever its age, the entry's goal or a required check
+  cannot be met until it is fixed.
+- **Older:** the same defect exists at the task's baseline, shown by reading
+  that version with `git show <baseline>:<path>`, and this change neither
+  touches its behavior nor depends on it. Without that evidence it is not older.
+
+Recommend fixing now only the first two, plus any security or data-loss risk,
+which always blocks whatever its label. Offer each older finding as a roadmap
+suggestion through [discovery](../foreman/discovery.md); with discovery off,
+list it in the report. An older finding with no such risk does not hold the
+close. The labels are a recommendation: the user can choose to fix any finding
+now.
