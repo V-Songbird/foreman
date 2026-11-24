@@ -55,6 +55,11 @@ handoff artifact; do not create a roadmap or another store just for this review.
 - **Request changes:** record `changes requested:` with the concrete feedback;
   keep this increment open, implement the authorized correction, verify it and
   present the changed result for a new decision. Do not act on a dependent row.
+  When the feedback lists review findings, recommend fixing now those this
+  change introduced or that block its goal, and any security or data-loss risk.
+  A finding is older only when the same defect is shown at the baseline and this
+  change neither touches its behavior nor depends on it; offer it as a roadmap
+  suggestion. The user can still choose to fix any finding.
 - **Pause:** record `paused:` with the available evidence and next action;
   preserve the work and pending review. Do not defer or close the parent just
   to pause an increment. End the turn after leaving useful continuation state.
