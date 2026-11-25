@@ -12,10 +12,12 @@ related_files:
 
 # How Foreman works
 
-This page says what Foreman does in a project, part by part. It is for a user who wants to predict what Foreman will do. The short form is in the README, under [How it works](../../README.md#how-it-works).
+This page says what Foreman does in a project, part by part. It is for a user who wants to predict what Foreman will do. The short form is in the README, under [What does it do?](../../README.md#what-does-it-do).
 
 ## Contents
 
+- [What you can do](#what-you-can-do)
+- [Why you would want it](#why-you-would-want-it)
 - [The roadmap file](#the-roadmap-file)
 - [Two ways to get a task](#two-ways-to-get-a-task)
 - [The prompt is checked before you see it](#the-prompt-is-checked-before-you-see-it)
@@ -26,6 +28,41 @@ This page says what Foreman does in a project, part by part. It is for a user wh
 - [The roadmap pane](#the-roadmap-pane)
 - [Review between increments](#review-between-increments)
 - [Calling Foreman by name](#calling-foreman-by-name)
+
+## What you can do
+
+| You want to | What you get |
+| --- | --- |
+| Add work to the roadmap | Requested work recorded with its reason and boundaries |
+| See where things stand | Status, blockers and work waiting for acceptance |
+| Choose the next task | A recommended task and a choice of where to run it |
+| Check whether the plan still matches the code | A grounded review before choosing work |
+| Get a prompt for one-off work | A checked handoff without requiring a roadmap entry |
+| See the open tasks in a pane | The roadmap pane, in Claude Code only |
+| Review each result before the next one | Reviewed increments, in Codex only |
+
+### How to ask
+
+Plain sentences work in every assistant: "add this to the roadmap" or "what's next?". To call Foreman by name, use a skill, a command the plugin adds. [Calling Foreman by name](#calling-foreman-by-name) covers the Codex `$` prefix.
+
+| You want to | Claude Code | Codex | Antigravity |
+| --- | --- | --- | --- |
+| Ask in your own words | `/foreman:foreman` | the `foreman` skill, or `$foreman:foreman` in a prompt | `/foreman` |
+| Set up a roadmap for a project (once) | `/foreman:init` | the `init` skill, or `$foreman:init` in a prompt | `/init` |
+| Pick, add, correct or review work | `/foreman:roadmap` | the `roadmap` skill, or `$foreman:roadmap` in a prompt | `/roadmap` |
+| Check the plan against your code | `/foreman:survey` | the `survey` skill, or `$foreman:survey` in a prompt | `/survey` |
+| Write a one-off prompt with no roadmap entry | `/foreman:craft-prompt` | the `craft-prompt` skill, or `$foreman:craft-prompt` in a prompt | `/craft-prompt` |
+
+## Why you would want it
+
+- **Pick up where you stopped.** The next session starts from the plan.
+- **Tasks keep their reasons.** Each carries its why and its limits.
+- **Stale plans get checked.** Foreman can compare the plan with the code.
+- **You decide what is done.** A passing test run is not acceptance.
+
+One task id links the plan to the commit. An illustration, not a measurement:
+
+<p align="center"><img src="../../assets/hero.svg" alt="One task id, 019, appears at four checkpoints: the roadmap, the decision note, the code anchor and the commit." width="700"></p>
 
 ## The roadmap file
 
@@ -149,6 +186,6 @@ If you decline the command when a pick offers it, Foreman does not offer it agai
 
 ## Calling Foreman by name
 
-Plain sentences work in every assistant: "add this to the roadmap", "where are we?", "what's next?", "check whether the plan still matches the code" or "craft a prompt for this". The commands for each assistant are in the README's [How to ask](../../README.md#how-to-ask) table.
+Plain sentences work in every assistant: "add this to the roadmap", "where are we?", "what's next?", "check whether the plan still matches the code" or "craft a prompt for this". The commands for each assistant are in the [How to ask](#how-to-ask) table.
 
 In Codex, mention a skill with its plugin prefix, such as `$foreman:roadmap`, and Codex attaches that skill's instructions to your message. A bare `$roadmap` is not attached; Codex leaves it to the model to find the skill.

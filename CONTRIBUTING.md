@@ -62,7 +62,7 @@ types/
 
 The README is the front page. The pages under `docs/knowledge/` hold the detail it links, and a fact lives in one place: the README states the short form and links the page.
 
-Foreman keeps one README for every host. Host differences sit in the How to ask table, one Install subsection per host, the Good to know table and one results table per host under The numbers.
+Foreman keeps one README for every host. Host differences sit on the pages: the How to ask table in `docs/knowledge/how-it-works.md`, one section per host in `docs/knowledge/install.md`, the limits table in `docs/knowledge/limits.md` and one results table per host in `docs/knowledge/benchmarks.md`.
 
 ---
 

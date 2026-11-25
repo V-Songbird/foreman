@@ -1,7 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Codex">
-  <style>.ink{fill:#252820;stroke:#252820}.prompt{stroke:#fff}@media(prefers-color-scheme:dark){.ink{fill:#eee9de;stroke:#eee9de}.prompt{stroke:#252820}}</style>
-  <path class="ink" d="M32 19Q63 16 96 20Q109 21 109 35L108 95Q108 108 94 109L33 108Q20 108 19 94L20 34Q20 20 32 19Z" stroke-width="4" stroke-linejoin="round" />
-  <g class="prompt" fill="none" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M40 45L57 62 39 80M68 80L88 79" />
+  <style>.ink{stroke:#252820}@media(prefers-color-scheme:dark){.ink{stroke:#eee9de}}</style>
+  <g transform="translate(64 64) scale(1.1) translate(-64 -64)">
+  <path class="ink" d="M103 80A18 18 0 0 1 80 103 18 18 0 0 1 48 103 18 18 0 0 1 25 80 18 18 0 0 1 25 48 18 18 0 0 1 48 25 18 18 0 0 1 80 25 18 18 0 0 1 103 48 18 18 0 0 1 103 80Z" fill="#7b7ff2" stroke-width="3.5" stroke-linejoin="round" />
+  <g fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M47 51L58 63 47 76M67 76L82 76" />
+  </g>
   </g>
 </svg>

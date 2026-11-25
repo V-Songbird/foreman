@@ -543,7 +543,7 @@ change is `ROADMAP.jsonl` with `no_task_changes`.
 Sibling runtime file at `.foreman/config.json`, also committed. Plain JSON,
 no CLI wraps it (unlike `ROADMAP.jsonl`) — edited directly when a flag
 needs to change. Full field reference is in
-[the README's settings table](README.md#settings); the one relevant to this file's
+[Foreman settings](docs/knowledge/settings.md); the one relevant to this file's
 own consumer (`post-commit.js`) is `discoverySuggestions` — missing or
 unparseable → treated as `true` (on by default); an explicit `false` is the
 only way out.
