@@ -60,7 +60,9 @@ types/
 └── index.d.ts           # the roadmap pane's types
 ```
 
-The README is the front page. The pages under `docs/knowledge/` hold the detail it links, and a fact lives in one place: the README states the short form and links the page. Foreman keeps one README for every host. Host differences sit in the How to ask table, one Install subsection per host, the Good to know table and one results table per host under The numbers.
+The README is the front page. The pages under `docs/knowledge/` hold the detail it links, and a fact lives in one place: the README states the short form and links the page.
+
+Foreman keeps one README for every host. Host differences sit in the How to ask table, one Install subsection per host, the Good to know table and one results table per host under The numbers.
 
 ---
 
@@ -108,6 +110,8 @@ node --test tests/*.test.js
 node scripts/git-hooks/check-readme-nav.js
 ```
 
+CI runs on ubuntu-latest and windows-latest with Node.js 22. It checks that the manifests and hook registrations parse, that no benchmark tree is tracked and the README navigation, then runs the suite.
+
 Tests give each script or hook they spawn 90 seconds. The suite still passes while other suites run on the same machine, and a hung script still fails.
 
 To allow more, set `FOREMAN_TEST_SPAWN_TIMEOUT_MS` to a larger number of milliseconds. A smaller value is ignored.
@@ -130,7 +134,9 @@ Installed-host smoke tests complement the local hook fixtures; report which one 
 
 This tries the Codex reviewed-increment workflow from this checkout, without installing anything, editing a marketplace or publishing.
 
-1. Read the [workflow](docs/knowledge/how-it-works.md#review-between-increments). Save this payload as a UTF-8 file in a temporary location. It asks for one reviewed documentation result with no roadmap entry behind it. Its `"host": "codex"` makes the builder write the Codex form of the prompt even outside Codex. One `judgment.verification` row is one increment. A row needs at least one complete pair: `run` with `expected`, or `review.action` with `review.expected`. In a reviewed run every row needs `review`.
+1. Read the [workflow](docs/knowledge/how-it-works.md#review-between-increments). Save this payload as a UTF-8 file in a temporary location. It asks for one reviewed documentation result with no roadmap entry behind it.
+
+   Its `"host": "codex"` makes the builder write the Codex form of the prompt even outside Codex. One `judgment.verification` row is one increment. A row needs at least one complete pair: `run` with `expected`, or `review.action` with `review.expected`. In a reviewed run every row needs `review`.
 
    ```json
    {
@@ -176,7 +182,12 @@ Run this once after cloning:
 git config core.hooksPath scripts/git-hooks
 ```
 
-This enables a `pre-commit` hook that runs `node --test tests/*.test.js` and blocks the commit on failure. When any Markdown file is staged, it also blocks the commit while the root `README.md` lacks its navigation line, or while a link to a heading anchor in any tracked Markdown file no longer resolves. The test step no-ops if this plugin has no `tests/` directory.
+This enables a `pre-commit` hook that runs `node --test tests/*.test.js` and blocks the commit on failure. The test step no-ops if this plugin has no `tests/` directory.
+
+When any Markdown file is staged, the hook also blocks the commit in two cases:
+
+- The root `README.md` lacks its navigation line.
+- A link to a heading anchor in any tracked Markdown file no longer resolves.
 
 Every Foundry plugin keeps byte-identical copies of the commit gates under `scripts/git-hooks/` and of the tests that cover them. A change to one goes into all of them.
 
@@ -188,7 +199,13 @@ Public source names and attribution are allowed in documentation and commit mess
 
 Release notes live on the [releases page](https://github.com/V-Songbird/foreman/releases). Describe every user-visible change in your pull request, so it can go into the next release's notes. Name the host each change affects: every host, Claude Code, Codex, Antigravity, or a combination such as Codex and Antigravity.
 
-One version number covers every host. Bump it in the three manifests, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json` and `plugin.json`, in the release commit; a test fails when they differ. Both [Foundry](https://github.com/V-Songbird/foundry) catalogs pin the same `main` commit. The Claude Code catalog also repeats the version, because the Claude desktop app offers an update only when that field changes, so a release moves both pins and that version together.
+One version number covers every host. Bump it in the three manifests in the release commit. A test fails when they differ. The manifests are:
+
+- `.claude-plugin/plugin.json`
+- `.codex-plugin/plugin.json`
+- `plugin.json`
+
+Both [Foundry](https://github.com/V-Songbird/foundry) catalogs pin the same `main` commit. The Claude Code catalog also repeats the version, because the Claude desktop app offers an update only when that field changes. A release moves both pins and that version together.
 
 A pull request never changes a contributor's installed plugins or personal configuration.
 

@@ -35,7 +35,11 @@ Do not edit the roadmap by hand. Tell Foreman what is wrong, and it fixes the en
 
 A hook stops the assistant's file-editing tools from changing the file directly. A shell command is not stopped on any host.
 
-The commands that write text refuse text that looks like a credential. These are `add`, `update-status`, `annotate` and `correct`. The error names the field and the kind of credential, never the text, and nothing is written. Remove the credential and send the call again. The kinds are an API key (`sk-`), a GitHub token, an AWS access key id, a Slack token, a private key block, an Authorization header value and a password inside a URL. Only new writes are checked; text already in the file stays readable.
+The commands that write text refuse text that looks like a credential. These are `add`, `update-status`, `annotate` and `correct`.
+
+The error names the field and the kind of credential, never the text, and nothing is written. Remove the credential and send the call again.
+
+The kinds are an API key (`sk-`), a GitHub token, an AWS access key id, a Slack token, a private key block, an Authorization header value and a password inside a URL. Only new writes are checked; text already in the file stays readable.
 
 | Moment | What happens |
 | --- | --- |
@@ -119,7 +123,11 @@ The pane speaks Spanish when Claude Code's `language` setting names Spanish. A r
 
 This is for Codex only. Claude Code and Antigravity do not offer it.
 
-You can ask Foreman to run one roadmap task in increments, which are results you can look at and try, and wait for your decision after each one. Start a new Codex task after installing or updating, then ask plainly, for example: "Foreman, run this task here in increments and wait for my approval after each result." Only that explicit request turns it on, for that one run. It is not a setting.
+You can ask Foreman to run one roadmap task in increments, which are results you can look at and try, and wait for your decision after each one.
+
+Start a new Codex task after installing or updating, then ask plainly, for example: "Foreman, run this task here in increments and wait for my approval after each result."
+
+Only that explicit request turns it on, for that one run. It is not a setting.
 
 After each increment, the session shows the result, its limits, the evidence and what to look at. It then offers **Accept / Request changes / Pause** and waits for a real answer before any dependent work. Passing tests and time passing are not answers.
 
