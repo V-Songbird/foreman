@@ -10,7 +10,7 @@ related_files:
 
 # Foreman settings
 
-This page lists everything you can set in Foreman. Most projects never open the settings file. The short form is in the README, under [Settings](../../README.md#settings).
+This page lists everything you can set in Foreman. Most projects never open the settings file. The short form is in the README, under [How to use it](../../README.md#how-to-use-it).
 
 ## Contents
 

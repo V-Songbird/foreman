@@ -10,6 +10,13 @@ related_files:
 
 This page states each limit of Foreman in full. The README names each one in a line, under [Good to know](../../README.md#good-to-know).
 
+## Contents
+
+- [General limits](#general-limits)
+- [Differences between hosts](#differences-between-hosts)
+- [Host limits](#host-limits)
+- [Ids a committed roadmap publishes](#ids-a-committed-roadmap-publishes)
+
 Foreman is for a solo developer. It is no team tracker, code-review service, unattended scheduler or workflow server.
 
 ## General limits
@@ -46,3 +53,10 @@ Each host offers Foreman different events and tools, so a few things work differ
 | Codex | In the Codex desktop app's default permission mode on Windows, Git writes need your approval to leave the sandbox, and on Windows the CLI's `workspace-write` sandbox cannot write to `.git` either. A subagent whose `task_name` is `foreman` or starts with `foreman_` is refused unless it is exactly `foreman_<id>` of an entry in `ROADMAP.jsonl`; a handoff spawned under another name runs, but its finish is not tied to its entry. Removing the plugin leaves its hook trust entries in Codex's `config.toml` |
 | Codex, what was checked | Live runs used Codex CLI 0.157.1 on Windows 11. The resume runs used a short probe prompt. The one live run in the Codex app 26.924.51851, on Windows 11, made no automatic task commit, because the app's sandbox refused Git with `spawnSync git EPERM`. Foreman's file fallback for that refusal has not been run live in the app. Not verified: a full reviewed-increment handoff paused and resumed live; a model following that wording on its own; the close gate after a resumed subagent's finish; resume in the Codex app or TUI; a subagent spawned by another subagent, covered by tests only; a first app install with no earlier hook trust; the app's full-access permission mode; reviewed increments or background subagents in the app; the app on macOS; and Codex on Linux or macOS |
 | Antigravity | Checked in live `agy` 1.2.9 sessions on Windows: `/init`, a `/roadmap` pick copied to the clipboard, a commit, and a direct write to `ROADMAP.jsonl`, which the host refused. Beyond those four actions, hook behavior rests on the host's documentation and the test suite. What Foreman says after a commit reaches only the model's next call; later calls no longer see it. Antigravity started from a Claude Code shell inherits `CLAUDECODE` and counts as Claude Code. Remove it first, with `env -u CLAUDECODE agy` in Bash or `Remove-Item Env:CLAUDECODE` in PowerShell, or start `agy` with `FOREMAN_HOST=antigravity`, which then makes any Claude Code started inside that session count as Antigravity too |
+
+## Ids a committed roadmap publishes
+
+| Limit | What it means for you |
+| --- | --- |
+| The Codex session id | A paused Codex review writes it into the entry's notes. The session id stays in the roadmap on purpose, so a later pick on the same machine can offer the resume command. It resumes something only under the `CODEX_HOME` directory of the machine that ran it |
+| What a commit publishes | Still, when a project commits `ROADMAP.jsonl`, the commit publishes the id, along with the background agent and subagent ids that dispatch notes record. A committed `.foreman/config.json` publishes the ids in `delegatedAcceptance`. A project that must not publish such ids keeps those files out of Git |
