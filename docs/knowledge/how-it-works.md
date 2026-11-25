@@ -35,6 +35,8 @@ Do not edit the roadmap by hand. Tell Foreman what is wrong, and it fixes the en
 
 A hook stops the assistant's file-editing tools from changing the file directly. A shell command is not stopped on any host.
 
+The commands that write text refuse text that looks like a credential. These are `add`, `update-status`, `annotate` and `correct`. The error names the field and the kind of credential, never the text, and nothing is written. Remove the credential and send the call again. The kinds are an API key (`sk-`), a GitHub token, an AWS access key id, a Slack token, a private key block, an Authorization header value and a password inside a URL. Only new writes are checked; text already in the file stays readable.
+
 | Moment | What happens |
 | --- | --- |
 | You ask "what's next?" | Foreman sorts the roadmap: what is finished, what waits on something else, and what would put two jobs in the same files. It recommends one and writes the prompt. You still choose |

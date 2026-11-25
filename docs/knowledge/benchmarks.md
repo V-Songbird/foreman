@@ -17,6 +17,7 @@ Each result belongs to the named model and recorded run. Each host keeps its own
 - [Claude Code, 2026-08-29](#claude-code-2026-08-29)
 - [Codex](#codex)
 - [Antigravity](#antigravity)
+- [Losses](#losses)
 - [Where the records are](#where-the-records-are)
 
 ## Claude Code, 2026-08-29
@@ -44,8 +45,7 @@ No paired performance measurement exists for Codex. Codex functional tests estab
 <!-- foundry:evidence {"platform":"Codex","status":"pending","reason":"Functional Codex validation exists; equivalent paired performance measurements are not available."} -->
 | Model | Setup | Correct tasks | Mean session cost |
 | --- | --- | --- | --- |
-| Not measured | Without plugin | Not measured | Not measured |
-| Not measured | foreman | Not measured | Not measured |
+| Not measured | Not measured | Not measured | Not measured |
 
 The live checks that did run are listed under [Host limits](limits.md#host-limits) in Foreman limits.
 
@@ -57,6 +57,12 @@ No Antigravity performance measurements are available.
 | Model | Setup | Correct tasks | Mean session cost |
 | --- | --- | --- | --- |
 | Not measured | Not measured | Not measured | Not measured |
+
+## Losses
+
+Foreman cost more than the well-written paragraph in every published pair. It added 8.3% on Claude Sonnet 5 and 7.3% on Claude Opus 5, and it tied on correctness.
+
+Codex and Antigravity have no measurement. A Claude Code result never stands for them.
 
 ## Where the records are
 

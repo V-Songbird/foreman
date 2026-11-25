@@ -1,22 +1,22 @@
 # Contributing
 
-This plugin is part of the [Foundry Collection](https://github.com/V-Songbird/foundry) and is maintained by a single author. Contributions are welcome in the form of bug reports, suggestions, and pull requests.
+Foreman is part of the [Foundry marketplace](https://github.com/V-Songbird/foundry) and has a single maintainer. Contributions are welcome as bug reports, suggestions and pull requests.
 
-Foreman is one package for three hosts — the assistants it runs inside, Claude Code, Codex and Antigravity. Most of the code serves all of them, so a change to shared behavior reaches every host at once.
+One package serves Claude Code, Codex and Antigravity. Most of the code serves all three hosts, the assistants Foreman runs inside, so a change to shared behavior reaches every host at once.
 
 ---
 
 ## Before opening a PR
 
-- Check existing issues first — the problem may already be tracked or intentionally deferred.
-- For substantial changes (new skills, significant refactors), open an issue first to align on direction before writing code.
-- Branch from `main` and open the pull request against `main`, the package branch.
+- Check existing issues first. The problem may already be tracked or deliberately deferred.
+- For a substantial change, such as a new skill or a significant refactor, open an issue first to agree on direction.
+- Branch from `main` and open the pull request against `main`.
 
 ---
 
 ## Structure
 
-```
+```text
 .claude-plugin/
 └── plugin.json          # Claude Code metadata and the release version
 .codex-plugin/
@@ -27,7 +27,8 @@ hooks.json               # Antigravity hook wiring, keyed by the plugin name
 .github/
 └── workflows/
     └── test.yml         # CI: runs the test suite
-SECURITY.md             # how to report a vulnerability
+CONTRIBUTING.md          # this file
+SECURITY.md              # how to report a vulnerability
 LICENSE                  # MIT
 assets/                  # the README art (banners, host cards, Ember scene,
                          # hero, demo) and the icons the manifests name
@@ -53,17 +54,19 @@ hooks/
 │                        # runs the shared hooks as child processes
 └── *.js                 # hook scripts; lib.js resolves the project and host
 scripts/                 # dependency-free Node.js CLIs; runtime.js detects the host
-└── git-hooks/           # pre-commit hook and the README nav check
+└── git-hooks/           # the commit gates and the README nav check
 tests/                   # behavioral tests for the three hosts
+types/
+└── index.d.ts           # the roadmap pane's types
 ```
 
-The repository holds what the plugin uses at run time, its tests, CI and these project files, plus the README art in `assets/` and the detail pages in `docs/knowledge/`. Foreman keeps one README for every host: its shared sections read the same for everyone, and host differences sit in the How to ask table, one Install subsection per host, the Good to know table and one results table per host under The numbers. The pages in `docs/knowledge/` hold the detail the README links.
+The README is the front page. The pages under `docs/knowledge/` hold the detail it links, and a fact lives in one place: the README states the short form and links the page. Foreman keeps one README for every host. Host differences sit in the How to ask table, one Install subsection per host, the Good to know table and one results table per host under The numbers.
 
 ---
 
 ## What to keep in mind
 
-**Skills are instruction files every host follows.** A change to a `SKILL.md` or one of its reference files changes how Claude Code, Codex and Antigravity carry out that skill — be precise, and try the affected skill in a real session on each host you can before submitting. Label a step that applies to only one host.
+**Skills are instruction files every host follows.** A change to a `SKILL.md` or one of its reference files changes how Claude Code, Codex and Antigravity carry out that skill. Be precise, and try the affected skill in a real session on each host you can before submitting. Label a step that applies to only one host.
 
 **Hooks are scripts that run on every tool call or session event.** Keep them fast (no network, no blocking I/O), tolerant of missing host data, and test them on both Unix and Windows. Hooks fail open, so a Foreman error never breaks a session: a hook's entry point catches every error and exits 0 without reporting it, and the Codex commands, on Unix and in `hooks/windows-launcher.ps1`, wrap the hook in the same empty catch. To see an error a hook would hide, run it from the plugin root without the catch, with the event's JSON on stdin, for example in Bash or cmd: `node -e "require('./hooks/session-start.js').main()" < payload.json`. Register Claude Code events in `hooks/hooks.json`, Codex events in `hooks/codex-hooks.json` and Antigravity events in the root `hooks.json`, never two hosts in one file. Antigravity's registration runs `hooks/antigravity-hook.js`, which translates the event and runs the shared hook scripts as child processes; a new shared hook reaches that host only when the entrypoint learns its event. After changing a Codex hook command or `hooks/windows-launcher.ps1`, regenerate the Windows commands with `node scripts/build-windows-launchers.js --write`; without `--write`, the script only checks that they are current.
 
@@ -71,25 +74,24 @@ The repository holds what the plugin uses at run time, its tests, CI and these p
 
 **Reviewed increments are offered on Codex only, by decision.** The prompt builder accepts review rows on both hosts, but the skills of Claude Code and Antigravity do not offer the protocol.
 
+**Published figures follow one rule.** Each result names its host, model, date and sample size. Losses and limits stay, a host with no results shows `Not measured`, and a result from one host never stands for another.
+
 ---
 
 ## Tests
 
 Run these with Node.js 22 or later and Git on your PATH:
 
-```
+```bash
 node --test tests/*.test.js
 node scripts/git-hooks/check-readme-nav.js
 ```
 
-Tests give each script or hook they spawn 90 seconds, so the suite still
-passes while other suites run on the same machine, and a hung script still
-fails. To allow more, set `FOREMAN_TEST_SPAWN_TIMEOUT_MS` to a larger number of
-milliseconds; a smaller value is ignored. The suite's other time bounds are
-set for 30 seconds, so the test helpers stretch them by the limit divided by
-30 seconds, which is 3 by default.
+Tests give each script or hook they spawn 90 seconds, so the suite still passes while other suites run on the same machine, and a hung script still fails. To allow more, set `FOREMAN_TEST_SPAWN_TIMEOUT_MS` to a larger number of milliseconds; a smaller value is ignored. The suite's other time bounds are set for 30 seconds, so the test helpers stretch them by the limit divided by 30 seconds, which is 3 by default.
 
-PRs that change script behavior without updating tests will not be merged. Preserve meaningful assertions when adapting a host-specific test, and test observable behavior and edge cases, not only new wording. Do not install anything, or write a user's marketplace or configuration, as part of a test.
+The suite runs in one private temporary folder per process. `tests/helpers.js` points `TEMP`, `TMP` and `TMPDIR` at it and removes it when the process exits, and the next run removes the folder of a run that was killed. A test file that creates temporary files loads `tests/helpers.js` first.
+
+A pull request that changes behavior without updating its tests is not merged. Preserve meaningful assertions when adapting a host-specific test, and test observable behavior and edge cases, not only new wording. Do not install anything, or write a user's marketplace or configuration, as part of a test.
 
 Validate the package for each host when you can:
 
@@ -99,9 +101,7 @@ Validate the package for each host when you can:
 
 Installed-host smoke tests complement the local hook fixtures; report which one you actually ran.
 
----
-
-## Trying reviewed increments from source
+### Trying reviewed increments from source
 
 This tries the Codex reviewed-increment workflow from this checkout, without installing anything, editing a marketplace or publishing.
 
@@ -147,26 +147,28 @@ Keep automated regressions, headless observations, deliberate rehearsals and act
 
 Run this once after cloning:
 
-```
+```bash
 git config core.hooksPath scripts/git-hooks
 ```
 
 This enables a `pre-commit` hook that runs `node --test tests/*.test.js` and blocks the commit on failure. When any Markdown file is staged, it also blocks the commit while the root `README.md` lacks its navigation line, or while a link to a heading anchor in any tracked Markdown file no longer resolves. The test step no-ops if this plugin has no `tests/` directory.
 
-Foreman, Hush and Razor keep byte-identical copies of `pre-commit`; change them together.
+Every Foundry plugin keeps byte-identical copies of the commit gates under `scripts/git-hooks/` and of the tests that cover them. A change to one goes into all of them.
 
 Public source names and attribution are allowed in documentation and commit messages. Keep credentials and personal session data out of commits.
 
 ---
 
-## Versions and release notes
+## Release notes
 
-Release notes live on the [releases page](https://github.com/V-Songbird/foreman/releases), one release per version, and there is no changelog file in the repository. Describe every user-visible change in your pull request, under the host it affects: every host, Claude Code, Codex, Antigravity, or a combination such as Codex and Antigravity. Those descriptions become the next release's notes.
+Release notes live on the [releases page](https://github.com/V-Songbird/foreman/releases). Describe every user-visible change in your pull request, so it can go into the next release's notes. Name the host each change affects: every host, Claude Code, Codex, Antigravity, or a combination such as Codex and Antigravity.
 
-One version number covers every host. Bump it in the three manifests, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json` and `plugin.json`, in the release commit; a test fails when they differ. Claude Code reads a plugin's version from `plugin.json` before anything in its marketplace entry, so the version lives only in the manifests. Both [foundry](https://github.com/V-Songbird/foundry) catalogs pin the same `main` commit with `ref: "main"` and carry no version for Foreman: a release only moves their `source.sha` to the release commit.
+One version number covers every host. Bump it in the three manifests, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json` and `plugin.json`, in the release commit; a test fails when they differ. Both [Foundry](https://github.com/V-Songbird/foundry) catalogs pin the same `main` commit. The Claude Code catalog also repeats the version, because the Claude desktop app offers an update only when that field changes, so a release moves both pins and that version together.
+
+A pull request never changes a contributor's installed plugins or personal configuration.
 
 ---
 
 ## Code of conduct
 
-This project follows the [Contributor Covenant, version 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/). Be kind, be patient and assume good intent. To report behavior that goes against it, contact the maintainer privately through the address in [SECURITY.md](SECURITY.md).
+This project follows the [Contributor Covenant 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/). To report behavior that goes against it, contact the maintainer privately through the address in [SECURITY.md](SECURITY.md).

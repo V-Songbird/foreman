@@ -16,6 +16,8 @@ Foreman is for a solo developer. It is no team tracker, code-review service, una
 
 | Limit | What it means |
 | --- | --- |
+| Built for one developer | Foreman is no team tracker, code-review service, unattended scheduler or workflow server. Your project keeps its own data, and Foreman needs no server or account |
+| Antigravity installs | Install only from a Foundry copy. A direct clone of the Foreman repository can hold unreleased work. The install is a copy, so it changes only when you install again |
 | Hand edits | A hook stops the assistant's file-editing tools from changing `ROADMAP.jsonl` directly. A shell command is not stopped on any host |
 | Cost of a pick | **Fast pick**, the default, reads no code, but Foreman's own instructions still add roughly 10,000 to 16,000 tokens to the session. The low end is Claude Code when you already said how to run the work; the high end is Codex. **Reconcile and pick** reads your code first, so it always costs more; Foreman never starts it on its own |
 | Switching between assistants | Every assistant reads and writes the same `ROADMAP.jsonl` and `.foreman/` files, so one project can move between them. Keep the files as they are and do not reinitialize |
