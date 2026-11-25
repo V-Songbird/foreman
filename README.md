@@ -182,8 +182,11 @@ agy plugin install <path-to-clone>/foreman
 | Hosts differ | Each host offers different events and tools. The task-end reminder and the roadmap pane do not exist on every host. |
 | Quiet failures | Foreman cannot tell when a host stops sending an event it relies on. Its automatic help goes quiet, and every command keeps working by hand. |
 | Codex on Windows | Git writes need your approval to leave the sandbox, and the `workspace-write` sandbox cannot write to `.git`. |
+| Codex subagent names | A subagent named `foreman` or `foreman_…` is refused unless it is `foreman_<id>` of a roadmap entry. |
+| Codex trust entries | Removing the plugin leaves its hook trust entries in `config.toml`. |
 | Codex, unverified | Several Codex paths were never run live, such as a full reviewed-increment handoff, the app on macOS, and Codex on Linux or macOS. |
-| Antigravity | Four actions were checked live in Antigravity on Windows. |
+| Antigravity | Four actions were checked live in Antigravity on Windows. After a commit, Foreman's words reach only the next model call. |
+| Antigravity from Claude Code | Started from a Claude Code shell, it counts as Claude Code. |
 
 [Foreman limits](docs/knowledge/limits.md) states each one in full.
 
