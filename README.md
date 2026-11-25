@@ -32,6 +32,8 @@ You finish a session with a fix, a side request and an issue waiting. Next time,
 
 **You get:** ranked tasks, each with its reason, and one marked recommended. Your pick comes with a prompt checked against your files. Then Foreman asks where to run it.
 
+This example is an illustration, not recorded output.
+
 ## Why you'd want it
 
 - **Pick up where you stopped.** The next session starts from the plan.
@@ -50,7 +52,7 @@ Foreman keeps your plan in `ROADMAP.jsonl`, a text file with one task per line. 
 | You commit | If a task looks finished, Foreman asks you to confirm. It also offers new work it noticed, unless you switch that off |
 | You start a new session | Foreman mentions tasks still in progress or waiting for your acceptance, and offers to archive finished entries once many have piled up |
 
-A task with committed, checked work waits as `awaiting_acceptance`. Your yes closes it. Passing tests are evidence, not acceptance.
+A task with committed, checked work waits as `awaiting_acceptance`. Your yes closes it.
 
 One task id links the plan to the commit. An illustration, not a measurement:
 
@@ -170,18 +172,21 @@ agy plugin install <path-to-clone>/foreman
 
 | Limit | What it means for you |
 | --- | --- |
-| Built for one developer | Foreman is no team tracker, code-review service, unattended scheduler or workflow server. Your project keeps its own data, and Foreman needs no server or account. |
-| Antigravity installs | Install only from a Foundry copy. A direct clone of the Foreman repository can hold unreleased work. The install is a copy, so it changes only when you install again. |
+| Built for one developer | Foreman is no team tracker, scheduler or workflow server. It needs no server or account. |
+| Antigravity installs | Install only from a Foundry copy. The install changes only when you install again. |
 | Hand edits | A hook stops the assistant's file-editing tools from changing `ROADMAP.jsonl`. A shell command is not stopped on any host. |
-| Cost of a pick | **Fast pick**, the default, reads no code and still adds roughly 10,000 to 16,000 tokens, depending on the host. **Reconcile and pick** reads your code first, so it always costs more. Foreman never starts it on its own. |
+| Cost of a pick | **Fast pick**, the default, adds roughly 10,000 to 16,000 tokens. **Reconcile and pick** costs more. |
 | Switching between assistants | Every assistant reads the same files, so a project can move between them. Keep the files as they are and do not reinitialize. |
 | Copied prompts | A prompt carries the script paths of the install that crafted it. Craft it again in another assistant. |
 | Prompt file left behind | A copied prompt's file can stay in the project's `tmp/` folder. Move it out before a task runs. |
 | Hosts differ | Each host offers different events and tools. The task-end reminder and the roadmap pane do not exist on every host. |
 | Quiet failures | Foreman cannot tell when a host stops sending an event it relies on. Its automatic help goes quiet, and every command keeps working by hand. |
 | Codex on Windows | Git writes need your approval to leave the sandbox, and the `workspace-write` sandbox cannot write to `.git`. |
+| Codex subagent names | A subagent named `foreman` or `foreman_…` is refused unless it is `foreman_<id>` of a roadmap entry. |
+| Codex trust entries | Removing the plugin leaves its hook trust entries in `config.toml`. |
 | Codex, unverified | Several Codex paths were never run live, such as a full reviewed-increment handoff, the app on macOS, and Codex on Linux or macOS. |
-| Antigravity | Four actions were checked live in `agy` 1.2.9 on Windows. Other hook behavior rests on the host's documentation and the test suite. |
+| Antigravity | Four actions were checked live in Antigravity on Windows. After a commit, Foreman's words reach only the next model call. |
+| Antigravity from Claude Code | Started from a Claude Code shell, it counts as Claude Code. |
 
 [Foreman limits](docs/knowledge/limits.md) states each one in full.
 
@@ -194,7 +199,7 @@ agy plugin install <path-to-clone>/foreman
 
 ## The numbers
 
-Each figure comes from recorded test sessions. The figures describe those runs, not yours, and results vary between runs.
+Each figure comes from recorded test sessions. The figures describe those runs, not yours, and results vary between runs. The run gave two models the same tasks with Foreman and with a written task paragraph.
 
 ### Claude Code results
 
@@ -206,7 +211,7 @@ Each figure comes from recorded test sessions. The figures describe those runs, 
 | Claude Opus 5 | Written task paragraph | 100% | $0.1627 |
 | Claude Opus 5 | Foreman | 100% | $0.1746 |
 
-The run is from 2026-08-29. Neither the sample size nor the Foreman revision was recorded. The figures describe that run only. They are not a claim about the current release or another model, and the current release has no separate measurement.
+The run is from 2026-08-29. Neither the sample size nor the Foreman revision was recorded. The current release has no separate measurement.
 
 **Foreman cost more.** It tied on correctness and added 8.3% on Sonnet and 7.3% on Opus.
 
@@ -224,7 +229,7 @@ The run is from 2026-08-29. Neither the sample size nor the Foreman revision was
 | --- | --- | --- | --- |
 | Not measured | Not measured | Not measured | Not measured |
 
-No Codex session has been measured yet. Codex functional tests establish specific behaviors, not a speed, cost or correctness advantage. No Claude Code result stands in for it.
+No Codex session has been measured yet. No Claude Code result stands in for it.
 
 ### Antigravity results
 

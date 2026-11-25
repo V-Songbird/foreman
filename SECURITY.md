@@ -12,5 +12,7 @@ Please include:
 
 You can expect an acknowledgement within 7 days.
 
+The [releases page](https://github.com/V-Songbird/foreman/releases) lists every version with its release notes.
+
 > [!NOTE]
 > This plugin runs code on your machine, including hooks and helper scripts. Reporting problems privately first gives us time to fix them before others can take advantage of them. Thank you for helping keep users safe.
